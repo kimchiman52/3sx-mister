@@ -322,7 +322,7 @@ async function main() {
         fs.rmSync(ROOT, { recursive: true, force: true });
     } catch (_) {}
     if (exitCode === 0) console.log('background test passed');
-    setTimeout(() => process.exit(exitCode), 50).unref();
+    setTimeout(() => process.exit(exitCode), 50);
 }
 
 main();

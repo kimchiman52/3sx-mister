@@ -375,7 +375,7 @@ async function main() {
     for (const job of cm._jobs.values()) { try { if (job.dlProc) job.dlProc.kill('SIGKILL'); if (job.runnerProc) job.runnerProc.kill('SIGKILL'); } catch (_) {} }
     try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch (_) {}
     if (exitCode === 0) console.log('store-evict test passed');
-    setTimeout(() => process.exit(exitCode), 50).unref();
+    setTimeout(() => process.exit(exitCode), 50);
 }
 
 main();

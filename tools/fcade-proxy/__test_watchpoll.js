@@ -763,11 +763,14 @@ async function main() {
         exitCode = 1;
     }
     try {
-        // [task #18] Pass the real exitCode through: shutdown()'s
+        // [task #18/#98] Pass the real exitCode through: shutdown()'s
         // server.close() callback used to call process.exit(0)
         // unconditionally and won the race against the fallback exit below,
         // silently discarding a failing exitCode (exit-0 masking). See
-        // fcade-proxy.js's shutdown() for the mechanism.
+        // fcade-proxy.js's shutdown() for the mechanism. Tasks #18 and #98
+        // made this identical one-line change independently; #18 additionally
+        // de-unref()'d the trailing timer below, so #18's version is the
+        // superset kept here.
         handle._shutdown && handle._shutdown('test-end', exitCode);
     } catch (_) {}
     try {
