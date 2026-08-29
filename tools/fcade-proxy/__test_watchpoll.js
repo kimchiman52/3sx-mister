@@ -197,14 +197,32 @@ function finalize(reason){
 }
 const donePath = inputsPath + '.done';
 let idle = 0;
+// [task #18, flake fix] By the time this mock runner's tail-follow starts,
+// the mock downloader has ALWAYS already written its whole inputs file (the
+// downloader is not paced against the runner at all for the default/"watch"
+// quark -- only the "slow"/"killmid" quarks dribble input on purpose). An
+// unbounded drain here would let the FIRST pump() tick consume every
+// buffered record in one synchronous burst -- prefix, all ~6000 game
+// frames, and the full checksum table -- before finalizing on that SAME
+// tick. That collapsed the "checksums visible while still converting"
+// window this file's live-watch test asserts on down to a coin flip against
+// this process's own scheduling jitter (reproduced directly: 11/20 runs
+// failed "checksum entries streamed BEFORE done" with no code change other
+// than this cap). Capping how many records one tick may consume forces
+// multiple 25 ms-spaced ticks over any input long enough to cross a
+// checksum boundary (CHECKSUM_INTERVAL=60 frames), so at least one poll
+// reliably lands on a "still converting, checksums non-empty" state.
+const MAX_RECORDS_PER_TICK = 200;
 function pump(){
   let data = Buffer.alloc(0);
   try { data = fs.readFileSync(inputsPath); } catch (e) {}
   let advanced = false;
-  while ((processed + 1) * 10 <= data.length) {
+  let consumedThisTick = 0;
+  while ((processed + 1) * 10 <= data.length && consumedThisTick < MAX_RECORDS_PER_TICK) {
     const rec = data.subarray(processed * 10, processed * 10 + 10);
     processRecord(rec);
     processed++;
+    consumedThisTick++;
     advanced = true;
   }
   if (advanced) idle = 0;
