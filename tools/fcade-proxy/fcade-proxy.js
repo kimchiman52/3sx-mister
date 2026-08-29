@@ -3235,16 +3235,28 @@ function start(port) {
     });
 
     let shuttingDown = false;
-    function shutdown(reason) {
+    // [task #18] `exitCode` defaults to 0 so the production SIGTERM/SIGINT
+    // call sites below are unchanged (a graceful stop of the long-running
+    // service always exits 0). Test harnesses that share this module via
+    // `start()` (see __test_watchpoll.js) call shutdown(reason, exitCode)
+    // with their own computed pass/fail code -- without this parameter,
+    // server.close()'s callback below unconditionally called process.exit(0)
+    // and won by racing (and normally beating) the test's own trailing
+    // process.exit(exitCode), discarding a correctly-computed failing exit
+    // code. That was real exit-0 masking, not a hypothetical: reproduced by
+    // running __test_watchpoll.js, which printed "2 assertion(s) failed" and
+    // still exited 0.
+    function shutdown(reason, exitCode) {
         if (shuttingDown) return;
         shuttingDown = true;
+        const code = typeof exitCode === 'number' ? exitCode : 0;
         logInfo(`shutting down (${reason})`);
         try {
-            server.close(() => process.exit(0));
+            server.close(() => process.exit(code));
         } catch (_) {
-            process.exit(0);
+            process.exit(code);
         }
-        setTimeout(() => process.exit(0), 1000).unref();
+        setTimeout(() => process.exit(code), 1000).unref();
     }
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));
