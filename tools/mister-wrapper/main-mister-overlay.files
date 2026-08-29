@@ -7,6 +7,8 @@ input.h
 mister_joy_shm.h
 replay_proxy.c
 replay_proxy.h
+replay_sync.c
+replay_sync.h
 thirdsarm_core_context.cpp
 thirdsarm_core_context.h
 thirdsarm_main.cpp

@@ -243,10 +243,23 @@ Notes:
   replay browser was removed; the directory itself and its layout are
   unchanged, so an existing replay root needs no migration — only the key
   name in `config.txt` changes.
-- The MiSTer OSD Replay menu in the HPS wrapper does **not** read this key.
-  It carries its own hardcoded copy of the MiSTer path (`REPLAY_LOCAL_ROOT`),
-  so the two must be kept in step if the default ever moves.
+- The HPS wrapper reads this key out of the same on-device config file
+  (`RpReplaysRootLoadFrom()` in `vendor/Main_MiSTer/replay_proxy.c`): its
+  `replay_sync` module is what fetches the weekly-best set into this
+  directory. It holds no hardcoded copy of the path — the retired OSD
+  browser's `REPLAY_LOCAL_ROOT` literal went away with the browser — only a
+  fallback for the case where the config file has never been written.
 - Also read by the `replays-max-mb` eviction sweep below.
+- The HPS wrapper writes one bookkeeping file of its own into this
+  directory: `manifest.json`, listing the quarkids of the current
+  weekly-best set plus the `fetched_at` ms-epoch stamp of the fetch that
+  produced it. It is not a replay and the viewer's scan ignores it.
+  Operator use: `cat <replays-root>/manifest.json` on the device answers
+  "did today's refresh run, and what did it pull?" without reading a log —
+  a `fetched_at` older than the most recent 09:00 UTC is exactly what makes
+  the wrapper start another refresh. `complete: false` means the set is
+  partial (a search page or some fetches failed); the viewer plays what
+  landed regardless.
 
 ### `replays-max-mb`
 
@@ -288,22 +301,22 @@ Defaults:
 - `replay-proxy-port`: `3479` (the proxy's default port)
 
 Notes:
-- **The game does not read these keys.** The consumer is the MiSTer OSD
-  Replay menu in the HPS wrapper, which parses them out of the on-device
-  config file (`RpConfigLoadFrom()` in `vendor/Main_MiSTer/replay_proxy.c`).
-  The game's only role is that its config defaults table is what seeds the
-  file, so the two rows must stay in `src/port/config/config.c` even though
-  nothing under `src/` reads them.
-- The in-game REMOTE browse tab that once used these is gone with the
-  in-game browser; remote search now lives entirely in the OSD menu.
-- Selecting a remote result downloads the **raw** Fightcade stream
-  (`inputs`/`savestate`/`frames.bin`/`summary.json`) into
-  `<replays-root>/<quarkid>/`. Because on-device conversion is a NO-GO
-  (Step B3), the downloaded dir is **not playable as-is**. Convert it
-  off-device (`tools/replay_preprocessor.py` +
-  `tools/fcade-replays/make_3sr.py`) into a `.3sr` and push that back to the
-  root — see the runbook's Replays section.
-- Each completed download runs the `replays-max-mb` eviction sweep (above).
+- **The game does not read these keys.** The consumer is the HPS wrapper's
+  `replay_sync` module, which parses them out of the on-device config file
+  (`RpConfigLoadFrom()` in `vendor/Main_MiSTer/replay_proxy.c`) to decide
+  whether the daily weekly-best refresh may run at all — an empty host means
+  no refresh, and the device plays only what is already cached. The game's
+  only role is that its config defaults table is what seeds the file, so the
+  two rows must stay in `src/port/config/config.c` even though nothing under
+  `src/` reads them.
+- Both the in-game REMOTE browse tab and the OSD replay menu that once used
+  these keys are gone; nothing on the device browses Fightcade interactively
+  any more. The only remaining consumer is the unattended daily refresh.
+- Nothing raw is downloaded. The refresh asks the proxy for **already
+  converted** blobs (`get3sr`) and writes exactly two files per game,
+  `<replays-root>/<quarkid>/game_N.3sr` and its `game_N.meta.json` sidecar,
+  both playable as-is. Conversion happens off-device on the VPS
+  (`tools/fcade-replays/`) — on-device conversion remains a NO-GO.
 
 ### `video-driver-order`
 

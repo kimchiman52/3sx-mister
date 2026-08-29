@@ -240,6 +240,25 @@ bool RpConfigLoadFrom(const char* config_path, RpProxyConfig* out);
  * path (/media/fat/games/3s-arm/config). */
 bool RpConfigLoad(RpProxyConfig* out);
 
+/* Sibling accessor for the game's `replays-root` key, read out of the SAME
+ * config file and with the same parser. It is a separate call rather than a
+ * third field on RpProxyConfig because the replays root is not proxy
+ * configuration — the OSD's proxy plumbing has no use for it, and replay_sync
+ * needs it whether or not a proxy is configured.
+ *
+ * `out` is ALWAYS fully written: the MiSTer default
+ * (/media/fat/games/3s-arm/replays, matching DEFAULT_REPLAYS_ROOT for
+ * PORT_MISTER in src/port/config/config.c) is written first and only then
+ * overwritten by an explicit key. There is deliberately NO hardcoded copy of
+ * this path anywhere else in the wrapper: the retired OSD browser carried one
+ * (REPLAY_LOCAL_ROOT) that had to be kept in step with the game by hand, and
+ * reading the key is what replaced it. Returns true if the file was opened. */
+bool RpReplaysRootLoadFrom(const char* config_path, char* out, size_t out_sz);
+
+/* Convenience: RpReplaysRootLoadFrom() against the canonical on-device game
+ * config path. */
+bool RpReplaysRoot(char* out, size_t out_sz);
+
 #ifdef __cplusplus
 }
 #endif

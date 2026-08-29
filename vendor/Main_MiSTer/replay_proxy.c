@@ -40,6 +40,13 @@
 /* Canonical on-device game config path (kRuntimeHome/config in the wrapper). */
 #define RP_CONFIG_PATH "/media/fat/games/3s-arm/config"
 
+/* Fallback for `replays-root` when the config file is missing or the key is
+ * absent. Mirrors DEFAULT_REPLAYS_ROOT for PORT_MISTER (src/port/config/
+ * config.c) — the game writes that same value into the config file on a
+ * no-config boot, so the two only differ in the window before the game has ever
+ * run. */
+#define RP_DEFAULT_REPLAYS_ROOT "/media/fat/games/3s-arm/replays"
+
 /* ---- libc string helper (strlcpy without a glibc-2.38 dependency, matching
  * replay_scan.c's rb_strlcpy) ---------------------------------------------- */
 
@@ -1248,4 +1255,50 @@ bool RpConfigLoadFrom(const char* config_path, RpProxyConfig* out) {
 
 bool RpConfigLoad(RpProxyConfig* out) {
     return RpConfigLoadFrom(RP_CONFIG_PATH, out);
+}
+
+/* Same file, same INI shape, same trim/casecmp helpers as RpConfigLoadFrom —
+ * see the header for why `replays-root` gets its own accessor instead of a
+ * third RpProxyConfig field. */
+bool RpReplaysRootLoadFrom(const char* config_path, char* out, size_t out_sz) {
+    if (out == NULL || out_sz == 0)
+        return false;
+    rp_strlcpy(out, RP_DEFAULT_REPLAYS_ROOT, out_sz);
+
+    if (config_path == NULL)
+        return false;
+
+    FILE* f = fopen(config_path, "r");
+    if (f == NULL)
+        return false;
+
+    char line[512];
+    while (fgets(line, sizeof(line), f)) {
+        char* cursor = line;
+        while (*cursor == ' ' || *cursor == '\t')
+            cursor++;
+        if (*cursor == '\0' || *cursor == '#' || *cursor == '\n' || *cursor == '\r')
+            continue;
+
+        char* equals = strchr(cursor, '=');
+        if (equals == NULL)
+            continue;
+        *equals = '\0';
+        char* key = cursor;
+        char* val = equals + 1;
+        rp_trim(key);
+        rp_trim(val);
+        if (key[0] == '\0')
+            continue;
+
+        if (ascii_casecmp(key, "replays-root") == 0 && val[0] != '\0')
+            rp_strlcpy(out, val, out_sz);
+    }
+
+    fclose(f);
+    return true;
+}
+
+bool RpReplaysRoot(char* out, size_t out_sz) {
+    return RpReplaysRootLoadFrom(RP_CONFIG_PATH, out, out_sz);
 }

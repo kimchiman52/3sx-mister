@@ -68,9 +68,9 @@ typedef struct ConfigEntry {
 /* Root of the cached `.3sr` replay set (CFG_KEY_REPLAYS_ROOT). The common-case
  * literal per platform. See docs/config.md.
  *
- * KEEP IN STEP with the HPS OSD wrapper's own hardcoded REPLAY_LOCAL_ROOT
- * literal (tools/mister-wrapper/main-mister-full-menu.patch) — the wrapper
- * does not read this key, it carries its own copy of the MiSTer path. */
+ * The HPS wrapper reads the key from the config file this table seeds
+ * (RpReplaysRootLoadFrom(), vendor/Main_MiSTer/replay_proxy.c) rather than
+ * carrying its own copy of the path, so there is nothing to keep in step. */
 #if defined(PORT_MISTER)
 #define DEFAULT_REPLAYS_ROOT "/media/fat/games/3s-arm/replays"
 #elif defined(PORT_MIYOO_MINI_PLUS)

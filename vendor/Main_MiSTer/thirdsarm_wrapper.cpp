@@ -33,6 +33,7 @@
 #include "audio.h"
 #include "osd.h"
 #include "menu.h"
+#include "replay_sync.h"
 #include "support/arcade/mra_loader.h"
 #include "thirdsarm_core_context.h"
 #include "user_io.h"
@@ -2681,6 +2682,16 @@ int wait_for_child(pid_t child, bool service_ui)
 		}
 
 		poll_status_changes(child);
+		// Weekly-best replay set refresh. Non-blocking and internally
+		// rate-limited: it decides on its own whether anything is due, and
+		// drains replay_proxy's async search/get3sr slots across successive
+		// iterations of this loop. Nothing here is on the video path.
+		//
+		// Only reached when service_ui is true. In `forced` mode waitpid()
+		// blocks above and this whole block is skipped, so no refresh happens
+		// on a forced/probe launch -- that is fine: the refresh is a daily
+		// background chore, not a launch prerequisite.
+		ReplaySyncTick();
 		HandleUI();
 		OsdUpdate();
 

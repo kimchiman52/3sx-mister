@@ -146,10 +146,13 @@
  * in-game browser was cut; the shuffle viewer that replaces it enumerates
  * the same directory. The default lives in config.c (DEFAULT_REPLAYS_ROOT).
  *
- * KEEP IN STEP: the HPS OSD wrapper has its own hardcoded copy of this path
- * (REPLAY_LOCAL_ROOT in tools/mister-wrapper/main-mister-full-menu.patch).
- * Changing the MiSTer value here without changing that literal silently
- * splits the game and the OSD onto two different replay directories. */
+ * The HPS wrapper reads this key too, out of the same on-device config file
+ * (RpReplaysRootLoadFrom() in vendor/Main_MiSTer/replay_proxy.c), because
+ * replay_sync.c is what fills the directory the viewer plays from. It no
+ * longer carries a hardcoded copy of the path: the retired OSD browser's
+ * REPLAY_LOCAL_ROOT literal, which had to be kept in step with this default
+ * by hand, was deleted with it. The wrapper's only fallback is
+ * RP_DEFAULT_REPLAYS_ROOT, used when this file has never been written. */
 #define CFG_KEY_REPLAYS_ROOT "replays-root"
 
 /* Replay storage lifecycle (docs/plan-fcade-replay-browser.md Step F4/Step 3).
