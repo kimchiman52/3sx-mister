@@ -3235,17 +3235,27 @@ function start(port) {
     });
 
     let shuttingDown = false;
-    // [task #18] `exitCode` defaults to 0 so the production SIGTERM/SIGINT
-    // call sites below are unchanged (a graceful stop of the long-running
-    // service always exits 0). Test harnesses that share this module via
-    // `start()` (see __test_watchpoll.js) call shutdown(reason, exitCode)
-    // with their own computed pass/fail code -- without this parameter,
-    // server.close()'s callback below unconditionally called process.exit(0)
-    // and won by racing (and normally beating) the test's own trailing
-    // process.exit(exitCode), discarding a correctly-computed failing exit
-    // code. That was real exit-0 masking, not a hypothetical: reproduced by
-    // running __test_watchpoll.js, which printed "2 assertion(s) failed" and
-    // still exited 0.
+    // [task #18/#97, reconciled in #99] `exitCode` defaults to 0 so the
+    // production SIGTERM/SIGINT call sites below are unchanged (a graceful stop
+    // of the long-running service always exits 0). Test harnesses that share
+    // this module via `start()`
+    // (__test_watchpoll/_protocol/_catalog/_observability/_worklease) call
+    // shutdown(reason, exitCode) with their own computed pass/fail code --
+    // without this parameter, server.close()'s callback below unconditionally
+    // called process.exit(0) and won by racing (and normally beating) the
+    // harness's own trailing process.exit(exitCode), discarding a
+    // correctly-computed failing exit code.
+    //
+    // That was real exit-0 masking, not a hypothetical, and was reproduced
+    // twice independently: task #18 ran __test_watchpoll.js unmodified and saw
+    // it print "2 assertion(s) failed" while still exiting 0; task #97 injected
+    // one always-false assertion into each of the other four harnesses and saw
+    // all four print "1 assertion(s) failed" while still exiting 0.
+    //
+    // Tasks #18 and #97 wrote this same fix independently (neither branch could
+    // see the other). Task #99 consolidated them and verified the two versions
+    // were byte-identical below this comment -- the conflict was in the comment
+    // text only, so no behavioral choice between the two was required.
     function shutdown(reason, exitCode) {
         if (shuttingDown) return;
         shuttingDown = true;

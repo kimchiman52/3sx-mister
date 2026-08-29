@@ -389,10 +389,17 @@ async function main() {
     if (failed > 0) { console.error(`${failed} assertion(s) failed`); exitCode = 1; }
     // Kill any residual mock convert procs.
     for (const job of cm._jobs.values()) { try { if (job.dlProc) job.dlProc.kill('SIGKILL'); if (job.runnerProc) job.runnerProc.kill('SIGKILL'); } catch (_) {} }
-    try { handle._shutdown && handle._shutdown('test-end'); } catch (_) {}
+    // [task #97] Pass the real exitCode through: shutdown()'s server.close()
+    // callback used to call process.exit(0) unconditionally and won the race
+    // against the fallback exit below, silently discarding a failing exitCode
+    // (exit-0 masking). See fcade-proxy.js's shutdown() for the mechanism.
+    try { handle._shutdown && handle._shutdown('test-end', exitCode); } catch (_) {}
     try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch (_) {}
     if (exitCode === 0) console.log('worklease test passed');
-    setTimeout(() => process.exit(exitCode), 50).unref();
+    // Not unref()'d: this is the last-resort guarantee that the process
+    // exits with the real code even if shutdown() above never calls back
+    // (e.g. server.close() hangs). Bounded at 50 ms, test-only.
+    setTimeout(() => process.exit(exitCode), 50);
 }
 
 main();

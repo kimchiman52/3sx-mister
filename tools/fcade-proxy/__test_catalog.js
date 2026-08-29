@@ -581,7 +581,12 @@ async function main() {
     }
 
     try {
-        handle._shutdown && handle._shutdown('test-end');
+        // [task #97] Pass the real exitCode through: shutdown()'s
+        // server.close() callback used to call process.exit(0)
+        // unconditionally and won the race against the fallback exit below,
+        // silently discarding a failing exitCode (exit-0 masking). See
+        // fcade-proxy.js's shutdown() for the mechanism.
+        handle._shutdown && handle._shutdown('test-end', exitCode);
     } catch (_) {
         // ignore
     }
@@ -594,7 +599,10 @@ async function main() {
     if (exitCode === 0) {
         console.log('catalog test passed');
     }
-    setTimeout(() => process.exit(exitCode), 50).unref();
+    // Not unref()'d: this is the last-resort guarantee that the process
+    // exits with the real code even if shutdown() above never calls back
+    // (e.g. server.close() hangs). Bounded at 50 ms, test-only.
+    setTimeout(() => process.exit(exitCode), 50);
 }
 
 main();
