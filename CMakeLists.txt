@@ -757,6 +757,18 @@ if(APPLE)
         BUNDLE DESTINATION .
     )
 
+    # Task #157 parity with the Windows and Linux branches below, both of
+    # which install the launcher alongside the game. Contents/MacOS is the
+    # only directory in which the launcher's own INSTALL_RPATH
+    # (@executable_path/../Frameworks) reaches the Frameworks directory
+    # libSDL3.0.dylib is staged into, and it puts the launcher beside the
+    # game whose netplay.status it reads.
+    if(TARGET 3s-netplay-launcher)
+        install(TARGETS 3s-netplay-launcher
+            RUNTIME DESTINATION 3S-ARM.app/Contents/MacOS
+        )
+    endif()
+
     if(ENABLE_FFMPEG_ADX)
         file(GLOB FFMPEG_DYLIBS "${FFMPEG_ROOT}/lib/*.dylib")
         install(FILES ${FFMPEG_DYLIBS} DESTINATION 3S-ARM.app/Contents/Frameworks)
@@ -771,6 +783,172 @@ if(APPLE)
         ${PROJECT_LICENSE_FILES}
         DESTINATION 3S-ARM.app/Contents/Resources/licenses
     )
+
+    # ------------------------------------------------------------------
+    # Self-containment sweep for the installed .app.
+    #
+    # SDL3 and FFmpeg are vendored under third_party/ and built with
+    # @rpath install names, so the install(FILES) rules above plus the
+    # targets' INSTALL_RPATH are all they need. A dependency resolved
+    # through pkg-config is a different story: Homebrew's miniupnpc bakes
+    # an absolute LC_ID_DYLIB into the dylib, the linker copies that
+    # verbatim into the game's LC_LOAD_DYLIB, and the shipped bundle then
+    # only runs on a machine that has that exact path on disk. The UNIX
+    # branch below already stages libminiupnpc.so* next to libSDL3.so*;
+    # this is the macOS counterpart plus the step Linux does not need —
+    # rewriting the referring load command, because copying a dylib into
+    # the bundle does not change the name the referrer asks dyld for.
+    #
+    # Deliberately not keyed on miniupnpc. The sweep reads the installed
+    # binaries' own load commands and relocates every absolute dependency
+    # that is not a macOS system library, so the next non-vendored
+    # dependency someone links is covered without editing this block, and
+    # nothing here hardcodes a Homebrew prefix or a soversion.
+    #
+    # BundleUtilities' fixup_bundle() was the considered alternative and
+    # was rejected: it re-resolves and rewrites the SDL3/FFmpeg @rpath
+    # entries that already work today (a larger blast radius than the
+    # defect), it wants a plugin list and a directory search path this
+    # project has no need for, and its result is harder to assert on than
+    # `otool -L` output. The scan below is the same idea narrowed to the
+    # binaries actually shipped and to references that are provably broken
+    # off the build machine.
+    # ------------------------------------------------------------------
+    find_program(OTOOL_EXECUTABLE otool REQUIRED)
+    find_program(INSTALL_NAME_TOOL_EXECUTABLE install_name_tool REQUIRED)
+    find_program(CODESIGN_EXECUTABLE codesign REQUIRED)
+
+    install(CODE "set(_3sx_otool [[${OTOOL_EXECUTABLE}]])")
+    install(CODE "set(_3sx_install_name_tool [[${INSTALL_NAME_TOOL_EXECUTABLE}]])")
+    install(CODE "set(_3sx_codesign [[${CODESIGN_EXECUTABLE}]])")
+    install(CODE [[
+        string(ASCII 10 _3sx_nl)
+
+        set(_3sx_app "${CMAKE_INSTALL_PREFIX}/3S-ARM.app")
+        set(_3sx_frameworks "${_3sx_app}/Contents/Frameworks")
+
+        # `otool -L` prints one "<install name> (compatibility version ...)"
+        # line per LC_LOAD_DYLIB under a "<file>:" header. For a dylib the
+        # first of those is its own LC_ID_DYLIB, which `otool -D` reports
+        # separately so it can be filtered back out.
+        function(_3sx_load_commands _bin _out)
+            execute_process(COMMAND "${_3sx_otool}" -D "${_bin}"
+                OUTPUT_VARIABLE _id
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                COMMAND_ERROR_IS_FATAL ANY
+            )
+            string(REPLACE "${_3sx_nl}" ";" _id_lines "${_id}")
+            list(GET _id_lines -1 _self)
+            string(STRIP "${_self}" _self)
+
+            execute_process(COMMAND "${_3sx_otool}" -L "${_bin}"
+                OUTPUT_VARIABLE _listing
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                COMMAND_ERROR_IS_FATAL ANY
+            )
+            string(REPLACE "${_3sx_nl}" ";" _lines "${_listing}")
+
+            set(_found "")
+            foreach(_line IN LISTS _lines)
+                string(FIND "${_line}" " (compatibility version" _cut)
+                if(_cut EQUAL -1)
+                    continue()   # the "<file>:" header, or a blank line
+                endif()
+                string(SUBSTRING "${_line}" 0 ${_cut} _name)
+                string(STRIP "${_name}" _name)
+                if(_name STREQUAL _self)
+                    continue()
+                endif()
+                list(APPEND _found "${_name}")
+            endforeach()
+            set(${_out} "${_found}" PARENT_SCOPE)
+        endfunction()
+
+        file(GLOB _3sx_queue "${_3sx_app}/Contents/MacOS/*")
+        set(_3sx_seen "")
+        set(_3sx_modified "")
+
+        while(_3sx_queue)
+            list(POP_FRONT _3sx_queue _3sx_bin)
+            if("${_3sx_bin}" IN_LIST _3sx_seen)
+                continue()
+            endif()
+            list(APPEND _3sx_seen "${_3sx_bin}")
+
+            _3sx_load_commands("${_3sx_bin}" _3sx_deps)
+            foreach(_dep IN LISTS _3sx_deps)
+                # @rpath / @loader_path / @executable_path already resolve
+                # inside the bundle; /usr/lib and /System are the OS and are
+                # present on every Mac.
+                if(NOT _dep MATCHES "^/")
+                    continue()
+                endif()
+                if(_dep MATCHES "^/usr/lib/" OR _dep MATCHES "^/System/")
+                    continue()
+                endif()
+
+                get_filename_component(_base "${_dep}" NAME)
+                set(_staged "${_3sx_frameworks}/${_base}")
+
+                if(NOT EXISTS "${_staged}")
+                    if(NOT EXISTS "${_dep}")
+                        message(FATAL_ERROR
+                            "${_3sx_bin} loads ${_dep}, which is not on this machine")
+                    endif()
+                    file(INSTALL
+                        DESTINATION "${_3sx_frameworks}"
+                        TYPE SHARED_LIBRARY
+                        FOLLOW_SYMLINK_CHAIN
+                        FILES "${_dep}"
+                    )
+                    # Homebrew ships its dylibs read-only; install_name_tool
+                    # rewrites in place and needs write permission.
+                    file(CHMOD "${_staged}"
+                        PERMISSIONS
+                            OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                            GROUP_READ GROUP_EXECUTE
+                            WORLD_READ WORLD_EXECUTE
+                    )
+                    execute_process(
+                        COMMAND "${_3sx_install_name_tool}"
+                                -id "@rpath/${_base}" "${_staged}"
+                        COMMAND_ERROR_IS_FATAL ANY
+                    )
+                    list(APPEND _3sx_modified "${_staged}")
+                    # Whatever the staged dylib itself loads has to come
+                    # along too, or the bundle is self-contained by one
+                    # level only.
+                    list(APPEND _3sx_queue "${_staged}")
+                endif()
+
+                message(STATUS "Bundled ${_base}: ${_3sx_bin} now loads @rpath/${_base}")
+                execute_process(
+                    COMMAND "${_3sx_install_name_tool}"
+                            -change "${_dep}" "@rpath/${_base}" "${_3sx_bin}"
+                    COMMAND_ERROR_IS_FATAL ANY
+                )
+                list(APPEND _3sx_modified "${_3sx_bin}")
+            endforeach()
+        endwhile()
+
+        # Editing a Mach-O load command invalidates the code signature over
+        # it. install_name_tool regenerates the ad-hoc signature the linker
+        # put on our own binaries, but it cannot regenerate the one Homebrew
+        # ships on libminiupnpc.21.dylib -- it prints "changes being made to
+        # the file will invalidate the code signature" and leaves it broken.
+        # On Apple silicon a broken signature is not cosmetic: dyld SIGKILLs
+        # the process before main(), with no diagnostic on stderr at all
+        # (observed: exit 137, zero output). Re-sign ad-hoc, which is the
+        # same signature class the unsigned .app already ships with.
+        list(REMOVE_DUPLICATES _3sx_modified)
+        foreach(_bin IN LISTS _3sx_modified)
+            execute_process(
+                COMMAND "${_3sx_codesign}" --force --sign - "${_bin}"
+                OUTPUT_QUIET ERROR_QUIET
+                COMMAND_ERROR_IS_FATAL ANY
+            )
+        endforeach()
+    ]])
 elseif(WIN32)
     install(TARGETS 3s-arm
         RUNTIME_DEPENDENCY_SET deps
