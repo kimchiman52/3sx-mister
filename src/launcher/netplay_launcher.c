@@ -307,7 +307,14 @@ static bool find_game_binary(int argc, char** argv) {
     if (base == NULL) {
         base = "";
     }
+    /* On macOS the launcher IS 3S-ARM.app's CFBundleExecutable, so
+     * double-clicking the app opens this window and the game binary is the
+     * file sitting beside us in Contents/MacOS. SDL_GetBasePath() inside a
+     * bundle is Contents/Resources (the default the game relies on to find
+     * a romset and SF33RD.AFS dropped into the app), hence the hop up and
+     * across rather than a plain sibling name. */
     static const char* const candidates[] = {
+        "../MacOS/3S-ARM",                  /* macOS, inside our own bundle */
         "3S-ARM.app/Contents/MacOS/3S-ARM", /* macOS bundle next to us */
         "3s-arm",                           /* Linux */
         "3s-arm.exe",                       /* Windows */
@@ -370,6 +377,19 @@ static bool spawn_game(const char* const* extra, int nextra) {
 
 /* ---------------------------------------------------------------------- */
 /* Mode wiring. */
+
+/* Offline play: the double-click-the-game path verbatim. No handoff file
+ * and no arguments, because there is no second player to agree with about
+ * anything. It matters on macOS, where this launcher is 3S-ARM.app's
+ * CFBundleExecutable and is therefore the only thing opening the app can
+ * reach — without it there would be no way to just play. */
+static bool start_play(void) {
+    const bool ok = spawn_game(NULL, 0);
+    if (ok) {
+        set_msg(COL_TEXT, "Game starting...", NULL);
+    }
+    return ok;
+}
 
 static bool start_host(void) {
     /* #157 review P-2: the refusal must come BEFORE the clear. Clearing first
@@ -599,13 +619,23 @@ static void render_msg(float y) {
 }
 
 static void screen_menu(void) {
-    draw_text_centered(WIN_W / 2.0f, 48, 3.0f, COL_ACCENT, "3S NETPLAY", TEXT_MAX_W);
-    draw_text_centered(WIN_W / 2.0f, 84, 1.0f, COL_DIM, "host or join a match without editing files", TEXT_MAX_W);
+    draw_text_centered(WIN_W / 2.0f, 36, 3.0f, COL_ACCENT, "3S NETPLAY", TEXT_MAX_W);
+    draw_text_centered(WIN_W / 2.0f, 68, 1.0f, COL_DIM,
+                       "play offline, or host and join a match without editing files", TEXT_MAX_W);
 
-    const Button b_host = { { 170, 140, 300, 52 }, "HOST A GAME" };
-    const Button b_join = { { 170, 210, 300, 52 }, "JOIN WITH A CODE" };
-    const Button b_lan = { { 170, 280, 300, 52 }, "LAN GAME" };
+    /* PLAY leads because on macOS this window is what opening 3S-ARM.app
+     * gets you, so the launcher has to serve the player who never wanted
+     * netplay at all. It is the double-click-the-game path verbatim: no
+     * handoff file, no extra arguments, nothing to display afterwards
+     * beyond the process line render_child_state() already draws. */
+    const Button b_play = { { 170, 92, 300, 52 }, "PLAY" };
+    const Button b_host = { { 170, 156, 300, 52 }, "HOST A GAME" };
+    const Button b_join = { { 170, 220, 300, 52 }, "JOIN WITH A CODE" };
+    const Button b_lan = { { 170, 284, 300, 52 }, "LAN GAME" };
 
+    if (button(&b_play)) {
+        start_play();
+    }
     if (button(&b_host)) {
         enter_screen(SCREEN_HOST);
         start_host();
@@ -1073,9 +1103,11 @@ int main(int argc, char** argv) {
 
     /* Optional auto-start flags — the button actions, triggerable from
      * the command line (scripting / testing; the UI stays up either
-     * way): --host, --join <code>, --lan <ip> <player 1|2>, --keys. */
+     * way): --play, --host, --join <code>, --lan <ip> <player 1|2>, --keys. */
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--keys") == 0) {
+        if (strcmp(argv[i], "--play") == 0) {
+            start_play();
+        } else if (strcmp(argv[i], "--keys") == 0) {
             enter_screen(SCREEN_KEYS);
         } else if (strcmp(argv[i], "--host") == 0) {
             enter_screen(SCREEN_HOST);

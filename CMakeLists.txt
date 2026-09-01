@@ -725,7 +725,13 @@ if(ENABLE_NETPLAY AND NOT PORT_MISTER AND NOT PORT_MIYOO_MINI_PLUS AND NOT PORT_
         target_link_libraries(3s-netplay-launcher PRIVATE
             ${SDL3_ROOT}/lib/libSDL3.0.dylib
         )
+        # Named apart from the game binary it lands beside in
+        # Contents/MacOS, and matching cmake/Info.plist's CFBundleExecutable
+        # byte for byte -- that key is what makes opening 3S-ARM.app show
+        # this launcher rather than dropping the player straight into a
+        # match they have no way to configure.
         set_target_properties(3s-netplay-launcher PROPERTIES
+            OUTPUT_NAME "3S-ARM-Launcher"
             INSTALL_RPATH "@executable_path/../Frameworks;@executable_path"
         )
     elseif(WIN32)
@@ -757,12 +763,15 @@ if(APPLE)
         BUNDLE DESTINATION .
     )
 
-    # Task #157 parity with the Windows and Linux branches below, both of
-    # which install the launcher alongside the game. Contents/MacOS is the
-    # only directory in which the launcher's own INSTALL_RPATH
+    # Task #157. On Windows and Linux the launcher is a second file next to
+    # the game and double-clicking it works; a bare Mach-O has no such
+    # affordance, so here the launcher is instead the .app's
+    # CFBundleExecutable (cmake/Info.plist) and the game becomes the file it
+    # spawns. One bundle, one icon to double-click, and the tools that run
+    # Contents/MacOS/3S-ARM directly are untouched. Contents/MacOS is also
+    # the only directory in which the launcher's own INSTALL_RPATH
     # (@executable_path/../Frameworks) reaches the Frameworks directory
-    # libSDL3.0.dylib is staged into, and it puts the launcher beside the
-    # game whose netplay.status it reads.
+    # libSDL3.0.dylib is staged into.
     if(TARGET 3s-netplay-launcher)
         install(TARGETS 3s-netplay-launcher
             RUNTIME DESTINATION 3S-ARM.app/Contents/MacOS
