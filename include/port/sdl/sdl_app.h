@@ -34,6 +34,15 @@ bool SDLApp_IsArcadeGameMode(void);
  * run through the console menu chain regardless of the user's saved
  * preference. Does not persist across restarts. */
 void SDLApp_ForceConsoleGameMode(void);
+#if defined(DEBUG)
+/* Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): session-only
+ * arcade-mode force for raw fcade-stream playback under the DEBUG test
+ * runner — the Fightcade session ran the arcade program flow, so the
+ * stream's inputs are only meaningful against the arcade attract/char-
+ * select path. Mirrors SDLApp_ForceConsoleGameMode; never touches the
+ * on-disk config. DEBUG builds only. */
+void SDLApp_ForceArcadeGameMode(void);
+#endif
 void SDLApp_CycleHoldToPause(void);
 bool SDLApp_IsHoldToPauseEnabled(void);
 

@@ -205,6 +205,85 @@ Notes:
 - On MiSTer fbdev output, the overlay is drawn at the bottom-center of the active picture area so it stays away from overscan-prone corners.
 - The overlay is opt-in and uses a lightweight cached label update path instead of perf capture telemetry.
 
+### `replays-root`
+
+Directory holding the cached `.3sr` replay set. Both a flat layout and one
+level of subdirectories are supported. Each `<name>.3sr` may have a
+`<name>.meta.json` sidecar (player names + date) used for display labels; a
+missing or corrupt sidecar falls back to the filename.
+
+Defaults:
+- MiSTer builds: `/media/fat/games/3s-arm/replays`
+- Miyoo Mini Plus builds: `/mnt/SDCARD/Roms/PORTS/Games/3s-arm/replays`
+- Other builds: `./replays` (relative to the working directory)
+
+Notes:
+- Formerly `replay-browser-root`. It was renamed when the in-game pad-driven
+  replay browser was removed; the directory itself and its layout are
+  unchanged, so an existing replay root needs no migration — only the key
+  name in `config.txt` changes.
+- The MiSTer OSD Replay menu in the HPS wrapper does **not** read this key.
+  It carries its own hardcoded copy of the MiSTer path (`REPLAY_LOCAL_ROOT`),
+  so the two must be kept in step if the default ever moves.
+- Also read by the `replays-max-mb` eviction sweep below.
+
+### `replays-max-mb`
+
+Caps the total size, in megabytes, of raw Fightcade-fetch stream payloads
+(`frames.bin`, `inputs`, `savestate`, `summary.json` — the bulky per-replay
+files a fetch writes alongside its tiny `.3sr` + `.meta.json`) kept under
+`replays-root`. When the cap is exceeded, the oldest fetch directories
+(LRU by mtime) have their raw files evicted first, down to the cap or until
+every fetch directory has been swept.
+
+Defaults:
+- `200`
+
+Notes:
+- `0` disables eviction entirely (delete-only): raw files accumulate
+  unbounded until removed manually.
+- Eviction NEVER touches `.3sr` or `.meta.json` — only the four raw
+  basenames above, and only ones that pass path validation (realpath under
+  `replays-root`, and not a symlink — a symlinked entry is refused
+  outright, never followed). A fetch directory is only removed once it is
+  completely empty (its `.3sr`/`.meta.json`, if present, keep it around).
+- A per-directory "last used" timestamp is the max mtime among its present
+  raw files; directories are evicted oldest-timestamp-first.
+- The in-game caller that used to trigger this sweep was the pad-driven
+  replay browser, now removed. The storage module
+  (`src/replay/replay_storage.c`) is retained and unchanged; the replacement
+  shuffle viewer takes over as its caller.
+
+### `replay-proxy-host` / `replay-proxy-port`
+
+Host and TCP port of the VPS `fcade-proxy` (`tools/fcade-proxy`) used to search
+Fightcade for replays. The proxy terminates Cloudflare/TLS on the server; the
+device speaks only a plain length-framed JSON protocol, so no TLS or cookie
+ever lives on-device.
+
+Defaults:
+- `replay-proxy-host`: `""` (empty — **remote browsing disabled**; the device
+  is local-only)
+- `replay-proxy-port`: `3479` (the proxy's default port)
+
+Notes:
+- **The game does not read these keys.** The consumer is the MiSTer OSD
+  Replay menu in the HPS wrapper, which parses them out of the on-device
+  config file (`RpConfigLoadFrom()` in `vendor/Main_MiSTer/replay_proxy.c`).
+  The game's only role is that its config defaults table is what seeds the
+  file, so the two rows must stay in `src/port/config/config.c` even though
+  nothing under `src/` reads them.
+- The in-game REMOTE browse tab that once used these is gone with the
+  in-game browser; remote search now lives entirely in the OSD menu.
+- Selecting a remote result downloads the **raw** Fightcade stream
+  (`inputs`/`savestate`/`frames.bin`/`summary.json`) into
+  `<replays-root>/<quarkid>/`. Because on-device conversion is a NO-GO
+  (Step B3), the downloaded dir is **not playable as-is**. Convert it
+  off-device (`tools/replay_preprocessor.py` +
+  `tools/fcade-replays/make_3sr.py`) into a `.3sr` and push that back to the
+  root — see the runbook's Replays section.
+- Each completed download runs the `replays-max-mb` eviction sweep (above).
+
 ### `video-driver-order`
 
 Comma-separated SDL video backend preference list passed via `SDL_HINT_VIDEO_DRIVER` before SDL init.

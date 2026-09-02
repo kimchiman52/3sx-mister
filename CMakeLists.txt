@@ -63,6 +63,17 @@ option(ENABLE_PERF_TELEMETRY "Enable perf telemetry capture and perf-focused CLI
 #   cmake -B build/host -DENABLE_TEXGROUP_WINDOW_PROBE=ON
 option(ENABLE_TEXGROUP_WINDOW_PROBE
        "Instrument the texgroup case-2 reclaim window and getObjectHeight ok==0 returns (task #64)" OFF)
+# Stage A of docs/plan-fcade-replay-browser.md — replay-fidelity harness.
+# When ON, the STATCHECK compile define lights up src/test/ram_archive.c and
+# src/test/scrd_game.c (both `#if STATCHECK`), the `--ram-archive` CLI arg,
+# and the statcheck smoke path in main(). Orthogonal to ENABLE_NETPLAY /
+# ENABLE_PERF_TELEMETRY. OFF by default so normal builds compile no STATCHECK
+# code. Incompatible with a Debug config: the fork's DEBUG-gated test harness
+# (src/test/replay_game.{c,h}) declares ReplayGame/ReplayGame_Destroy, which
+# are the upstream STATCHECK symbols this port renames (ScrdGame_*) precisely
+# to avoid a collision — but building both harnesses at once is unsupported,
+# so a Debug + THREESX_STATCHECK configure is a hard error (see below).
+option(THREESX_STATCHECK "Build the statcheck replay-fidelity harness" OFF)
 
 set(_ENABLE_NETPLAY_DEFAULT ON)
 set(_ENABLE_ISO_IMPORT_DEFAULT ON)
@@ -153,9 +164,22 @@ if(PORT_MIYOO_MINI_PLUS AND (PORT_MISTER OR PORT_ARM_FBDEV))
     message(FATAL_ERROR "PORT_MIYOO_MINI_PLUS is mutually exclusive with PORT_MISTER and PORT_ARM_FBDEV.")
 endif()
 
+# Symbol-collision guard (§2.5): the DEBUG harness and the STATCHECK harness
+# both define ReplayGame_Destroy / ScrdGame_Destroy lineage code and are not
+# meant to coexist in one binary. Fail loudly at configure time rather than
+# hand the user a confusing link/compile error.
+if(THREESX_STATCHECK AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(FATAL_ERROR
+        "THREESX_STATCHECK is incompatible with a Debug build: the Debug config "
+        "compiles the fork's DEBUG-gated test harness (src/test/replay_game.*), "
+        "which collides with the STATCHECK replay harness. Use a non-Debug "
+        "CMAKE_BUILD_TYPE (e.g. Release) with -DTHREESX_STATCHECK=ON.")
+endif()
+
 message(STATUS "PORT_MISTER=${PORT_MISTER}")
 message(STATUS "ENABLE_PERF_TELEMETRY=${ENABLE_PERF_TELEMETRY}")
 message(STATUS "ENABLE_TEXGROUP_WINDOW_PROBE=${ENABLE_TEXGROUP_WINDOW_PROBE}")
+message(STATUS "THREESX_STATCHECK=${THREESX_STATCHECK}")
 message(STATUS "ENABLE_NETPLAY=${ENABLE_NETPLAY}")
 message(STATUS "ENABLE_ISO_IMPORT=${ENABLE_ISO_IMPORT}")
 message(STATUS "ENABLE_FFMPEG_ADX=${ENABLE_FFMPEG_ADX}")
@@ -275,7 +299,9 @@ target_compile_definitions(3s-arm PRIVATE
     # CHECKSUM = SHA256 verify SF33RD.AFS at startup. Skip on PORT_MISTER
     # (Cortex-A9 stock 800MHz is borderline) AND on PORT_MIYOO_MINI_PLUS
     # (Cortex-A7 @ 1.2GHz on slow SD takes 60+ seconds, looks like a hang).
-    $<$<AND:$<CONFIG:Release>,$<NOT:$<OR:$<BOOL:${PORT_MISTER}>,$<BOOL:${PORT_MIYOO_MINI_PLUS}>>>>:CHECKSUM>
+    # Also suppressed under THREESX_STATCHECK (mirrors upstream:CMakeLists.txt:73):
+    # a statcheck run must not stall on the SF33RD.AFS SHA256 verify.
+    $<$<AND:$<CONFIG:Release>,$<NOT:$<OR:$<BOOL:${PORT_MISTER}>,$<BOOL:${PORT_MIYOO_MINI_PLUS}>,$<BOOL:${THREESX_STATCHECK}>>>>:CHECKSUM>
 
     _POSIX_C_SOURCE=200809L
 )
@@ -307,6 +333,10 @@ endif()
 
 if(NETPLAY_TEST_HOOKS)
     target_compile_definitions(3s-arm PRIVATE NETPLAY_TEST_HOOKS)
+endif()
+
+if(THREESX_STATCHECK)
+    target_compile_definitions(3s-arm PRIVATE STATCHECK)
 endif()
 
 if(ENABLE_ISO_IMPORT)
@@ -549,6 +579,39 @@ endif()
 set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 find_package(ZLIB REQUIRED)
 
+# Vendored cJSON — first wired in Step C2 of
+# docs/plan-fcade-replay-browser.md to parse the .meta.json replay sidecar.
+#
+# Task #80: this used to read third_party/cJSON/cJSON.c. third_party/ is
+# gitignored and build-deps.sh has no cJSON recipe, so nothing ever created
+# that file -- it only existed because it was placed there by hand, and a
+# clean clone therefore failed at configure time with "Cannot find source
+# file". The identical source is already tracked in this repo at
+# vendor/Main_MiSTer/cJSON.{c,h} (verified byte-identical, md5
+# 630deb131a520d63b8913492d982b589 / a9c6c607caeee91e5fe70dfd349b4ddc), so
+# using the tracked copy makes the build self-provisioning without adding a
+# network fetch that could fail the way the FreeType tarball fetch did.
+#
+# The files are staged into the build tree rather than compiled in place
+# because the include directory is PUBLIC and therefore lands on 3s-arm's
+# header search path. vendor/Main_MiSTer/ holds 46 headers with generic
+# names -- audio.h, debug.h, cfg.h, menu.h -- and exposing that whole
+# directory would let them shadow the game's own headers. Staging exports
+# exactly cJSON.h and nothing else.
+set(CJSON_VENDOR_DIR "${CMAKE_SOURCE_DIR}/vendor/Main_MiSTer")
+set(CJSON_STAGE_DIR "${CMAKE_BINARY_DIR}/cjson")
+configure_file("${CJSON_VENDOR_DIR}/cJSON.c" "${CJSON_STAGE_DIR}/cJSON.c" COPYONLY)
+configure_file("${CJSON_VENDOR_DIR}/cJSON.h" "${CJSON_STAGE_DIR}/cJSON.h" COPYONLY)
+
+# Built as its own static library so the fork's strict `-Wall -Werror` (set
+# on the 3s-arm target, not globally) does not apply to the vendored source:
+# `-w` scopes a full warning-suppression to this TU only, per the plan's "do
+# NOT edit vendored source" constraint. Its PUBLIC include dir propagates
+# cJSON.h to 3s-arm via the link below.
+add_library(cjson STATIC "${CJSON_STAGE_DIR}/cJSON.c")
+target_include_directories(cjson PUBLIC "${CJSON_STAGE_DIR}")
+target_compile_options(cjson PRIVATE -w)
+
 set(FFMPEG_ROOT        "${THIRD_PARTY_DIR}/ffmpeg/build")
 if(PORT_MIYOO_MINI_PLUS)
     # Miyoo Mini Plus uses a Buildroot Buster glibc cross-build of SDL3
@@ -594,6 +657,7 @@ endif()
 
 target_link_libraries(3s-arm PRIVATE
     m
+    cjson
     "${MINIZIP_NG_ROOT}/lib/libminizip-ng.a"
     "${TF_PSA_CRYPTO_ROOT}/lib/libtfpsacrypto.a"
     ZLIB::ZLIB

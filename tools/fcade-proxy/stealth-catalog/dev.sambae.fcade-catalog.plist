@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent TEMPLATE for the daily stealth-catalog refresh
+  (plan-fcade-stealth-catalog.md, Stage S4).
+
+  This is a PER-USER agent (runs in the login GUI session) because the runner
+  drives a REAL, headed Chrome window (Cloudflare detects headless), so it
+  needs a display, which a system-wide LaunchDaemon does not have. It renders
+  the window far off-screen so it never steals focus.
+
+  The PLACEHOLDER tokens (double-underscore delimited) are filled in with
+  resolved absolute paths by setup.sh, which writes the final plist to
+  install-root/dev.sambae.fcade-catalog.plist. Install/load it with
+  launchctl bootstrap gui/$UID (see README.md).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.sambae.fcade-catalog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__RUN_DAILY_SH__</string>
+    </array>
+
+    <!-- Do NOT run at load; only on the calendar schedule. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- 8x daily, every 3 hours on the hour (00/03/06/09/12/15/18/21 local).
+         A run only fires while logged into the GUI session (headed Chrome), so
+         spreading across the day maximizes the odds a fresh pull lands. Each
+         run is a ~25s one-shot; misses are self-healing (next slot refreshes;
+         a failed run pushes nothing and preserves last-good). -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+    </array>
+
+    <!-- Both streams append to the daily log; run-daily.sh also redirects its
+         own output there, so the file is a single source of truth. -->
+    <key>StandardOutPath</key>
+    <string>__DAILY_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__DAILY_LOG__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- run-daily.sh derives everything else from this. -->
+        <key>FCADE_CATALOG_HOME</key>
+        <string>__INSTALL_ROOT__</string>
+        <!-- A minimal PATH so /usr/bin tools (osascript, curl, sed) resolve
+             under launchd's stripped environment. Override node via config.sh
+             (FCADE_NODE_BIN) rather than relying on PATH. -->
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Give the crawl room; it is a one-shot, not a resident daemon. -->
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

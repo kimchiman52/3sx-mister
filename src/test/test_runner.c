@@ -4,6 +4,8 @@
 #include "arcade/arcade_constants.h"
 #include "constants.h"
 #include "main.h"
+#include "port/config/config.h"
+#include "port/sdl/sdl_app.h"
 #include "sf33rd/AcrSDK/common/pad.h"
 #include "sf33rd/Source/Game/debug/debug_config.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
@@ -14,6 +16,7 @@
 #include "sf33rd/Source/Game/system/sys_sub.h"
 #include "sf33rd/Source/Game/system/sysdir.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
+#include "sf33rd/Source/Game/ui/count.h"
 #include "sf33rd/Source/Game/ui/sc_sub.h"
 #include "test/input_script.h"
 #include "test/replay_game.h"
@@ -25,6 +28,7 @@
 
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define MY_CHAR_OFFSET 0x11387
 #define SUPER_ARTS_OFFSET 0x1138B
@@ -1285,6 +1289,335 @@ static void initialize_data() {
     inputs_index = 0;
 }
 
+/* ====================================================================== *
+ * Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): raw decoded
+ * Fightcade -13 stream playback from the engine's own cold boot.
+ *
+ * The stream file is decode_inputs.py's --bin output: frame_count x
+ * {u16 p1, u16 p2} little-endian words in ARCADE-RAM layout (dirs bits
+ * 0-3, punches 4-6, KICKS 7-9, START 12). The engine's pre-latch buffers
+ * (p1sw_buff/p2sw_buff) consume SWK layout (kicks 8-10, start 14), so
+ * every injected word goes through fcade_arcade_to_swk() below — the
+ * same shift set as replay_game.c:12-26 / plan §2.3. Feeding the arcade
+ * words verbatim would silently corrupt kicks and start.
+ *
+ * This mode bypasses the whole DEBUG phase machine: no menu mash, no
+ * cursor forcing, no stage override — the stream (plus the optional
+ * deterministic START taps, see configuration.h) is the only input
+ * source. Per-frame state samples are printed from the epilogue for
+ * offline comparison against SCRD ground truth.
+ * ====================================================================== */
+
+static u16 (*fcade_stream)[2] = NULL; /* [frame][player], SWK layout after load-convert */
+static int fcade_stream_total = 0;
+static int fcade_app_frame = 0;
+static bool fcade_load_attempted = false;
+static bool fcade_game_reanchored = false;
+static int fcade_game_reanchor_frame = 0;
+static bool fcade_rng_seeded = false;
+
+static bool fcade_mode_active(void) {
+    return configuration.test.fcade_inputs_path != NULL && configuration.test.fcade_inputs_path[0] != '\0';
+}
+
+/* Arcade-RAM layout -> engine SWK layout (plan §2.3; same shifts as
+ * replay_game.c:12-26): dirs/punches pass through, LK 7->8, MK 8->9,
+ * HK 9->10, start 12->14. */
+static u16 fcade_arcade_to_swk(u16 arcade) {
+    u16 buff = 0;
+
+    buff |= arcade & 0xF;                // directions
+    buff |= arcade & (1 << 4);           // LP
+    buff |= arcade & (1 << 5);           // MP
+    buff |= arcade & (1 << 6);           // HP
+    buff |= (u16)((arcade & (1 << 7)) << 1);  // LK
+    buff |= (u16)((arcade & (1 << 8)) << 1);  // MK
+    buff |= (u16)((arcade & (1 << 9)) << 1);  // HK
+    buff |= (u16)((arcade & (1 << 12)) << 2); // start
+
+    return buff;
+}
+
+void TestRunner_PinFcadeConfig(void) {
+    /* Same idea as StatcheckRunner_PinConfig (statcheck_runner.c), but for
+     * the ARCADE flow the -13 stream was recorded against: the Fightcade
+     * session ran the arcade program (attract -> char select), not the
+     * console menu chain, and was captured against sfiii3nr1's
+     * arcade-balance data tables. Both pins are session-only. */
+    SDLApp_ForceArcadeGameMode();
+    /* Upstream reconcile: the boolean "arcade-balance" key is gone; balance
+     * auto-selects at boot and CFG_KEY_BALANCE only forces it DOWN to PS2.
+     * Clearing to "auto" is the strongest arcade-ward pin now available.
+     *
+     * KNOWN LIMIT (B3 raw-stream path only): ArcadeBalance_Init pins PS2
+     * whenever configuration.test.enabled is set, and this pin fires only on
+     * a --test-enable launch — so under the current model the B3 experiment
+     * always resolves PS2 balance and cannot reproduce an arcade-balance
+     * capture. Recorded rather than "fixed" here because the test-runner PS2
+     * pin is what keeps the 94 frame-data corpora machine-independent; any
+     * change to it belongs in the descope discussion, not in this merge. */
+    Config_SetString(CFG_KEY_BALANCE, "auto");
+    SDL_Log("fcade-b3: pinned game-mode=arcade + balance=auto for raw stream playback");
+}
+
+static void fcade_load_stream(void) {
+    fcade_load_attempted = true;
+
+    size_t size = 0;
+    void* data = SDL_LoadFile(configuration.test.fcade_inputs_path, &size);
+
+    if (data == NULL || size == 0 || (size % 4) != 0) {
+        SDL_Log("fcade-b3: failed to load stream '%s' (size=%zu, need nonzero multiple of 4): %s",
+                configuration.test.fcade_inputs_path,
+                size,
+                SDL_GetError());
+        SDL_free(data);
+        exit(2);
+    }
+
+    fcade_stream_total = (int)(size / 4);
+    fcade_stream = SDL_malloc((size_t)fcade_stream_total * sizeof(*fcade_stream));
+
+    const Uint8* bytes = data;
+    for (int i = 0; i < fcade_stream_total; i++) {
+        const u16 p1_arcade = (u16)(bytes[i * 4 + 0] | (bytes[i * 4 + 1] << 8));
+        const u16 p2_arcade = (u16)(bytes[i * 4 + 2] | (bytes[i * 4 + 3] << 8));
+        fcade_stream[i][0] = fcade_arcade_to_swk(p1_arcade);
+        fcade_stream[i][1] = fcade_arcade_to_swk(p2_arcade);
+    }
+
+    SDL_free(data);
+
+    printf("fcade-b3: loaded %d stream frames from %s (offset=%d anchor=%d p1start=%d p2start=%d max=%d)\n",
+           fcade_stream_total,
+           configuration.test.fcade_inputs_path,
+           configuration.test.fcade_offset,
+           configuration.test.fcade_anchor,
+           configuration.test.fcade_p1_start_frame,
+           configuration.test.fcade_p2_start_frame,
+           configuration.test.fcade_max_frames);
+    fflush(stdout);
+}
+
+static bool fcade_start_tap_active(int tap_frame) {
+    /* 2-frame press so the ~p*sw_1 & p*sw_0 rising-edge checks (Ck_Coin,
+     * Entry_01) see a clean edge regardless of latch ordering. */
+    return tap_frame >= 0 && fcade_app_frame >= tap_frame && fcade_app_frame < tap_frame + 2;
+}
+
+/* Stream cursor for the current app frame, honoring the optional
+ * round-start re-anchor (candidate rule from plan Step B3). Returns -1
+ * when no stream frame should be fed yet. */
+static int fcade_stream_index(void) {
+    if (fcade_game_reanchored) {
+        /* The prologue that first observes the round-start init state
+         * (G_No[1]==2 && G_No[2]==3, latched at the end of the archive's
+         * frame-1-equivalent engine frame) runs at the engine frame
+         * corresponding to archive frame 2, whose input word per the B1
+         * alignment is stream[game_offset + 2]. */
+        return configuration.test.fcade_game_offset + 2 + (fcade_app_frame - fcade_game_reanchor_frame);
+    }
+
+    if (fcade_app_frame < configuration.test.fcade_anchor) {
+        return -1;
+    }
+
+    return configuration.test.fcade_offset + (fcade_app_frame - configuration.test.fcade_anchor);
+}
+
+/* Validation-gate setup injection (see configuration.h): force the
+ * SCRD-recorded characters / super arts / colors onto the engine's own
+ * arcade char-select outcome every pre-round frame, so the stream-driven
+ * cursor nav's landing cell stops mattering (the 7287 Yang-instead-of-Ken
+ * class of failure). New_Challenger/Champion and the one-shot RNG seed are
+ * applied once the game phase (G_No[1]==2) is entered — the same timing the
+ * shipped console player uses (replay_player.c PHASE_CHARACTER_SELECT
+ * case 1 / PHASE_GAME_TRANSITION). Inert unless the flags are set. */
+static void fcade_force_setup(void) {
+    if (fcade_game_reanchored) {
+        return; /* fight is live; setup vars are engine-owned from here */
+    }
+
+    /* G_No[0]==2 gates the whole game program (char select G=[2,1,2],
+     * VS/loading G=[2,2,x]); the attract TITLE also has G_No[1]==2 but
+     * with G_No[0]==1 (b3-runA logs: G=[1,2,0,0] from f=454), so gating on
+     * G_No[1] alone would force setup during attract — which breaks the
+     * join path when New_Challenger=0 is forced (observed: 2133 g1/g2
+     * P1 never joins, SIGSEGV at re-anchor into a 1P game). */
+    const bool char_select_phase = G_No[0] == 2 && G_No[1] == 1;
+    const bool game_phase = G_No[0] == 2 && G_No[1] == 2;
+
+    if (!char_select_phase && !game_phase) {
+        return;
+    }
+
+    if (configuration.test.fcade_p1_char >= 0) {
+        My_char[0] = (u8)configuration.test.fcade_p1_char;
+    }
+    if (configuration.test.fcade_p2_char >= 0) {
+        My_char[1] = (u8)configuration.test.fcade_p2_char;
+    }
+    if (configuration.test.fcade_p1_arts >= 0) {
+        Super_Arts[0] = (s8)configuration.test.fcade_p1_arts;
+    }
+    if (configuration.test.fcade_p2_arts >= 0) {
+        Super_Arts[1] = (s8)configuration.test.fcade_p2_arts;
+    }
+    if (configuration.test.fcade_p1_color >= 0) {
+        Player_Color[0] = (s8)configuration.test.fcade_p1_color;
+    }
+    if (configuration.test.fcade_p2_color >= 0) {
+        Player_Color[1] = (s8)configuration.test.fcade_p2_color;
+    }
+
+    if (game_phase) {
+        if (configuration.test.fcade_new_challenger >= 0) {
+            /* Same pairing the shipped player restores (replay_player.c:
+             * "Restore the arcade invariant Champion == New_Challenger ^ 1"). */
+            New_Challenger = (s8)configuration.test.fcade_new_challenger;
+            Champion = New_Challenger ^ 1;
+        }
+
+        if (!fcade_rng_seeded && !configuration.test.fcade_seed_at_reanchor) {
+            fcade_rng_seeded = true;
+
+            if (configuration.test.fcade_seed_ix16 >= 0) {
+                Random_ix16 = (s16)configuration.test.fcade_seed_ix16;
+            }
+            if (configuration.test.fcade_seed_ix32 >= 0) {
+                Random_ix32 = (s16)configuration.test.fcade_seed_ix32;
+            }
+
+            if (configuration.test.fcade_seed_ix16 >= 0 || configuration.test.fcade_seed_ix32 >= 0) {
+                printf("fcade-b3: RNG seeded at f=%d -> r16=%d r32=%d\n",
+                       fcade_app_frame,
+                       (int)Random_ix16,
+                       (int)Random_ix32);
+                fflush(stdout);
+            }
+        }
+    }
+}
+
+static void fcade_prologue(void) {
+    if (!fcade_load_attempted) {
+        fcade_load_stream();
+    }
+
+    fcade_force_setup();
+
+    if (configuration.test.fcade_game_offset >= 0 && !fcade_game_reanchored && G_No[1] == 2 && G_No[2] == 3) {
+        fcade_game_reanchored = true;
+        fcade_game_reanchor_frame = fcade_app_frame;
+        printf("fcade-b3: round-start re-anchor at f=%d -> stream idx %d\n",
+               fcade_app_frame,
+               configuration.test.fcade_game_offset + 2);
+
+        if (configuration.test.fcade_seed_at_reanchor && !fcade_rng_seeded) {
+            fcade_rng_seeded = true;
+
+            if (configuration.test.fcade_seed_ix16 >= 0) {
+                Random_ix16 = (s16)configuration.test.fcade_seed_ix16;
+            }
+            if (configuration.test.fcade_seed_ix32 >= 0) {
+                Random_ix32 = (s16)configuration.test.fcade_seed_ix32;
+            }
+
+            printf("fcade-b3: RNG seeded at re-anchor f=%d -> r16=%d r32=%d\n",
+                   fcade_app_frame,
+                   (int)Random_ix16,
+                   (int)Random_ix32);
+        }
+        fflush(stdout);
+    }
+
+    u16 p1 = 0;
+    u16 p2 = 0;
+
+    {
+        const int idx = fcade_stream_index();
+
+        if (idx >= 0 && idx < fcade_stream_total) {
+            p1 = fcade_stream[idx][0];
+            p2 = fcade_stream[idx][1];
+        }
+    }
+
+    if (fcade_start_tap_active(configuration.test.fcade_p1_start_frame)) {
+        p1 |= SWK_START;
+    }
+
+    if (fcade_start_tap_active(configuration.test.fcade_p2_start_frame)) {
+        p2 |= SWK_START;
+    }
+
+    p1sw_buff = p1;
+    p2sw_buff = p2;
+}
+
+static void fcade_epilogue(void) {
+    const int idx = fcade_stream_index();
+
+    /* Dizzy (kizetsu/piyori) observability for the validation gate: py->flag
+     * flips to 1 when the stun gauge maxes (plpdm.c:1490/1566) and
+     * Damage_25000 then rolls the random dizzy duration into py->time
+     * (plpdm.c:893, the confirmed gameplay random_16() consumer). Printing
+     * both per frame lets the offline compare detect whether a game
+     * contained a dizzy at all and how long it lasted. */
+    printf("fcade-b3 f=%d idx=%d inj=[%04x,%04x] G=[%u,%u,%u,%u] C=[%u,%u,%u,%u] mode=%d play=%u demo=%d "
+           "op=[%d,%d] gtimer=%u rtimer=%d allow=%u mychar=[%d,%d] arts=[%d,%d] cur=[%d,%d|%d,%d] "
+           "sel=[%d,%d] r16=%d r32=%d pos=[%d,%d] vit=[%d,%d] piyo=[%d/%d,%d/%d]\n",
+           fcade_app_frame,
+           (idx >= 0 && idx < fcade_stream_total) ? idx : -1,
+           p1sw_0,
+           p2sw_0,
+           G_No[0],
+           G_No[1],
+           G_No[2],
+           G_No[3],
+           C_No[0],
+           C_No[1],
+           C_No[2],
+           C_No[3],
+           (int)Mode_Type,
+           Play_Mode,
+           (int)Demo_Flag,
+           (int)Operator_Status[0],
+           (int)Operator_Status[1],
+           Game_timer,
+           (int)round_timer,
+           Allow_a_battle_f,
+           (int)My_char[0],
+           (int)My_char[1],
+           (int)Super_Arts[0],
+           (int)Super_Arts[1],
+           (int)Cursor_X[0],
+           (int)Cursor_Y[0],
+           (int)Cursor_X[1],
+           (int)Cursor_Y[1],
+           (int)Sel_Arts_Complete[0],
+           (int)Sel_Arts_Complete[1],
+           (int)Random_ix16,
+           (int)Random_ix32,
+           (int)plw[0].wu.xyz[0].disp.pos,
+           (int)plw[1].wu.xyz[0].disp.pos,
+           (int)plw[0].wu.vital_new,
+           (int)plw[1].wu.vital_new,
+           plw[0].py != NULL ? (int)plw[0].py->flag : -1,
+           plw[0].py != NULL ? (int)plw[0].py->time : -1,
+           plw[1].py != NULL ? (int)plw[1].py->flag : -1,
+           plw[1].py != NULL ? (int)plw[1].py->time : -1);
+    fflush(stdout);
+
+    fcade_app_frame += 1;
+
+    if (configuration.test.fcade_max_frames > 0 && fcade_app_frame >= configuration.test.fcade_max_frames) {
+        printf("fcade-b3: reached max frames (%d), exiting\n", configuration.test.fcade_max_frames);
+        fflush(stdout);
+        exit(0);
+    }
+}
+
 static void update_player_super_art_activation_state(void) {
     for (int player = 0; player < 2; player++) {
         const bool is_active = player_super_art_active(player);
@@ -1298,6 +1631,13 @@ static void update_player_super_art_activation_state(void) {
 void TestRunner_Prologue() {
     p1sw_buff = 0;
     p2sw_buff = 0;
+
+    /* Step B3 EXPERIMENT: raw fcade-stream playback replaces the whole
+     * phase machine — the stream is the only input source. */
+    if (fcade_mode_active()) {
+        fcade_prologue();
+        return;
+    }
 
     switch (phase) {
     case PHASE_INIT:
@@ -1496,6 +1836,13 @@ void TestRunner_Prologue() {
 }
 
 void TestRunner_Epilogue() {
+    /* Step B3 EXPERIMENT: sample-and-count only; none of the training-mode
+     * pins below apply to raw fcade-stream playback. */
+    if (fcade_mode_active()) {
+        fcade_epilogue();
+        return;
+    }
+
     frame += 1;
     update_player_super_art_activation_state();
 

@@ -496,6 +496,34 @@ exec /media/fat/Scripts/3S-ARM.sh "$@"
 
 Do not wrap `/media/fat/Scripts/3S-ARM.sh` in `openvt`, `chvt`, or another manual VT hop. On this MiSTer target that path can hang before the launcher starts, leaving the OSD frozen and producing no fresh `last-run.log`.
 
+## Replays
+
+The in-game local replay browser (`replay-browser` config key / `--replay-browser`) scans
+`/media/fat/games/3s-arm/replays` (or `$THIRDSARM_HOME/replays`) for `.3sr` files; see
+[docs/config.md](config.md) for the full behavior and controls.
+
+- **Storage cap**: `replays-max-mb` (default 200) caps the total size of raw Fightcade-fetch
+  payloads (`frames.bin`/`inputs`/`savestate`/`summary.json`) kept under that root. Opening the
+  browser evicts the oldest (LRU by mtime) fetch directories' raw files first, down to the cap;
+  `.3sr`/`.meta.json` are never evicted. Set `0` to disable eviction (delete-only).
+- **Delete**: MP (SWK_NORTH) on a highlighted row opens a confirm prompt; LK (SWK_SOUTH) confirms
+  and removes that replay's `.3sr` + `.meta.json` + any raw files in the same directory.
+- **Remote browse + download** (`replay-proxy-host`/`replay-proxy-port`): MK (SWK_EAST) toggles the
+  browser to a REMOTE tab that searches the VPS `fcade-proxy` (`tools/fcade-proxy`) over plain TCP;
+  LK downloads the highlighted replay's **raw** Fightcade stream into
+  `<root>/<quarkid>/`. On-device conversion is a NO-GO (Step B3), so a downloaded dir lands in the
+  LOCAL list marked `NEEDS CONVERSION` and is not playable until converted off-device.
+- **Raw-fetch → desktop-convert → push-back flow**: pull the raw `<quarkid>/` dir back to a desktop
+  (it carries the `inputs`/`savestate`/`summary.json` layout `tools/replay_preprocessor.py` already
+  expects — same names as the Python fetch tool), run `tools/replay_preprocessor.py` +
+  `tools/fcade-replays/make_3sr.py` to produce a `<name>.3sr` (+ `.meta.json`), and copy that `.3sr`
+  back under `/media/fat/games/3s-arm/replays/` (owned subtree per AGENTS.md:5-10; never
+  `rsync --delete`). The converted `.3sr` then lists and plays as a normal local replay, and the
+  `NEEDS CONVERSION` marker disappears once a `.3sr` exists in that dir.
+- Do not lower `replays-max-mb` against the on-device replay library just to watch eviction run —
+  test storage-lifecycle behavior with a scratch `--replay-browser-root` fixture instead
+  (AGENTS.md:5-10).
+
 ## Performance Sampling
 
 Preferred quick steady-state gate:

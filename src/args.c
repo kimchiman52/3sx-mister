@@ -178,6 +178,18 @@ static void verify_configuration(Configuration* configuration) {
         error_out_with_code("--afs-inject-latency-ms must be >= 0.", EXIT_CODE_RUNTIME_ERROR);
     }
 
+    if (test->fcade_inputs_path != NULL && !test->enabled) {
+        error_out_with_code("--test-fcade-inputs requires --test-enable.", EXIT_CODE_RUNTIME_ERROR);
+    }
+    if (test->fcade_offset < 0) {
+        error_out_with_code("--test-fcade-offset must be >= 0.", EXIT_CODE_RUNTIME_ERROR);
+    }
+    if (test->fcade_anchor < 0) {
+        error_out_with_code("--test-fcade-anchor must be >= 0.", EXIT_CODE_RUNTIME_ERROR);
+    }
+    if (test->fcade_max_frames < 0) {
+        error_out_with_code("--test-fcade-max-frames must be >= 0.", EXIT_CODE_RUNTIME_ERROR);
+    }
     if (!is_supported_test_scene_preset(test->scene_preset)) {
         error_out_with_code("--test-scene-preset must be one of stage-heavy, effect-heavy, super-heavy, "
                             "yun-sa3-repeat, yun-sa3-repeat-pressure, q-sa1-repeat, q-sa1-repeat-pressure, "
@@ -216,6 +228,43 @@ static void verify_configuration(Configuration* configuration) {
                             EXIT_CODE_RUNTIME_ERROR);
     }
 
+#if defined(STATCHECK)
+    /* A STATCHECK build exists to run the harness, so it always needs an
+     * archive. (This used to carry an exemption for --fetch-replay, which
+     * dispatched before StatcheckRunner_Init and exited without ever running
+     * the harness; that flag is gone, and with it the only way to launch a
+     * STATCHECK build that legitimately had no archive.) */
+    if (configuration->statcheck.ram_archive_path == NULL) {
+        error_out_with_code("You must specify --ram-archive.", EXIT_CODE_RUNTIME_ERROR);
+    }
+
+    /* C1: a STATCHECK build unconditionally drives its own SCRD replay
+     * through the same p1sw_buff latch — the two injectors cannot share a
+     * session. --play-replay works in every other flavor. */
+    if (configuration->replay.play_replay_path != NULL) {
+        error_out_with_code("--play-replay cannot be used in a THREESX_STATCHECK build (the statcheck "
+                            "harness owns input injection).",
+                            EXIT_CODE_RUNTIME_ERROR);
+    }
+#endif
+
+    /* The meta handoff flags describe the replay being played, so they ride
+     * ONLY with --play-replay. (Their "--live-replay-*" spelling is
+     * historical, from the retired live-stream path.) */
+    if (configuration->replay.play_replay_path == NULL &&
+        (configuration->replay.live_p1_name != NULL || configuration->replay.live_p2_name != NULL ||
+         configuration->replay.live_p1_rank != 0 || configuration->replay.live_p2_rank != 0 ||
+         configuration->replay.live_date_ms != NULL)) {
+        error_out_with_code("--live-replay-p1/p2/rank/date require --play-replay.", EXIT_CODE_RUNTIME_ERROR);
+    }
+
+    /* C1 (src/replay/replay_player.c): the replay player owns
+     * p1sw_buff/p2sw_buff for the whole session — the DEBUG test runner
+     * writes the same latch from the same game_step_0 slot. */
+    if (configuration->replay.play_replay_path != NULL && configuration->test.enabled) {
+        error_out_with_code("--play-replay cannot be combined with --test-enable.", EXIT_CODE_RUNTIME_ERROR);
+    }
+
 #if ENABLE_NETPLAY
     {
         const NetplayConfiguration* netplay = &configuration->netplay;
@@ -224,6 +273,13 @@ static void verify_configuration(Configuration* configuration) {
 
         if (handoff_specified && p2p_specified) {
             error_out("--direct-p2p-handoff cannot be combined with --p2p-* flags.");
+        }
+
+        /* C1: replay playback and a netplay session would fight over the
+         * p1sw_buff latch; ReplayPlayer_Tick additionally aborts at runtime
+         * if a session appears later (e.g. default-path handoff probe). */
+        if (configuration->replay.play_replay_path != NULL && (p2p_specified || handoff_specified)) {
+            error_out("--play-replay cannot be combined with netplay flags.");
         }
 
         if (p2p_specified) {
@@ -621,6 +677,202 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                     NULL,
                     0,
                     0),
+        OPT_STRING(0,
+                   "test-fcade-inputs",
+                   &configuration->test.fcade_inputs_path,
+                   "Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): play a raw decoded Fightcade "
+                   "-13 input stream (decode_inputs.py --bin output, arcade-RAM layout) from cold boot, "
+                   "bypassing the test runner's menu automation, and print per-frame state samples. "
+                   "Forces game-mode=arcade + arcade-balance=true for the session. Requires a #if DEBUG "
+                   "build and --test-enable.",
+                   NULL,
+                   0,
+                   0),
+        OPT_INTEGER(0,
+                    "test-fcade-offset",
+                    &configuration->test.fcade_offset,
+                    "First stream frame of --test-fcade-inputs to feed (default 0).",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-anchor",
+                    &configuration->test.fcade_anchor,
+                    "App frame at which --test-fcade-inputs feeding starts (default 0 = first frame).",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p1-start",
+                    &configuration->test.fcade_p1_start_frame,
+                    "App frame at which to inject a deterministic 2-frame P1 START tap during "
+                    "--test-fcade-inputs playback (stand-in for the join/credit state the FBNeo "
+                    "savestate carries but the -13 stream omits). -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p2-start",
+                    &configuration->test.fcade_p2_start_frame,
+                    "Same as --test-fcade-p1-start, for P2. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-max-frames",
+                    &configuration->test.fcade_max_frames,
+                    "Exit(0) after sampling this many app frames of --test-fcade-inputs playback "
+                    "(default 0 = run until killed).",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-game-offset",
+                    &configuration->test.fcade_game_offset,
+                    "Step B3 candidate rule: B1 per-game stream offset of the first game's archive "
+                    "frame 0; on the first round-start init frame the stream cursor re-anchors so "
+                    "the engine consumes stream frame offset+k on archive frame k. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p1-char",
+                    &configuration->test.fcade_p1_char,
+                    "Validation-gate setup injection: force P1's character (ENGINE 20-id numbering) onto "
+                    "the arcade char-select outcome during --test-fcade-inputs playback. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p2-char",
+                    &configuration->test.fcade_p2_char,
+                    "Same as --test-fcade-p1-char, for P2. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p1-arts",
+                    &configuration->test.fcade_p1_arts,
+                    "Force P1's Super Arts (raw arcade byte) during --test-fcade-inputs setup injection. "
+                    "-1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p2-arts",
+                    &configuration->test.fcade_p2_arts,
+                    "Same as --test-fcade-p1-arts, for P2. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p1-color",
+                    &configuration->test.fcade_p1_color,
+                    "Force P1's color (raw arcade Player_Color byte) during --test-fcade-inputs setup "
+                    "injection. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-p2-color",
+                    &configuration->test.fcade_p2_color,
+                    "Same as --test-fcade-p1-color, for P2. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-new-challenger",
+                    &configuration->test.fcade_new_challenger,
+                    "Force New_Challenger (and Champion = New_Challenger ^ 1, the arcade invariant) once "
+                    "the game phase is entered during --test-fcade-inputs playback. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-seed-ix16",
+                    &configuration->test.fcade_seed_ix16,
+                    "Seed Random_ix16 ONCE to this value on the first G_No[1]==2 frame of "
+                    "--test-fcade-inputs playback (the shipped player/statcheck seed point). "
+                    "-1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-fcade-seed-ix32",
+                    &configuration->test.fcade_seed_ix32,
+                    "Same as --test-fcade-seed-ix16, for Random_ix32. -1 (default) = off.",
+                    NULL,
+                    0,
+                    0),
+        OPT_BOOLEAN(0,
+                    "test-fcade-seed-at-reanchor",
+                    &configuration->test.fcade_seed_at_reanchor,
+                    "Apply --test-fcade-seed-ix16/-ix32 at the --test-fcade-game-offset re-anchor frame "
+                    "(round-start init; pass the SCRD frame-1 values) instead of the first G_No[1]==2 "
+                    "frame. Probes in-game RNG-index tracking.",
+                    NULL,
+                    0,
+                    0),
+
+        OPT_GROUP("Replay"),
+        OPT_STRING(0,
+                   "play-replay",
+                   &configuration->replay.play_replay_path,
+                   "Play back a .3sr replay file (docs/3sr-format.md) through the engine with "
+                   "rendering and audio at normal speed.",
+                   NULL,
+                   0,
+                   0),
+        OPT_STRING(0,
+                   "live-replay-p1",
+                   &configuration->replay.live_p1_name,
+                   "Player 1 display name for the replay overlay. Optional; requires --play-replay. "
+                   "(The \"live\" spelling is historical.)",
+                   NULL,
+                   0,
+                   0),
+        OPT_STRING(0,
+                   "live-replay-p2",
+                   &configuration->replay.live_p2_name,
+                   "Player 2 display name for the replay overlay. Optional; requires --play-replay.",
+                   NULL,
+                   0,
+                   0),
+        OPT_INTEGER(0,
+                    "live-replay-p1-rank",
+                    &configuration->replay.live_p1_rank,
+                    "Player 1 Fightcade rank (1-6 = E..S) for the replay overlay; 0 (default) = "
+                    "unranked/unknown. Requires --play-replay.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "live-replay-p2-rank",
+                    &configuration->replay.live_p2_rank,
+                    "Player 2 Fightcade rank (1-6 = E..S); 0 (default) = unranked/unknown. "
+                    "Requires --play-replay.",
+                    NULL,
+                    0,
+                    0),
+        OPT_STRING(0,
+                   "live-replay-date",
+                   &configuration->replay.live_date_ms,
+                   "Match date as ms-since-epoch (string — the value overflows int) for the "
+                   "replay overlay. Optional; requires --play-replay.",
+                   NULL,
+                   0,
+                   0),
+
+#if defined(STATCHECK)
+        OPT_GROUP("Statcheck"),
+        OPT_STRING(0,
+                   "ram-archive",
+                   &configuration->statcheck.ram_archive_path,
+                   "Path to the SCRD RAM archive to replay-check (required in a THREESX_STATCHECK build).",
+                   NULL,
+                   0,
+                   0),
+#endif
 
         OPT_GROUP("Rollback determinism harness (docs/rollback-determinism-harness.md)"),
         OPT_STRING(0,

@@ -190,7 +190,7 @@ index a8d8bd8..71d074e 100644
  							last_space = (strlen(s) == 1);
  							MenuWrite(entry, s, 0, d);
  							entry++;
-@@ -2468,6 +2629,16 @@ void HandleUI(void)
+@@ -2468,6 +2629,24 @@ void HandleUI(void)
  							int ex = (p[0] == 't') || (p[0] == 'r');
  							if (user_io_status_bits(p + 1, &bit, 0, ex) == 1)
  							{
@@ -202,12 +202,20 @@ index a8d8bd8..71d074e 100644
 +								{
 +									menustate = MENU_DIRECT_P2P_ROOT;
 +								}
++								else if (bit == 31 && p[0] == 'T')
++								{
++									/* Replay row (T[31]): the OSD replay browser
++									 * is gone. Swallow the press here rather than
++									 * letting it fall through to the generic option
++									 * handler; the shuffle-viewer handoff lands here
++									 * in a later step. */
++								}
 +								else
 +								{
  								const char *opt = p + 1;
  								if (!bit && (is_x86() || is_pcxt()))
  								{
-@@ -2506,6 +2677,7 @@ void HandleUI(void)
+@@ -2506,6 +2685,7 @@ void HandleUI(void)
  									menustate = MENU_GENERIC_MAIN1;
  									if (p[0] == 'R' || p[0] == 'r') menustate = MENU_NONE1;
  								}
@@ -215,7 +223,7 @@ index a8d8bd8..71d074e 100644
  							}
  						}
  					}
-@@ -2749,17 +2921,15 @@ void HandleUI(void)
+@@ -2749,17 +2929,15 @@ void HandleUI(void)
  			parentstate = MENU_COMMON1;
  			int n;
  
@@ -235,7 +243,7 @@ index a8d8bd8..71d074e 100644
  				if (cfg.osd_lock[0] && !cfg.osd_lock_time)
  				{
  					MenuWrite(n++, " Lock OSD", menusub == 1, 0);
-@@ -6608,7 +6778,7 @@ void HandleUI(void)
+@@ -6608,7 +6786,7 @@ void HandleUI(void)
  		/* system menu */
  		/******************************************************************/
  	case MENU_SYSTEM1:
@@ -244,7 +252,7 @@ index a8d8bd8..71d074e 100644
  		{
  			menustate = MENU_NONE1;
  			break;
-@@ -6851,6 +7021,356 @@ void HandleUI(void)
+@@ -6851,6 +7029,356 @@ void HandleUI(void)
  		}
  		break;
  

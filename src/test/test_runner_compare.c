@@ -8,6 +8,7 @@
 #include "sf33rd/Source/Game/engine/workuser.h"
 #include "sf33rd/Source/Game/engine/cmb_win.h"
 #include "sf33rd/Source/Game/ui/count.h"
+#include "test/test_assert.h"
 #include "test/test_runner_utils.h"
 #include "types.h"
 
@@ -22,24 +23,8 @@ typedef struct Position {
     s16 y;
 } Position;
 
-// Ported from upstream #268 (52a395bd) with the tests that use it; the rest
-// of that statcheck tooling commit is deliberately not pulled in.
-#define assert_equals(actual, expected)                                                                                \
-    do {                                                                                                               \
-        if ((actual) != (expected)) {                                                                                  \
-            fprintf(                                                                                                   \
-                stderr,                                                                                                \
-                "%s:%d: %s (%lld) != %s (%lld)\n",                                                                     \
-                __FILE__,                                                                                              \
-                __LINE__,                                                                                               \
-                #actual,                                                                                               \
-                (long long)(actual),                                                                                   \
-                #expected,                                                                                             \
-                (long long)(expected)                                                                                  \
-            );                                                                                                         \
-            stop_if(true);                                                                                             \
-        }                                                                                                              \
-    } while (0)
+/* assert_equals now lives in test/test_assert.h (shared with the STATCHECK
+ * compare - plan A3b); stop_if comes from port/utils.h above. */
 
 // Data reading
 

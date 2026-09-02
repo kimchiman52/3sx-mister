@@ -1,0 +1,86 @@
+#if defined(STATCHECK)
+
+#include "test/scrd_game.h"
+#include "arcade/arcade_constants.h"
+#include "constants.h"
+#include "test/ram_archive.h"
+
+#include <SDL3/SDL.h>
+
+// Self-contained big-endian u16 reader. Upstream's replay_game.c pulls this
+// from test/test_runner_utils.c, but the fork's copy of that file is gated
+// `#if DEBUG` (never compiled in a STATCHECK build), so we inline it here to
+// keep the STATCHECK translation unit independent of the DEBUG harness.
+static Uint16 scrd_read_u16(SDL_IOStream* io, Sint64 offset) {
+    Uint16 result = 0;
+    SDL_SeekIO(io, offset, SDL_IO_SEEK_SET);
+    SDL_ReadU16BE(io, &result);
+    return result;
+}
+
+static void scrd_adjust_character_numbers(ScrdGame* game) {
+    for (int i = 0; i < 2; i++) {
+        game->characters[i] = CHAR_ARCADE_TO_3SX(game->characters[i]);
+    }
+}
+
+bool ScrdGame_Init(ScrdGame* game, const char* ram_archive_path) {
+    SDL_zerop(game);
+    game->start_index = -1;
+
+    if (!RamArchive_Init(&game->archive, ram_archive_path)) {
+        SDL_Log("ScrdGame_Init: Failed to initialize RAM archive");
+        return false;
+    }
+
+    for (int frame_num = 0;; frame_num++) {
+        SDL_IOStream* io = RamArchive_GetFrame(&game->archive, frame_num);
+
+        if (io == NULL) {
+            break;
+        }
+
+        const Uint16 g_no_1 = scrd_read_u16(io, G_NO_OFFSET + 2);
+        const Uint16 g_no_2 = scrd_read_u16(io, G_NO_OFFSET + 4);
+        const Uint16 g_no_3 = scrd_read_u16(io, G_NO_OFFSET + 6);
+        const bool game_just_started = (g_no_1 == 2) && (g_no_2 == 0) && (g_no_3 == 0);
+
+        if (game_just_started) {
+            SDL_SeekIO(io, MY_CHAR_OFFSET, SDL_IO_SEEK_SET);
+            SDL_ReadIO(io, game->characters, 2);
+
+            SDL_SeekIO(io, SUPER_ARTS_OFFSET, SDL_IO_SEEK_SET);
+            SDL_ReadIO(io, game->supers, 2);
+
+            SDL_SeekIO(io, NEW_CHALLENGER_OFFSET, SDL_IO_SEEK_SET);
+            SDL_ReadU8(io, &game->new_challenger);
+
+            SDL_SeekIO(io, PLAYER_COLOR_OFFSET, SDL_IO_SEEK_SET);
+            SDL_ReadIO(io, game->colors, 2);
+
+            scrd_adjust_character_numbers(game);
+            game->start_index = frame_num + 1;
+        }
+
+        SDL_CloseIO(io);
+
+        if (game_just_started) {
+            break;
+        }
+    }
+
+    if (game->start_index == -1) {
+        SDL_Log("ScrdGame_Init: Failed to find game start frame");
+        RamArchive_Destroy(&game->archive);
+        return false;
+    }
+
+    return true;
+}
+
+void ScrdGame_Destroy(ScrdGame* game) {
+    RamArchive_Destroy(&game->archive);
+    SDL_zerop(game);
+}
+
+#endif

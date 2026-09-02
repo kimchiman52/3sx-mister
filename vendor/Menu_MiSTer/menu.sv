@@ -292,6 +292,14 @@ localparam CONF_STR = {
 	// "Balance Status Line".
 	"-,Balance:;",
 	"T[29],Play Online;",
+	// Top-level by design: the replay browser is a primary activity, so it
+	// sits with Play Online rather than inside a page.
+	// Bit 31 was V-Position's top bit through release v20260416 (stale CFGs
+	// may carry it set). Safe for a T: the HPS menu intercepts the OSD
+	// select directly (main-mister-full-menu.patch, bit==31) and the bit's
+	// value is never read by RTL or wrapper. Do NOT reuse [31] for an
+	// O-value field without the [30]-style seed-after-CFG defense.
+	"T[31],Replay Browser;",
 	"T[23],Button Check;",
 	"-;",
 	// Pages. Reordering rows is presentation-only: the HPS wrapper keys
@@ -308,8 +316,8 @@ localparam CONF_STR = {
 	// [4]), so no existing 3S-ARM.CFG can carry it set. That is why it was
 	// chosen over the tempting reuse candidates: [30] (ex-Arcade Balance,
 	// and V-Position's middle bit before v20260416) and [15]/[18:16]
-	// (the retired SA-quality rows). [31] stays reserved for the replay
-	// browser. The wrapper still seeds [47] from the game config after the
+	// (the retired SA-quality rows). [31] is now IN USE by the replay
+	// browser trigger above. The wrapper still seeds [47] from the game config after the
 	// CFG load, in the same block as [14], because the game config is
 	// authoritative for every wrapper-owned option.
 	"P1O[47],Language,English,Japanese;",

@@ -1,0 +1,21 @@
+# The tracked artifacts in this dir are the scripts, the plist TEMPLATE, this
+# .gitignore, and the README. Everything the installer generates lives under the
+# install root (default ~/Library/Application Support/fcade-replay-convert,
+# OUTSIDE the repo) -- but if an install root is ever pointed inside the repo,
+# keep its runtime artifacts out of git.
+venv/
+venv*/
+bin/
+3sr-out/
+logs/
+state/
+config.sh
+# The Stage S5 pre-convert worker's SECRET token file (FCADE_WORK_TOKEN).
+# NEVER commit this -- see README.md "Token configuration".
+secrets.sh
+# A rendered plist only ever lands in the install root; the tracked templates
+# (dev.sambae.fcade-convert.plist, dev.sambae.fcade-preconvert-worker.plist)
+# stay tracked. Ignore any rendered copy that lands here by mistake (it has
+# absolute machine paths sed'd in).
+*.rendered.plist
+__pycache__/

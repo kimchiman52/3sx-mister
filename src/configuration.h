@@ -169,7 +169,105 @@ typedef struct TestRunnerConfiguration {
      * is the independent variable: two runs differing only in this value
      * stand in for two peers whose disks differ. */
     int afs_inject_latency_ms;
+    /* Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): raw decoded
+     * Fightcade -13 stream playback from the engine's own cold boot, for
+     * the direct-from-boot GO/NO-GO measurement. `fcade_inputs_path` is a
+     * decode_inputs.py --bin file (frame_count x {u16 p1, u16 p2} LE,
+     * ARCADE-RAM layout; converted to SWK at the injection site). Only
+     * takes effect in #if DEBUG builds, and only with --test-enable.
+     * All fields below are inert (never read) when fcade_inputs_path is
+     * NULL. */
+    const char* fcade_inputs_path;
+    /* First stream frame to feed (skip prefix); default 0. */
+    int fcade_offset;
+    /* App frame (counting TestRunner prologue calls from launch) at which
+     * feeding starts; before it the injected words are neutral. Default 0
+     * = feed from the very first frame. */
+    int fcade_anchor;
+    /* Optional deterministic START taps (2 frames) for P1/P2 at the given
+     * app frame, standing in for the join/credit state the FBNeo
+     * savestate encodes but the -13 stream omits (run.cpp:328-345 never
+     * maps coin; docs/fcade-replay-notes.md section 5.3). -1 = off. */
+    int fcade_p1_start_frame;
+    int fcade_p2_start_frame;
+    /* Exit(0) after sampling this many app frames (0 = run until killed). */
+    int fcade_max_frames;
+    /* Candidate rule from plan Step B3: B1's per-game stream offset of the
+     * first game's archive frame 0. When >= 0, the first time the runner
+     * observes the round-start init state (G_No[1]==2 && G_No[2]==3) it
+     * re-anchors the stream cursor so the engine consumes stream frame
+     * (offset + k) on the frame corresponding to archive frame k,
+     * compensating the port's own char-select->round-start transition
+     * length differing from the arcade's. -1 (default) = off. */
+    int fcade_game_offset;
+    /* Validation-gate extension (adversarial re-verification of Step B3 /
+     * device-direct playback): SCRD-derived char-select SETUP injection.
+     * When fcade_p1_char >= 0, the recorded characters / super arts /
+     * colors / new-challenger flag are forced onto the engine's own
+     * arcade char-select outcome every pre-round frame (char-select and
+     * game-transition phases, until the game-offset re-anchor fires), so
+     * the raw -13 in-game stream plays against the RECORDED matchup even
+     * when the stream-driven cursor nav would land elsewhere (the 7287
+     * Yang-instead-of-Ken failure, scratchpad b3-findings.md section 4).
+     * Character ids are ENGINE (3SX 20-id) numbering; supers are the raw
+     * arcade Super_Arts byte; colors are the raw arcade Player_Color
+     * byte. -1 (default) = off. */
+    int fcade_p1_char;
+    int fcade_p2_char;
+    int fcade_p1_arts;
+    int fcade_p2_arts;
+    int fcade_p1_color;
+    int fcade_p2_color;
+    int fcade_new_challenger;
+    /* Separately toggleable RNG seed: when >= 0, Random_ix16/Random_ix32
+     * are set ONCE to these values on the first frame the runner observes
+     * G_No[1] == 2 (game phase entered, pre round-init) — the same seed
+     * point the shipped player and statcheck use (replay_player.c
+     * PHASE_GAME_TRANSITION / statcheck_runner.c:341-346), with the
+     * SCRD signature-frame values make_3sr.py reads. -1 = off. */
+    int fcade_seed_ix16;
+    int fcade_seed_ix32;
+    /* When true, the RNG seed above is applied at the game-offset
+     * RE-ANCHOR frame (round-start init) instead of the first G_No[1]==2
+     * frame — values should then be the SCRD archive's frame-1 values.
+     * Probes whether Random_ix16/32 can track the arcade trajectory
+     * through the whole in-game run (the dizzy-duration question). */
+    bool fcade_seed_at_reanchor;
 } TestRunnerConfiguration;
+
+/* Step C1 of docs/plan-fcade-replay-browser.md — runtime .3sr replay
+ * player (src/replay/replay_player.c). Present in EVERY build flavor (the
+ * player is release code, not a harness). `play_replay_path` is the .3sr
+ * file supplied via `--play-replay`; NULL means the player stays inert.
+ * No config-file key yet — Step D1 adds it. */
+typedef struct ReplayConfiguration {
+    const char* play_replay_path;
+    /* Overlay metadata handoff: the caller already knows both player names,
+     * their Fightcade ranks (1..6 = E..S; 0 = unranked) and the match date,
+     * so it passes them alongside --play-replay and the player shows them
+     * from the FIRST frame — no .meta.json sidecar needed beside the .3sr.
+     * All optional; NULL/0 = unknown. Only meaningful with --play-replay
+     * (args.c rejects them otherwise). `live_date_ms` is a string because
+     * ms-epoch overflows argparse's int. The `live_` prefix and the
+     * `--live-replay-*` flag spelling are historical, from the retired
+     * live-stream path; the channel itself is not live-specific. */
+    const char* live_p1_name;
+    const char* live_p2_name;
+    int live_p1_rank;
+    int live_p2_rank;
+    const char* live_date_ms;
+} ReplayConfiguration;
+
+#if defined(STATCHECK)
+/* Stage A of docs/plan-fcade-replay-browser.md — statcheck replay harness.
+ * Only present in a THREESX_STATCHECK build. `ram_archive_path` is the SCRD
+ * archive supplied via `--ram-archive`; verify_configuration() makes it a
+ * required arg (the statcheck build refuses to start without it), mirroring
+ * upstream:src/args.c:50-54. */
+typedef struct StatcheckConfiguration {
+    const char* ram_archive_path;
+} StatcheckConfiguration;
+#endif
 
 #if ENABLE_PERF_TELEMETRY
 typedef struct PerfCaptureConfiguration {
@@ -195,6 +293,10 @@ typedef struct PerfCaptureConfiguration {
 typedef struct Configuration {
     NetplayConfiguration netplay;
     TestRunnerConfiguration test;
+    ReplayConfiguration replay;
+#if defined(STATCHECK)
+    StatcheckConfiguration statcheck;
+#endif
 #if ENABLE_PERF_TELEMETRY
     PerfCaptureConfiguration perf;
 #endif

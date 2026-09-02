@@ -61,6 +61,20 @@ void save_recent_join(const char *code);
 
 extern int g_direct_p2p_handoff_armed;
 
+/*
+ * Replay launch-by-path handoff. The caller passes the absolute path of a
+ * `.3sr`; it stores the path, arms a restart and SIGTERMs the child, and the
+ * wrapper relaunch injects `--play-replay <path>` (an existing game flag,
+ * src/args.c) into child argv so the game boots into that replay. Carries a
+ * payload (the path) unlike a bare flag, but like one there
+ * is NO on-disk handoff file — argv is the payload channel. No caller at
+ * present: the OSD replay browser is gone and the shuffle viewer re-points at
+ * this in a later step.
+ */
+void replay_play_handoff(const char *path_3sr);
+extern int g_replay_play_armed;
+extern char g_replay_play_path[512];
+
 #ifdef __cplusplus
 }
 #endif

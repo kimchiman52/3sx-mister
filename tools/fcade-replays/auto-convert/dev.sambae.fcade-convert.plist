@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent TEMPLATE for the daily, INCREMENTAL replay-conversion batch
+  (tools/fcade-replays/auto-convert/convert-batch.sh).
+
+  Unlike the stealth-catalog refresh agent (which drives a REAL headed Chrome
+  window and therefore needs the login GUI session), this job is FULLY HEADLESS
+  -- the FBNeo runner is -headless and statcheck uses dummy SDL video/audio. So
+  it can run unattended regardless of login state. It is still a per-user agent
+  (its runtime -- venv, statcheck copy, .3sr store -- lives under the user's
+  install root, and the push uses the user's ~/.ssh key).
+
+  The __PLACEHOLDER__ tokens are filled with resolved absolute paths by setup.sh,
+  which writes the final plist to install-root/dev.sambae.fcade-convert.plist.
+  Install/load it with `launchctl bootstrap gui/$UID` (see README.md).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.sambae.fcade-convert</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__CONVERT_BATCH_SH__</string>
+    </array>
+
+    <!-- Do NOT run at load; only on the calendar schedule. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Once daily at 05:00 local, offset from the catalog refresh (which runs
+         on the 3-hour marks 00/03/06/09/...). A batch converts a bounded rolling
+         pool of the newest un-converted quarks; a missed day is self-healing
+         (the next day converts the newest-N-still-unconverted, catalog-driven). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>5</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <!-- Both streams append to the daily log; convert-batch.sh also redirects
+         its own output there, so the file is a single source of truth. -->
+    <key>StandardOutPath</key>
+    <string>__DAILY_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__DAILY_LOG__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- convert-batch.sh derives everything else (and reads an optional
+             config.sh) from this install root. -->
+        <key>FCADE_CONVERT_HOME</key>
+        <string>__INSTALL_ROOT__</string>
+        <!-- A minimal PATH so /usr/bin tools (ssh, rsync, osascript, date)
+             resolve under launchd's stripped environment. -->
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- A conversion batch is CPU-heavy but a one-shot, not a resident daemon. -->
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Never let two batches overlap (a slow batch must not collide with the
+         next day's trigger). Also don't hammer-restart on a non-zero exit. -->
+    <key>ThrottleInterval</key>
+    <integer>3600</integer>
+</dict>
+</plist>

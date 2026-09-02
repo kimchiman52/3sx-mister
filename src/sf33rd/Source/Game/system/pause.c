@@ -17,6 +17,7 @@
 #include "sf33rd/Source/Game/system/work_sys.h"
 #include "sf33rd/Source/Game/ui/sc_sub.h"
 #include "port/sdl/sdl_app.h"
+#include "replay/replay_player.h"
 
 #define PAUSE_HOLD_FRAMES 105
 
@@ -186,6 +187,35 @@ s32 Check_Pause_Term(u16 sw, u8 PL_id) {
     if (configuration.test.enabled) {
         return 0;
     }
+#endif
+
+    /* Step C1 (docs/plan-fcade-replay-browser.md): the runtime .3sr replay
+     * player (release code, src/replay/replay_player.c) injects both pads
+     * directly into p1sw_buff/p2sw_buff — no physical controller needs to
+     * be connected, so the connection check below fires the Come_Out
+     * ("controller unplugged") pause mid-replay: Game_pause = 0x81 freezes
+     * Game_timer/gameplay while the replay keeps advancing its input
+     * index, desyncing the next checksum checkpoint (observed on the first
+     * C1 run: a 29-frame freeze starting ~frame 391). Same rationale as
+     * the DEBUG/STATCHECK carve-outs around this one, but scoped at
+     * runtime to an actively-injecting replay session — once playback
+     * completes or desyncs the pads are released and stock pause behavior
+     * returns. */
+    if (ReplayPlayer_GetStatus() == REPLAY_PLAYER_PLAYING) {
+        return 0;
+    }
+
+#if defined(STATCHECK)
+    /* A3b (docs/plan-fcade-replay-browser.md): statcheck replays inject
+     * inputs directly into p1sw_buff/p2sw_buff with no physical controller
+     * attached, so the connection check below would fire the Come_Out
+     * ("controller unplugged") pause on the first gameplay frame and freeze
+     * Game_timer, desyncing every replay at round start. Same carve-out as
+     * the DEBUG test-runner block above (upstream's statcheck input driver
+     * never hits this because its virtual pads report as connected). DEBUG
+     * and STATCHECK cannot be co-compiled, so exactly one gate exists per
+     * build. */
+    return 0;
 #endif
 
     if (Present_Mode == 3) {

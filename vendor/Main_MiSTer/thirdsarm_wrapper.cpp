@@ -50,6 +50,17 @@ static MisterJoyShm *g_joy_shm = nullptr;
 // scope (NOT inside the anonymous namespace) so it matches the header.
 extern "C" int g_direct_p2p_handoff_armed = 0;
 
+// Replay launch-by-path handoff. The OSD stores the absolute path of a `.3sr`
+// in g_replay_play_path and sets g_replay_play_armed; the child-fork block then
+// injects `--play-replay <path>` into the relaunched game's argv (the game flag
+// already exists — src/args.c). Like direct-P2P it needs NO on-disk handoff
+// file — argv is the payload channel. Both symbols have C linkage
+// (declared in thirdsarm_wrapper.h) so the menu patch (menu.cpp) and this TU
+// share them; defined at namespace scope to match. No OSD page calls the arming
+// helper at present — the shuffle viewer re-points at it in a later step.
+extern "C" int g_replay_play_armed = 0;
+extern "C" char g_replay_play_path[512] = {0};
+
 namespace {
 
 constexpr const char *kCoreName = "3S-ARM";
@@ -2764,6 +2775,33 @@ extern "C" void direct_p2p_handoff_join(const char *code)
 	direct_p2p_arm_and_restart();
 }
 
+// Replay launch-by-path handoff. Called with the absolute path of a `.3sr`:
+// store the path in the file-scope buffer, arm the flag, request a restart and
+// SIGTERM the child so it exits promptly. The relaunch injects
+// `--play-replay <path>` into the game argv. No handoff file — argv carries
+// the payload. Currently has no caller; the shuffle viewer picks it back up in
+// a later step.
+extern "C" void replay_play_handoff(const char *path_3sr)
+{
+	if (!path_3sr || !*path_3sr)
+	{
+		fprintf(stderr, "[replay_play_handoff] null/empty path; ignored\n");
+		return;
+	}
+	size_t n = strlen(path_3sr);
+	if (n >= sizeof(g_replay_play_path))
+	{
+		fprintf(stderr, "[replay_play_handoff] path too long (%zu); ignored\n", n);
+		return;
+	}
+	memcpy(g_replay_play_path, path_3sr, n);
+	g_replay_play_path[n] = '\0';
+	g_replay_play_armed = 1;
+	g_wrapper_restart_requested = 1;
+	pid_t pid = (pid_t)g_child_pid;
+	if (pid > 0) kill(pid, SIGTERM);
+}
+
 int thirdsarm_wrapper_run(int argc, char *argv[])
 {
 	const bool forced = force_requested();
@@ -3038,6 +3076,17 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 				child_argv.push_back(const_cast<char *>("--direct-p2p-handoff"));
 				child_argv.push_back(const_cast<char *>(kDirectP2PHandoffPath));
 			}
+			// Stage S2 (docs/plan-osd-replay-browser.md): if the OSD LOCAL page
+			// armed a replay launch, inject `--play-replay <path>` so the game
+			// boots straight into that .3sr (src/args.c already registers the
+			// flag). g_replay_play_path is the child's COW copy; the parent
+			// clears g_replay_play_armed post-fork so a later relaunch does not
+			// re-inject it.
+			if (g_replay_play_armed)
+			{
+				child_argv.push_back(const_cast<char *>("--play-replay"));
+				child_argv.push_back(g_replay_play_path);
+			}
 			child_argv.push_back(nullptr);
 
 			execve(kRuntimeBinary, child_argv.data(), environ);
@@ -3058,12 +3107,23 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 		// cycle would re-inject the flag even if the user navigated the OSD
 		// back out of Direct-P2P.
 		g_direct_p2p_handoff_armed = 0;
+		// Stage S2: same PARENT-side consume for the LOCAL replay-launch flag.
+		// Snapshot the arm state + path so the launch log below can record them.
+		const bool replay_play_was_armed = (g_replay_play_armed != 0);
+		char replay_play_path_snapshot[512];
+		memcpy(replay_play_path_snapshot, g_replay_play_path, sizeof(replay_play_path_snapshot));
+		g_replay_play_armed = 0;
 
 		int exec_errno = 0;
 		ssize_t exec_read = read(err_pipe[0], &exec_errno, sizeof(exec_errno));
 		close(err_pipe[0]);
 
 		write_log_line(wrapper_log, "child_pid=%d", child);
+		if (replay_play_was_armed)
+		{
+			write_log_line(wrapper_log, "replay_play_arm=1");
+			write_log_line(wrapper_log, "replay_play_path=%s", replay_play_path_snapshot);
+		}
 		write_log_line(wrapper_log, "runtime=%s", kRuntimeBinary);
 		write_log_line(wrapper_log, "THIRDSARM_HOME=%s", kRuntimeHome);
 		write_log_line(wrapper_log, "LD_LIBRARY_PATH=%s", getenv("LD_LIBRARY_PATH") ? getenv("LD_LIBRARY_PATH") : "");
