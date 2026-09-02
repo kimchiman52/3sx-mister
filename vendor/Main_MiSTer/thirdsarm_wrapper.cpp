@@ -61,6 +61,13 @@ extern "C" int g_direct_p2p_handoff_armed = 0;
 extern "C" int g_replay_play_armed = 0;
 extern "C" char g_replay_play_path[512] = {0};
 
+// Weekly-best shuffle viewer arm flag ("Watch Replays", OSD status bit
+// T[31]). Same channel as the two above, with no payload at all: the
+// child-fork block injects a bare `--watch-replays` and the game enumerates
+// the cached set itself. C linkage + namespace scope for the same reason
+// (the menu patch and this TU must see one symbol).
+extern "C" int g_replay_shuffle_armed = 0;
+
 namespace {
 
 constexpr const char *kCoreName = "3S-ARM";
@@ -2950,6 +2957,19 @@ extern "C" void replay_play_handoff(const char *path_3sr)
 	if (pid > 0) kill(pid, SIGTERM);
 }
 
+// Weekly-best shuffle viewer handoff. Same shape as replay_play_handoff
+// above with nothing to validate and nothing to store: arm the flag, request
+// a restart, and SIGTERM the child so it exits promptly. The relaunch
+// injects `--watch-replays` into the game argv; the game scans the replays
+// root, shuffles it and plays it back to back forever.
+extern "C" void replay_shuffle_handoff(void)
+{
+	g_replay_shuffle_armed = 1;
+	g_wrapper_restart_requested = 1;
+	pid_t pid = (pid_t)g_child_pid;
+	if (pid > 0) kill(pid, SIGTERM);
+}
+
 int thirdsarm_wrapper_run(int argc, char *argv[])
 {
 	const bool forced = force_requested();
@@ -3242,6 +3262,15 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 				child_argv.push_back(const_cast<char *>("--play-replay"));
 				child_argv.push_back(g_replay_play_path);
 			}
+			// "Watch Replays" (T[31]) -> the weekly-best shuffle viewer. A bare
+			// flag is the whole payload; the game resolves the replays root from
+			// its own config. Mutually exclusive with --play-replay in src/args.c,
+			// and the two arm flags are never both set (each handoff restarts the
+			// child, and the parent clears both post-fork).
+			if (g_replay_shuffle_armed)
+			{
+				child_argv.push_back(const_cast<char *>("--watch-replays"));
+			}
 			child_argv.push_back(nullptr);
 
 			execve(kRuntimeBinary, child_argv.data(), environ);
@@ -3268,6 +3297,11 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 		char replay_play_path_snapshot[512];
 		memcpy(replay_play_path_snapshot, g_replay_play_path, sizeof(replay_play_path_snapshot));
 		g_replay_play_armed = 0;
+		// Same PARENT-side consume for the shuffle-viewer flag, so a later
+		// relaunch (e.g. an ordinary restart from the OSD) does not silently
+		// boot back into the viewer.
+		const bool replay_shuffle_was_armed = (g_replay_shuffle_armed != 0);
+		g_replay_shuffle_armed = 0;
 
 		int exec_errno = 0;
 		ssize_t exec_read = read(err_pipe[0], &exec_errno, sizeof(exec_errno));
@@ -3278,6 +3312,10 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 		{
 			write_log_line(wrapper_log, "replay_play_arm=1");
 			write_log_line(wrapper_log, "replay_play_path=%s", replay_play_path_snapshot);
+		}
+		if (replay_shuffle_was_armed)
+		{
+			write_log_line(wrapper_log, "replay_shuffle_arm=1");
 		}
 		write_log_line(wrapper_log, "runtime=%s", kRuntimeBinary);
 		write_log_line(wrapper_log, "THIRDSARM_HOME=%s", kRuntimeHome);

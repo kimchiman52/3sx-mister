@@ -246,6 +246,14 @@ static void verify_configuration(Configuration* configuration) {
                             "harness owns input injection).",
                             EXIT_CODE_RUNTIME_ERROR);
     }
+
+    /* Same reason for the shuffle viewer: it drives the same C1 player, whose
+     * injection would collide with StatcheckRunner_Prologue's. */
+    if (configuration->replay.watch_replays) {
+        error_out_with_code("--watch-replays cannot be used in a THREESX_STATCHECK build (the statcheck "
+                            "harness owns input injection).",
+                            EXIT_CODE_RUNTIME_ERROR);
+    }
 #endif
 
     /* The meta handoff flags describe the replay being played, so they ride
@@ -265,6 +273,26 @@ static void verify_configuration(Configuration* configuration) {
         error_out_with_code("--play-replay cannot be combined with --test-enable.", EXIT_CODE_RUNTIME_ERROR);
     }
 
+    /* The shuffle viewer and a single --play-replay boot are two different
+     * owners of the same C1 player. Only ReplayPlayer_LoadAndStart (which the
+     * viewer uses) marks a launch as owned, and only an owned launch FREEZES
+     * at a terminal state instead of calling SDLApp_Exit(); a --play-replay
+     * boot would therefore end the process after the first match and take the
+     * playlist with it. Reject the combination outright. */
+    if (configuration->replay.watch_replays && configuration->replay.play_replay_path != NULL) {
+        error_out_with_code("--watch-replays cannot be combined with --play-replay.", EXIT_CODE_RUNTIME_ERROR);
+    }
+
+    /* The root override only means something to the viewer. */
+    if (configuration->replay.watch_replays_root != NULL && !configuration->replay.watch_replays) {
+        error_out_with_code("--watch-replays-root requires --watch-replays.", EXIT_CODE_RUNTIME_ERROR);
+    }
+
+    /* Same latch contention as --play-replay above. */
+    if (configuration->replay.watch_replays && configuration->test.enabled) {
+        error_out_with_code("--watch-replays cannot be combined with --test-enable.", EXIT_CODE_RUNTIME_ERROR);
+    }
+
 #if ENABLE_NETPLAY
     {
         const NetplayConfiguration* netplay = &configuration->netplay;
@@ -280,6 +308,14 @@ static void verify_configuration(Configuration* configuration) {
          * if a session appears later (e.g. default-path handoff probe). */
         if (configuration->replay.play_replay_path != NULL && (p2p_specified || handoff_specified)) {
             error_out("--play-replay cannot be combined with netplay flags.");
+        }
+
+        /* Same collision for the shuffle viewer: ReplayPlayer_LoadAndStart
+         * refuses while a session is live and ReplayPlayer_Tick aborts a
+         * running replay if one appears, so an armed netplay session would
+         * leave the viewer with nothing to do. */
+        if (configuration->replay.watch_replays && (p2p_specified || handoff_specified)) {
+            error_out("--watch-replays cannot be combined with netplay flags.");
         }
 
         if (p2p_specified) {
@@ -859,6 +895,25 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                    &configuration->replay.live_date_ms,
                    "Match date as ms-since-epoch (string — the value overflows int) for the "
                    "replay overlay. Optional; requires --play-replay.",
+                   NULL,
+                   0,
+                   0),
+        OPT_BOOLEAN(0,
+                    "watch-replays",
+                    &configuration->replay.watch_replays,
+                    "Weekly-best shuffle viewer: play every cached .3sr under the replays root "
+                    "back to back in a random order, forever, reshuffling at the end of the set. "
+                    "Hold MP to skip to the next replay; hold START to leave. Mutually exclusive "
+                    "with --play-replay.",
+                    NULL,
+                    0,
+                    0),
+        OPT_STRING(0,
+                   "watch-replays-root",
+                   &configuration->replay.watch_replays_root,
+                   "Directory the shuffle viewer scans for *.3sr files (flat + one level of "
+                   "subdirs). Overrides the 'replays-root' config key / platform default. "
+                   "Requires --watch-replays.",
                    NULL,
                    0,
                    0),

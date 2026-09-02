@@ -256,6 +256,16 @@ typedef struct ReplayConfiguration {
     int live_p1_rank;
     int live_p2_rank;
     const char* live_date_ms;
+    /* The weekly-best shuffle viewer (src/replay/replay_shuffle.c).
+     * `watch_replays` is --watch-replays: play the cached `.3sr` set back to
+     * back, forever, reshuffling at the end. Mutually exclusive with
+     * --play-replay (they would fight over the same injection latch, and the
+     * boot path's replay is not browser-owned so it would exit the process
+     * after one match). `watch_replays_root` (--watch-replays-root) overrides
+     * the scanned directory for testability; NULL falls back to the
+     * `replays-root` config key / platform default. */
+    bool watch_replays;
+    const char* watch_replays_root;
 } ReplayConfiguration;
 
 #if defined(STATCHECK)

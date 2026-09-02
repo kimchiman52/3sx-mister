@@ -79,6 +79,17 @@ void replay_play_handoff(const char *path_3sr);
 extern int g_replay_play_armed;
 extern char g_replay_play_path[512];
 
+/*
+ * Weekly-best shuffle viewer handoff ("Watch Replays", OSD status bit
+ * T[31]). Mirrors replay_play_handoff() exactly, minus the payload: it arms
+ * a restart and SIGTERMs the child, and the wrapper relaunch injects the
+ * bare `--watch-replays` flag (src/args.c) into child argv. The game then
+ * plays the whole cached `.3sr` set back to back in a random order. A bare
+ * flag IS the whole payload — there is no on-disk handoff file and no path.
+ */
+void replay_shuffle_handoff(void);
+extern int g_replay_shuffle_armed;
+
 #ifdef __cplusplus
 }
 #endif

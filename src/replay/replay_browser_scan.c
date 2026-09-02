@@ -329,6 +329,14 @@ int RbScan(const char* root, RbEntry* entries, int max) {
         SDL_free(children);
     }
 
+    /* The header promises "beyond this the scan stops and logs"; the log was
+     * missing, so a set larger than the cap was silently truncated. A weekly
+     * set can exceed RB_MAX_ENTRIES, and the caller has no other way to tell
+     * a full scan from a clipped one (both just return `max`). */
+    if (count >= max) {
+        SDL_Log("replay-scan: '%s' filled the %d-entry cap — any further replays were not enumerated", root, max);
+    }
+
     return count;
 }
 

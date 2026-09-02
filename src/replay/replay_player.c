@@ -1426,12 +1426,23 @@ static void check_checkpoint(void) {
     desync_frame = play_index;
     phase = PHASE_DONE;
     status = REPLAY_PLAYER_DESYNCED;
-    SDL_Log("REPLAY DESYNC at frame %u (checkpoint %u/%u: live=%08x want=%08x) — stopping input injection",
+    /* The replay's own identity is part of the record: this message was
+     * written when exactly one replay was ever in play, so it named the
+     * checkpoint and both hashes but not WHICH recording diverged. In a
+     * shuffle session that is the one thing the line was missing. (Which
+     * FIELD diverged is still not knowable here — the .3sr stores a single
+     * 32-bit djb2 per checkpoint over the 13-field window, not per-field
+     * values; log_live_fields below dumps every live value instead.) */
+    SDL_Log("REPLAY DESYNC at frame %u (checkpoint %u/%u: live=%08x want=%08x) in replay '%s' (%s vs %s) — "
+            "stopping input injection",
             play_index,
             k + 1,
             replay.checksum_count,
             live,
-            want);
+            want,
+            replay_label,
+            have_p1_name ? meta_p1_name : "(unknown)",
+            have_p2_name ? meta_p2_name : "(unknown)");
     log_live_fields("desync live state");
 }
 

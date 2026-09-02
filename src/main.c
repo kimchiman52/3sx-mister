@@ -40,6 +40,7 @@
 #include "sf33rd/Source/Game/ui/frame_trace.h"
 #include "sf33rd/Source/Game/ui/sc_sub.h"
 #include "replay/replay_player.h"
+#include "replay/replay_shuffle.h"
 #include "structs.h"
 #include "test/ldreq_timing_trace.h"
 #include "test/rollback_determinism.h"
@@ -560,6 +561,19 @@ static void initialize_game() {
         }
         ReplayPlayer_SetLiveMeta(configuration.replay.live_p1_name, configuration.replay.live_p1_rank,
                                  configuration.replay.live_p2_name, configuration.replay.live_p2_rank, date_ms);
+    } else if (ReplayShuffle_IsEnabled()) {
+        /* LOAD-BEARING. The shuffle viewer plays every replay through
+         * ReplayPlayer_LoadAndStart, which deliberately does NOT re-pin the
+         * config — the pin is a whole-session obligation the owning module
+         * inherits (it used to be the browser's). Miss this and every replay
+         * runs with the wrong balance, game mode and button mapping, which
+         * presents as a desync rather than as a missing call. Applied here,
+         * before ArcadeBalance_Init(), so the arcade-balance pin is visible to
+         * it. (Mutually exclusive with the --play-replay branch above:
+         * args.c rejects the combination.) */
+        SDL_Log("replay-shuffle: enabled — applying the whole-session config pin "
+                "(console + arcade-balance + identity buttons)");
+        ReplayPlayer_PinConfig();
     }
 
     /* Ordering matters:
@@ -578,6 +592,7 @@ static void initialize_game() {
 }
 
 static void cleanup() {
+    ReplayShuffle_Destroy();
     ReplayPlayer_Destroy();
     AFS_Finish();
     SDLApp_Quit();
@@ -885,6 +900,15 @@ static void game_step_0() {
      * in p*sw_0 this frame; placed after NetplayNav_Tick so a (mutually
      * exclusive — args.c + runtime session guard) replay session owns the
      * final word on the buffers. Inert without --play-replay. */
+    /* The weekly-best shuffle viewer. Runs BEFORE ReplayPlayer_Tick, not
+     * after it where ReplayBrowser_Tick used to sit: its hold-to-skip gesture
+     * has to read the REAL pads keyConvert() wrote this frame, and
+     * ReplayPlayer_Tick overwrites p1sw_buff/p2sw_buff with the injected
+     * words (and zeroes them once terminal). Unlike the browser it does not
+     * consume the pads — the player overwrites them a few lines later anyway.
+     * Inert without --watch-replays. */
+    ReplayShuffle_Tick();
+
     ReplayPlayer_Tick();
 
     /* When the replay player is holding the frame, skip the input latch and
@@ -948,6 +972,11 @@ static void game_step_0() {
          * NETPLAY close at ~0 because neither runs. */
         step0_phase_end(STEP0_PHASE_ENGINE);
         ReplayOverlay_Draw();
+        /* MUST be here as well as in the normal branch below: every
+         * inter-replay transition happens on HELD frames, so anything the
+         * shuffle viewer wants on screen between replays is only ever drawn
+         * from this branch. */
+        ReplayShuffle_Draw();
         njdp2d_draw();
         step0_phase_end(STEP0_PHASE_SEQS);
         step0_phase_end(STEP0_PHASE_NETPLAY);
@@ -960,6 +989,8 @@ static void game_step_0() {
          * message) into the 2D sprite list before njdp2d_draw() flushes it.
          * Read-only over the player state — inert without --play-replay. */
         ReplayOverlay_Draw();
+        /* Shuffle-viewer chrome (skip hint). Inert without --watch-replays. */
+        ReplayShuffle_Draw();
         njdp2d_draw();
         seqsAfterProcess();
         step0_phase_end(STEP0_PHASE_SEQS);
@@ -1445,6 +1476,11 @@ int main(int argc, const char* argv[]) {
         configuration.test_gs_coverage || configuration.test_rendezvous_wire) {
         SDL_SetAssertionHandler(test_harness_assert_handler, NULL);
     }
+
+    /* Stash the shuffle viewer's CLI state before any tick (the slot
+     * ReplayBrowser_Configure used to occupy). The `replays-root` config key
+     * is read later, after Config_Init in SDLApp_FullInit. */
+    ReplayShuffle_Configure(configuration.replay.watch_replays, configuration.replay.watch_replays_root);
 
 #if defined(STATCHECK)
     /* Stage A3b of docs/plan-fcade-replay-browser.md — statcheck harness
