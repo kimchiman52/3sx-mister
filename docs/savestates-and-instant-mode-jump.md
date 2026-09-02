@@ -1,0 +1,828 @@
+# Save States & Instant Mode Jump — Research & Design
+
+**Origin:** this document started life as the Desktop research doc
+`~/Desktop/3s-arm/docs/3sx-savestates-and-instant-mode-jump-2026-08-29.md`
+(written 2026-08-29 against `upstream-engine-fixes` @ `1f981b73`). It was
+moved into the repo and re-validated on `lane/training-savestates` @
+`762b5052`, and its #1 open question was settled with a prototype
+(`src/test/scene_jump_spike.c`, findings SJ-15..SJ-21). Its two sibling docs
+(`3sx-training-mode-fixes-2026-08-29.md` = `TM-nn`,
+`3sx-makoto-1f-link-2026-08-29.md` = `ML-nn`) **remain outside the repo**, in
+that same Desktop directory.
+
+**Status:** research + one DEBUG-gated prototype. Nothing shipped.
+
+---
+
+## READ THIS FIRST — before touching the repo
+
+1. Read `AGENTS.md` at the repo root. Then `docs/mister-runbook.md` before any
+   build, package, deploy, or probe work. For anything touching the rollback
+   state set, also read `docs/rollback-determinism-harness.md`.
+2. **Canonical build:** `tools/mister/build-game.sh --flavor telemetry`.
+3. **Device work** goes through `tools/mister/misterctl.sh`. Owned targets are
+   only `/media/fat/MiSTer_3S-ARM`, `/media/fat/_Other/3S-ARM.rbf`, and
+   `/media/fat/games/3s-arm/`. **Never** `rsync --delete` at `/media/fat`.
+4. **Never push to any remote** without an explicit instruction.
+5. **Mandatory gate:** any change to `GameState` / the `GS_SAVE` set must be
+   re-validated with `tools/rollback-determinism/run.sh`. Also update
+   `EXPECTED_GAME_STATE_SIZE` — it now lives in **`src/netplay/game_state.h`**
+   (moved there so `mist_handshake.c` can advertise the same `state_ver` on
+   every architecture); the `_Static_assert` that enforces it is still in
+   `game_state.c`, active on 32-bit builds only.
+6. **Citation form in this doc:** durable anchors — `file` -> `symbol`, or
+   the exact quoted text of a line. Resolve them by grepping the symbol. A
+   bare line number appears only as a hint qualified with the commit it was
+   read at (`:NNN @ 762b5052`) and must never be trusted on its own. This
+   file is deliberately NOT in `tools/doc-citations/baselines.txt`; do not
+   hand-repoint numbers here.
+
+### The three documents
+
+| Doc | IDs | Scope |
+|---|---|---|
+| `3sx-training-mode-fixes-2026-08-29.md` (Desktop, not in repo) | `TM-nn` | Training-mode bug audit. |
+| `3sx-makoto-1f-link-2026-08-29.md` (Desktop, not in repo) | `ML-nn` | Makoto HP Hayate -> SA1 combo-counter investigation. |
+| **This one** | `SJ-nn` | Save states, quick-training-mode, instant mode-jump design |
+
+No findings overlap between them.
+
+---
+
+## Findings index
+
+**Cite these IDs, not section numbers.** Sections renumber as the doc grows.
+
+| ID | Finding | Where | Bearing |
+|---|---|---|---|
+| SJ-01 | A general-purpose snapshot API already exists and is not netplay-shaped | §2.1 | Enables save states |
+| SJ-02 | Full snapshot already runs every frame at 60fps on device | §2.2 | Cost is a solved problem |
+| SJ-03 | Snapshots are process-local (raw function + data pointers) | §2.4 | In-memory yes, on-disk needs relocation |
+| SJ-04 | Same-scene training save state is viable | §3 | Green light |
+| SJ-05 | Audio re-fire is the one real blocker for user save states | §3.2 | Must design |
+| SJ-06 | The scene side-effect chain is fully enumerated (12 steps) | §4 | Makes instant jump buildable |
+| SJ-07 | Netplay orchestration is already scene-independent | §5.2 | Attract-screen wait is free |
+| SJ-08 | A connection-status overlay purpose-built for attract/title already exists | §5.3 | UI half already done |
+| SJ-09 | `No_Trans` already suppresses all drawing and is already used this way | §5.4 | Black-cover is free |
+| SJ-10 | Training settings + char select already persist to disk | §6.1 | Quick-training needs no save state |
+| SJ-11 | A working menu-to-match driver exists but is `#if DEBUG` | §6.2 | Promote, don't rewrite |
+| SJ-12 | OSD -> game live command channel exists (config rewrite + signal) | §7 | Trigger mechanism ready |
+| SJ-13 | Replay/DUMMY RECORDING stores inputs only, no positional state | §6.3 | Not reusable as a save state |
+| SJ-14 | Cross-scene save state restore is NOT viable | §2.5 | Rules out one approach |
+| SJ-15 | **SETTLED: the chain runs correctly outside task dispatch** — proven by prototype | §4.1 | Open question #1 closed |
+| SJ-16 | Step 7's "async gates" are synchronous + idempotent on this port | §4.2 | Only step 10 is multi-frame |
+| SJ-17 | Gate cost measured: 24-25 frames stock, 1 frame barrier-forced (host) | §4.3 | Open question #2 closed on host |
+| SJ-18 | §4's step 12 (`Game2_2`) is the Reset_Replay path, not the virgin path | §4.4 | Corrects the chain table |
+| SJ-19 | `Load_Replay_Sub` is an in-tree menu->match jump that bypasses char select | §4.5 | The template the spike copied |
+| SJ-20 | Hardcode census: 5 `Mode_Type = MODE_ARCADE` sites, 11 `Present_Mode` writes | §4.6 | Extends the Reset_Sub0 trap |
+| SJ-21 | A training match starts ON its menu; the round blocks until it is dismissed | §4.7 | Any jump must handle it |
+
+## Revision log
+
+| Date | Change |
+|---|---|
+| 2026-08-29 | Initial research. SJ-01..SJ-14. Design for instant mode jump (§5) settled on attract-wait + `No_Trans` cover + chain call. |
+| 2026-08-29 | Added READ THIS FIRST preamble (build/device/safety + 3-doc map + rollback-harness gate). |
+| 2026-08-30 | Corrected `sizeof(GameState)`: it drifted 17784 -> 17772 between `1f981b73` and `aa2c2bf1`. Read it from source. |
+| 2026-08-30 | **Citation audit at `ad480322`.** All 116 `path:line` citations resolved; 10 of 67 checked symbol/range pairs had drifted, §4 systematically. Conclusion then: grep the symbol, don't trust the line. |
+| 2026-09-02 | **Moved into the repo** (this file) and re-validated at `762b5052`. Load-bearing citations converted to durable `file -> symbol` anchors — the fix for the drift problem the audit found; the old `path:line` audit table is superseded by the conversion and removed. New findings SJ-15..SJ-21 from the `--test-instant-jump` prototype (built this revision, same commit): §9 open questions #1 and #2 settled. Stale facts fixed: `EXPECTED_GAME_STATE_SIZE` moved to `game_state.h` (17772 @ `762b5052`); `netplay_nav.c` is 494 lines; `Netplay_TickMatchmaking` no longer exists; `--headless` now has consumers. |
+
+---
+
+## How to extend this doc
+
+1. New finding -> next free `SJ-nn`, index row, section under the right heading.
+2. Durable citation on every claim — `file` -> `symbol` or exact quoted line
+   text; literal **UNVERIFIED** for anything else. Line numbers only as
+   `@ <commit>` hints.
+3. Re-validate citations before trusting them — HEAD moves.
+4. Record ruled-out approaches too (§2.5, §5.1) so nobody re-treads them.
+
+---
+
+## 1. TL;DR
+
+Three asks, three different answers:
+
+| Ask | Verdict |
+|---|---|
+| Training save states | **Viable.** Primitive exists and is proven at 60fps. One real blocker (audio). |
+| Quick training mode | **Viable, and needs no save state.** Settings already persist; a working driver exists but is DEBUG-gated. |
+| Instant jump to netplay Versus | **Viable via the chain (§4) + black cover (§5.4)** — now PROVEN for the training variant by the §4.1 prototype. NOT via a cross-scene save state (§2.5), and NOT via menu automation. |
+
+The instant-jump design in §5 **deletes** `netplay_nav.c` (494 lines at
+`762b5052`) rather than adding to it.
+
+---
+
+## 2. The shared foundation — the rollback state system
+
+### 2.1 [SJ-01] The API already exists and is not netplay-shaped
+
+`src/netplay/game_state.h` declares, near its end:
+
+```c
+uint32_t save_current_state(void* buffer, int frame);
+void     load_state(const struct State* src);
+void     save_state(const struct GekkoGameEvent* event);       // Gekko wrapper
+void     load_state_from_event(const struct GekkoGameEvent*);  // Gekko wrapper
+```
+
+`save_current_state` takes a **plain buffer and a frame number**. The GekkoNet
+coupling lives only in the two `*_event` wrappers. Also public:
+`GameState_Save(GameState*)` / `GameState_Load(const GameState*)` (same
+header).
+
+Container: `typedef struct State { GameState gs; EffectState es; }`
+(`game_state.h` -> `struct State`).
+
+### 2.2 [SJ-02] Sizes, measured — and the cost is already proven
+
+Measured 2026-08-29 by compiling a `sizeof` probe against the real build
+flags (reproduce per Appendix A):
+
+| | ARM32 (device) | arm64 (host) |
+|---|---|---|
+| `sizeof(GameState)` | **17,772** at `762b5052` (`game_state.h` -> `EXPECTED_GAME_STATE_SIZE`) | 19,344 @ `1f981b73` |
+| `sizeof(EffectState)` | ~229,684 @ `1f981b73` | 459,064 @ `1f981b73` |
+| `sizeof(State)` | ~242 KB | ~467 KB |
+
+The ARM32 figure is pinned by `_Static_assert(sizeof(GameState) ==
+EXPECTED_GAME_STATE_SIZE, ...)` in `game_state.c`, active on 32-bit builds
+only. **This number moves often** (17784 -> 17772 in one day once). Read
+`EXPECTED_GAME_STATE_SIZE` from `src/netplay/game_state.h`, never from this
+doc. The long comment above the assert narrates the historical growth; do not
+quote intermediate numbers from it. The 64-bit tripwire is *deliberately*
+disabled (the `#else` branch beside the assert explains why) — the
+host/device size difference is expected, not a bug.
+
+Sparse slot budget: `SPARSE_CEILING_BYTES` (`game_state.h`) =
+`sizeof(GameState) + SPARSE_HEADER_BYTES + SPARSE_CEILING_SLOTS ×
+SPARSE_FRW_SLOT_BYTES` (100 slots × 1792 bytes each on ARM32) ~= **193 KB
+per save slot** on ARM32. Ten slots ~= 1.9 MB.
+
+**Cost is already proven on hardware:** `save_state(event)` fires on every
+`GekkoSaveEvent` (`src/netplay/netplay.c` -> the `GekkoSaveEvent` case) — the
+full snapshot is taken **every frame at 60fps on MiSTer ARM** during netplay.
+A user-triggered save is orders of magnitude rarer.
+
+Not a flat POD memcpy: 600+ discrete `SDL_memcpy` calls (the `GS_SAVE` /
+`GS_LOAD` macros in `game_state.c`). It does not walk pointers — pointers are
+copied by value.
+
+### 2.3 What is covered, and what is deliberately excluded
+
+Covered (representative): `GS_SAVE(plw)`, `GS_SAVE(task)`, all RNG indices,
+`GS_SAVE(Score)`, `GS_SAVE(Stop_Combo)`, `GS_SAVE(cmd_sel)`, `GS_SAVE(bg_w)`,
+`GS_SAVE(wcp)` / `GS_SAVE(waza_work)`, `GS_SAVE(spmv_ng_save)` — all in
+`src/netplay/game_state.c` — plus `EffectState` (the 128-slot effect pool).
+
+**Excluded by design**, with the rationale written down in
+`tools/rollback-determinism/allowlist.txt`: sound sinks, render/texture/
+palette sinks, loader and RAM-allocator state — `afs_handle`,
+`ldreq_result`, `rckeyctr`/`rckeymin`/`rckeyque`. They are kept out because
+they are *baseline-nondeterministic* (async disk I/O), so no save set could
+rewind them. The definitive disposition comment is the block above
+`plt_req` in `src/sf33rd/Source/Game/io/gd3rd.c`.
+
+Additional documented blind spots: heap state and dylib/VRAM state are outside
+the image entirely (`docs/rollback-determinism-harness.md`, known limits).
+
+### 2.4 [SJ-03] Snapshots are PROCESS-LOCAL
+
+This decides in-memory vs on-disk. Independently verified:
+
+- `struct _TASK` contains a **raw function pointer**:
+  `void (*func_adrs)(struct _TASK* task_ptr)` — `include/structs.h` ->
+  `struct _TASK`.
+- `task[11]` is saved and restored **wholesale**: `GS_SAVE(task)` /
+  `GS_LOAD(task)` in `game_state.c`.
+- `WORK` (`include/structs.h`) carries **31 pointer members** — 42 slots
+  counting `char_table[12]` — including `target_adrs`, `set_char_ad`,
+  `body_adrs`, `hit_ix_table`, `attack_adrs`. `WORK` is embedded in both
+  `plw[]` and every one of the 128 effect-pool slots.
+
+**Consequence:** in-memory save states work today (this is exactly what
+rollback does). **Persisting a slot to disk across launches requires pointer
+relocation** — function pointers move between runs under PIE/ASLR.
+
+### 2.5 [SJ-14] Cross-scene restore is NOT viable
+
+Each of these is independently fatal:
+
+- The excluded categories (§2.3) are precisely the scene-dependent ones.
+- `char_init_data[23]` holds 25 pointers per character
+  (`src/sf33rd/Source/Game/engine/charid.c` -> `char_init_data`), relocated
+  on load in `texgroup.c` -> `q_ldreq_texture_group`.
+- `texgrplds[100]` (`src/sf33rd/Source/Game/rendering/texgroup.c` ->
+  `texgrplds`) and the ramcnt ledger (`src/sf33rd/Source/Game/system/
+  ramcnt.c`) are heap.
+- Reloading a different scene re-runs one-shot asset inits whose arcade traps
+  are still live (`PPGFile.c`; `docs/rollback-determinism-harness.md` known
+  limit 1).
+
+**Do not attempt a save-state-based scene jump.** Use the chain (§4).
+
+---
+
+## 3. [SJ-04] Training save states — viable
+
+### 3.1 Why same-scene restore is safe
+
+Every pointer in `plw[]`/`WORK` targets either a BSS global or a ramcnt block
+pinned for the life of the loaded match:
+
+| Field | Target | Binding site |
+|---|---|---|
+| `sa` | `super_arts[2]` | `engine/plcnt.c` (player init) |
+| `py` | `piyori_type[2]` | `engine/plcnt.c` |
+| `cb` / `rp` | `combo_type[ix]` / `remake_power[ix]` | `engine/plcnt.c` |
+| `cp` | `wcp[2]` | `engine/cmd_main.c` |
+| `target_adrs`/`hit_adrs`/`dmg_adrs` | `&plw[(ix+1)&1]` | `engine/plcnt.c` |
+| `char_table[12]`, `body_adrs`, … | `char_init_data[charset_id]` | `engine/charid.c` |
+
+Backing arrays are all in the snapshot (`game_state.h` -> `GameState`).
+
+The **effect pool links by s16 indices, not pointers**
+(`include/structs.h` -> `WORK.myself`/`before`/`behind`; pool
+`uintptr_t frw[EFFECT_MAX][448]` at `effect/effect.c`, `EFFECT_MAX 128` in
+`effect/effect.h`), so it snapshots by value — and already does
+(`EffectState`, `game_state.h`).
+
+### 3.2 [SJ-05] BLOCKER — audio re-fire
+
+SE requests hit the driver **synchronously** — `SsRequest`
+(`sound/sound3rd.c`) -> `sound_request_for_dc` -> `cseTsbRequest`. No sound
+state is in any save path: `current_bgm` (`sound3rd.c`), `bgm_req`, ADX
+position are all absent from `GameState`/`State`. No rollback mute exists —
+netplay's `No_Trans = !render` (`netplay.c`) gates *rendering* only.
+
+Every restore therefore replays hits and voices from the saved frame while BGM
+free-runs. Unwired reset helpers exist and are the obvious hook:
+`sound_all_off()` (`sound3rd.c`), `BGM_Stop()` (`sound/se.c`).
+
+This is a design task, not a one-liner.
+
+### 3.3 Ranked hazards
+
+**needs-work**
+- **ColorRAM only partially covered.** Only 4x12 u16 are saved
+  (`game_state.h` -> `effl8_colorram`). A minutes-later restore can leave a
+  stale Twelve-metamorph / Makoto-buff palette. Visual, not fatal.
+- **`Interrupt_Timer` reseeds RNG offline.** Free-running, not saved;
+  `game.c` -> `Game01` case 0 does `Random_ix32 = Interrupt_Timer` when
+  `Mode_Type != MODE_NETWORK`. Repeated restores are not bit-reproducible at
+  round boundaries.
+- **`No_Trans` texture-cache guard.** `game.c` -> `Game_Task` gates
+  `texture_cash_update()` on `!No_Trans` (see its long comment). Verify cache
+  aging if you ever restore without drawing.
+
+**benign**
+- **LDREQ / `q_ldreq` split** — real gap, but unreachable mid-match: every
+  `Push_LDREQ_Queue*` call site is in `demo00.c`, `next_cpu.c`, `win.c`,
+  `ranking.c`, `sel_pl.c`, `menu.c` — none in `engine/` or `effect/`
+  (re-verified at `762b5052`: 20 sites in those screen/menu files, 0 under
+  `engine/` or `effect/`).
+- **eff79 `OK_Appear79`/`Extra_Counter`** — FIXED (`GS_SAVE(Extra_Counter)`
+  in `game_state.c`); char-select-scoped anyway.
+- **`ca_check_flag`** — FIXED (`GS_SAVE(ca_check_flag)` in `game_state.c`).
+- **`fd_prev_active_cgix_tick`** — unsaved (`engine/workuser.c`), consumers
+  are frame-data-overlay only (`engine/charset.c`).
+
+---
+
+## 4. [SJ-06] THE SCENE SIDE-EFFECT CHAIN
+
+**This is the key deliverable of this research**, re-verified step by step at
+`762b5052` and then **proven executable outside task dispatch** (§4.1).
+
+Everything a jump into a running match must reproduce, in order. "Where"
+names the function that performs the step on the stock path; grep it.
+
+| # | Action | Where (stock path) |
+|---|---|---|
+| 1 | `TexRelease(601)`, `title_tex_flag = 0` | `game.c` -> `Game0_2` case 3 |
+| 2 | `Purge_mmtm_area(2)` then `Make_texcash_of_list(2)` | `game.c` -> `Game0_2` case 4 |
+| 3 | `BGM_Request(65)` | `game.c` -> `Game0_2` case 5 |
+| 4 | `Menu_Init`: `All_Clear_Suicide`, `pulpul_stop`, `bg_etc_write_ex(2)`, `Setup_Virtual_BG`/`Setup_BG(1/2)`, `effect_57_init`, **`load_any_texture_patnum(0x7F30, 0xC, 0)`** | `menu.c` -> `Menu_Init` |
+| 5 | `Menu_Common_Init()`, `Clear_Personal_Data(0/1)`, `Vital_Handicap[ix][*] = 7`, `VS_Stage = 0x14`, `Order[]`/`Order_Dir[]`/`Order_Timer[]`/`Message_Data[]` | `menu.c` -> `Mode_Select` case 0 |
+| 6 | Effect-pool priming: `effect_57_init`, `effect_04_init`, 7x `effect_61_init` | `menu.c` -> `Mode_Select` case 0 |
+| 7 | `checkAdxFileLoaded()`, `checkSelObjFileLoaded()` — **synchronous, NOT async; see SJ-16** | `menu.c` -> `Mode_Select` case 1 |
+| 8 | `Setup_VS_Mode`: `r_no[0]=5`, `cpExitTask(TASK_SAVER)`, `plw[].wu.wu_operator=1`, `Operator_Status`, 4x `grade_check_work_1st_init`, `Setup_Training_Difficulty`; mode set (`Mode_Type`, `Present_Mode`, `Decide_ID`/`Champion`/`Pause_ID`/`Training_ID`/`New_Challenger`, `TrainingConfig_RestoreCharSelect`, `cpExitTask(TASK_ENTRY)`) | `menu.c` -> `Setup_VS_Mode`; mode set in `Mode_Select` case 3 |
+| 9 | `effect_work_init()` | `game.c` -> `Game12_2` |
+| — | *(character select scene runs here on the stock path — see §4.5 for what replaces it in a jump)* | `game.c` -> `Game01` / `screen/sel_pl.c` |
+| 10 | **GATE**: `Check_LDREQ_Clear()` — `== 0` is `fatal_error("Load queue failed to drain in time")` | `game.c` -> `Game2_0` (also `Game2_2`) |
+| 11 | `System_all_clear_Level_B()`, `All_Clear_Random_ix/Timer/ETC` (mode-dependent), `C_No[0..3]=0`, `clear_hit_queue`, `bg_work_clear`, `win_lose_work_clear`, `player_face_init`, `G_Timer = 10`, `TATE00` | `game.c` -> `Game2_0` |
+| 12 | `effect_work_quick_init()`, `Bg_On_R(stage_bgw_number)` — **Reset_Replay path only; see SJ-18** | `game.c` -> `Game2_2` |
+
+Also on the path: `Game01` case 0 — `S_No[]=0`, `SsBgmHalfVolume(0)`,
+`BGM_Request(53|66)`, `Break_Into = 0`, `Stop_Combo = 0`, RNG seeding,
+`init_slow_flag`, `System_all_clear_Level_B`, `pulpul_stop`,
+`init_pulpul_work` (`game.c` -> `Game01`).
+
+**Traps when calling this outside its normal task context:** see §4.6
+(hardcode census) and §4.7 (the training menu blocks the round).
+
+Related existing teardown entry points, if useful:
+`Soft_Reset_Sub()` (`system/sys_sub.c`, the most complete),
+`Back_to_Mode_Select()` (`menu.c`),
+`Reset_Training()` (`menu.c`; its round reinit is
+`C_No[0] = 1; G_No[2] = 5`).
+
+### 4.1 [SJ-15] SETTLED — the chain DOES run outside task dispatch
+
+**The prototype exists and passes:** `src/test/scene_jump_spike.c`
+(`#if DEBUG`, armed by `--test-instant-jump`, hooked in
+`test_runner.c` -> `TestRunner_Prologue`). From a cold boot it mashes START
+to the title screen, then in ONE prologue call — outside any `task[]`
+dispatch, before that frame's `Game_Task` — performs steps 1-9 plus the
+char-select replacement (§4.5), pushes the player/BG loads, parks the scene
+in `Game12_0` behind `No_Trans`, waits for the drain, flips to
+`Game2_0`, dismisses the training menu (§4.7), lifts the cover, and
+verifies. Run it:
+
+```sh
+build/host/3S-ARM.app/Contents/MacOS/3S-ARM \
+  --test-enable --test-instant-jump [--ldreq-barrier-force] \
+  [--test-p1-character N --test-p2-character N --test-stage N]
+```
+
+Measured host result (Debug build, 2026-09-02, defaults Yun vs Ryu, stage 2):
+
+```
+SCENE-JUMP PASS: jump@43 entered@67 live@105 verified@285 — drain=24 frames,
+jump->live=62 frames (Mode_Type=3 Play_Type=1 operators=1/1 chars=3/2 stage=2)
+```
+
+and with `--ldreq-barrier-force`: `drain=1 frames, jump->live=39 frames`.
+A live-window screenshot shows a fully healthy match: both sprites, full HUD
+(health bars, training infinity timer, nameplates, portraits, stun/SA
+gauges) — i.e. NOT the §5.1 failure. Also passes with other
+character/stage combinations and without `--test-pin-rng`.
+
+**What "task dispatch context" actually is, mechanically.** The dispatcher
+(`src/main.c` -> `cpLoopTask`) does exactly one thing per frame per task:
+`task_ptr->func_adrs(task_ptr)` when `condition == 1`. Everything else the
+chain's steps consume is ordinary global state:
+
+- `cpReadyTask` (`main.c`) zeroes the `_TASK` struct and sets
+  `condition = 2`; `cpLoopTask` case 2 flips 2 -> 1 **without calling**, so a
+  readied task first runs 1 frame later (2 frames if the readier's TaskID is
+  greater than the readied task's — the loop has already passed that slot).
+  `cpExitTask` is `SDL_zero(task[num])`. Case 3 of the condition switch has
+  **no writer anywhere at `762b5052`** (`grep 'condition = 3'` is empty) —
+  it is dead.
+- `r_no[]`, `timer`, `free[]` live in the task struct and are the state
+  machines' program counters; `G_No[]`/`S_No[]`/`C_No[]`/`E_No[]` are plain
+  globals (`GS_SAVE`d) the dispatcher never touches. A direct caller that
+  writes them gets exactly the same dispatch next frame.
+- The multi-frame steps do not re-enter *themselves*; they return and are
+  re-dispatched after the rest of the frame (loader pump, effect movers,
+  fades, `AFS_RunServer`) has run. That is the only real service dispatch
+  provides: **something else runs between two calls of the same step.**
+
+So a direct back-to-back call of the chain works if and only if each
+cross-frame dependency is either completed synchronously or left to the
+normal loop behind the cover. The complete list of cross-frame dependencies
+found (nothing else in steps 1-12 is multi-frame):
+
+| Dependency | Stock mechanism | Jump treatment (proven) |
+|---|---|---|
+| LDREQ queue drain (step 10's gate) | one `ldreq_pump_head()` per frame (`game.c` -> `Game_Task` tail -> `Check_LDREQ_Queue`) | wait behind cover (24 f) or force the task-#66 barrier (`Ldreq_SetBarrierForced`) for a same-frame drain |
+| `Switch_Screen` wipes / `FadeIn`/`FadeOut` | wipe/fade advances per frame | skip entirely — cosmetic under `No_Trans`; do not call `Switch_Screen_Init` and no wipe state is armed |
+| `cpReadyTask` arming latency | condition 2 -> 1 -> run | irrelevant; the jump exits tasks rather than readying them (round init readies TASK_MENU itself) |
+| Round intro (`manage.c` -> `Game_Manage_2_x`, `Cover_Timer`) | frame-driven | left to run behind the cover (~38 frames) |
+| Training-menu dismissal (§4.7) | player input | injected confirm press behind the cover |
+
+**Boundary of the finding:** proven for the offline training jump on host.
+The netplay-Versus variant (same chain, `MODE_NETWORK`) and on-device
+behaviour are expected to follow but are **UNVERIFIED** — the spike does not
+exercise `Wait_Seek_Time`'s network arm or GekkoNet session start.
+
+### 4.2 [SJ-16] Step 7 is synchronous and idempotent, not an async gate
+
+The original doc called steps 7 and 10 "the only genuine floor — async disk
+I/O". Half right. Step 7 is **synchronous blocking** on this port:
+
+- `checkAdxFileLoaded` (`sound/sound3rd.c`) busy-loops
+  `do { key = load_it_use_any_key(fnum, 21, 0); } while (key == 0)` and
+  early-returns when `adx_NowOnMemoryType == sys_w.bgm_type`.
+- `checkSelObjFileLoaded` (`rendering/texgroup.c`) busy-loops
+  `load_it_use_this_key(...)` and early-returns when
+  `omSelObjNowOnMemoryType == mpp_w.language`.
+- Both bottom out in `io/gd3rd.c` -> `load_it_use_this_key`, which calls
+  `fsFileReadSync` — the read completes within the call.
+
+So step 7 costs zero *frames* by construction (wall-clock only, inside one
+frame), and calling it twice is free. Only step 10 — the `q_ldreq[16]` queue
+(`io/gd3rd.c`) — is genuinely multi-frame on the stock path, and the netplay
+LDREQ **frame barrier** already built for task #66 (`io/gd3rd.c` ->
+`Check_LDREQ_Queue` drain loop, `Ldreq_BarrierActive`,
+`Ldreq_SetBarrierForced`, pumped by `AFS_PumpBlocking`) collapses it to one
+frame, bounded by `LDREQ_BARRIER_BUDGET_MS` / `LDREQ_BARRIER_MAX_STEPS`.
+
+### 4.3 [SJ-17] Gate cost, measured (settles open question #2 on host)
+
+Host, Debug build, warm page cache, `SDL_VIDEODRIVER=dummy`, 2026-09-02:
+
+- **Stock cadence:** the jump's pushes (2 players + 1 stage) drain in
+  **24-25 frames** — one queue-head pump per frame.
+- **Barrier-forced:** the same drain completes inside the push frame:
+  `[ldreq-barrier] drained in 23 steps / 4 ms / 2271232 bytes` — so the
+  black cover's I/O floor is **1 frame** on host.
+- End to end behind the cover: jump -> `Allow_a_battle_f` in **62 frames**
+  (stock drain) / **39 frames** (barrier), dominated by the round intro
+  (`Cover_Timer = 24` from the select-exit path plus `Game_Manage_2_x`), not
+  by I/O.
+- On the stock menu path the gate is even cheaper: the tracked run
+  (`--ldreq-trace` on the `training-yun-ryu-ryu-stage` preset) shows the
+  queue's last busy frame ~70 frames before `Game2_0` runs its check —
+  character select absorbs the whole drain.
+
+**Device numbers are pending.** The transferable figure is the byte count
+(2,271,232 bytes for Yun+Ryu+stage 2 — the same bytes are read from SD on
+MiSTer), and the `[ldreq-barrier] drained in ...` telemetry line prints on
+device builds (`ENABLE_PERF_TELEMETRY`), so one device run of the spike
+answers it by measurement.
+
+### 4.4 [SJ-18] Step 12 belongs to Reset_Replay, not the virgin path
+
+`Game2_2` — the step-12 row (`effect_work_quick_init()`, the `Bg_On_R`
+loop) — is dispatched at `G_No[2] == 2`, and the only writer of
+`G_No[2] = 2` under `Game02` at `762b5052` is `menu.c` -> `Reset_Replay`.
+The virgin select->battle path is `Game2_0` (sets `G_No[2] = 3`) ->
+`Game2_3` (counts `G_Timer` 10 down) -> `Game2_1` (live). On that path the
+BG layers are activated by `stage/bg.c` (`Bg_Texture_Load_EX` and round
+effects such as `effd3.c`), not by `game.c`. The jump therefore does NOT
+perform step 12; the spike confirms nothing misses it.
+
+### 4.5 [SJ-19] `Load_Replay_Sub` is the in-tree char-select bypass
+
+`menu.c` -> `Load_Replay_Sub` already jumps from a menu into a running match
+with **no character select**, for MODE_REPLAY. Its sequence is the template
+for what replaces the select scene in any jump (the spike copies it):
+
+1. `cpExitTask(TASK_ENTRY)`; `Play_Mode = 3`.
+2. `Mode_Type`/`Present_Mode`, `plw[ix].wu.wu_operator`, `Operator_Status`,
+   `My_char`, `Super_Arts`, `Player_Color`, `Vital_Handicap`, `bg_w.stage`,
+   `save_w[3]` settings; `cpExitTask(TASK_SAVER)`.
+3. `System_all_clear_Level_B`, `pulpul` reset, VS-splash effects.
+4. `BGM_Request(51)`, `Purge_memory_of_kind_of_key(0xC)`,
+   **`Push_LDREQ_Queue_Player(0/1, My_char[..])`, `Push_LDREQ_Queue_BG(stage)`**.
+5. Wait on `Check_PL_Load() && Check_LDREQ_Queue_BG(bg_w.stage) &&
+   adx_now_playend() && sndCheckVTransStatus(0)`.
+6. `Game01_Sub()`, `Cover_Timer`, `set_hitmark_color`,
+   `Purge_texcash_of_list(3)` + `Make_texcash_of_list(3)`,
+   `G_No[1] = 2; G_No[2] = 0`, `Sel_Arts_Complete`, `cpExitTask(TASK_MENU)`.
+
+What character select otherwise contributes, for the record: the
+`Push_LDREQ_Queue_Player` loads as cursors move, `My_char`/`Super_Arts`/
+`Player_Color` writes, `Setup_ID()`, stage choice, and the select-exit block
+in `Game01`'s default case (`Game01_Sub`, `Cover_Timer = 24`, texcash group
+3 swap, `appear_type`, `set_hitmark_color`).
+
+### 4.6 [SJ-20] Hardcode census — every helper that force-writes the mode
+
+`Mode_Type = MODE_ARCADE` appears at exactly 5 sites at `762b5052`:
+
+| Site | Guard |
+|---|---|
+| `system/sys_sub.c` -> `Reset_Sub0` (with `Present_Mode = 1`) | none — fires on every soft reset |
+| `menu.c` -> `Mode_Select` case 0 (with `Present_Mode = 1`) | none — fires on every mode-menu entry |
+| `menu.c` -> `Mode_Select` case 3, cursor 0 | the arcade choice itself (intended) |
+| `game.c` -> `Game0_2` case 5 | `SDLApp_IsArcadeGameMode()` |
+| `game.c` -> `Loop_Demo` arcade reroute | `SDLApp_IsArcadeGameMode()` |
+
+`Present_Mode` writers: `init3rd.c` (=1 at boot), `game.c` ->
+`Next_Title_Sub` (=1), `game.c` -> `Loop_Demo` case 0 (=0), `game.c` ->
+`Next_Demo_Loop` (=0), `demo/demo02.c` (=0), `menu.c` -> `Mode_Select`
+case 0 (=1), the training confirm (=4), `menu.c` training/option entries
+(=4 / =5), `menu.c` -> `Load_Replay_Sub` (=3), `sys_sub.c` -> `Reset_Sub0`
+(=1).
+
+**Rule:** any reuse of a reset/menu helper must write `Mode_Type` /
+`Present_Mode` *after* the helper, never before. The spike orders its writes
+accordingly and never calls `Reset_Sub0` or enters `Mode_Select` at all.
+
+### 4.7 [SJ-21] A training match starts ON its menu — the round blocks on it
+
+Two facts any jump must respect (both bit the prototype first):
+
+- `manage.c` -> `Game_Manage_1st` readies `TASK_MENU` with `r_no[0] = 7`
+  (`MENU_STATE_TRAINING_MENU`) in training, and `Game_Manage_2_1` case 1
+  holds the round at `C_No[1] == 1` until `task[TASK_MENU].r_no[0] == 10`
+  (`Wait_Pause_in_Tr`). The menu must be dismissed — input-driven, the way
+  `test_runner.c` -> `PHASE_GAME_TRANSITION` does it (cursor 0 + confirm) —
+  or `Allow_a_battle_f` is never set (`Game_Manage_2_4` case 3).
+- Step 4's `load_any_texture_patnum(0x7F30, 0xC, 0)` (`menu.c` ->
+  `Menu_Init`) is load-bearing for that menu: skipping it produced repeated
+  `ppgCheckTextureNumber ... FAIL:handle=0` log lines at round start.
+  (A baseline set of those lines — nums 154-155, 214-219 — appears on the
+  stock preset path too; only the *additional* ones were the spike's fault,
+  and all of them stop once the match is live.)
+
+---
+
+## 5. Instant mode jump — the design
+
+### 5.1 Why the original hard jump failed (ruled out, do not retry as-is)
+
+Cold-launched netplay once called `setup_vs_mode()` directly. Result:
+"character select and VS pre-match screens rendered only the background — no
+character portraits, cursors, or UI… The hard jump skipped the long
+side-effect chain" (`docs/netplay-auto-nav.md`, "Why it exists").
+
+That was **step 8 alone, with steps 1-7 and 9-11 missing**. The approach was
+not wrong; the other steps were undiscovered. §4.1's prototype is the same
+idea done with the full chain — and it renders a complete match.
+
+### 5.2 [SJ-07] Netplay orchestration is ALREADY scene-independent
+
+`src/main.c` -> `game_step_0`, the no-active-session branch (the `else` after
+the `Netplay_GetSessionState() != NETPLAY_SESSION_IDLE` and replay-hold
+branches), at `762b5052`:
+
+```c
+njUserMain();              // the ENTIRE normal game: attract, title, demo, menus
+seqsBeforeProcess();
+ReplayOverlay_Draw();
+ReplayShuffle_Draw();
+njdp2d_draw();
+seqsAfterProcess();
+Netplay_TickDirectP2P();
+defer_direct_p2p_handoff_tick();   // #if defined(ENABLE_NETPLAY)
+DirectP2P_Tick();          // UPnP lease renewal runs on a side thread
+```
+
+STUN, UPnP, hole-punch and peer discovery **already tick every frame
+regardless of scene**. Waiting on attract/title costs nothing and requires no
+changes. (`Netplay_TickMatchmaking`, quoted in the 2026-08-29 version, no
+longer exists at `762b5052` — zero grep hits; the matchmaking layer went away
+with the direct-P2P consolidation.)
+
+The only thing coupling netplay to the menus is `NetplayNav_Tick()`
+(`main.c` -> `game_step_0`) — a separate concern layered on top.
+
+### 5.3 [SJ-08] A status overlay for attract/title already exists
+
+`src/netplay/direct_p2p_overlay.c`, from its own header comment:
+
+> "Renders through the existing SSPutStrPro native-text path into the 384x224
+> game canvas, so the overlay shows while the main menu is visible… Priority 1
+> sits above the title sequence logo, attract-mode game frames, and 'PRESS ANY
+> BUTTON'"
+
+Drawn once per frame from `NetplayScreen_Render()`
+(`src/port/sdl/netplay_screen.c`, called from `sdl_app.c`), so it is
+independent of game scene. No-ops when `DirectP2P_GetState() ==
+DIRECT_P2P_IDLE`. Priority constant `DP2P_OVL_PRIO 1`
+(`direct_p2p_overlay.c`) — note the engine convention, LOWER = in front.
+
+**The "wait" UI is already built.**
+
+### 5.4 [SJ-09] `No_Trans` gives the black cover for free
+
+`No_Trans` is the engine-wide suppress-all-drawing flag — every draw entry
+early-outs on it (e.g. `sc_sub.c` draw helpers; `game.c` -> `Game_Task`
+gates `texture_cash_update` on it, see its comment). Setters: `init3rd.c`,
+`game.c` -> `Game_Task` (the sysFF loop), `screen/entry.c`, and **netplay
+already uses it exactly this way**: `No_Trans = !render` in `netplay.c`
+blanks rollback re-simulation frames.
+
+Hold it across the transition; clear it when the match is up. §4.1's
+prototype did exactly this; the gates become invisible rather than merely
+short.
+
+### 5.5 The resulting design
+
+1. Player picks netplay from the OSD.
+2. Game **stays on attract/title** — a real screen, not a puppeted menu. The
+   existing overlay (§5.3) shows connection status.
+3. Orchestration runs in the background. **Already does; no changes** (§5.2).
+4. On peer ready: set `No_Trans`, run the chain (§4 — the §4.1 spike is the
+   working skeleton), clear `No_Trans`.
+5. Match appears. One cut, black in between — measured 39-62 frames for the
+   training variant on host (§4.3).
+
+Quick training is the same, minus step 3 — and is exactly what the spike
+already does.
+
+### 5.6 This DELETES code
+
+`src/netplay/netplay_nav.c` (494 lines at `762b5052`) goes away entirely.
+Both of its jobs disappear: the wait moves to attract, where orchestration
+was already running; the traversal becomes the chain call behind black.
+
+For reference, what nav does today: one `SWK_START` per
+`NAV_PRESS_DEBOUNCE_FRAMES` (`netplay_nav.c`) across three press/wait
+states, each advancing on an *engine* condition, not a timer. Safety
+timeouts are 600 frames and `NAV_WAIT_ORCH_TIMEOUT_FRAMES`.
+**UNVERIFIED:** no nominal frame count for a full nav traversal exists in
+the code or the doc; it is dominated by fades the module does not control
+(four `FadeOut(1, 0xFF, 8)` in `Game0_2` alone, plus `Cover_Timer` waits of
+23-24). Measure before quoting a number.
+
+**One wrinkle:** nav also serves as the wait for STUN/UPnP to produce a remote
+IP (`NAV_WAIT_ORCHESTRATOR`). Removing it means the wait needs an explicit
+home — which is exactly what §5.3's overlay on attract provides.
+
+---
+
+## 6. Quick training mode
+
+### 6.1 [SJ-10] Settings and character select ALREADY persist
+
+`TrainingConfigFile` — 44 bytes (pinned by `_Static_assert`), magic `"TRN1"`,
+version 2 (`src/port/config/training_config.c`) — stores
+`contents[2][2][7]` (all training-menu cells), `cursor_x[2]`, `cursor_y[2]`,
+`super_arts[2]`, `my_char[2]`.
+
+Path: `Paths_GetPrefPath() + "training"` (`training_config.c`) ->
+`/media/fat/games/3s-arm/training` on MiSTer (`src/port/paths.c`;
+`THIRDSARM_HOME` overrides, honoured on every port).
+
+Written at three sites: `Soft_Reset_Sub()` when in training (`sys_sub.c`),
+`Setup_NTr_Data()` (`menu.c`), `Character_Change()` (`menu.c`). Read into
+both `Training[0]` and `Training[2]` from `Default_Training_Data(0)`
+(`menu.c`).
+
+**`TrainingConfig_RestoreCharSelect()`** (`training_config.c`) already
+restores `Cursor_X/Cursor_Y/Arts_Y/Last_Super_Arts/Last_My_char2`, and is
+already called on both training entry paths (`menu.c` -> `Mode_Select`
+training confirm; `menu.c` -> `Training_Mode`).
+
+**So "last settings" needs no new persistence work at all.**
+
+### 6.2 [SJ-11] A working menu-to-match driver exists, but is DEBUG-gated
+
+`--test-scene-preset` supports 16 presets (`src/args.c`; enum
+`TestScenePreset` in `src/test/test_runner.c`); two are training —
+`training-yun-ryu-ryu-stage` and `training-frame-data`.
+
+How it reaches a live training match — hybrid, phase machine in
+`test_runner.c` (`Phase` enum, ticked from `TestRunner_Prologue()`):
+`PHASE_TITLE` mashes `SWK_START` until `task[TASK_MENU].r_no[0..2] ==
+{0,1,3}`; `PHASE_MENU` writes `Menu_Cursor_Y[0]` then mashes confirm;
+`PHASE_CHARACTER_SELECT` hard-writes `Cursor_X/Cursor_Y` and
+`My_char/Last_My_char2/Arts_Y/Super_Arts/Sel_Arts_Complete/Used_char` +
+`Setup_ID()` (`maybe_force_training_scene_character_and_super_state` /
+`maybe_force_training_scene_super_confirm`); `PHASE_GAME_TRANSITION` waits on
+`training_mode_gameplay_started()` — `Mode_Type == MODE_NORMAL_TRAINING &&
+Allow_a_battle_f != 0 && Game_pause == 0 && Pause_Down == 0`.
+
+**It renders normally** — it is a prologue hook in the ordinary frame loop
+(`src/main.c` -> `game_step_0` calls `TestRunner_Prologue` under
+`#if defined(DEBUG)`), and `tools/mister/perf-sampler.sh` drives these
+presets on real MiSTer hardware to measure on-screen FPS.
+
+*Correction at `762b5052`:* the 2026-08-29 claim that `--headless` "has no
+consumer anywhere" is stale — `configuration.headless` is now read by
+`src/test/statcheck_compare.c` and `src/port/sdl/sdl_app.c`.
+
+**The blocker:** `test_runner.c` opens `#if defined(DEBUG)` (stubs in the
+`#else`), and the `main.c` call sites are `#if defined(DEBUG)`. `DEBUG`
+comes only from `$<$<CONFIG:Debug>:DEBUG>` (`CMakeLists.txt`). Not in
+shipped builds.
+
+Note this driver still puppets menus — for a *clean* jump prefer the chain
+(§4): the §4.1 spike reaches the same destination without touching select at
+all, reusing this driver's char-select hard-writes as plain assignments.
+
+### 6.3 [SJ-13] Replay / DUMMY RECORDING is inputs-only
+
+Not reusable as a save state. `Setup_Replay_Buff()` (`system/sys_sub.c`)
+writes one `u16` per input change into
+`Replay_w.io_unit.key_buff[2][7198]` (`include/structs.h`): low 12 bits =
+button word, high 4 bits = repeat count-1. Source is `p1sw_0`/`p2sw_0` only
+(`sys_sub.c` -> `Get_Replay`).
+
+The only non-input data is the header `Rep_Game_Infor[10]`
+(`sys_sub.c` -> `Get_Replay_Header`): characters, super arts, colors,
+stage, direction, vital handicap, RNG seeds, `Champion`, `Control_Time`,
+`Difficulty`. **No coordinates, no velocities, no health, no frame state.**
+
+Because nothing positional is stored, replay restores by **re-running the
+round** through `Reset_Training` (`menu.c`) — a full wipe plus
+`C_No[0] = 1; G_No[2] = 5` round reinit back to default spawn positions.
+
+---
+
+## 7. [SJ-12] The OSD -> game trigger channel
+
+Live, mid-run, **no process relaunch**. Mechanism is config-file rewrite plus
+a UNIX signal. Re-verified at `762b5052` by symbol.
+
+Wrapper side: `poll_status_changes()`
+(`vendor/Main_MiSTer/thirdsarm_wrapper.cpp`) reads OSD status bits (FPS,
+overclock, game mode, BGM, language, hold-to-pause). On change it atomically
+rewrites `<THIRDSARM_HOME>/config` via `config.tmp` + `rename`, then signals
+the child.
+
+Signals (`thirdsarm_wrapper.cpp`, the `kRuntime*Signal` constants):
+
+| Signal | Purpose |
+|---|---|
+| `SIGUSR1` (`kRuntimeFpsToggleSignal`) | FPS overlay toggle |
+| `SIGRTMIN+2` (`kRuntimeArmClockCycleSignal`) | ARM clock cycle |
+| `SIGRTMIN+3` (`kRuntimeGameModeCycleSignal`) | Game mode cycle |
+| `SIGRTMIN+4` (`kRuntimeHoldToPauseCycleSignal`) | Hold-to-pause cycle |
+
+Game side: `on_shutdown_signal()` sets flags (`src/main.c`), drained each
+frame by `handle_signal_requests()`, each handler re-reading its key off disk
+(`src/port/sdl/sdl_app.c`).
+
+**To add a quick-training trigger:** a new `SIGRTMIN+5`, a new `CONF_STR` bit
+in `vendor/Menu_MiSTer/menu.sv` (format `"P1O[13],Game Mode,Console,Arcade;"`,
+`"T[29],Play Online;"`), and a game-side handler. The `--direct-p2p-handoff`
+intent-file + argv path (`thirdsarm_wrapper.cpp`) is only needed when the
+game must actually restart.
+
+Non-`CONF_STR` screens (Button Check, Direct-P2P) are added via
+`tools/mister-wrapper/main-mister-full-menu.patch`.
+
+---
+
+## 8. Build vs. already-built
+
+| Piece | Status |
+|---|---|
+| Snapshot save/load primitive | **Built** (`game_state.h` -> `save_current_state`), proven at 60fps |
+| Sparse effect-pool encoding | **Built** (`game_state.h` -> `SPARSE_CEILING_BYTES`) |
+| Scene-independent netplay orchestration | **Built** (`main.c` -> `game_step_0`) |
+| Connection status overlay over attract/title | **Built** (`direct_p2p_overlay.c`) |
+| Black-cover mechanism | **Built** (`No_Trans`, `netplay.c`) |
+| Training settings + char-select persistence | **Built** (`training_config.c`) |
+| OSD -> game signal channel | **Built** (4 signals; add a 5th) |
+| **The chain function (§4)** | **PROTOTYPED** — `src/test/scene_jump_spike.c` PASSES on host (§4.1); productization (un-spike, device test, netplay variant) remains |
+| **Audio suppression on restore (§3.2)** | **TO BUILD** |
+| Promote test-runner driver out of `#if DEBUG` | **TO BUILD** (optional; chain is cleaner) |
+| Save-state slot UI / hotkeys | **TO BUILD** |
+| Pointer relocation for on-disk slots | **TO BUILD** (only if disk persistence wanted) |
+
+Suggested order: productize the chain (unblocks both jump features) -> OSD
+trigger -> training save states (in-memory) -> disk persistence if still
+wanted.
+
+---
+
+## 9. Open questions / UNVERIFIED
+
+1. ~~Does the chain run correctly outside its normal task dispatch context?~~
+   **SETTLED — yes.** SJ-15 (§4.1): direct chain call, `No_Trans` cover,
+   screenshot-verified healthy match, PASS on host. Remaining unverified
+   slice: the netplay-Versus variant and on-device behaviour.
+2. ~~How many frames do the two async gates actually cost?~~ **SETTLED on
+   host.** SJ-16/SJ-17: step 7 costs 0 frames (synchronous); step 10 costs
+   24-25 frames at stock cadence or 1 frame barrier-forced (4 ms /
+   2,271,232 bytes for Yun+Ryu+stage 2, warm cache). The cover is bounded by
+   the round intro (39-62 frames to live), not I/O. **Device measurement
+   pending** — run the spike on MiSTer and read the `[ldreq-barrier]` line.
+3. **Nominal nav traversal frame count** — no measurement exists (§5.6).
+   Needed only if you want a before/after number.
+4. **Can training assets be pinned** so a boot-time pre-warm snapshot stays
+   restorable (the "truly instant" quick-training variant)? Would require
+   preventing `Purge_mmtm_area` from reclaiming them. Not investigated.
+5. **`sag_union` gauge-type coverage** and other items are tracked in the
+   companion training-mode doc (Desktop, outside the repo), not here.
+
+---
+
+## Appendix A — reproducing the measurements
+
+Sizes in §2.2 came from compiling a probe with the project's real flags:
+
+```sh
+DEF=$(grep '^C_DEFINES'  build/host/CMakeFiles/3s-arm.dir/flags.make | sed 's/^C_DEFINES = //')
+INC=$(grep '^C_INCLUDES' build/host/CMakeFiles/3s-arm.dir/flags.make | sed 's/^C_INCLUDES = //')
+# probe.c: #include "netplay/game_state.h" + printf("%zu", sizeof(GameState));
+eval clang -std=gnu11 -arch arm64 $DEF $INC probe.c -o probe && ./probe
+```
+
+For the ARM32 number without a full toolchain, use the redeclaration trick the
+`game_state.c` comment itself documents:
+
+```c
+#include "netplay/game_state.h"
+extern char probe[sizeof(GameState)];
+extern char probe[1];   /* error message reveals the real size */
+```
+compiled with `clang --target=arm-linux-gnueabihf -fsyntax-only`.
+
+The §4.3 numbers come from running the spike (command in §4.1) and from
+`--ldreq-trace <csv> --ldreq-trace-frames N` on the
+`training-yun-ryu-ryu-stage` preset (columns include `ldreq_clear` and
+`pl_load` per frame).
+
+## Appendix B — provenance
+
+The 2026-08-29 research was done by parallel subagents plus direct
+verification; its Appendix B flagged §4's chain table — assembled from one
+agent's trace — as the highest-value / highest-risk content, to be re-verified
+before building against it.
+
+That re-verification happened in this revision (2026-09-02, at `762b5052`):
+every §4 row was re-read directly in source, two content errors were found
+and recorded (SJ-16: step 7 is not async; SJ-18: step 12 is the Reset_Replay
+path), and the chain was then executed for real by the §4.1 prototype. The
+§4.1/§4.3 measurements are first-hand from that prototype's logs and a
+screenshot of the live match, not agent-reported.

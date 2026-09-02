@@ -100,6 +100,7 @@ Configuration configuration = {
             .preserve_game_transition = false,
             .delay_gameplay_inputs_until_active = false,
             .stage = -1,
+            .instant_jump = false,
             .rbd_capture_path = NULL,
             .rbd_symmap_path = NULL,
             .rbd_frames = 0,

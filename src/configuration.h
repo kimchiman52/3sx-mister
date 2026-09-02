@@ -78,6 +78,12 @@ typedef struct TestRunnerConfiguration {
     int preserve_game_transition;
     int delay_gameplay_inputs_until_active;
     int stage;
+    /* SPIKE (docs/savestates-and-instant-mode-jump.md §9 Q1): perform the
+     * title -> live-training-match transition by direct chain calls behind
+     * No_Trans, bypassing menu and character select entirely, then verify
+     * liveness and exit. Prototype only — src/test/scene_jump_spike.c.
+     * Requires a #if DEBUG build and --test-enable. */
+    bool instant_jump;
     /* Phase 1 Step H3 (docs/plan-frame-data-harness.md section 1.5): when
      * true, the training-mode RNG reseed in game.c's Game01() zeroes
      * Random_ix16/32/_ex via Setup_Net_Random_ix() instead of seeding

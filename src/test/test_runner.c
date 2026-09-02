@@ -20,6 +20,7 @@
 #include "sf33rd/Source/Game/ui/sc_sub.h"
 #include "test/input_script.h"
 #include "test/replay_game.h"
+#include "test/scene_jump_spike.h"
 #include "test/test_runner_compare.h"
 #include "test/test_runner_utils.h"
 
@@ -1632,6 +1633,13 @@ void TestRunner_Prologue() {
     p1sw_buff = 0;
     p2sw_buff = 0;
 
+    /* SPIKE (--test-instant-jump): the direct scene-jump prototype owns
+     * the whole session in place of the phase machine. */
+    if (SceneJumpSpike_Active()) {
+        SceneJumpSpike_Tick();
+        return;
+    }
+
     /* Step B3 EXPERIMENT: raw fcade-stream playback replaces the whole
      * phase machine — the stream is the only input source. */
     if (fcade_mode_active()) {
@@ -1836,6 +1844,11 @@ void TestRunner_Prologue() {
 }
 
 void TestRunner_Epilogue() {
+    /* SPIKE: the scene-jump prototype needs none of the pins below. */
+    if (SceneJumpSpike_Active()) {
+        return;
+    }
+
     /* Step B3 EXPERIMENT: sample-and-count only; none of the training-mode
      * pins below apply to raw fcade-stream playback. */
     if (fcade_mode_active()) {

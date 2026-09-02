@@ -203,6 +203,20 @@ static void verify_configuration(Configuration* configuration) {
         error_out_with_code("--test-select-dwell-frames must be >= 0.", EXIT_CODE_RUNTIME_ERROR);
     }
 
+    if (test->instant_jump) {
+#ifndef DEBUG
+        error_out_with_code("--test-instant-jump requires a Debug build (#if DEBUG).", EXIT_CODE_RUNTIME_ERROR);
+#endif
+        if (!test->enabled) {
+            error_out_with_code("--test-instant-jump requires --test-enable.", EXIT_CODE_RUNTIME_ERROR);
+        }
+        if (test->scene_preset != NULL) {
+            error_out_with_code("--test-instant-jump bypasses the scene-preset phase machine; drop "
+                                "--test-scene-preset and use --test-p1-character/--test-stage instead.",
+                                EXIT_CODE_RUNTIME_ERROR);
+        }
+    }
+
     /* Task #108: balance is CHOSEN, never inherited from --test-enable. */
     if (!is_supported_test_balance(test->balance)) {
         error_out_with_code("--test-balance must be 'ps2' or 'arcade'.", EXIT_CODE_RUNTIME_ERROR);
@@ -702,6 +716,19 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                     "test-stage",
                     &configuration->test.stage,
                     "Override stage for the default test runner path (0-19, excluding 17).",
+                    NULL,
+                    0,
+                    0),
+        OPT_BOOLEAN(0,
+                    "test-instant-jump",
+                    &configuration->test.instant_jump,
+                    "SPIKE (docs/savestates-and-instant-mode-jump.md §9 Q1): jump from the title screen "
+                    "straight into a live training match by direct chain calls behind No_Trans, bypassing "
+                    "menu and character select, then verify liveness, print SCENE-JUMP PASS/FAIL and "
+                    "terminate. Prototype only; requires a #if DEBUG build and --test-enable (so the "
+                    "gate-runner harness discovery must NOT match it). Combine with --ldreq-barrier-force "
+                    "for a same-frame load drain. Characters/super-arts/stage come from "
+                    "--test-p1-character etc. (defaults: Yun vs Ryu, first super art, Ryu stage).",
                     NULL,
                     0,
                     0),
