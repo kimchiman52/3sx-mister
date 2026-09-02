@@ -788,6 +788,16 @@ if(APPLE)
         DESTINATION 3S-ARM.app/Contents/Frameworks
     )
 
+    # The Finder icon. cmake/Info.plist's CFBundleIconFile names this file by
+    # basename; Contents/Resources is the only place Finder looks for it, and a
+    # missing file degrades silently to the generic icon rather than failing the
+    # build -- so if the icon ever disappears from a package, check both this
+    # rule and that key before looking anywhere else.
+    install(FILES
+        ${CMAKE_SOURCE_DIR}/cmake/3s-arm.icns
+        DESTINATION 3S-ARM.app/Contents/Resources
+    )
+
     install(FILES
         ${PROJECT_LICENSE_FILES}
         DESTINATION 3S-ARM.app/Contents/Resources/licenses

@@ -12,7 +12,15 @@
          boots fine on APFS and then fails `codesign --verify`. -->
     <key>CFBundleExecutable</key>
     <string>3S-ARM-Launcher</string>
-    <key>CFBundleIdentifier</key> 
+    <!-- Installed from cmake/3s-arm.icns by the APPLE install() rule in
+         CMakeLists.txt. Both halves are required and neither is optional:
+         Finder shows the generic app icon if the key is missing OR if the
+         file it names is absent from Contents/Resources. This pair was added
+         by hand to the 2026-09-01 package and therefore did not survive into
+         the next build -- keep it in the tree, not in a shell history. -->
+    <key>CFBundleIconFile</key>
+    <string>3s-arm.icns</string>
+    <key>CFBundleIdentifier</key>
     <string>com.crowded-street.3s-arm</string>
     <key>CFBundleVersion</key> 
     <string>1.0</string>
