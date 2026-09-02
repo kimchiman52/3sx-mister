@@ -1,0 +1,15 @@
+/* Windows icon resource, compiled by windres into both 3s-arm.exe and
+ * 3s-netplay-launcher.exe (see the WIN32 branch in CMakeLists.txt).
+ *
+ * Explorer shows the icon whose resource ID sorts LOWEST among a binary's
+ * RT_GROUP_ICON resources, so the application icon must be the first one
+ * declared. IDI_APPICON is 1 for that reason -- do not renumber it, and do not
+ * add a lower-numbered icon resource ahead of it.
+ *
+ * The .ico is generated from the same 1024x1024 source art as the macOS
+ * cmake/3s-arm.icns, so the two platforms cannot drift apart.
+ */
+
+#define IDI_APPICON 1
+
+IDI_APPICON ICON "3s-arm.ico"

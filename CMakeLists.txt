@@ -749,6 +749,37 @@ if(ENABLE_NETPLAY AND NOT PORT_MISTER AND NOT PORT_MIYOO_MINI_PLUS AND NOT PORT_
 endif()
 
 # ======================================
+# Windows icon
+# ======================================
+
+# The Explorer counterpart of the macOS CFBundleIconFile wiring below. A
+# Windows icon is not a file beside the exe -- it is a resource compiled INTO
+# it, so both binaries the player can double-click need the .rc in their own
+# source list. cmake/3s-arm.ico is generated from the same 1024x1024 art as
+# cmake/3s-arm.icns, so the platforms cannot drift.
+#
+# enable_language(RC) is required: RC is not among the languages project()
+# enables by default, and without it CMake treats the .rc as an unknown
+# extension and silently links an icon-less exe rather than failing.
+if(WIN32)
+    enable_language(RC)
+
+    # windres resolves a relative ICON path against its include path and the
+    # working directory, and the working directory here is the build tree, not
+    # cmake/. Whether binutils' windres would also find it on its own varies by
+    # version, so the search path is stated rather than relied upon. Kept as an
+    # include path rather than absolutising the path inside the .rc, so the .rc
+    # stays readable by other resource compilers.
+    set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -I${CMAKE_SOURCE_DIR}/cmake")
+
+    target_sources(3s-arm PRIVATE ${CMAKE_SOURCE_DIR}/cmake/3s-arm.rc)
+
+    if(TARGET 3s-netplay-launcher)
+        target_sources(3s-netplay-launcher PRIVATE ${CMAKE_SOURCE_DIR}/cmake/3s-arm.rc)
+    endif()
+endif()
+
+# ======================================
 # Installation
 # ======================================
 
