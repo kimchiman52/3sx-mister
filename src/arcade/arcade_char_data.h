@@ -61,4 +61,11 @@ bool ArcadeCharData_Apply3SXRenderingConventions(Character character, const void
 /// revisions) are rejected instead of desyncing.
 uint64_t ArcadeCharData_ComputeDigest();
 
+#if defined(ENABLE_NETPLAY_TESTS)
+/// Test seam for src/test/test_cg_se_remap.c: exposes the parse-time
+/// per-character cg_se sound-code remap (doc §8.Q / §21) so the harness can
+/// sweep the whole (character, code) domain. Test builds only.
+uint16_t ArcadeCharData_TestRemapCgSe(uint16_t value, Character character);
+#endif
+
 #endif

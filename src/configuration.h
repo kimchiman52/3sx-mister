@@ -305,6 +305,14 @@ typedef struct Configuration {
      * does not need ENABLE_NETPLAY. Pure in-process: no session, no sockets,
      * no SDL window. */
     bool test_texcash_bounds;
+    /* Doc item Q (§8.Q/§21, docs/research-arcade-cg-data-accuracy.md): when
+     * true, main() runs the per-character cg_se sound-code remap unit
+     * harness (src/test/test_cg_se_remap.c) and exits. Honors
+     * --test-cg-se-remap. Parsed unconditionally; the real body is gated on
+     * ENABLE_NETPLAY_TESTS only -- it touches no netplay code, so it does
+     * not need ENABLE_NETPLAY. Pure in-process: no ROM, no session, no SDL
+     * window. */
+    bool test_cg_se_remap;
 } Configuration;
 
 #endif

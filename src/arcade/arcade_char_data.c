@@ -66,11 +66,28 @@ typedef struct CharacterCgMap {
     size_t range_count;
 } CharacterCgMap;
 
+/* cg_se sound-code exception (doc §8.Q / §21). `from`/`to` are the upper 12
+ * bits of the cell's cg_se field -- the low nibble is flip/priority
+ * (charset.c -> check_cgd_data does `wk->cg_se >>= 4;` before dispatch) and
+ * is preserved by remap_cg_se. Keyed per character on purpose: 0x2FB is a
+ * legitimate Urien voice and 0x3DF a legitimate Twelve voice, so a global
+ * code->code table would silently break them (§21.8). */
+typedef struct CgSeRemapPair {
+    Uint16 from;
+    Uint16 to;
+} CgSeRemapPair;
+
+typedef struct CharacterCgSeMap {
+    const CgSeRemapPair* pairs;
+    size_t pair_count;
+} CharacterCgSeMap;
+
 static CharDataImage data[NUM_CHARS] = { 0 };
 static bool initialized = false;
 
 // Forward decls
 static const CharacterCgMap cg_maps[NUM_CHARS];
+static const CharacterCgSeMap cg_se_maps[NUM_CHARS];
 static const LocationData location_data[NUM_CHARS];
 static const size_t section_element_sizes[CHAR_DATA_SECTION_COUNT];
 #if defined(DEBUG)
@@ -114,6 +131,27 @@ static Uint16 remap_cg_number(Uint16 value, Character character) {
     }
 
     return adjusted;
+}
+
+/* Translate a raw CPS3 cg_se into the PS2 sound namespace the port's audio
+ * actually holds (the samples come from SF33RD.AFS, not the CPS3 romset --
+ * doc §21.2). Exceptions only: outside a character's pair list the value is
+ * byte-passed exactly as before. The low flip/priority nibble survives
+ * untouched. Parse-time on purpose -- remaking the code later in
+ * sound3rd.c -> remake_sound_code_for_DC has no character context, runs
+ * after the per-player +uid*0x300 adjustment, and would leave the
+ * sound_effect_request[] dispatch entry wrong (§21.12). */
+static Uint16 remap_cg_se(Uint16 value, Character character) {
+    const CharacterCgSeMap* map = &cg_se_maps[character];
+    const Uint16 code = value >> 4;
+
+    for (size_t i = 0; i < map->pair_count; i++) {
+        if (map->pairs[i].from == code) {
+            return (Uint16)((map->pairs[i].to << 4) | (value & 0xF));
+        }
+    }
+
+    return value;
 }
 
 static const void* read_char_table(SDL_IOStream* rom, Location location, Character character) {
@@ -186,10 +224,14 @@ static const void* read_char_table(SDL_IOStream* rom, Location location, Charact
                 *p++ = cg_type;
                 *p++ = cg_ctr;
 
-                for (int i = 0; i < 2; i++) {
-                    SDL_ReadU16BE(rom, p); // cg_se ... cg_olc_ix
-                    p += 2;
-                }
+                Uint16 cg_se = 0;
+                SDL_ReadU16BE(rom, &cg_se);
+                cg_se = remap_cg_se(cg_se, character);
+                *(Uint16*)p = cg_se;
+                p += 2;
+
+                SDL_ReadU16BE(rom, p); // cg_olc_ix
+                p += 2;
 
                 Uint16 cg_number = 0;
                 SDL_ReadU16BE(rom, &cg_number);
@@ -1289,6 +1331,59 @@ static const CharacterCgMap cg_maps[NUM_CHARS] = {
     [CHAR_REMY] = { .default_delta = -0x0D00, .ranges = remy_cg_ranges, .range_count = SDL_arraysize(remy_cg_ranges) },
 };
 
+/* The six cg_se divergences (doc §8.Q; full derivation, method and negative
+ * results in §21 -- read it before touching these). Six pairs, 29 script
+ * cells (17 distinct parsed-buffer positions -- duplicate script offsets
+ * share cell bodies). Two of the six resolve to empty TSB slots today and
+ * are SILENT, not merely wrong (Alex 0x2FB -> TSB_PL01[27] cmd=0, Oro
+ * 0x2F8 -> TSB_PL09[24] cmd=0).
+ *
+ * Deliberate non-actions, each a recorded decision (§21.9) -- do not "fix":
+ *   Yang 0x27F, Yun 0x268   mod-32 equivalent to their PS2 codes (no-ops);
+ *   Yang 0x269              PS2 silenced a voice CPS3 plays, and Yang uses
+ *                           0x269 correctly elsewhere on both sides;
+ *   Q caca[4..7] 0x000      authentic arcade silence (§21.10);
+ *   shoto dmca[3] 0x10A     a valid common SE PS2 removed.
+ * The deltas across the six pairs share no structure (§21.8): no general
+ * arcade->PS2 sound translation exists, exceptions are the only shape. */
+static const CgSeRemapPair alex_cg_se_pairs[] = {
+    { .from = 0x2FB, .to = 0x3BF },
+};
+
+static const CgSeRemapPair oro_cg_se_pairs[] = {
+    { .from = 0x2F8, .to = 0x25C },
+    { .from = 0x3DF, .to = 0x25D },
+};
+
+static const CgSeRemapPair yang_cg_se_pairs[] = {
+    { .from = 0x1DF, .to = 0x29E },
+};
+
+static const CgSeRemapPair akuma_cg_se_pairs[] = {
+    { .from = 0x37E, .to = 0x130 },
+};
+
+static const CgSeRemapPair makoto_cg_se_pairs[] = {
+    { .from = 0x27E, .to = 0x1DF },
+};
+
+static const CharacterCgSeMap cg_se_maps[NUM_CHARS] = {
+    [CHAR_ALEX] = { .pairs = alex_cg_se_pairs, .pair_count = SDL_arraysize(alex_cg_se_pairs) },
+    [CHAR_ORO] = { .pairs = oro_cg_se_pairs, .pair_count = SDL_arraysize(oro_cg_se_pairs) },
+    [CHAR_YANG] = { .pairs = yang_cg_se_pairs, .pair_count = SDL_arraysize(yang_cg_se_pairs) },
+    [CHAR_AKUMA] = { .pairs = akuma_cg_se_pairs, .pair_count = SDL_arraysize(akuma_cg_se_pairs) },
+    [CHAR_MAKOTO] = { .pairs = makoto_cg_se_pairs, .pair_count = SDL_arraysize(makoto_cg_se_pairs) },
+};
+
+#if defined(ENABLE_NETPLAY_TESTS)
+/* Test seam for src/test/test_cg_se_remap.c -- the harness sweeps the whole
+ * (character, code) domain to prove exactly the six mappings above exist and
+ * the flip/priority nibble survives. Compiled only into test builds. */
+uint16_t ArcadeCharData_TestRemapCgSe(uint16_t value, Character character) {
+    return remap_cg_se(value, character);
+}
+#endif
+
 #if defined(DEBUG)
 // doc §8.C (range-overlap guard): remap_cg_number takes the first matching
 // row and stops (see above), so a future row that shadows an earlier one in
@@ -1319,6 +1414,25 @@ static void validate_cg_ranges(void) {
                 const CgRemapRange* b = &map->ranges[j];
                 const bool overlap = a->first <= b->last && b->first <= a->last;
                 SDL_assert(!overlap);
+            }
+        }
+    }
+
+    /* Same guard for the cg_se pair tables: remap_cg_se takes the first
+     * matching `from` and stops, so a duplicate `from` in one character's
+     * table would silently win by position. Codes are the UPPER 12 BITS of
+     * the cell field (the nibble is reattached by remap_cg_se), so anything
+     * >= 0x1000 is a shifted cell value pasted in by mistake. */
+    for (int character = 0; character < NUM_CHARS; character++) {
+        const CharacterCgSeMap* map = &cg_se_maps[character];
+
+        for (size_t i = 0; i < map->pair_count; i++) {
+            const CgSeRemapPair* a = &map->pairs[i];
+            SDL_assert(a->from < 0x1000 && a->to < 0x1000);
+            SDL_assert(a->from != a->to);
+
+            for (size_t j = i + 1; j < map->pair_count; j++) {
+                SDL_assert(map->pairs[j].from != a->from);
             }
         }
     }

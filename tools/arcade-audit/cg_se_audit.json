@@ -1,0 +1,183 @@
+{
+ "rows": [
+  {
+   "character": "MAKOTO",
+   "arcade": "0x27E",
+   "ps2": "0x1DF",
+   "cells": 4,
+   "expected_cells": 4,
+   "positions": 4,
+   "sites": [
+    [
+     "saca",
+     28
+    ],
+    [
+     "saca",
+     29
+    ],
+    [
+     "saca",
+     30
+    ],
+    [
+     "saca",
+     31
+    ]
+   ]
+  },
+  {
+   "character": "ALEX",
+   "arcade": "0x2FB",
+   "ps2": "0x3BF",
+   "cells": 4,
+   "expected_cells": 4,
+   "positions": 1,
+   "sites": [
+    [
+     "yuca",
+     8
+    ],
+    [
+     "yuca",
+     10
+    ],
+    [
+     "yuca",
+     12
+    ],
+    [
+     "yuca",
+     14
+    ]
+   ]
+  },
+  {
+   "character": "ORO",
+   "arcade": "0x2F8",
+   "ps2": "0x25C",
+   "cells": 13,
+   "expected_cells": 13,
+   "positions": 5,
+   "sites": [
+    [
+     "saca",
+     70
+    ],
+    [
+     "saca",
+     71
+    ],
+    [
+     "saca",
+     72
+    ],
+    [
+     "yuca",
+     8
+    ],
+    [
+     "yuca",
+     9
+    ],
+    [
+     "yuca",
+     10
+    ],
+    [
+     "yuca",
+     11
+    ],
+    [
+     "yuca",
+     12
+    ],
+    [
+     "yuca",
+     13
+    ],
+    [
+     "yuca",
+     14
+    ],
+    [
+     "yuca",
+     15
+    ],
+    [
+     "yuca",
+     37
+    ],
+    [
+     "yuca",
+     40
+    ]
+   ]
+  },
+  {
+   "character": "ORO",
+   "arcade": "0x3DF",
+   "ps2": "0x25D",
+   "cells": 2,
+   "expected_cells": 2,
+   "positions": 2,
+   "sites": [
+    [
+     "caca",
+     13
+    ],
+    [
+     "caca",
+     14
+    ]
+   ]
+  },
+  {
+   "character": "YANG",
+   "arcade": "0x1DF",
+   "ps2": "0x29E",
+   "cells": 5,
+   "expected_cells": 5,
+   "positions": 4,
+   "sites": [
+    [
+     "saca",
+     102
+    ],
+    [
+     "saca",
+     103
+    ],
+    [
+     "saca",
+     104
+    ],
+    [
+     "saca",
+     105
+    ],
+    [
+     "yuca",
+     23
+    ]
+   ]
+  },
+  {
+   "character": "AKUMA",
+   "arcade": "0x37E",
+   "ps2": "0x130",
+   "cells": 1,
+   "expected_cells": 1,
+   "positions": 1,
+   "sites": [
+    [
+     "saca",
+     63
+    ]
+   ]
+  }
+ ],
+ "total_cells": 29,
+ "total_positions": 17,
+ "failures": []
+}

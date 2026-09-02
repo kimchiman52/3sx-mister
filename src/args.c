@@ -369,6 +369,13 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                     NULL,
                     0,
                     0),
+        OPT_BOOLEAN(0,
+                    "test-cg-se-remap",
+                    &configuration->test_cg_se_remap,
+                    "Run the arcade cg_se sound-code remap unit harness (doc item Q) and exit. Requires -DENABLE_NETPLAY_TESTS.",
+                    NULL,
+                    0,
+                    0),
 #if ENABLE_PERF_TELEMETRY
         OPT_GROUP("Performance"),
         OPT_INTEGER(0,

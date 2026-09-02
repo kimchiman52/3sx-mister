@@ -1248,6 +1248,12 @@ int Netplay_Test_PunchPredicates(void);
  * always compiled and gates its own body on ENABLE_NETPLAY_TESTS. */
 int Texcash_Test_Bounds(void);
 
+/* Doc item Q (§8.Q/§21): forward-decl of the cg_se sound-code remap unit
+ * harness (src/test/test_cg_se_remap.c). Outside the ENABLE_NETPLAY block on
+ * purpose -- it exercises src/arcade/arcade_char_data.c, not netplay, so the
+ * TU is always compiled and gates its own body on ENABLE_NETPLAY_TESTS. */
+int CgSe_Test_Remap(void);
+
 /* Test harnesses run unattended (scripts, CI). SDL's DEFAULT assertion
  * handler shows an interactive Retry/Break/Abort/Ignore prompt in Debug
  * builds, which never returns in a non-interactive session — a tripped
@@ -1407,6 +1413,10 @@ int main(int argc, const char* argv[]) {
 
     if (configuration.test_texcash_bounds) {
         return Texcash_Test_Bounds();
+    }
+
+    if (configuration.test_cg_se_remap) {
+        return CgSe_Test_Remap();
     }
 
     return loop();

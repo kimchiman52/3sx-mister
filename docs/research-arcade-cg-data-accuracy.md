@@ -2,6 +2,8 @@
 
 **Date:** 2026-08-29 (first pass) · **2026-08-30** (second pass — §15, §16, §11.4)
 · **2026-08-30** (third pass — §17, §18, §19)
+· **2026-09-02** (fifth pass — §21, item Q: **sound codes**, a second
+byte-passed namespace, found from a player bug report)
 **Repo:** `/Users/sb/Developer/3sx-mister`
 **Branch examined:** `upstream-engine-fixes`; second pass verified in the
 worktree `/Users/sb/Developer/3sx-mister-arcade`, branch `fix/arcade-cg-mapping`
@@ -28,6 +30,13 @@ command and its observed output, or a named primary source. Things that were
 - **Think the crash class is closed?** Read §17 first — there is a *second*
   way the same render path faults, and it is not the one §6.1 audits.
 - **About to trust "latent but unreachable"?** §18 — one such claim was wrong.
+- **Chasing a wrong or missing *sound*?** §21 — `cg_se` is a second
+  byte-passed namespace with six live divergences (item Q). Two characters are
+  currently **silent**, not just wrong. Read §21.3 before diffing any sound
+  code: codes are equivalent iff equal **mod 32**, so a raw diff over-reports.
+- **About to audit another byte-passed field?** §21.4 — cell-index alignment
+  misses 478 scripts cast-wide; §21.6 — 781 cells look divergent but are PS2
+  converter artifacts (dead data). Both traps cost a pass to find.
 - **Worried the parse itself is truncating data?** §19.
 - **Worried about hitboxes / throw ranges / attack properties?** §15 — the other
   13 sections (the ones a CG audit cannot see). This is upstream issue **#325**.
@@ -135,6 +144,7 @@ command and its observed output, or a named primary source. Things that were
 | **Residual (second-door) bounds** | **AUDITED, FIXED** `a5bc6a5b` — pre-fix baseline was 6 violations, all Remy → Gill's group; current tree measures 0 (§17.3, §17.5); tooling `residual_audit.py` (§8.K) |
 | **Under-declared (truncating) spans** | **CLOSED — none exist.** 500/500 spans COVERED (§19) |
 | Unreferenced script in `IBUKI atca` | **OPEN, benign** — 376 B, real data, outside the 133,901-cell census; all CGs in bounds (§19.6) |
+| **`cg_se` sound divergences** (item Q, §21) | **LANDED 2026-09-02** — `remap_cg_se()` in `src/arcade/arcade_char_data.c`; gates `--test-cg-se-remap` + `cg_se_audit.py` (29/29 cells); digest changes by design (§8.O) |
 | **Texture-group offset-table lengths** | **DERIVED** — all 71 groups, statically, from `SF33RD.AFS` (§17.2) |
 | **Group load reachability model** | **DERIVED** — from `ldreq_tbl[]`/`ldreq_ix[]` (§17.4) |
 | Any *committed* code change | **YES, as of 2026-08-30/31** — see the note below; committed to `fix/arcade-cg-mapping`, not merged to `main`/`mister`, not on-device verified |
@@ -250,6 +260,10 @@ The idiom above repeats at **nine sites** in our fork's
 ### 4.4 The remap — the single point of translation
 
 **Only one value in the entire pipeline is ever translated: `cg_number`.**
+(*True when written; since 2026-09-02 a second, far narrower translation
+exists: `remap_cg_se()` rewrites six per-character `cg_se` exceptions at the
+same parse site — item Q, §8.Q/§21. Everything below about `cg_number`'s
+range-based remap is unchanged.*)
 
 `remap_cg_number()` — `src/arcade/arcade_char_data.c:85-109`, applied at `:188`
 and nowhere else:
@@ -279,6 +293,16 @@ saca, exca, cbca, yuca — `arcade_char_data.c:501-510`). Within each cell, only
 `cg_number` is remapped; `cg_se`, `cg_olc_ix`, `cg_hit_ix`, `cg_att_ix`,
 `cg_extdat..cg_eftype`, `cg_zoom`, `cg_next_ix`, `cg_status` are byte-passed.
 The other 15 sections are installed **raw**.
+
+> **`cg_se` was byte-passed into a namespace that was authored against the PS2
+> data, and that was a live defect — see §21 and worklist item Q (LANDED
+> 2026-09-02: `remap_cg_se()` now translates the six diverging codes; all
+> other `cg_se` values still byte-pass).** The byte-pass list above is a
+> statement of *what the code does*, not a statement that byte-passing is
+> *safe* for every field in it. Six arcade sound codes landed on the wrong TSB
+> note, two of them on empty slots (silent). Treat the rest of this list as
+> unaudited in the same way: `cg_zoom` and the `cg_eff`/`cg_eftype` pair have
+> had no value-level arcade-vs-PS2 diff either.
 
 ### 4.5 The one other adaptation: OVCT
 
@@ -638,12 +662,17 @@ terminator), so not a live fault.
 ## 8. Worklist
 
 Ordered by severity. Item lettering is historical (A-J from the first two
-passes, K-M added by the third, N-O added by the fourth, P added by this
-pass); the two crash-class
+passes, K-M added by the third, N-O added by the fourth, P added by the fourth,
+**Q added by the fifth — the sound-code pass, §21**); the two crash-class
 items are **A** and **K**, and they are independent of each other. **As of
-2026-08-31, A, K, D, E and N are LANDED** (see their status blocks below and
+2026-09-02, A, K, D, E, N and Q are LANDED** (see their status blocks below and
 §3) and **F is CLOSED as investigated-not-a-defect** (§8.F); everything else
 in this worklist remains unimplemented.
+
+**Keep this paragraph and §3 in step with the status blocks.** They are the
+only two places a reader checks before trusting an item, and they are the first
+things to go stale. Any pass that lands an item updates all three — the item's
+own status block, this list, and the §3 row — in the same commit as the code.
 
 ### Standing requirement for every remaining item: balance gating
 
@@ -1157,6 +1186,12 @@ all be bundled into one compatibility bump rather than landing separately —
 they already are one uncommitted change as of this pass, so in practice they
 will ship together.
 
+**Item Q joins this set (landed 2026-09-02):** the `cg_se` remap is applied in
+the same `read_char_table()` parse the digest hashes, so it too changes the
+digest — observed `e294f59fb707e518` → `de7a005eef378cab` (§8.Q's status
+block). Rollback-safe per §21.13 (no `0x800` code in the set, RNG consumption
+unchanged); include it in the same compatibility release note.
+
 ### P. Necro/Hugo/Yun/Akuma's remaining 9 own-group cells — 7 are the same ambiguity as Urien's `0x52D9`; Akuma's other 2 are not
 
 §3 previously called these "explicitly out of scope"; that is wrong. Measured
@@ -1217,6 +1252,71 @@ cast without it). Recorded here so a future pass doesn't spend time writing a
 range row for these raws — it cannot work by construction. If the model ever
 gains a context-aware mode (script/cell-qualified rather than raw-CG-only),
 these 9 cells plus Urien's 8 (§8.D) are exactly its test cases.
+
+### Q. The six `cg_se` sound divergences — 29 cells, 6 per-character pairs (§21)
+
+**The second byte-passed namespace.** `cg_se` is listed as byte-passed in §4.4
+and had never been diffed by any audit. Six arcade codes resolve to the wrong
+TSB note under arcade balance; **two of them (Alex, Oro) resolve to empty slots
+and are currently silent.** Full derivation, method and negative results in §21.
+
+**Fix:** a per-character exception remap in `arcade_char_data.c` ->
+`read_char_table()`, beside `remap_cg_number()`, on the **upper 12 bits** of
+`cg_se` (low nibble is flip/priority — preserve it):
+
+| Char | arcade → PS2 | cells |
+|---|---|---|
+| MAKOTO | `0x27E` → `0x1DF` | 4 |
+| ALEX | `0x2FB` → `0x3BF` | 4 |
+| ORO | `0x2F8` → `0x25C` | 13 |
+| ORO | `0x3DF` → `0x25D` | 2 |
+| YANG | `0x1DF` → `0x29E` | 5 |
+| AKUMA | `0x37E` → `0x130` | 1 |
+
+**Must be per-character.** `0x2FB` is a legitimate Urien voice and `0x3DF` a
+legitimate Twelve voice; a global code→code table breaks them (§21.8).
+
+**Do not "simplify" this by reducing mod 32 and dropping pairs** — the two
+mod-32-equivalent pairs (Yang `0x27F`, Yun `0x268`) are *already* excluded, and
+Yang `0x269`, Q's `0x108` and the shoto `dmca[3]` SE are deliberate
+non-actions with recorded reasons (§21.9, §21.10). Re-deriving the set without
+reading §21 will produce a different, wrong list.
+
+**Digest:** changes the balance digest. Rollback-safe (no `0x800` in the set) —
+release-note under §8.O. Rationale in §21.13.
+
+> #### Status 2026-09-02: LANDED
+>
+> Exactly the shape specified: `CgSeRemapPair` / `cg_se_maps[]` tables in
+> `src/arcade/arcade_char_data.c`, applied by `remap_cg_se()` inside
+> `read_char_table()` beside `remap_cg_number()`, on the upper 12 bits only
+> (the flip/priority nibble is reattached). Two assertions hold it:
+>
+> - `src/test/test_cg_se_remap.c` (`--test-cg-se-remap`, auto-discovered by
+>   `tools/gates/run-gates.sh`): the six pairs across all 16 nibble values, a
+>   full 20×0x1000 (character, code) domain sweep proving exactly six
+>   mappings exist (so Urien `0x2FB` / Twelve `0x3DF` and every §21.9
+>   non-action pass through), and no chaining (Makoto's target `0x1DF` is
+>   Yang's source). Verified red-able: corrupting one pair turned it red.
+> - `tools/arcade-audit/cg_se_audit.py`: parses `cg_se_maps[]` from source
+>   and counts the touched cells against the regenerated `rom.bin`. Observed:
+>
+>   ```
+>   MAKOTO 0x27E->0x1DF cells  4/4   ALEX 0x2FB->0x3BF cells  4/4
+>   ORO    0x2F8->0x25C cells 13/13  ORO  0x3DF->0x25D cells  2/2
+>   YANG   0x1DF->0x29E cells  5/5   AKUMA 0x37E->0x130 cells 1/1
+>   TOTAL script cells 29 (expected 29), distinct buffer positions 17 (expected 17)
+>   ```
+>
+>   The 29 script cells dedupe to **17 distinct u16 slots** in the parsed
+>   buffers because duplicate script offsets share cell bodies (Alex's
+>   `yuca[8]/[10]/[12]/[14]` are four table entries onto one body) — both
+>   denominators are asserted.
+>
+> Digest observed to change, as §21.13 requires: `e294f59fb707e518`
+> (pre-change build at `90bc598d`) → `de7a005eef378cab`, both captured from
+> the boot log's "Arcade balance auto-selected" line against the same
+> verified romset. Not merged to `mister`, not on-device verified.
 
 ---
 
@@ -2924,3 +3024,322 @@ proof: a corrupted or rolled-back `char_index`, an index arriving from a table
 not scanned here, or an emergent path through `cm*` register reuse would all
 bypass the argument. They are stated as "apparently unreachable", and §8.L's
 guard remains the thing that makes the class safe regardless.
+
+---
+
+## 21. Sound codes — the second byte-passed namespace (fifth pass, 2026-09-02)
+
+**Citation style for this section.** This document is *not* in
+`tools/doc-citations/baselines.txt`, so its line numbers are not enforced and
+must not be hand-maintained. Everything below cites a **symbol** (`file` ->
+`function`/`table`) or the **exact text** of a line. Where a line number appears
+it is a hint qualified by the commit it was read at, never an address.
+
+### 21.1 Why this pass happened
+
+A player bug report, 2026-09-02: *"Makoto's Hayate has the wrong sound — it
+should be Chesuto."* The report is correct, the cause is a port defect, and it
+is **not** a sound-system bug. It is the same class of defect this entire
+document is about — an un-translated CPS3 value byte-passed into a namespace
+that was authored against the PS2 data — reached through a field §4.4 lists as
+byte-passed and which no audit had ever diffed.
+
+§4.4 names `cg_se` in its byte-pass list. `cg_audit.py` audits **sprite
+indices**; `data_audit.py` audits the **13 non-script sections**. Neither ever
+compared `cg_se` *values* arcade-vs-PS2. That gap is the bug.
+
+### 21.2 The dispatch chain
+
+Every link read in code, at `90bc598d`:
+
+1. `arcade_char_data.c` -> `read_char_table()` copies the field unmodified. The
+   line reads, in full:
+   `SDL_ReadU16BE(rom, p); // cg_se ... cg_olc_ix`
+   Contrast the next statement, `cg_number = remap_cg_number(cg_number, character);`
+   — `cg_number` is the *only* translated value (§4.4).
+2. `charset.c` -> `check_cgd_data` does `wk->cg_se >>= 4;` then dispatches
+   `sound_effect_request[wk->cg_se](wk, check_xcopy_filter_se_req(wk))`. The low
+   nibble is flip/priority, not part of the code.
+3. `se_data.c` -> `sound_effect_request[1024]`. For the codes at issue the entry
+   is `Se_Myself` (`se.c`), which adds `uid * 0x300` for P2 and calls
+   `SsRequestPan`.
+4. `sound3rd.c` -> `remake_sound_code_for_DC`:
+   `rmcode->code = (cd = sdcode_conv[code]) & 0xFFF;`
+5. Case `0x0` of `cd & 0xF000` issues
+   `cseTsbRequest(rmc->ptix, rmc->code, ...)` — a **note** in the requesting
+   player's own per-character bank, `TSB_PLxx[65]`
+   (`src/sf33rd/Source/PS2/cseDataFiles/`), bound by `color3rd.c` ->
+   `q_ldreq_color_data` case 5 via `cseTSBDataTable`.
+
+**The audio samples are PS2 assets.** They come from `SF33RD.AFS`, not from the
+CPS3 romset — this port takes char/command data from CPS3 and *all* audio from
+the PS2 data. So there is no "arcade sound bank" for an arcade code to be
+correct against; the PS2 same-cell value is the only available oracle.
+
+### 21.3 The decisive structure: two codes are equivalent iff equal mod 32
+
+`sdcode_conv[1024]` (`se_data.c`), parsed in full:
+
+| range | structure |
+|---|---|
+| `[0, 0x160)` | ad-hoc common-SE map — `0x2xxx`/`0x3xxx` SE banks, `0x8001`–`0x8043` BGM, `0x7000` = driver-nop |
+| `[0x160, 0x3E0)` | **exactly `(c - 0x160) % 32`** |
+| `[0x3E0, 0x3E5)` | `0x3058`–`0x305C` |
+| rest | `0x7000` |
+
+**Re-verified independently of the audit tooling** by parsing `se_data.c` and
+asserting the closed form across the whole range: *0 exceptions*.
+
+The consequence is load-bearing and non-obvious: for voice codes the
+**32-block index in the code is discarded**. Only `(c - 0x160) % 32` survives,
+as a note 0–31 in the character's own TSB bank (`+32` when metamorphosed, which
+matches `charset.c` -> `check_xcopy_filter_se_req`, whose guard reads
+`if ((voif = wk->cg_se) < 0x160)`).
+
+**Therefore an arcade/PS2 code pair that differs numerically is a no-op if the
+two are equal mod 32.** Two of the apparent divergences are exactly that, and
+collapse to nothing. Any future pass that diffs raw codes without reducing mod
+32 will over-report.
+
+### 21.4 Method: cell alignment is not sufficient, and three oracles were needed
+
+The first-pass result (37 diverging cells) came from aligning arcade and PS2
+cells **by index**, which is only valid when a script has the same shape on both
+sides. That method cannot see divergence in any script whose shape differs, and
+cannot see a script that has no PS2 counterpart at all.
+
+Three oracles were therefore used, in increasing order of independence:
+
+- **(a) per-script sound-event multiset** — compare the *bag* of events a script
+  emits (L-cell `se >> 4` plus `comm_sse` args) irrespective of position. A
+  script whose multiset matches is clean even if cells moved.
+- **(b) alignment on non-sound invariants** — duration, `cg_olc_ix`, flags.
+- **(c) per-character cast-wide code-set diff** — the decisive one. A code the
+  arcade data uses that the character's PS2 data uses *anywhere* is
+  namespace-valid even if content moved between scripts. Verified pattern: Alex
+  `0x3A7` is arcade-only in `nmca[27]/[28]` and PS2-only in `dmca[90]/[91]` —
+  the same content re-laid-out, not a namespace error.
+
+Tooling: the repo's own `tools/arcade-audit/cg_audit.py` parsers, imported
+**unmodified**, against a `rom.bin` regenerated by the repo's `decrypt.py` and
+against `SF33RD.AFS`. The first pass's 37-cell result reproduces exactly under
+the new scripts, which is what validates the shared tooling.
+
+### 21.5 The oracle gap was 478 scripts, not 15
+
+Cast-wide, all 10 script tables × 20 characters:
+
+| | count |
+|---|---|
+| Total arcade scripts | 14,334 |
+| Cell-diffable (shape matches) | 13,856 |
+| **Shape-mismatched** | **316** |
+| **Arcade script with no PS2 counterpart** | **162** (101 contain sound events) |
+| PS2-extra scripts | 0 |
+
+Per character, `shape-mismatch + no-PS2-counterpart`:
+
+GILL 8+43 · ALEX 21+0 · RYU 14+0 · YUN 31+7 · DUDLEY 16+0 · NECRO 16+0 ·
+HUGO 15+2 · IBUKI 21+0 · ELENA 13+10 · ORO 14+1 · **YANG 30+99** · KEN 9+0 ·
+SEAN 9+0 · URIEN 21+0 · AKUMA 15+0 · CHUNLI 9+0 · MAKOTO 15+0 · Q 15+0 ·
+TWELVE 11+0 · REMY 13+0.
+
+Yang's 99 no-counterpart scripts are all in `atca` and **all carry sound
+events** — the single largest blind spot, and invisible to cell-index diffing.
+
+**Verdicts for all 478.** 214 of the 316 mismatched are provably clean by
+oracle (a) (most have zero sound events). The remaining 102, plus the 101
+no-oracle-with-sound, are all resolved by oracle (c). Yang's 99 `atca` scripts
+use only `{0x284–0x288, 0x10C–0x10E}`, every one of which PS2 Yang also uses →
+namespace-valid, no action. **Zero scripts remain undecidable.**
+
+Makoto's 15 specifically: 11 provably clean (`dmca` 3/84/85/88/89 have zero
+sound events; `atca` 150–155 have one event each, multiset-equal). 4 divergent
+but namespace-safe: `nmca[27]/[28]` emit `0x1C8`, which PS2 Makoto uses
+elsewhere; `dmca[90]/[91]` — PS2 emits `0x1C4` in cells the 2-cell arcade script
+does not have (a genuine data difference; nothing to fix under arcade fidelity).
+**No namespace miss beyond `saca` 28–31.**
+
+### 21.6 Negative result: 781 cells are converter artifacts, not divergences
+
+This is the finding that explains most "shape mismatch" and every phantom code,
+and it is recorded here so no future pass re-opens it.
+
+781 cells cast-wide (Yang 337, Dudley 100, Urien 77, Gill 65, …) have the
+property that the **arcade BE u32 equals the PS2 LE u32 with its u16 halves
+crossed**. Capcom's PS2 converter byte-swapped these 4-byte blocks as **u32s**,
+whereas genuine cells got per-u16 swaps plus the att/hit reorder. Such blocks
+read as C-vs-L cell-kind flips — hence "shape mismatch" — and manufacture
+phantom codes on *both* sides (arcade `0xA00`/`0xC00`/`0xE00`; PS2
+`0xD9D`/`0xF05`/`0xF9C`/…).
+
+Three independent arguments that they are dead data:
+
+1. Every such cell sits **past its script's first terminator command** —
+   verified for all 26 affected scripts.
+2. **No script-command jump reaches any of those regions** — scan of codes
+   3, 4, 5, 16–31, 46, 47, 69, 102 per character. The one interior entry found,
+   Yang `cbca[47]` cell 3 (`code=22` -> `saca[44]` pat 23), lands on cell 22,
+   which is `comm_jmp saca[75]` and immediately redirects.
+3. The converter's own blanket-u32 treatment is evidence that **Capcom's script
+   walker considered them non-cell data**.
+
+Same verdict for all 31 arcade cells carrying a non-random `se >= 0x400`
+(`0x600`, `0x4C8`, …): 100% of them sit inside these dead regions, zero occur
+in a shape-ok script.
+
+### 21.7 Results: six live divergences, 29 cells
+
+TSB slots read from `src/sf33rd/Source/PS2/cseDataFiles/TSB_PLxx.c`. The
+"notes" column is `(code - 0x160) % 32` on each side — the only part that
+reaches the driver (§21.3).
+
+| Char | arcade → PS2 | notes | cells | current symptom |
+|---|---|---|---|---|
+| MAKOTO | `0x27E` → `0x1DF` | 30 → 31 (`TSB_PL16` note 90 vs 91) | 4 | wrong voice line |
+| ALEX | `0x2FB` → `0x3BF` | 27 → 31 (`TSB_PL01[27]` is `cmd=0`) | 4 | **silent** |
+| ORO | `0x2F8` → `0x25C` | 24 → 28 (`TSB_PL09[24]` is `cmd=0`) | 13 | **silent** |
+| ORO | `0x3DF` → `0x25D` | 31 → 29 (note 79 vs 80) | 2 | wrong voice |
+| YANG | `0x1DF` → `0x29E` | 31 → 30 (note 88 vs 87) | 5 | wrong voice |
+| AKUMA | `0x37E` → `0x130` | voice note 30 → common SE (`Se_Let`) | 1 | wrong class |
+
+**Independently re-verified** (parsed straight from the C tables, not via the
+audit scripts): `sdcode_conv[0x27E]=0x1E` / `[0x1DF]=0x1F`; `TSB_PL16[0x1E]`
+note 90 / `[0x1F]` note 91; `TSB_PL01[27]` `cmd=0` and `[31]` note 79;
+`TSB_PL09[24]` `cmd=0`, `[28]` note 78, `[31]` note 79, `[29]` note 80;
+`TSB_PL06[31]` note 88 and `[30]` note 87.
+
+**Alex's and Oro's cells are currently silent, not merely wrong** — their arcade
+codes resolve to TSB slots with `cmd = 0`. That is a more visible defect than
+Makoto's and was not in the original report.
+
+### 21.8 The offset is not systematic — no general translation exists
+
+Deltas across the six pairs: **−0x9F, +0xC4, −0x9C, −0x182, +0xBF, −0x24E.**
+No constant, no piecewise-linear structure, and one pair (Akuma) crosses out of
+the voice range into the common-SE map entirely. **A general arcade→PS2 sound
+translation function cannot be derived from this data**, and could only come
+from CPS3 sound-driver ground truth, which this port does not have (§21.13).
+
+Two hard disqualifiers for any *global* code→code table:
+
+- `0x2FB` is a **legitimate Urien voice**, used by Urien on both sides.
+- `0x3DF` is a **legitimate Twelve voice**, likewise.
+
+A global remap of either breaks those characters. The correct shape is a
+**per-character exception table**, matching `remap_cg_number`'s existing
+`CgRemapRange` model.
+
+### 21.9 Deliberate non-actions (each one a decision, not an oversight)
+
+- **YANG `0x27F` → `0x29F`** — 31 → 31. Mod-32 equivalent. **No-op.**
+- **YUN `0x268` → `0x288`** — 8 → 8. Mod-32 equivalent. **No-op.**
+- **YANG `0x269` → `0x29C`** — 9 → 28, and `TSB_PL06[28]` is an **empty slot**:
+  PS2 *silenced* a voice CPS3 plays. Yang also uses `0x269` correctly elsewhere
+  on both sides, so even a per-character per-code remap would break those cells.
+  Arcade fidelity favours leaving it. **No remap.**
+- **Q `caca[4..7]`** — authentic silence, see §21.10.
+- **Shoto `dmca[3]` SE `0x10A`** — a valid common SE (`0x200E`) that arcade
+  plays and PS2 removed. Arcade-faithful as-is. **No action.**
+
+### 21.10 Negative result: Q's silent cells are authentic arcade data
+
+`caca[4..7]` are Q's 34-cell caught/throw-reaction scripts, entered by the
+engine's catch flow (zero script jumps reference them). Arcade and PS2 are
+**identical in every field** — commands, durations, `olc`, and `cg_number`
+modulo Q's constant remap delta — **except cell 1's `se`: arcade `0x0000`, PS2
+`0x1080`**. The code is not hiding in another field or another cell.
+
+Cross-cast, **16 of 20 characters carry `0x1080` in that same cell on _both_
+sides** (Ryu, Ken, Sean, Akuma, Ibuki, Yang, …) — it is the common
+caught-reaction sound (`0x108` -> `Se_Let`). Q is the only character where
+arcade is silent and PS2 added it.
+
+Under this document's arcade-fidelity contract: **arcade-silent is the
+authentic CPS3 data. No action.** (Whether CPS3's *audible* result was silence
+cannot be proven statically — §21.13.)
+
+### 21.11 Ingress paths: exactly three, two verified clean
+
+Every field in the arcade char data that indexes a sound namespace:
+
+1. **L-cell `cg_se`** — byte-passed (§21.2). **The bug.** 29 live cells.
+2. **`comm_sse` args** — `charset.c`, `decode_chcmd[116] = comm_sse`, which does
+   `wk->cg_se = ctc->koc;` with **no `>> 4`**. Cast-wide: **73 cells, 0
+   divergences.** Clean. (This extends the first pass's Makoto-only check to the
+   whole cast.) Note `comm_scmd` (`decode_chcmd[112]`) writes `wk->cmd_request`,
+   which **has no reader anywhere in `src/`** — not a sound path.
+3. **SERND** — `read_sernd()`, byte-passed, consumed as `wk->se_random_table`
+   (`charid.c`). **Re-verified directly rather than trusted from §15.3**: all 20
+   characters' named spans identical (25/25 entries; rebased offsets and all 16
+   u16 candidates each). The legitimate random codes `0x800`–`0x803` resolve
+   through absolute CPS3 pointers into the named span with byte-identical
+   candidate tables arcade-vs-PS2 for every character. Clean.
+
+No other section feeds sound: the rest are movement/hitbox/catch data per
+§15.2, and L-cell `cg_eff`/`cg_eftype` spawn effects whose sounds are code
+constants, not data indices.
+
+**One residual door (new, unrelated to the six pairs).** `se_random_table` is
+`u32*` and its first-level index is `cg_se & 0x7FF` (`charset.c`), **unbounded**.
+The phantom dead-region codes of §21.6 (`0xA00`/`0xC00`/`0xE00` → idx
+0x200/0x400/0x600) would read reinterpreted other-section data and then dispatch
+`sound_effect_request[<unbounded u16>]`. Every known occurrence is dead data
+(§21.6), and the audit's `se_oob` check deliberately skips the random path — but
+this is an unguarded index of exactly the kind §8.C and §8.L exist for. Folded
+into those items rather than given its own.
+
+### 21.12 Fix site: parse-time, and why the alternative is disqualified
+
+**Site: `arcade_char_data.c` -> `read_char_table()`, beside
+`remap_cg_number()`**, applied to the **upper 12 bits** of `cg_se` (the low
+nibble is flip/priority — §21.2 — and must be preserved).
+
+The post-digest alternative, remapping inside `sound3rd.c` ->
+`remake_sound_code_for_DC`, is disqualified three independent ways:
+
+1. **No character context exists there** — and `0x2FB`/`0x3DF` collide with
+   legitimate Urien/Twelve voices (§21.8). The remap would be unconditional and
+   would break them.
+2. It runs **after** the `+ uid * 0x300` / `+ 0x600` player adjustments and is
+   shared by menus and the announcer.
+3. It would leave the **dispatch entry** wrong. `sound_effect_request[0x25C /
+   0x25D / 0x130]` is `Se_Let`, while the arcade sources sit on `Se_Myself` —
+   different guards. Only fixing `cg_se` itself reproduces PS2 dispatch exactly.
+
+### 21.13 Netplay: the digest bump is correct behaviour, and the remap is rollback-safe
+
+`ArcadeCharData_ComputeDigest()` hashes the **parsed, post-adaptation** spans
+(its own comment: "Run AFTER the full 20-character adaptation"). A parse-time
+`cg_se` remap therefore changes the digest.
+
+**That is the mechanism working as designed, not a cost.** Sound is *not*
+purely presentational upstream of the driver: `wk->cg_se` lives in `WORK`/`PLW`,
+which is rollback state (`game_state.c` -> `GS_SAVE(plw)`), and the `0x800`
+random path consumes `random_16()`, whose index is saved *and hashed*. So
+mixed-build sessions genuinely would desync — and the digest, carried in the
+MIST handshake (`arcade_balance.h`: "Carried in the MIST netplay handshake so
+peers with differing adapted data reject instead of desync"), makes them
+**reject with `MIST_REJECT_BALANCE_MISMATCH` instead**.
+
+Everything from `SsRequestPan` down *is* presentational: `game_state.c` saves no
+sound-driver state, and `Store_Sound_Code` writes only the `sdeb[8]` debug ring.
+
+**None of the six source or target codes carries `0x800`**, so RNG consumption
+is unchanged by the remap — it is rollback-safe. Release-note this under §8.O
+alongside the other digest-changing fixes.
+
+### 21.14 What this analysis does not establish
+
+- **CPS3 sound-driver ground truth.** What each arcade code *audibly* played on
+  real hardware is unknown; the audio SIMMs are not part of this port's romset
+  usage. The PS2 same-cell value is used as the oracle throughout, and it is a
+  proxy, not a primary source. No sample was decoded — the maintainer explicitly
+  scoped audio decoding out.
+- **Exhaustive runtime reachability of the 781 converter-mangled cells**
+  (§21.6). The verdict rests on linear-prefix position + a jump-target scan +
+  the converter's own treatment. It is not full control-flow simulation, and
+  `rja`/`uja` conditional-jump argument semantics are not fully modelled. Same
+  epistemic status as §20.5's "apparently unreachable".
+- **Whether CPS3 Q's throw-reaction silence was intentional authoring** or an
+  omission Capcom corrected for the PS2 release (§21.10).

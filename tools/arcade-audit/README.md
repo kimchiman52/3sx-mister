@@ -17,6 +17,18 @@ python3 tools/arcade-audit/cg_audit.py        # ~40 s -> cg_audit.json + table
 python3 tools/arcade-audit/data_audit.py      # ~1 s  -> data_audit.json + table
 python3 tools/arcade-audit/residual_audit.py  # ~1 s  -> residual_audit.json + report
 python3 tools/arcade-audit/counterfactual.py  # re-runs with historical fixes reverted
+python3 tools/arcade-audit/cg_se_audit.py     # ~1 s  -> cg_se_audit.json + table
+```
+
+`cg_se_audit.py` covers the **sound-code remap** (doc item Q, §21): it parses
+`cg_se_maps[]` out of `src/arcade/arcade_char_data.c` and asserts against the
+ROM that the per-character `cg_se` exceptions touch exactly the six pairs / 29
+script cells of §21.7 and nothing else. It imports `cg_audit.py` for the
+shared constants and does not modify it. Its invariant:
+
+```
+TOTAL script cells 29 (expected 29), distinct buffer positions 17 (expected 17)
+PASS
 ```
 
 `cg_audit.py` covers sprite indices in the 10 script tables (plus OVCT/OVIX
@@ -103,10 +115,11 @@ answer automatically — which is the point.
 | `data_audit.py` | the 13-section audit; writes `data_audit.json` |
 | `residual_audit.py` | the second-door residual-bounds audit; writes `residual_audit.json` |
 | `counterfactual.py` | reverts #290/#359/#360 in-memory to prove the audit catches them |
+| `cg_se_audit.py` | the cg_se sound-code remap audit (doc item Q); writes `cg_se_audit.json` |
 | `decrypt.py` | rebuilds `rom.bin` from the ROM zip |
 | `afs.py` | AFS container parser |
 | `parse.py`, `scan.py`, `cgscan.py` | arcade-side script decoders / sweeps |
 | `ps2scan.py`, `cmpovct.py`, `fulldiff.py` | PS2-side decode, OVCT compare, full script diff |
-| `cg_audit.json`, `cg_counterfactual.json`, `data_audit.json`, `residual_audit.json` | machine-readable results |
+| `cg_audit.json`, `cg_counterfactual.json`, `data_audit.json`, `residual_audit.json`, `cg_se_audit.json` | machine-readable results |
 | `audit_summary.txt`, `audit_run.txt` | human-readable results |
 | `denjin_oobcount.log` | the 19 OOB hits from the ASan repro |
