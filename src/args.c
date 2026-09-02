@@ -376,6 +376,13 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                     NULL,
                     0,
                     0),
+        OPT_BOOLEAN(0,
+                    "test-cps3-chardma",
+                    &configuration->test_cps3_chardma,
+                    "Run the ported CPS-3 char-DMA decoder unit harness (\"first light\" scaffolding) and exit. Requires -DENABLE_NETPLAY_TESTS.",
+                    NULL,
+                    0,
+                    0),
 #if ENABLE_PERF_TELEMETRY
         OPT_GROUP("Performance"),
         OPT_INTEGER(0,

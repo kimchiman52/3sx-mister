@@ -1254,6 +1254,14 @@ int Texcash_Test_Bounds(void);
  * TU is always compiled and gates its own body on ENABLE_NETPLAY_TESTS. */
 int CgSe_Test_Remap(void);
 
+/* "First light" scaffolding (docs/research-arcade-cg-data-accuracy.md,
+ * 3sx-rom-only-research.md §5S 4.2): forward-decl of the ported CPS-3
+ * char-DMA decoder unit harness (src/test/test_cps3_chardma.c). Outside
+ * the ENABLE_NETPLAY block on purpose -- it exercises
+ * src/arcade/cps3_first_light.c, not netplay, so the TU is always
+ * compiled and gates its own body on ENABLE_NETPLAY_TESTS. */
+int Cps3Chardma_Test_Decode(void);
+
 /* Test harnesses run unattended (scripts, CI). SDL's DEFAULT assertion
  * handler shows an interactive Retry/Break/Abort/Ignore prompt in Debug
  * builds, which never returns in a non-interactive session — a tripped
@@ -1417,6 +1425,10 @@ int main(int argc, const char* argv[]) {
 
     if (configuration.test_cg_se_remap) {
         return CgSe_Test_Remap();
+    }
+
+    if (configuration.test_cps3_chardma) {
+        return Cps3Chardma_Test_Decode();
     }
 
     return loop();

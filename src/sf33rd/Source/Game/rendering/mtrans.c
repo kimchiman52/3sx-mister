@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/rendering/mtrans.h"
+#include "arcade/cps3_first_light.h"
 #include "common.h"
 /* ENABLE_PERF_TELEMETRY lives in the generated port/build_config.h. Without it
  * every `#if ENABLE_PERF_TELEMETRY` in this TU silently evaluates to 0 (there is
@@ -395,6 +396,33 @@ s16 getObjectHeight(u16 cgnum) {
     return maxHeight;
 }
 
+/* DEV/TEST ONLY -- "first light" (docs/research-arcade-cg-data-accuracy.md,
+ * 3sx-rom-only-research.md §5S 4.2). Pushes the CPS-3 ROM's own palette
+ * into a scratch ColorRAM row the very first time it is needed, applying
+ * the INDEX-based transparency rule at write time (doc §5O/§5I.1 --
+ * "dst[0]=0; dst[i]=src[i]|0x8000 for i=1..63", NOT a value-based
+ * "non-zero entry" rule, which would wrongly hide opaque black pixels).
+ * lz_ext_p6_cx() reads ColorRAM directly for its own family of call sites,
+ * which is why this rule is applied here rather than deferred to upload. */
+static bool cps3_first_light_palette_ready = false;
+
+static void cps3_first_light_ensure_palette(void) {
+    if (cps3_first_light_palette_ready) {
+        return;
+    }
+
+    const uint16_t* raw = Cps3FirstLight_PaletteRaw();
+
+    ColorRAM[CPS3_FIRST_LIGHT_PAL_ROW][0] = 0x0000;
+
+    for (int i = 1; i < 64; i++) {
+        ColorRAM[CPS3_FIRST_LIGHT_PAL_ROW][i] = (u16)(raw[i] | 0x8000);
+    }
+
+    palUpdateGhostCP3(CPS3_FIRST_LIGHT_PAL_ROW, 1);
+    cps3_first_light_palette_ready = true;
+}
+
 void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
     u32* textbl;
     u16* trsbas;
@@ -514,7 +542,23 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                 case 1:
                 case 2:
                     if (get_mltbuf16_ext_2(mt, cc.code, 0, &code, cp) != 0) {
-                        lz_ext_p6_fx(&((u8*)texptr)[1], mt->mltbuf, size);
+                        /* DEV/TEST ONLY -- "first light". The ONE lz_ext_p6_fx
+                         * site the task hijacks: when this WORK is drawing the PS2
+                         * CG that arcade CG 0x060A remaps to (Alex block, doc
+                         * §5S 4.2) and the ROM-sourced decode succeeded, upload a
+                         * real CPS-3-decoded tile instead of the PS2 LZ blob.
+                         * `size == CPS3_FIRST_LIGHT_TILE_BYTES` restricts this to
+                         * the PS2 texture's own 16x16 (wh=2) chips, the one size
+                         * class that matches a CPS-3 tile 1:1 -- wh=1 (64 B)
+                         * chips still decode PS2 pixels as today. */
+                        if (wk->cg_number == CPS3_FIRST_LIGHT_PS2_CG && size == CPS3_FIRST_LIGHT_TILE_BYTES &&
+                            Cps3FirstLight_Ready()) {
+                            cps3_first_light_ensure_palette();
+                            Cps3FirstLight_NextTile(mt->mltbuf);
+                        } else {
+                            lz_ext_p6_fx(&((u8*)texptr)[1], mt->mltbuf, size);
+                        }
+
                         njReLoadTexturePartNumG(mt->mltgidx16 + (code >> 8), (s8*)mt->mltbuf, code & 0xFF, size);
                     }
 
@@ -528,7 +572,16 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                                          dh,
                                          mt->mltgidx16,
                                          code,
-                                         palo | ((trsptr->attr ^ attr) & 0xC000),
+                                         /* Same hijack, palette half: point this one chip
+                                          * at the scratch row cps3_first_light_ensure_palette()
+                                          * just filled instead of Alex's own wk->colcd, so the
+                                          * substituted pixel indices are looked up in the
+                                          * ROM-sourced CPS-3 palette (CG 0x060A's own slot 8,
+                                          * see cps3_first_light.c) rather than Alex's PS2 one. */
+                                         (wk->cg_number == CPS3_FIRST_LIGHT_PS2_CG &&
+                                          size == CPS3_FIRST_LIGHT_TILE_BYTES && Cps3FirstLight_Ready())
+                                             ? (CPS3_FIRST_LIGHT_PAL_ROW | ((trsptr->attr ^ attr) & 0xC000))
+                                             : (palo | ((trsptr->attr ^ attr) & 0xC000)),
                                          wk->my_clear_level,
                                          mt->id);
                     break;
@@ -618,7 +671,21 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                                      dh,
                                      mt->mltgidx16,
                                      code,
-                                     palo | ((trsptr->attr ^ attr) & 0xC000),
+                                     /* DEV/TEST ONLY -- "first light", cache-hit path. Mirrors
+                                      * the instance-miss hijack in mlt_obj_trans_ext() above:
+                                      * without this, a cached CPS-3-decoded chip is re-stored
+                                      * with Alex's own PS2 palette on every cache-hit frame, so
+                                      * the sprite would flicker between the ROM-sourced palette
+                                      * (miss) and the PS2 one (hit) as the pattern cache churns.
+                                      * `wh == 2` is this branch's equivalent of the miss branch's
+                                      * `size == CPS3_FIRST_LIGHT_TILE_BYTES` (wh=2 chips are
+                                      * exactly the 256-byte/16x16 class a CPS-3 tile matches;
+                                      * this switch case never sees any other wh here since case 4
+                                      * is separate). */
+                                     (wk->cg_number == CPS3_FIRST_LIGHT_PS2_CG && wh == 2 &&
+                                      Cps3FirstLight_Ready())
+                                         ? (CPS3_FIRST_LIGHT_PAL_ROW | ((trsptr->attr ^ attr) & 0xC000))
+                                         : (palo | ((trsptr->attr ^ attr) & 0xC000)),
                                      wk->my_clear_level,
                                      mt->id);
                 break;

@@ -2029,11 +2029,19 @@ single pre-existing case). `data_audit.py`
 reports the split rather than hiding it — see §12 for why this is inference and
 not proof.
 
-### 15.8 Stretch: the second ROM revision (`sfiii3`, 990512)
+### 15.8 Stretch: the second ROM revision (`sfiii3`, 990608)
+
+> **Label corrected 2026-09-02.** This section previously called `sfiii3` the
+> "990512" set. It is the other way round: **`sfiii3nr1` IS 990512** (the literal
+> `"990512"` string appears in its decrypted SIMM1, and its CRCs match FBNeo's
+> `SFIII3_990512_FLASH`), and **`sfiii3` is 990608**. The `+0x14C` shift measured
+> below is correct and unaffected — only the two revision labels were swapped.
+> Note also that the `sfiii3.zip` in `fbneo-replay-runner/roms/` carries MAME
+> `sfiii3n` CRCs, i.e. the no-CD 990608 set, not a CD set.
 
 All prior work used `sfiii3nr1` (the revision pinned by `rom_load.c:41-45`).
 `/Users/sb/Developer/fbneo-replay-runner/roms/sfiii3.zip` is the merged
-990512 set. Decrypting its SIMM1 with `decrypt.py` gives a valid image
+990608 set. Decrypting its SIMM1 with `decrypt.py` gives a valid image
 (`strings -n 8` yields 6,670 runs against 6,672 for nr1, with the same leading
 patterns — so the key is right for both).
 

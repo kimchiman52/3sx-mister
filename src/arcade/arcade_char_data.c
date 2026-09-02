@@ -1,4 +1,5 @@
 #include "arcade/arcade_char_data.h"
+#include "arcade/cps3_first_light.h"
 #include "arcade/rom_load.h"
 #include "constants.h"
 #include "port/paths.h"
@@ -705,6 +706,14 @@ void ArcadeCharData_Init() {
 
         if (rom != NULL) {
             SDL_Log("ArcadeCharData: CPS3 ROM load satisfied by %s ($THIRDSARM_CPS3_ZIP)", env_path);
+
+            /* DEV/TEST ONLY -- "first light" (docs/research-arcade-cg-data-accuracy.md,
+             * 3sx-rom-only-research.md §5S 4.2). Attempts SIMM3-6 (gfx) from the
+             * same zip; a no-op when it only carries SIMM1 (e.g. the flat
+             * sfiii3nr1.zip). Never reached outside this $THIRDSARM_CPS3_ZIP
+             * branch -- the production directory search above/below never
+             * touches gfx data. */
+            Cps3FirstLight_TryLoad(env_path);
         } else if (env_found) {
             zips_found++;
             SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,

@@ -313,6 +313,15 @@ typedef struct Configuration {
      * not need ENABLE_NETPLAY. Pure in-process: no ROM, no session, no SDL
      * window. */
     bool test_cg_se_remap;
+    /* "First light" scaffolding (docs/research-arcade-cg-data-accuracy.md,
+     * 3sx-rom-only-research.md §5S 4.2): when true, main() runs the ported
+     * CPS-3 char-DMA decoder unit harness (src/test/test_cps3_chardma.c)
+     * and exits. Honors --test-cps3-chardma. Parsed unconditionally; the
+     * real body is gated on ENABLE_NETPLAY_TESTS only -- it touches no
+     * netplay code, so it does not need ENABLE_NETPLAY. Pure in-process:
+     * no ROM file, no session, no SDL window -- the compressed bytes and
+     * golden decode are embedded in the test file. */
+    bool test_cps3_chardma;
 } Configuration;
 
 #endif
