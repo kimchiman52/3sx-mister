@@ -100,13 +100,27 @@ a live catalog — it only writes `--out`.
 
 ## What it collects (mirrors `browser-catalog.js` exactly)
 
-- **Recent**: `best:false`, offset 0, 15, 30 … up to `--max-rows`.
-- **Best this month**: `best:true`, `since` = start of the current **UTC**
-  month.
-- Merged and de-duped by `quarkid`; a replay seen in both feeds keeps
-  `catalog_best:true`. 400 ms politeness delay between page fetches.
+- **Best this week, and only that**: `best:true`, `since` = today's **UTC**
+  midnight minus 7 days (`now_ms - now_ms % 86400000 - 604800000`, the
+  arithmetic of fightcade.com's own `weeklyBest` computed), offset 0, 15,
+  30 … up to `--max-rows` (150).
+- **No Recent (`best:false`) pass.** The device plays the weekly-best set and
+  nothing else; those rows were filtered back out server-side anyway. The two
+  crawls were always independent — the Best call took no input from the Recent
+  result — so the best-tagged set is unchanged. The one crumb: a `quarkid` that
+  appeared in both feeds used to be emitted with the *Recent* copy's field
+  values (flag flipped); it now carries the Best copy's. Measured overlap in a
+  real capture was zero, but never structurally zero.
+- De-duped by `quarkid` (the listing can shift under a multi-page crawl), every
+  row tagged `catalog_best:true`. 400 ms politeness delay between page fetches:
+  the API rate-limits with an `HTTP/3 503` whose body is **not JSON**, which is
+  also why a JSON parse failure counts as a failed page instead of crashing.
+  Neither protection may be "simplified" away.
+- `results.count` is never treated as a row total — it is `limit + 1`, a
+  has-more sentinel. No total exists in the API; exhaustion is only ever
+  determined by paging until a short or empty page.
 - On a mid-run 403 (Cloudflare re-challenge), the runner re-solves CF once and
-  retries the same offset before stopping that feed early.
+  retries the same offset before stopping the feed early.
 
 ## Row shape — single JS source of truth
 
@@ -115,8 +129,9 @@ The per-page fetch **and** the `normalizePlayer()`/`normalizeRow()` coercion run
 (copied verbatim into `PAGE_FETCH_JS`, marked as such). Running the identical JS
 in the identical engine — rather than re-implementing type coercion in Python —
 guarantees the emitted rows match the human snippet field-for-field. Only the
-paging loop, the Recent/Best merge + de-dup, the delay, and the CF re-solve live
-in Python. There are now three hand-synced copies of the normalize logic
+paging loop, the `quarkid` de-dup, the delay, and the CF re-solve live
+in Python (the merge is gone with the Recent pass). There are now three
+hand-synced copies of the normalize logic
 (`fcade-proxy.js:120-144`, `browser-catalog.js:73-105`, `PAGE_FETCH_JS` here);
 if `normalizeRow()` changes, update all three.
 
@@ -142,7 +157,7 @@ pushes **nothing**, so the last-good catalog on the VPS is preserved.
 | `setup.sh` | Idempotent installer: builds a persistent venv, downloads Chrome-for-Testing 151.0.7922.47, makes a persistent profile, renders the plist. |
 | `run-daily.sh` | The wrapper the LaunchAgent runs: crawl off-screen → (on exit 0 only) push via `refresh-catalog.sh` → record state; loud fail + notify + exit non-zero + push nothing on any error. |
 | `dev.sambae.fcade-catalog.plist` | LaunchAgent **template** (`StartCalendarInterval` array, 8×/day every 3h; `RunAtLoad` false). `setup.sh` renders the absolute paths into `<install-root>/`. |
-| `check-staleness.sh` | Dependency-free freshness monitor; reads `state/last-success`, exits 1 + notifies if older than a threshold (default 26h — a loose "clearly broken" backstop; pass a smaller `MAX_AGE_HOURS` arg, e.g. `check-staleness.sh 4`, to track the 3h cadence). |
+| `check-staleness.sh` | Dependency-free freshness monitor. Reads `state/last-success` and keys on the **published catalog's `generated_at`** (falling back to the push epoch on a pre-`rows=` state file), not on any exit code: exits 1 + notifies if older than a threshold (default 26h — a loose "clearly broken" backstop; pass a smaller `MAX_AGE_HOURS` arg, e.g. `check-staleness.sh 4`, to track the 3h cadence). Also exits 1 if the published row count is at/below `FCADE_MIN_ROWS`, and reports `FRESH (LOW YIELD)` below `FCADE_LOW_YIELD_ROWS`. |
 
 ### The persistent install root
 
@@ -185,9 +200,35 @@ lives in `~/.ssh`, never here:
 |---|---|---|
 | `FCADE_VPS_TARGET` | `hetzner-3s-arm:/opt/fcade-proxy` | rsync/ssh target for the push. |
 | `FCADE_NODE_BIN` | `node` | node binary `refresh-catalog.sh` needs (pass an absolute path if node is not on the LaunchAgent's PATH). |
-| `FCADE_MIN_ROWS` | `100` | Push-safety floor (live catalog is ~278–295 rows; refuse anything suspiciously small). |
+| `FCADE_MIN_ROWS` | `30` | Push-safety floor: refuse to write below this. **Deliberately low.** See "Sizing the floor" below. |
+| `FCADE_LOW_YIELD_ROWS` | `100` | Log a loud warning below this, but still publish. Deliberately does **not** notify (the job runs every 3 h and a quiet week is not a failure); `check-staleness.sh` is the low-yield surface. |
 | `FCADE_TIMEOUT` | `90` | Per-nav/eval timeout (s). |
 | `FCADE_MAX_ROWS` | `150` | Per-feed row cap. |
+
+### Sizing the floor
+
+The floor was `100`, sized when the crawl merged Recent + Best into a live
+catalog of ~278–295 rows. The weekly-best crawl pulls **one** feed capped at
+150, so 100 sat two thirds of the way up the maximum possible yield and a
+genuinely quiet week would trip it.
+
+Tripping it is the expensive direction. When the floor refuses, nothing is
+written, the VPS keeps serving the **last-good** catalog, and the device plays
+an ever-staler set. `run-daily.sh` does exit non-zero on that path (and
+notifies) — but a non-zero exit from a background LaunchAgent nobody reads is
+indistinguishable from success. So:
+
+- the floor is `30` (two full `PAGE_SIZE = 15` pages) — a *clean* crawl that
+  ends under two pages is a broken window or an upstream change, never a quiet
+  week;
+- truncation is not the floor's job: `collect_feed` flags any dirty
+  termination (eval timeout, non-200, a 403 surviving the re-solve) and
+  `run_full`/`amain` then emit nothing at all;
+- a yield at/above the floor but under `FCADE_LOW_YIELD_ROWS` still publishes
+  and logs loudly, because the slide toward the floor is the early warning;
+- the row count is recorded in `state/last-success` as `rows=`, and
+  **`check-staleness.sh` monitors the published `generated_at` — not the exit
+  code** — plus that row count. That is the observable to watch.
 
 Example `config.sh`:
 

@@ -24,8 +24,37 @@ Environment=FCADE_CONVERT_PYTHON=/usr/bin/python3
 Environment=FCADE_CONVERT_IDLE_TEARDOWN_MS=45000
 Environment=FCADE_CONVERT_SWEEP_INTERVAL_MS=15000
 Environment=FCADE_STORE_EVICTION_ENABLED=1
-Environment=FCADE_STORE_MAX_QUARKS=200
+# Weekly-best retarget: the catalog is a BOUNDED set of at most MAX_ROWS = 150
+# quarks, every one of them catalog-pinned (never evictable). So the cap is
+# sized just above the set rather than at an arbitrary round number, and the
+# hysteresis band has to stay above the pinned mass or eviction can never reach
+# its target and the pre-convert churn guard latches forever:
+#   trigger    = STORE_EVICT_TRIGGER_FRACTION (0.90) * 180 = 162  > 150 pinned
+#   low-water  = STORE_EVICT_LOW_WATER        (0.85) * 180 = 153  >= 150 pinned
+# i.e. up to 30 quarks that have aged out of the weekly window stay cached, and
+# an eviction pass can always reach low-water using only unpinned quarks.
+Environment=FCADE_STORE_MAX_QUARKS=180
+# NOT lowered alongside the quark cap: this is an OR'd cap, and if it binds
+# first with all 150 quarks pinned, eviction can never get under it, the
+# "still over cap" tripwire warns every pass, and the churn guard stops all
+# pre-convert enqueues. 200 MiB / 150 quarks = 1.4 MB per quark of headroom
+# against a real match of roughly 29 KB per game_N.3sr plus a small
+# meta.json (README.md, "Blob sizes are also capped generously").
 Environment=FCADE_STORE_MAX_BYTES=209715200
+# Pre-convert pacing (PRECONVERT_GAP_MS in fcade-proxy.js). Relaxed from the 180 s
+# built-in default now that the work is bounded: the old value was sized to
+# chase an unbounded fresh feed, whereas the queue is now at most the 150-row
+# weekly-best set. 300 s + the built-in 0..60 s jitter puts a cold full
+# backfill at roughly 150 * 5.5 min ~= 14 h (one-off), and the steady state at
+# the day-over-day churn of a rolling 7-day window -- order 20 rows/day, under
+# 2 h/day of ggpo.fightcade.com contact. Politeness is the only thing being
+# bought here; nothing is waiting on it.
+Environment=FCADE_PRECONVERT_GAP_MS=300000
+# Enqueue only catalog_best rows. With the weekly-best catalog every row is
+# already tier 1, so this changes nothing today -- it is the guard that keeps a
+# future catalog change from silently reintroducing fresh-tier speculative
+# conversions. Set to 0 for the pre-weekly behavior.
+Environment=FCADE_PRECONVERT_BEST_ONLY=1
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

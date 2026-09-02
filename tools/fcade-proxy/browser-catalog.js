@@ -25,7 +25,7 @@
 //      browser-catalog.bookmarklet.txt as a bookmarklet -- rebuild it with
 //      `node build-bookmarklet.js` after editing this file.)
 //   4. Watch the console for progress (`[fcade-catalog] ...` lines) while
-//      it pages through Recent and Best results.
+//      it pages through the Best results.
 //   5. When done, it downloads fcade-catalog.json AND copies the same JSON
 //      to your clipboard, plus logs "COPIED N rows...". Either hand the
 //      downloaded file (or pasted clipboard contents) to your assistant,
@@ -33,10 +33,28 @@
 //        ./push-catalog.sh ~/Downloads/fcade-catalog.json hetzner-3s-arm:/opt/fcade-proxy
 //
 // WHAT IT FETCHES (edit the constants below to adjust)
-//   - "Recent": offset 0, 15, 30, ... up to MAX_ROWS rows, best:false.
-//   - "Best this month": best:true, since = start of the current UTC month.
-//   Both for GAMEID. Recent + Best are merged and de-duplicated by
-//   quarkid (a replay appearing in both keeps its `catalog_best` tag).
+//   - "Best this week" ONLY: best:true, since = today's UTC midnight minus
+//     7 days -- byte-for-byte the window fightcade.com's own WEEKLY BEST tab
+//     uses (its `weeklyBest` computed is `e=Date.now(); e-e%864e5-6048e5`).
+//     offset 0, 15, 30, ... up to MAX_ROWS rows, for GAMEID.
+//   There is NO Recent (best:false) pass any more: the device plays the
+//   weekly-best set and nothing else, so a fresh-feed crawl only added rows
+//   that were then filtered out server-side. Dropping it is safe because the
+//   two crawls were always independent paged fetches -- the Best call never
+//   took any input from the Recent result -- so the best-tagged set this
+//   emits is unchanged.
+//
+//   CAVEAT PRESERVED FROM THE OLD MERGE: when a quarkid appeared in BOTH
+//   feeds, the merge that used to live below kept the RECENT copy's values
+//   and only flipped its `catalog_best` flag to true. Measured overlap in a
+//   real capture was zero, but it was never structurally zero, so rows that
+//   used to come from the Recent copy now come from the Best copy instead.
+//   Same quarkid, same normalize function, possibly different field values
+//   if upstream ever reported a row differently between the two feeds.
+//
+//   All three Best tabs on fightcade.com POST the SAME `searchquarks`
+//   request with `best: true` and differ ONLY in `since` -- weekly is not a
+//   separate feed, it is this one value.
 //
 // ROW SHAPE
 // Every row is normalized to mirror fcade-proxy.js's normalizeRow() /
@@ -178,33 +196,28 @@
 
   log('starting: gameid=' + GAMEID + ' max_rows=' + MAX_ROWS);
 
-  var now = new Date();
-  var monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  // WEEKLY window, verbatim from fightcade.com's own `weeklyBest` computed:
+  //   weeklyBest: function(){ var e=Date.now(); return e-e%864e5-6048e5 }
+  // i.e. today's UTC midnight minus 7 days. `nowMs % 864e5` is ms elapsed
+  // since UTC midnight, so subtracting it floors to midnight; 6048e5 is
+  // 7 * 86 400 000. Deliberately NOT Date.UTC(y, m, 1): that was a calendar
+  // month, which matches NEITHER of the site's tabs (its MONTHLY BEST is a
+  // rolling 30 days, `e-e%864e5-2592e6`) and collapsed to a ~1-day window on
+  // the 2nd of a month.
+  var nowMs = Date.now();
+  var weekStart = nowMs - (nowMs % 864e5) - 6048e5;
 
-  log('fetching recent...');
-  var recentRaw = await collectPages(false, undefined);
-  log('recent: collected ' + recentRaw.length + ' raw rows');
-
-  await sleep(REQUEST_DELAY_MS);
-
-  log('fetching best (this month, since=' + monthStart + ')...');
-  var bestRaw = await collectPages(true, monthStart);
+  log('fetching best (this week, since=' + weekStart + ')...');
+  var bestRaw = await collectPages(true, weekStart);
   log('best: collected ' + bestRaw.length + ' raw rows');
 
+  // De-dup by quarkid. Still needed with one feed: the listing can shift
+  // under a multi-page crawl and repeat a row across page boundaries.
   var byId = new Map();
-  for (var r1 = 0; r1 < recentRaw.length; r1++) {
-    var normR = normalizeRow(recentRaw[r1], GAMEID, false);
-    if (normR) byId.set(normR.quarkid, normR);
-  }
   for (var r2 = 0; r2 < bestRaw.length; r2++) {
     var normB = normalizeRow(bestRaw[r2], GAMEID, true);
     if (!normB) continue;
-    var existing = byId.get(normB.quarkid);
-    if (existing) {
-      existing.catalog_best = true; // seen in both feeds: keep the best tag
-    } else {
-      byId.set(normB.quarkid, normB);
-    }
+    if (!byId.has(normB.quarkid)) byId.set(normB.quarkid, normB);
   }
 
   var rows = Array.from(byId.values());

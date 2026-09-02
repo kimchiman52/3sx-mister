@@ -14,6 +14,10 @@
 //   G. a live convert clears a prior ledger entry;
 //   B. restart persistence (persist → re-require → queue + ledger reload);
 //   D. the disk floor pauses background work (fresh module, huge floor);
+//   E2. the best-only enqueue guard (FCADE_PRECONVERT_BEST_ONLY, default ON):
+//      with the guard at its default a non-catalog_best row is never ADDED to
+//      the queue, while a catalog_best row still is, and an already-queued
+//      tier-2 item is left alone (the guard gates adds, not the classifier);
 //   H. P3 queue hygiene (docs/plan-bounded-pool-replay.md §6.1 Stage 4): a
 //      demoted item past FCADE_PRECONVERT_P3_MAX_AGE_MS is dropped on the same
 //      enqueue pass that demotes it, a fresh-dated one survives, and a leased
@@ -111,6 +115,12 @@ process.env.FCADE_PRECONVERT_SAVE_DEBOUNCE_MS = '50';
 process.env.FCADE_DISK_FLOOR_BYTES = '0'; // never disk-blocked (except the dedicated floor test)
 process.env.FCADE_STORE_MAX_QUARKS = '100000'; // never churn-guarded here
 process.env.FCADE_STORE_MAX_BYTES = String(64 * 1024 * 1024 * 1024);
+// Best-only enqueue guard OFF for the bulk of this file: tiers P1/P2/P3, the
+// pacing gap, the hard cap and P3 hygiene all need fresh (non-best) rows to
+// reach the queue, and they are testing the machinery, not the policy. The
+// guard's own DEFAULT-ON behavior is covered by testBestOnlyEnqueueGuard(),
+// which re-requires the module with the env unset.
+process.env.FCADE_PRECONVERT_BEST_ONLY = '0';
 
 let mod = require('./fcade-proxy.js');
 
@@ -503,6 +513,46 @@ async function testDiskFloorPause() {
     process.env.FCADE_DISK_FLOOR_BYTES = '0';
 }
 
+// --- E2: best-only enqueue guard (default ON) --------------------------------
+// V2 of the weekly-best retarget: with the catalog carrying only best-tagged
+// rows, tier 2 is empty by construction; this guard makes that structural so a
+// future catalog change cannot quietly reintroduce fresh-tier work.
+async function testBestOnlyEnqueueGuard() {
+    // Fresh module with the guard at its DEFAULT (env deleted ⇒ enabled);
+    // constants are read once at require time.
+    delete require.cache[require.resolve('./fcade-proxy.js')];
+    delete process.env.FCADE_PRECONVERT_BEST_ONLY;
+    const mod4 = require('./fcade-proxy.js');
+    const cm4 = mod4.makeConvertManager();
+    freshTest(cm4);
+
+    const G_BEST = '1700000000000-guardBest';
+    const G_FRESH = '1700000000000-guardFresh';
+    const G_QUEUED2 = '1700000000000-guardQueuedP2';
+
+    // An already-queued tier-2 item must survive the pass untouched: the guard
+    // gates ADDS only, it is not a filter over the existing queue.
+    cm4._preconvert.queue.push({ quarkid: G_QUEUED2, tier: 2, date: Date.now(), duration: 100, row: row(G_QUEUED2) });
+
+    rewriteCatalog([
+        row(G_BEST, { date: 100, catalog_best: true }),
+        row(G_FRESH, { date: 200 }),
+        row(G_QUEUED2, { date: Date.now() }), // still in the catalog, still fresh
+    ]);
+    cm4._preconvertEnqueueFromCatalog();
+
+    const ids = cm4._preconvert.queue.map((it) => it.quarkid);
+    assert(ids.includes(G_BEST), 'best-only: a catalog_best row is still enqueued');
+    assert(!ids.includes(G_FRESH), 'best-only: a non-best row is NOT enqueued with the guard at its default');
+    const q2 = cm4._preconvert.queue.find((it) => it.quarkid === G_QUEUED2);
+    assert(!!q2, 'best-only: an already-queued tier-2 item is not dropped by the guard');
+    assertEq(q2 && q2.tier, 2, 'best-only: an already-queued item keeps tier 2 (the guard is not in the classifier)');
+    assertEq(cm4._preconvert.queue.length, 2, 'best-only: exactly the best row was added (queued P2 + best)');
+
+    killAllJobs(cm4);
+    process.env.FCADE_PRECONVERT_BEST_ONLY = '0';
+}
+
 // --- main --------------------------------------------------------------------
 async function main() {
     console.warn = () => {};
@@ -519,6 +569,7 @@ async function main() {
         await testLiveConvertClearsLedger(cm);
         await testRestartPersistence(cm);
         await testDiskFloorPause();
+        await testBestOnlyEnqueueGuard();
         killAllJobs(cm);
     } catch (err) {
         console.error(`UNCAUGHT: ${err && err.stack ? err.stack : err}`);

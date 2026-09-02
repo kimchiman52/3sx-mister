@@ -41,10 +41,31 @@ fi
 VPS_TARGET="${FCADE_VPS_TARGET:-hetzner-3s-arm:/opt/fcade-proxy}"
 # node binary refresh-catalog.sh needs (installed separately; pass its path).
 NODE_BIN="${FCADE_NODE_BIN:-node}"
-# Push-safety floor: refuse to write/push a catalog with fewer merged rows than
-# this. Live catalog is ~278-295 rows, so 100 is a conservative "clearly broke"
-# guard, not a tight bound.
-FLOOR="${FCADE_MIN_ROWS:-100}"
+# Push-safety floor: refuse to write/push a catalog with fewer rows than this.
+#
+# RE-SIZED for the weekly-best crawl (was 100, sized for the old Recent+Best
+# merge whose live catalog ran ~278-295 rows). The crawl now pulls ONE feed --
+# best-this-week -- capped at MAX_ROWS (150), so 100 was no longer a "clearly
+# broke" guard: it sat two thirds of the way up the maximum possible yield, and
+# a genuinely quiet week would trip it.
+#
+# The failure this floor causes when it trips wrongly is the nasty kind --
+# nothing is written, the VPS keeps serving the last-good catalog, and the
+# device plays an ever-staler set -- so it is deliberately LOW. 30 = two full
+# pages of PAGE_SIZE 15. A crawl that terminates CLEANLY with under two full
+# pages is a broken window or an upstream change, not a quiet week.
+#
+# Truncation is NOT this floor's job: collect_feed marks any dirty termination
+# (eval timeout, non-200, a 403 surviving the re-solve) and run_full/amain then
+# refuse to emit anything. This is only the second belt against "clean but
+# absurdly small".
+FLOOR="${FCADE_MIN_ROWS:-30}"
+# Low-yield WARNING threshold (not a refusal). A crawl at or above FLOOR but
+# below this still publishes -- a small week is still the real set -- but says
+# so loudly and notifies, because a slow slide toward the floor is the early
+# warning for the silent-staleness failure above. Also recorded in
+# state/last-success as rows=, where check-staleness.sh re-checks it.
+LOW_YIELD="${FCADE_LOW_YIELD_ROWS:-100}"
 # Per-navigation / per-page-eval timeout handed to the runner (seconds).
 TIMEOUT="${FCADE_TIMEOUT:-90}"
 # Per-feed row cap handed to the runner (browser-catalog.js MAX_ROWS = 150).
@@ -104,7 +125,7 @@ log "==== daily run start ===="
 log "install root : $INSTALL_ROOT"
 log "target       : $VPS_TARGET"
 log "node bin     : $NODE_BIN"
-log "floor/max    : min-rows=$FLOOR max-rows=$MAX_ROWS timeout=${TIMEOUT}s"
+log "floor/max    : min-rows=$FLOOR low-yield-warn=$LOW_YIELD max-rows=$MAX_ROWS timeout=${TIMEOUT}s"
 
 # --- Preflight: everything must exist before we touch the browser -----------
 [ -x "$VENV_PY" ]  || fail preflight "venv python not found at $VENV_PY (run setup.sh)"
@@ -149,6 +170,30 @@ if [ ! -s "$TMPFILE" ]; then
 fi
 log "crawler OK -> $(wc -c <"$TMPFILE" | tr -d ' ') bytes"
 
+# Row count, for the low-yield warning and for the freshness monitor. Counted
+# with the venv python (already a hard preflight requirement) rather than jq,
+# which is not a dependency of this script.
+ROWS="$("$VENV_PY" - "$TMPFILE" <<'PYROWS' 2>/dev/null || echo 0
+import json, sys
+try:
+    print(len(json.load(open(sys.argv[1])).get("rows", [])))
+except Exception:
+    print(0)
+PYROWS
+)"
+case "${ROWS:-}" in ''|*[!0-9]*) ROWS=0 ;; esac
+log "crawler rows : $ROWS (floor=$FLOOR warn-below=$LOW_YIELD cap=$MAX_ROWS)"
+if [ "$ROWS" -lt "$LOW_YIELD" ]; then
+  log "WARNING: low yield -- $ROWS rows is under the $LOW_YIELD warn threshold (floor $FLOOR)."
+  log "         Publishing anyway (a small week is still the real set), but if this keeps"
+  log "         falling the next stop is the floor, where the crawl writes NOTHING, this"
+  log "         script exits non-zero, and -- if nobody reads that -- the device plays an"
+  log "         ever-staler set. Monitor the PUBLISHED generated_at (check-staleness.sh)."
+  log "         Deliberately NOT notifying here: this job runs every 3 h, notify() is"
+  log "         titled \"refresh FAILED\", and a quiet week is not a failure. The"
+  log "         low-yield surface is check-staleness.sh, which re-reads rows= below."
+fi
+
 # --- 2. Hand to the UNCHANGED validate/push/verify tail ----------------------
 log "invoking refresh-catalog.sh --file (validate -> push -> verify) ..."
 FCADE_NODE_BIN="$NODE_BIN" "$REFRESH" --file "$TMPFILE" --target "$VPS_TARGET"
@@ -169,11 +214,12 @@ except Exception:
 PY
 )"
 NOW_EPOCH="$(date +%s)"
-printf 'epoch=%s generated_at_ms=%s target=%s\n' "$NOW_EPOCH" "${GEN_AT:-0}" "$VPS_TARGET" > "$LAST_SUCCESS"
+# rows= is read back by check-staleness.sh -- see its LOW-YIELD check.
+printf 'epoch=%s generated_at_ms=%s rows=%s target=%s\n' "$NOW_EPOCH" "${GEN_AT:-0}" "$ROWS" "$VPS_TARGET" > "$LAST_SUCCESS"
 # Keep a local reference copy of the last catalog we successfully pushed.
 cp -f "$TMPFILE" "$STATE_DIR/last-catalog.json" 2>/dev/null || true
 record_run ok
 
-log "SUCCESS: catalog pushed + verified; last-success recorded (generated_at_ms=${GEN_AT:-0})."
+log "SUCCESS: catalog pushed + verified; last-success recorded (generated_at_ms=${GEN_AT:-0} rows=$ROWS)."
 log "==== daily run end ===="
 exit 0

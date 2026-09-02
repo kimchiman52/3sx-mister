@@ -270,6 +270,21 @@ const STORE_EVICT_SWEEP_MS = Number(process.env.FCADE_STORE_EVICT_SWEEP_MS) || 1
 const PRECONVERT_ENABLED = process.env.FCADE_PRECONVERT_ENABLED !== '0';
 // Only pre-convert this gameid's rows (the device browses sfiii3nr1).
 const PRECONVERT_GAMEID = process.env.FCADE_PRECONVERT_GAMEID || 'sfiii3nr1';
+// Only ADD catalog_best rows to the queue. The catalog is now the weekly-best
+// set and nothing else (browser-catalog.js / stealth-catalog crawl `best:true`
+// with since = today's UTC midnight - 7d, and no Recent pass), so every row is
+// already tier 1 and tier 2 is empty by construction. This guard makes that
+// STRUCTURAL rather than incidental: a future catalog that starts carrying
+// untagged rows again cannot quietly reintroduce speculative fresh-tier
+// background conversions -- work the device would never play, spent against
+// ggpo.fightcade.com. Set FCADE_PRECONVERT_BEST_ONLY=0 to enqueue the whole
+// catalog again (the pre-weekly behavior).
+//
+// Deliberately NOT inside preconvertClassifyTier(): that function also runs on
+// every ALREADY-QUEUED item each enqueue pass (refresh/demote), where tier 2
+// must stay a meaningful value -- a queued item must be able to hold P2 and be
+// demoted to P3, not be silently reclassified or dropped mid-lease.
+const PRECONVERT_BEST_ONLY = process.env.FCADE_PRECONVERT_BEST_ONLY !== '0';
 const PRECONVERT_TICK_MS = Number(process.env.FCADE_PRECONVERT_TICK_MS) || 30 * 1000;
 // Politeness spacing between background pull STARTS, measured from the END of
 // the previous background job, plus a uniform 0..JITTER jitter (§Q5). 3 min +
@@ -1073,20 +1088,23 @@ function scanStoreQuarks(dir3sr) {
 
 // Quarks reachable from the CURRENT catalog are "pinned" -- never evicted by
 // the LRU loop, exactly like an active convert/watch job (plan-bounded-pool-
-// replay.md §6.2). `loadCatalog()` already merges both feeds (recent + best)
-// into one flat `rows` array (see :477-480), so a single pass over
-// `catalog.rows` covers both. Without this, at cap the LRU (`served` ≈
-// conversion-time mtime for a never-watched quark, see scanStoreQuarks above)
-// evicts the *earliest-converted* quarks first -- after the Stage 1 tier
-// flip that is precisely the BEST layer.
+// replay.md §6.2). `loadCatalog()` returns one flat `rows` array; since the
+// catalog was retargeted to the weekly-best set that array IS the set the
+// device shuffles (there is no Recent feed in it any more). Without this, at
+// cap the LRU (`served` ≈ conversion-time mtime for a never-watched quark, see
+// scanStoreQuarks above) evicts the *earliest-converted* quarks first -- after
+// the Stage 1 tier flip that is precisely the BEST layer.
 //
 // Built ONCE per eviction pass by the caller (not per-candidate) -- see the
 // single `buildPinnedQuarkSet()` call in `evictStoreIfNeeded` below.
 //
-// `attractSet` is a forward-compatibility hook only: no attract-list loading
-// exists yet (that's plan §7 / Stage 6, deferred, user decision D6). When it
-// ships, its members merge into the same pinned Set here without touching
-// any call site.
+// `attractSet` is the set the device is playing right now. `evictStoreIfNeeded`
+// passes `buildAttractQuarkSet()` (below), so the shuffle set is pinned in its
+// OWN right and not merely as a side effect of the broad catalog pin -- if the
+// catalog ever carries rows outside the set again, or the catalog pin is ever
+// narrowed, the set the device is mid-shuffle through stays protected. A
+// curated attract list file (plan §7 / Stage 6, deferred, user decision D6)
+// merges into this same argument when it ships.
 function buildPinnedQuarkSet(attractSet) {
     const pinned = new Set();
     const catalog = loadCatalog();
@@ -1101,6 +1119,24 @@ function buildPinnedQuarkSet(attractSet) {
         for (const id of attractSet) pinned.add(String(id));
     }
     return pinned;
+}
+
+// The quarkids the device's shuffle viewer can currently be playing: exactly
+// what a `search` with `best:true` resolves to (searchCatalog's hard
+// catalog_best filter), which after the weekly retarget is the whole catalog.
+// It is therefore a SUBSET of the catalog pin above today -- deliberately so;
+// it exists to state the dependency, not to add coverage, so that narrowing
+// the catalog pin later cannot silently unpin the set the device is playing.
+function buildAttractQuarkSet() {
+    const set = new Set();
+    const catalog = loadCatalog();
+    if (!catalog || !Array.isArray(catalog.rows)) return set;
+    for (const r of catalog.rows) {
+        if (r && r.catalog_best === true && r.quarkid !== undefined && r.quarkid !== null) {
+            set.add(String(r.quarkid));
+        }
+    }
+    return set;
 }
 
 // Evict least-recently-served quark dirs until the store is back down to a
@@ -1152,7 +1188,7 @@ function evictStoreIfNeeded(isQuarkActive) {
     // Built once for this whole pass -- O(catalog rows), not O(candidates).
     // (loadCatalog() is called again inside here; cheap -- mtime-cached, see
     // loadCatalog() above -- and already proven non-null by the check above.)
-    const pinned = buildPinnedQuarkSet();
+    const pinned = buildPinnedQuarkSet(buildAttractQuarkSet());
 
     // Oldest-served first.
     quarks.sort((a, b) => a.served - b.served);
@@ -2515,6 +2551,7 @@ function makeConvertManager() {
         const c = preconvert.counters;
         return {
             enabled: PRECONVERT_ENABLED,
+            best_only: PRECONVERT_BEST_ONLY,
             queue: { p1, p2, p3, leased },
             failed: { total: Object.keys(preconvert.failed).length, permanent },
             converted: {
@@ -2622,6 +2659,9 @@ function makeConvertManager() {
             const queued = new Set(preconvert.queue.map((it) => it.quarkid));
             for (const [qid, r] of rowById) {
                 if (queued.has(qid)) continue;
+                // Best-tier only (see PRECONVERT_BEST_ONLY): never ADD a row
+                // the device's weekly-best set would not contain.
+                if (PRECONVERT_BEST_ONLY && preconvertClassifyTier(r) !== 1) continue;
                 if (preconvertLeaseActive(qid, now)) continue;
                 if (convertStoreServableGames(qid)) continue;
                 if (preconvertLedgerBlocks(qid, now)) continue;

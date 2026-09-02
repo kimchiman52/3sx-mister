@@ -39,10 +39,10 @@
 # browser-catalog.js:73-149, marked as such). Running the identical JS in the
 # identical JS engine -- rather than re-implementing type coercion in Python --
 # guarantees the emitted rows match the human snippet's output field-for-field.
-# The only logic kept in Python is the paging loop, the Recent/Best merge +
-# quarkid de-dup + catalog_best tag (browser-catalog.js:181-210, pure map ops,
-# no coercion), the politeness delay, and the Cloudflare re-solve/retry --
-# precisely the parts that need to drive the browser from outside the page.
+# The only logic kept in Python is the paging loop, the quarkid de-dup +
+# catalog_best tag (the tail of browser-catalog.js's fcadeCatalogSnippet, pure
+# map ops, no coercion), the politeness delay, and the Cloudflare re-solve/retry
+# -- precisely the parts that need to drive the browser from outside the page.
 #
 # There are now THREE hand-synced copies of the normalize logic
 # (fcade-proxy.js:120-144, browser-catalog.js:73-105, and PAGE_FETCH_JS here).
@@ -177,12 +177,22 @@ def build_page_js(gameid, offset, limit, best, since):
     )
 
 
-def month_start_utc_ms():
-    """Start of the current UTC month in ms-epoch -- matches
-    browser-catalog.js:181-182's Date.UTC(year, month, 1)."""
-    now = datetime.now(timezone.utc)
-    start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    return int(start.timestamp() * 1000)
+def week_start_utc_ms():
+    """Today's UTC midnight minus 7 days, in ms-epoch.
+
+    Verbatim arithmetic of fightcade.com's own WEEKLY BEST computed --
+        weeklyBest: function(){ var e=Date.now(); return e-e%864e5-6048e5 }
+    -- and of browser-catalog.js's `weekStart` (keep the two in sync by hand,
+    like the normalize functions). `now_ms % 86400000` is ms elapsed since UTC
+    midnight, so subtracting it floors to midnight; 604800000 is 7 days.
+
+    NOT the old calendar-month start (Date.UTC(y, m, 1) / datetime(y, m, 1)):
+    that matched NEITHER of the site's Best tabs -- its MONTHLY BEST is a
+    ROLLING 30 days (e-e%864e5-2592e6) -- and degenerated to a ~1-day window
+    on the 2nd of a month.
+    """
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    return now_ms - (now_ms % 86_400_000) - 7 * 86_400_000
 
 
 async def has_cf_clearance(browser):
@@ -245,8 +255,10 @@ async def fetch_one_page(page, gameid, offset, limit, best, since, timeout_s):
 
 
 async def collect_feed(state, gameid, best, since, max_rows, timeout_s):
-    """Page one feed (Recent or Best), mirroring browser-catalog.js:151-177's
-    collectPages: stop on empty/short page, MAX_ROWS, or fetch failure. On a
+    """Page one feed, mirroring browser-catalog.js's collectPages(): stop on an
+    empty/short page, MAX_ROWS, or a fetch failure. Only the Best feed is
+    crawled now, but the `best` flag is kept so the paging loop stays the same
+    shape as the snippet's. On a
     403 (Cloudflare re-challenge mid-run), re-solve CF once and retry the same
     offset before giving up on the feed.
 
@@ -259,7 +271,7 @@ async def collect_feed(state, gameid, best, since, max_rows, timeout_s):
     would blank the live catalog when pushed (the plan's data-fix regression)."""
     label = "best" if best else "recent"
     collected = []
-    raw_collected = 0  # raw rows seen; browser-catalog.js:155 caps on this, not the normalized len
+    raw_collected = 0  # raw rows seen; collectPages() caps on this, not the normalized len
     offset = 0
     resolved_once = False
     while True:
@@ -311,8 +323,20 @@ async def collect_feed(state, gameid, best, since, max_rows, timeout_s):
 
 
 async def run_full(browser, gameid, max_rows, timeout_s):
-    """S2: full Recent + Best-this-month paging -> merged/deduped rows in the
-    exact browser-catalog.js order + catalog_best semantics."""
+    """S2: full Best-THIS-WEEK paging -> deduped rows in the exact
+    browser-catalog.js order + catalog_best semantics.
+
+    The Recent (best=False) pass is GONE: the device plays the weekly-best set
+    and nothing else. Dropping it is safe because Recent and Best were always
+    two INDEPENDENT paged crawls -- the Best call never took any input from the
+    Recent result -- so the best-tagged rows emitted here are unchanged.
+
+    CAVEAT PRESERVED FROM THE OLD MERGE: when a quarkid appeared in BOTH feeds,
+    the merge kept the RECENT copy's field values and only flipped its
+    `catalog_best` flag to True. Measured overlap in a real capture was zero,
+    but it was never structurally zero -- so a row that used to be emitted with
+    the Recent copy's values is now emitted with the Best copy's.
+    """
     page, cleared = await ensure_cf(browser, timeout_s)
     await record_ua(page)
     state = {"browser": browser, "page": page, "hit_403": False}
@@ -324,30 +348,26 @@ async def run_full(browser, gameid, max_rows, timeout_s):
         page, cleared = await ensure_cf(browser, timeout_s)
         state["page"] = page
 
-    log("fetching recent (best=false) ...")
-    recent, recent_clean = await collect_feed(state, gameid, False, None, max_rows, timeout_s)
-    await asyncio.sleep(REQUEST_DELAY_MS / 1000.0)
-
-    since = month_start_utc_ms()
-    log("fetching best (best=true, since=%d = UTC month start) ..." % since)
+    since = week_start_utc_ms()
+    log("fetching best (best=true, since=%d = today UTC midnight - 7d) ..." % since)
     best_rows, best_clean = await collect_feed(state, gameid, True, since, max_rows, timeout_s)
 
-    # Merge + de-dup by quarkid, verbatim semantics of browser-catalog.js:194-210:
-    # recent first (catalog_best=false), then best (catalog_best=true); a quark
-    # in both keeps catalog_best=true. dict preserves insertion order.
+    # De-dup by quarkid, same semantics browser-catalog.js keeps. Still needed
+    # with one feed: the listing can shift under a multi-page crawl and repeat a
+    # row across page boundaries. dict preserves insertion order (server order).
     by_id = {}
-    for r in recent:
-        by_id[r["quarkid"]] = r
     for b in best_rows:
-        existing = by_id.get(b["quarkid"])
-        if existing is not None:
-            existing["catalog_best"] = True
-        else:
+        if b["quarkid"] not in by_id:
             by_id[b["quarkid"]] = b
 
     rows = list(by_id.values())
-    clean = recent_clean and best_clean
-    return rows, clean, state["hit_403"], (len(recent) + len(best_rows) > 0)
+    # The clean flag gates whether this crawl may overwrite the live catalog at
+    # all (see amain: a dirty crawl writes NOTHING and the last-good survives).
+    # One feed now runs, so one flag decides it -- there is no recent_clean term
+    # left to AND in, and leaving a stale one would have been a live gate on a
+    # pass that no longer executes.
+    clean = best_clean
+    return rows, clean, state["hit_403"], (len(best_rows) > 0)
 
 
 async def run_single(browser, gameid, timeout_s):

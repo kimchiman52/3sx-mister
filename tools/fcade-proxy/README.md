@@ -563,19 +563,51 @@ check is never treated as a failed push.
 Run from the browser console on `fightcade.com`. Fetches, for `gameid`
 `sfiii3nr1` (edit the constant at the top of the file to change):
 
-- **Recent**: `offset` 0, 15, 30, ... up to `MAX_ROWS` (default 150),
-  `best: false`.
-- **Best this month**: `best: true`, `since` = start of the current UTC
-  month.
+- **Best this week**, and nothing else: `best: true`, `since` = today's UTC
+  midnight minus 7 days, `offset` 0, 15, 30, ... up to `MAX_ROWS`
+  (default 150).
 
-Paging on either feed stops early on an empty or short (`< PAGE_SIZE`)
-page, or a fetch failure — whichever it collected so far is still used,
-with a console message reporting how many rows it got. There's a small
-delay (`REQUEST_DELAY_MS`, default 400ms) between page fetches so as not
-to hammer Fightcade even from a real browser tab.
+`since` is the *entire* difference between Fightcade's three Best tabs —
+they all POST the same `searchquarks` request with `best: true`, and the
+site's own computeds are
 
-Rows from both feeds are merged and de-duplicated by `quarkid`; a replay
-that shows up in both keeps a `catalog_best: true` tag. Each row is
+```js
+weeklyBest:  function(){ var e=Date.now(); return e-e%864e5-6048e5 }   // midnight − 7d
+monthlyBest: function(){ var e=Date.now(); return e-e%864e5-2592e6 }   // midnight − 30d
+```
+
+so the snippet uses `nowMs - (nowMs % 864e5) - 6048e5` verbatim. It used to
+use `Date.UTC(y, m, 1)` — a **calendar** month, which matched *neither* tab
+(the site's monthly is a rolling 30 days) and collapsed to a ~1-day window on
+the 2nd of a month.
+
+There is **no Recent (`best: false`) pass**. The device plays the weekly-best
+set and nothing else, so those rows were only ever filtered back out
+server-side. Dropping it could not change the best-tagged set: Recent and Best
+were always two independent paged crawls and the Best call took no input from
+the Recent result. One behavioural crumb survives only as a comment: when a
+`quarkid` appeared in **both** feeds the old merge kept the *Recent* copy's
+field values and merely flipped its `catalog_best` flag, so such a row is now
+emitted with the Best copy's values instead. Measured overlap in a real
+capture was zero; it was never structurally zero.
+
+`MAX_ROWS` stays at 150, and the first 150 rows **in server order** are the
+set — there is no client-side re-ranking, and the device shuffles anyway.
+
+Paging stops early on an empty or short (`< PAGE_SIZE`) page, or a fetch
+failure — whichever it collected so far is still used, with a console message
+reporting how many rows it got. `results.count` is **never** read as a row
+total: upstream returns `limit + 1` there as a has-more sentinel, no total
+exists anywhere in the API, and exhaustion is determined only by paging until
+a short or empty page. There's a small delay (`REQUEST_DELAY_MS`, default
+400ms) between page fetches so as not to hammer Fightcade even from a real
+browser tab — the API rate-limits with an `HTTP/3 503` carrying a **non-JSON**
+body, which is why a JSON parse failure is treated as a failed page rather
+than a crash. Do not remove either protection.
+
+Rows are de-duplicated by `quarkid` (still needed with one feed: the listing
+can shift under a multi-page crawl and repeat a row across a page boundary)
+and every row is tagged `catalog_best: true`. Each row is
 normalized to mirror `fcade-proxy.js`'s `normalizeRow()`/`normalizePlayer()`
 **exactly** (same key set, same coercion rules) — there is no shared module
 between a VPS-side Node service and a pasted browser snippet, so the two
@@ -653,9 +685,11 @@ Set `FCADE_CATALOG_FILE` to the catalog's path (the deployed
 4. If `best: true`, restricts to rows tagged `catalog_best: true` **if
    any exist in the filtered set**; if none are tagged, falls back to the
    full filtered set rather than returning empty (a catalog built without
-   ever running the "best this month" pass still serves *something* for a
-   `best:true` query). This mirrors Fightcade's own "best replays" filter
-   being a hard filter, not a re-ranking.
+   ever running the best pass still serves *something* for a `best:true`
+   query). This mirrors Fightcade's own "best replays" filter being a hard
+   filter, not a re-ranking. Since the weekly retarget every crawled row is
+   tagged, so this step is what makes `search` double as the device's
+   **set manifest** — see "The weekly-best set" below.
 5. Sorts by `date` descending (recency) — the only ordering signal a
    browser-derived catalog reliably carries, in both `best` and non-`best`
    modes.
@@ -1049,15 +1083,59 @@ checksums all match.
   queued, idle_teardown_ms, preempt_stale_ms, store_eviction,
   store_max_quarks, store_max_bytes}`.
 
+### The weekly-best set (what the device plays)
+
+The catalog is no longer "a browsable feed"; it **is** the set the device's
+shuffle viewer plays. There is no separate manifest op — `search` with the
+best filter already answers "what is the current set?", so the device asks
+that and nothing new was added to the protocol:
+
+```json
+{"op":"search","gameid":"sfiii3nr1","best":true,"since":<midnight-7d>,"offset":0,"limit":50}
+```
+
+paged at `offset` 0 / 50 / 100 (`limit` 50 is `MAX_LIMIT`, and matches the
+device's `RP_MAX_ROWS` row buffer in `replay_proxy.h`), which covers the whole
+`MAX_ROWS = 150` set in three requests. `searchCatalog()`'s hard
+`catalog_best === true` filter is what makes the answer the set rather than a
+feed slice, and `count` in the reply is the length of the page returned —
+never a total.
+
+Two things to know about the reply:
+
+- **`since` is applied to the catalog too.** `searchCatalog()` also filters
+  rows by `date >= since`. Both sides floor to UTC midnight, so they agree
+  except across a midnight boundary: a device asking after 00:00 UTC against a
+  catalog crawled before it computes a window one day newer than the one that
+  was crawled, and that oldest day's rows drop out of the answer until the next
+  crawl. The crawl LaunchAgent runs every 3 h
+  (`stealth-catalog/dev.sambae.fcade-catalog.plist`), so the exposure is at
+  most one 3 h slot. It shrinks the set slightly; it never invents rows or
+  errors.
+- **`FCADE_SEARCH_READY_ONLY`**, when on, further restricts a username-less
+  search to quarks that are store-servable right now, so early in a
+  pre-convert backfill the set can be short. That is intended: a short page is
+  correct, not a failure.
+
 ### Store eviction (Stage S6)
 
 The `3sr/<quarkid>/` store grows unbounded — every `convert`/`watch` of a
 new quark adds a directory. Eviction bounds it:
 
-- **Caps (OR'd):** `FCADE_STORE_MAX_QUARKS` (default 200) and
-  `FCADE_STORE_MAX_BYTES` (default 200 MiB). When the store exceeds *either*,
-  least-recently-**served** quark directories are removed until back under
-  *both*.
+- **Caps (OR'd):** `FCADE_STORE_MAX_QUARKS` (default 200; the shipped
+  systemd unit sets **180**) and `FCADE_STORE_MAX_BYTES` (default 200 MiB).
+  When the store exceeds *either*, least-recently-**served** quark directories
+  are removed until back under *both*.
+- **Sizing the quark cap against the pinned set.** Every row of the
+  weekly-best catalog is pinned (below), so at most 150 quarks are
+  unevictable. Both the eviction trigger (0.90 × cap) and the low-water target
+  (0.85 × cap) must sit *above* that pinned mass or an eviction pass can never
+  reach its target: the "still over cap" tripwire would warn every pass and
+  the pre-convert churn guard would latch permanently. 180 gives trigger 162
+  and low-water 153, both > 150, and leaves room for ~30 quarks that have aged
+  out of the window to stay cached. Lower the cap below ~177 and that property
+  breaks. The byte cap must not bind first either — a real match is ≈29 KB per
+  `game_N.3sr`, so 150 quarks sit far under 200 MiB.
 - **LRU by last-served time**, not last-published: a quark's serve time is the
   max of its files' on-disk mtimes and an in-memory overlay bumped on every
   `get3sr` / watch-from-store. `get3sr`/watch also best-effort `utimes` the
