@@ -4090,3 +4090,82 @@ here — they predate this task and the checker cannot see them.
 unlocked file IO) can, on a Cancel→re-host race, leave `HOSTING` on disk for
 the rest of the process. PLAUSIBLE, structural; the launcher's liveness check
 now masks the user-visible symptom.
+
+---
+
+## #158 — visible seams across sprite chips during supers — CAUSE B FIXED, CAUSE A OPEN (decision)
+
+User-reported 2026-09-02: "during some supers, while the character is
+performing the super action there will be noticeable seams during the
+animation." Observed on Makoto SA1 and Q SA1, "and a few others."
+
+**Reproduces on MiSTer as well as macOS** (user-confirmed). That is the load-
+bearing fact: it excludes `sw_blit_neon.c` entirely — MiSTer sets
+`CRS_SW_CANVAS_16BPP=1`, so that TU compiles to nothing there — and therefore
+excludes #156's nibble-parity bug and every sibling sampler in that file. The
+two reports are unrelated despite both being glyph/sprite corruption on macOS.
+
+### Why supers and not normal moves
+
+Per-frame ROM data carries a zoom field. `charset.c` -> `setupCharTableData()`
+bulk-copies the frame record into WORK (which holds `u16 cg_zoom`); `bg_sub.c`
+-> `check_cg_zoom()` reads `plw[0].wu.cg_zoom` / `plw[1].wu.cg_zoom` and sets
+`zoom_request_flag`/`zoom_request_level`; `zoom_ud_check()` ramps it; `bg.c` ->
+`Zoom_Value_Set()` sets `scr_sc` (`scr_sc = 64.0f / zadd;`); `scr_calc()` /
+`scr_calc2()` bake `njScale` into `BgMATRIX`; `mtrans.c` -> `mlt_obj_matrix()`
+applies it to every character chip.
+
+At `scr_sc == 1.0` geometry is integer and `rasterize_textured` takes the
+unscaled exact-copy path — clean. A super whose frames carry nonzero `cg_zoom`
+routes the whole character through the **scaled** rasterizer, where both causes
+below live. (Which specific SAs carry nonzero `cg_zoom` is CPS3 ROM data and
+was not verified.)
+
+### Cause B — FIXED 2026-09-02
+
+`software_renderer.c` -> `rasterize_textured()`. `u_start_hi_fx` is built with a
+`+ 1.0f` lead. The **unscaled** reverse start pays that back in full
+(`src_x_start_rev` subtracts `0x10000`), but the **scaled** reverse start
+subtracted only `du_fx` — correct solely when `du == 1`. At any other zoom the
+flipped start was off by `(1 - du)` texels; at `scr_sc = 64/42` the first pixel
+of every flipped chip sampled texel 16 of a 16-texel cell, i.e. a foreign column
+from the adjacent atlas cell, at every chip edge.
+
+Corroborating asymmetry: the y-flip start has no `+ 1.0f`
+(`v_start_fx = (v_hi - flt_v_lead) * 65536`) and is correct. Forward scaled
+paths never leave the cell.
+
+Fixed by subtracting a full texel, mirroring the forward mapping. Identical
+behaviour at `du == 1`. **Affects flipped sprites only** — it is not the whole
+bug.
+
+### Cause A — OPEN, needs a decision, not a patch
+
+`mtrans.c` -> `seqsStoreChip()` snaps all four quad corners with `SDL_roundf`
+(added by `244074bc`, "perf: integer-snap sprite positions", 2026-04-03;
+content-verified present on `mister`).
+
+Geometry stays gapless — abutting chips share bit-identical floats, so both
+round identically — but each chip's *rounded width* differs (16 texels over
+18px vs 19px), so `flt_du = (u_hi - u_lo) / flt_w` **varies per chip** and the u
+accumulator **restarts per chip**. Simulated at `scr_sc = 64/56`: duplicated-
+column cadence is `2,5,6,6,8,8,8,…,7,5,6`, jumping at every chip edge (chips
+alternating du=0.842/0.889); with the snap removed, du is a uniform 0.875 and
+duplication spreads evenly across boundaries — an ordinary upscale. That
+per-band phase jump is the reported "assembled from mismatched pieces" look.
+
+**The decision:** the snap exists to route sprites into the exact-copy fast
+path. Skipping it under zoom sends supers through the slower gather rasterizer —
+a frame-time change on MiSTer during the most effect-heavy moment in the game.
+The narrow form is to skip the snap only when the transform is not
+translation-only: the perf rationale does not apply under zoom anyway, because
+the sprite takes the scaled path regardless.
+
+**Held by the maintainer 2026-09-02 pending that call.** Until it lands, seams
+persist for non-flipped chips.
+
+### Not verified
+
+Which SAs carry nonzero `cg_zoom`; the relative visual weight of A vs B in the
+user's screenshots. The latter needs a frame dump — `tools/frame-data/run.sh`
+can drive supers scripted but has no framebuffer-dump hook today.

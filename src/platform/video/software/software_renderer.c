@@ -1055,7 +1055,12 @@ static void rasterize_textured(const SWQuad* q, RBCtx* ctx) {
     const int src_x_start_rev = ((int)((u_start_hi_fx - 0x10000u) >> 16)) & ux_mask;
     const uint32_t u_mask_fx = ((uint32_t)tex_w << 16) - 1u;
     const uint32_t u_scaled_fwd = u_start_lo_fx & u_mask_fx;
-    const uint32_t u_scaled_rev = (u_start_hi_fx - du_fx) & u_mask_fx;
+    /* u_start_hi_fx carries a +1.0f lead (see its definition); undoing it costs a
+       FULL texel, not one step.  Subtracting du_fx only cancels it when du == 1,
+       so at any other zoom the flipped start was off by (1 - du) texels and the
+       first column of each chip could sample outside its atlas cell.  Matches
+       src_x_start_rev's unscaled -0x10000 and mirrors the forward mapping. */
+    const uint32_t u_scaled_rev = (u_start_hi_fx - 0x10000u) & u_mask_fx;
 
     // Fast path is valid when the palette covers every live index.
     // 3sx-mister: ckey_ok is only consumed by the CRS_SW_CANVAS_16BPP-gated
