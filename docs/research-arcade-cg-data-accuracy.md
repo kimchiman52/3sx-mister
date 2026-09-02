@@ -4,6 +4,9 @@
 · **2026-08-30** (third pass — §17, §18, §19)
 · **2026-09-02** (fifth pass — §21, item Q: **sound codes**, a second
 byte-passed namespace, found from a player bug report)
+· **2026-09-02** (sixth pass — §22: **`cg_zoom` and `cg_effect`/`cg_eftype`
+value-level diff** — both clean, no item-Q-class defect; the rest of the
+byte-pass list swept as negative results)
 **Repo:** `/Users/sb/Developer/3sx-mister`
 **Branch examined:** `upstream-engine-fixes`; second pass verified in the
 worktree `/Users/sb/Developer/3sx-mister-arcade`, branch `fix/arcade-cg-mapping`
@@ -37,6 +40,11 @@ command and its observed output, or a named primary source. Things that were
 - **About to audit another byte-passed field?** §21.4 — cell-index alignment
   misses 478 scripts cast-wide; §21.6 — 781 cells look divergent but are PS2
   converter artifacts (dead data). Both traps cost a pass to find.
+- **Suspecting `cg_zoom` (super camera zoom) or `cg_effect`/`cg_eftype`
+  (spawned effects)?** §22 — both were value-diffed arcade-vs-PS2 and are
+  **clean**: no camera-zoom-level divergence exists anywhere in the 20
+  characters, and the effect namespace is shared (no item-Q-class error). Do
+  not re-diff them raw; §22.3's grid caveat explains why a raw diff lies.
 - **Worried the parse itself is truncating data?** §19.
 - **Worried about hitboxes / throw ranges / attack properties?** §15 — the other
   13 sections (the ones a CG audit cannot see). This is upstream issue **#325**.
@@ -3165,6 +3173,16 @@ does not have (a genuine data difference; nothing to fix under arcade fidelity).
 This is the finding that explains most "shape mismatch" and every phantom code,
 and it is recorded here so no future pass re-opens it.
 
+> **The *conclusion* is confirmed; the *number* is not. See §22.10.** The fifth
+> pass's successor (§22) independently confirmed that these regions are
+> converter artifacts and must not be diffed — it hit the same trap and had to
+> solve it — but reproduced only **258** of the 781 under a stricter
+> byte-aligned predicate. §22 also supersedes the *method*: a multiset compare
+> over these regions **fabricates values**, because the two sides read them on
+> different cell grids, so §22 uses a grid-independent u16-stream compare
+> instead. Treat "781" as resting on this section's derivation alone, and
+> prefer §22's method for any new audit.
+
 781 cells cast-wide (Yang 337, Dudley 100, Urien 77, Gill 65, …) have the
 property that the **arcade BE u32 equals the PS2 LE u32 with its u16 halves
 crossed**. Capcom's PS2 converter byte-swapped these 4-byte blocks as **u32s**,
@@ -3343,3 +3361,309 @@ alongside the other digest-changing fixes.
   epistemic status as §20.5's "apparently unreachable".
 - **Whether CPS3 Q's throw-reaction silence was intentional authoring** or an
   omission Capcom corrected for the PS2 release (§21.10).
+
+---
+
+## 22. `cg_zoom` and `cg_effect`/`cg_eftype` — the byte-pass list audited to the end (sixth pass, 2026-09-02)
+
+**Citation style for this section.** As in §21: this document is *not* in
+`tools/doc-citations/baselines.txt`, so line numbers are not enforced and are
+not hand-maintained here. Everything below cites a **symbol** (`file` ->
+`function`/`table`) or the **exact text** of a line, read at `f7f63055`
+(item Q's commit; none of the files cited below were touched by it, verified
+via its `--stat`).
+
+**Headline: both fields are clean.** There is no item-Q-class defect in
+`cg_zoom` or in `cg_effect`/`cg_eftype`. No cell anywhere in the 20 characters
+gives the camera a different zoom *level* under arcade balance than under PS2
+balance, and every effect index the arcade data dispatches is an index the
+same character's PS2 data also dispatches (three argument-value exceptions,
+each verified harmless, §22.5). The rest of §4.4's byte-pass list was swept in
+the same run; every remaining field is either clean, self-consistent by
+construction, or an already-documented balance difference (§22.7). **No new
+worklist item is needed.** The value of this pass is the recorded negative
+result — and one new structural fact (§22.6) plus one artifact variant §21.6's
+criteria do not cover (§22.9).
+
+### 22.1 Why this pass happened
+
+§4.4's callout (added with §21) says it directly: after `cg_se` turned out to
+be a live defect, "byte-passed" could no longer be read as "safe" for any
+field, and it names `cg_zoom` and the `cg_eff`/`cg_eftype` pair as never
+having had a value-level arcade-vs-PS2 diff. `cg_zoom` was additionally timely:
+a separate investigation had just traced super-move screen zoom end-to-end
+(`charset.c` -> `setupCharTableData` bulk-copies the frame record into WORK;
+`bg_sub.c` -> `check_cg_zoom` reads `plw[0].wu.cg_zoom` / `plw[1].wu.cg_zoom`
+and sets `zoom_request_flag` / `zoom_request_level`; `bg_sub.c` ->
+`zoom_ud_check` steps `bg_w.bg_f_x` toward `bg_w.frame_deff = 64 -
+zoom_request_level`; `bg.c` -> `Zoom_Value_Set` does `scr_sc = 64.0f / zadd`),
+so a wrong `cg_zoom` would mis-zoom the camera during supers. It does not
+(§22.4). The user-visible SEAMS during supers are therefore confirmed to be
+**not data** — consistent with their separate root cause (per-chip integer
+snapping under zoom).
+
+### 22.2 The consumers — what survives of each field
+
+Every link read in code:
+
+- **`cg_effect`** (u8) has exactly one reader: `charset.c` ->
+  `check_cgd_patdat`, `if (wk->cg_effect) { effinitjptbl[wk->cg_effect](wk,
+  wk->cg_eftype); }`. The **full u8 survives** as a direct index into
+  `effxx.c` -> `effinitjptbl[59]`, a fixed engine function table
+  (`effect_03_init` … `effect_F0_init`). The index is **unbounded in code**;
+  entry 0 is `NULL` but shielded by the nonzero test.
+- **`cg_eftype`** (u8) survives whole, twice: as the second argument to the
+  dispatched init function above, and in `pls03.c` -> `check_renda_cancel`,
+  `wk->wu.cg_ix = wk->wu.cg_eftype * wk->wu.cgd_type - (wk->wu.cgd_type * 2);`
+  — the renda-cancel restart cell.
+- **A second ingress into the same table** (the analogue of `comm_sse` for
+  sound, §21.11): C-cell opcode 43, `charset.c` -> `comm_exec`,
+  `effinitjptbl[ctc->koc](wk, (u8)ctc->ix);` — also unbounded, and with **no
+  zero guard**: `koc = 0` would call the `NULL` entry directly. (Shipped
+  arcade data never does — live `koc` min is 1, §22.5.)
+- **`cg_zoom`** (u16) is written into WORK only by `charset.c` ->
+  `setupCharTableData` (so only cgd-6 cells ever set it) and read only by
+  `bg_sub.c` -> `check_cg_zoom`. What survives: the X-request switch masks
+  with `0xE200`, the Y-request switch with `0xD100`, the frozen-camera merge
+  reads `>> 8 & 3`, and the low byte is the zoom level (`zoom_request_level =
+  p1zoom & 0xFF`, max of the two players). **Bits `0x0C00` are never read.**
+  Crucially the level is *arithmetic*, not an index (`64 -
+  zoom_request_level`, then `Zoom_Value_Set`'s division) — **no OOB class
+  exists for `cg_zoom` at all**, unlike every other field this document has
+  audited. A wrong value could only mis-frame the camera, never fault.
+
+### 22.3 Method: §21.4's oracles, plus a fourth that §21 did not need
+
+The three §21.4 oracles were reused (cell-aligned diff for shape-ok scripts;
+per-script live multisets for shape-mismatched; cast-wide per-character
+value-set diff as the decisive namespace test), with parsers modeled on
+`tools/arcade-audit/cg_audit.py`'s `arc_parse`/`ps2_parse` extended to decode
+the cgd-6 tail (`cg_zoom`, `cg_rival`, `cg_add_xy`, `cg_next_ix`,
+`cg_status`) that `cg_audit.py` skips, against the same regenerated `rom.bin`
+(sha256 prefix `c15743e350011f6a` — matches §9) and `SF33RD.AFS`.
+
+**Harness validation** (all reproduced exactly before any new number was
+trusted): §21.5's structural counts — 14,334 arcade scripts, 13,856
+cell-diffable, 316 shape-mismatched, 162 with no PS2 counterpart, 101 of
+those with sound; §21.4's first-pass raw `cg_se` count of 37; and §21.7's six
+namespace pairs plus every §21.9 exclusion, re-derived independently by the
+cast-wide set diff (the six pairs fall out as exactly the arcade-only live
+voice codes, with `0x10A`, Yang `0x269`/`0x27F` appearing and being excluded
+for §21.9's recorded reasons). §21.6's 781-cell artifact census was **not**
+reproduced (a cruder byte-aligned predicate found 258 of them, Alex + Yang
+only); it did not need to be, because of the fourth oracle:
+
+**The grid caveat (new).** §21.6's converter-mangled regions do not merely
+*look* divergent under a cell diff — the two sides' parsers read them on
+**different cell grids**, so one side reports C-cells where the other reports
+L-cells with entirely fictitious field values. A per-script multiset compare
+is *also* polluted by this (it was how a first pass of this run briefly
+"found" PS2-only zoom levels on Oro, §22.9). The decisive tool is a
+**grid-independent u16-stream compare**: read the whole script span as BE u16s
+(arcade) vs LE u16s (PS2) and accept a position as equal iff (a) the values
+match, (b) the raw bytes match (u8 sub-fields read as u16 flip per-endian),
+(c) the u32's two u16 halves are crossed (§21.6's converter signature), or
+(d) PS2 == `remap_cg_number(arcade)`. Every equal-length flagged script
+resolved to **zero unexplained positions** under this compare (16 scripts:
+Dudley `saca[36..39]`, Oro `saca[28..31]`, Remy `saca[63]`, Urien
+`atca[24..26]`, Yang `saca[44..47]`) — their apparent eff/zoom differences
+are pure grid phantoms. The 99 flagged scripts with *different byte lengths*
+are genuine Capcom re-authoring, and for those the cast-wide set oracle is
+the namespace verdict.
+
+### 22.4 `cg_zoom`: clean — zero camera-level divergences anywhere
+
+29,887 cgd-6 cell pairs compared cell-aligned. Raw `cg_zoom` divergences: 927.
+They decompose completely:
+
+- **924** are the §22.6 cgd-type-mismatch class: the arcade script is cgd 6
+  and the PS2 script is cgd 4, so the PS2 cell has no zoom field at all — and
+  in **every one of the 924 the arcade value is `0x0000`** (explicit zero vs
+  absent field; the only behavioral residue is that arcade data actively
+  clears WORK's copy each frame where PS2 data leaves it stale, and no
+  nonzero value is ever at stake).
+- **3** are real value differences, all one script: **Yun `caca[0]` cells
+  23-25, arcade `0x4000` vs PS2 `0x0000`** — the opt-out flag (`case 0x4000`
+  contributes no zoom request; it also gates the frozen-camera merge, the
+  line `if (bg_stop != 0 && !((p1zoom | p2zoom) & 0x4000))`). The level byte
+  is 0 on both sides. Being-thrown framing nuance, not a camera zoom.
+- **0** have a differing level byte. Not one, in any script, for any
+  character.
+
+Cast-wide (the decisive oracle): **no character has any live arcade zoom
+value, under the consumed-bit mask `0xF3FF`, that its PS2 data does not also
+use** — the arcade-only set is empty for all 20. The flagged shape-mismatched
+scripts all resolved as either §22.3 grid phantoms (including every "PS2-only
+zoom level" candidate — §22.9) or genuine flag-duration re-authoring with
+level byte 0 on both sides (Yun/Yang `caca` hold `0x4000` for 24 cells vs
+PS2's 21; Oro `caca[3]` holds `0x100` five cells vs six; Akuma `saca[48..51]`
+hold `0x1000` ten cells vs eleven; Dudley `saca[36..39]`'s extra PS2 `0x2000`
+events are phantoms per the stream compare). The two arcade-only scripts with
+zoom content and no PS2 counterpart (Gill `saca[61]` all-`0x100`, Oro
+`caca[14]` `0x308`/`0x300`) use only values PS2 Gill/Oro use elsewhere.
+
+Census, for the record: 277 arcade scripts carry a nonzero live zoom value.
+The corresponding PS2-side count of 279 is inflated by the four Oro phantom
+scripts; the shared population is 275, plus arcade's two no-counterpart
+scripts above. **Conclusion: byte-passing `cg_zoom` is correct. Super-move
+camera zoom under arcade balance is the arcade's own, and it is the same
+zoom the PS2 data specifies wherever both specify one.**
+
+### 22.5 `cg_effect`/`cg_eftype`: shared namespace, no `cg_se`-class defect
+
+The namespace question was the point: `cg_se` indexes PS2-authored *data*
+(TSB banks), and arcade codes named different notes. `cg_effect` indexes
+engine *code* (`effinitjptbl`), and the question was whether CPS3 authored
+its indices against a different table order. It did not. Of 93,947 cgd>=4
+cell pairs, `cg_effect` differs in 245 (242 live), `cg_eftype` in 207 (206
+live) — 0.26% — and **every single divergence is an event added, removed, or
+moved by one cell between the two releases; there is no case of the same
+event carrying different codes**, which is what a namespace error looks like.
+The bulk, by value pair: Q arcade-0/PS2-32 ×104 and Hugo ×34 (that is the
+§22.6 mechanism swap, not a lost effect); one-cell moves of 21
+(`clear_caution_flag`) on Ibuki ×39; PS2-added 31 (`setup_meoshi_hit_flag`)
+across eight characters ×30; PS2-added 22/21/16/58 event additions in
+re-authored scripts (`dmca[90]/[91]` cast-wide, Urien/Akuma SA scripts,
+Ibuki `yuca`).
+
+The cast-wide arcade-only test leaves exactly **four** items, each resolved:
+
+- **Hugo `(19,2)` ×8, Akuma `(19,6)` ×1 and `(19,10)` ×3** (the only
+  arcade-only `(eff, eftype)` pairs in the cast): eff 19 is `effe5.c` ->
+  `erase_after_images(PLW*, u8 who)`, whose switch sends `who == 0` to own,
+  `1` to target, and **anything else through `default:` to both** — 2/6/10
+  are defined behavior, no hazard. PS2 dropped these calls; arcade keeps
+  them. Genuine data difference, arcade-faithful as-is.
+- **Ibuki `caca[10]`: arcade `comm_exec (koc=20, ix=1)`** — the one dispatch
+  in the whole cast to an entry that is a **no-op in this engine**
+  (`effinitjptbl[20]` is `effect_dummy_init`). The PS2 re-authoring of the
+  same script instead carries an L-cell `(18,5)` — `setup_after_images`.
+  Whatever CPS3's entry 20 did is unknowable from this tree (§22.10); under
+  arcade balance the port calls a no-op where PS2 balance sets up
+  after-images, so one Ibuki caught-reaction may lack an after-image visual.
+  Visual-only (effect sounds are code constants, §21.11), not mechanically
+  fixable without CPS3 ground truth, and not a byte-pass error — the index
+  is faithfully in-namespace. **No action.**
+- **Yang `atca[0..2]`: `(21,5)` vs PS2 `(21,4)`** — `effect.c` ->
+  `clear_caution_flag(PLW*, u8 /* unused */)` ignores its argument. Inert.
+
+**Bounds, live data:** max live L-cell `cg_effect` cast-wide is **44**; live
+`comm_exec` `koc` spans **1..57** over 827 live cells (so the `NULL` entry 0
+is never dispatched). Both under the table's 59. Every one of the 53 cells
+`cg_audit.py` flags as `a_effinit_oob` (Yang `saca[44..47]` eff 64, Urien
+`atca[24..26]` eff 78, Remy `saca[63]` eff 116/117) was re-verified to sit
+**past its script's first terminator** (cells 28+/34+/82+ vs terminators at
+cells 22/31/20 respectively) — dead-region phantoms, §21.6's class. And the
+904 cell-aligned `comm_exec` cells diverge in **zero** operands; `comm_sse`
+re-verified at 0 divergences over its 61 cell-aligned cells (§21.11's 73 was
+the cast-wide count including shape-mismatched scripts).
+
+### 22.6 New structural fact: 85 scripts have a different `cgd_type` per release
+
+Not previously recorded anywhere in this document: the same script index can
+be authored with a different **cell width** in the two releases. 85 scripts
+mismatch (79 are arcade-6-vs-PS2-4; plus 2 each of 4-vs-2, 2-vs-6, 2-vs-4),
+concentrated in **Hugo (41)** and **Q (32)**. Verifying example, raw headers:
+Hugo `nmca[4]` reads `0006` big-endian in `rom.bin` and `0400`
+little-endian in the AFS tail — cgd 6 vs cgd 4, same script.
+
+The interesting consequence is a **mechanism swap**: a cgd-4 cell cannot
+carry `cg_add_xy`, so where the arcade authored cgd-6 cells with per-cell
+step offsets (138 nonzero `cg_add_xy` values across 35 of these scripts —
+Hugo `saca`/`cbca`, Q `nmca`/`atca`/`saca`), the PS2 re-authoring uses cgd-4
+cells plus eff-32 `exec_char_asxy` events — and **both consumers read the
+same STXY table**: `charset.c` -> `check_cgd_patdat` does `from_rom2 =
+wk->step_xy_table + wk->cg_add_xy` and `effect.c` -> `exec_char_asxy` does
+`from_rom2 = &wk->step_xy_table[ix]` with `ix = data * 2`. This is what the
+Q ×104 / Hugo ×34 "arcade 0 vs PS2 32" eff rows in §22.5 are: not a missing
+effect but the same movement expressed through the other door. Each side is
+self-consistent (arcade `cg_add_xy` indexes the raw-installed arcade STXY).
+Whether the two encodings produce identical trajectories was not verified
+(§22.10).
+
+### 22.7 The rest of the byte-pass list — negative results, one line each
+
+Swept in the same run, cell-aligned live cells, so the next pass does not
+re-do them:
+
+- **`cg_extdat`**: 0 divergences. **`cg_status`**: 0 divergences.
+- **`cg_next_ix`**: exactly **one** cell cast-wide — Alex `caca[19]` cell 8,
+  arcade 9 vs PS2 0 (byte-verified in both containers; consumer is
+  `charset.c` -> `check_cm_extended_code`, `wk->cg_ix = (wk->cg_next_ix - 1)
+  * wk->cgd_type`). A genuine one-byte Capcom difference in a caught-script
+  loop-back; arcade-faithful as-is.
+- **`cg_rival`**: 3,023 divergences, and **100% of them satisfy `arcade * 5
+  == ps2 * 6`** — the RICT 24-vs-20 row stride already established in §15.4
+  (four dead opponent slots per group, §8.H). Zero anomalies outside the
+  stride law. Self-consistent: arcade `cg_rival` indexes the raw-installed
+  arcade RICT, with `charset.c` -> `catch_table_offset` already adapting the
+  character base under arcade balance.
+- **`cg_olc_ix`**: 296 divergences — genuine overlap-selection data
+  differences; the namespace is the character's own raw-installed OVIX, so
+  no cross-universe indexing exists to be wrong.
+- **`cg_hit_ix` / `cg_att_ix`**: 9 / 12 value divergences — arcade-vs-PS2
+  frame-data balance, §15's territory; namespaces are the raw-installed
+  HIIT/ATTA-ATIT.
+- **`cg_cancel`**: 114 divergences — cancel-window balance differences
+  between the releases; expected and arcade-faithful.
+- **`cg_add_xy`**: beyond the §22.6 mechanism-swap class, no anomaly.
+
+### 22.8 Residual unguarded indexes — folded into §8.C / §8.L, like §21.11's
+
+Two more indexes of exactly the class §8.C and §8.L exist for, recorded here
+rather than given a worklist item: `effinitjptbl[wk->cg_effect]` and
+`comm_exec`'s `effinitjptbl[ctc->koc]` are both unbounded, and `comm_exec`
+additionally lacks the zero guard that protects the L-cell path from the
+`NULL` entry. Live shipped data never exceeds 57 or reaches 0 (§22.5); the
+dead-region phantoms carry 64/78/116/117 and would OOB-read a function
+pointer **if** anything ever entered those regions — the same static
+"apparently unreachable" status as §21.11's `se_random_table` door.
+
+### 22.9 Negative result with a twist: Oro `saca[28..31]` are a §21.6 variant the terminator criterion misses
+
+§21.6's artifact criterion says mangled cells sit *past their script's first
+terminator*. Oro `saca[28..31]` break the letter of that rule while
+confirming its spirit, and are recorded so the next pass does not re-fight
+them. The script is: 4 L-cells, then `comm_for` (opcode 12, **not** a
+terminator), then bytes that the engine's uniform 24-byte cgd-6 grid reads —
+per-endianness — as two different things: the arcade/BE side sees an endless
+run of `comm_dummy` cells (`decode_chcmd[0]`, returns 1), the PS2/LE side
+sees blank L-cells carrying zoom `0x300` and a level-13 cell. Those "PS2-only
+zoom levels" were the loudest false positive of this whole pass. The
+grid-independent stream compare (§22.3) proves the two containers are
+**value-identical mod the CG remap and the §21.6 crossed-halves signature**
+— same bytes, two grids. The authored content (visible off-grid: an animation
+loop between `comm_for` and a `comm_nex` that sits 8 bytes off the engine's
+cell boundary) is unreachable by either engine's actual walk. Reachability
+was checked both ways: **no SA-table slot selects Oro `saca[28..31]`**
+(`sa_labels` over `asstbl.c`'s `asstbl_lv_9900_g/a_arcade` rows — slots 24-27
+and 32-33 are named; 28-31 are not), and an over-broad §20.3-style operand
+scan over all of Oro's ten tables finds **zero references** to `(koc=5, ix
+28..31)`. Same epistemic status as §20.5. The practical lesson survives:
+**"past the first terminator" is a sufficient but not necessary artifact
+signature; the stream compare is the reliable oracle.**
+
+### 22.10 What this analysis does not establish
+
+- **CPS3 ground truth for `effinitjptbl` entry 20.** Whether CPS3 rendered
+  something (an after-image setup, per the PS2 re-authoring's substitute) at
+  Ibuki `caca[10]`'s `comm_exec (20,1)` cannot be known from this tree; the
+  PS2 engine's entry is a deliberate dummy. The port faithfully reproduces
+  the PS2-engine reading of the arcade data, which is the only defined
+  behavior available.
+- **Trajectory equivalence of the §22.6 mechanism swap.** That `cg_add_xy`
+  (arcade cgd-6) and `exec_char_asxy` (PS2 cgd-4) read the same STXY table
+  is verified; that the 35 affected scripts produce identical motion was
+  not simulated. Under arcade balance the arcade encoding runs, which is the
+  fidelity contract, so nothing hinges on it.
+- **Execution behavior if a mis-gridded region were ever entered** (§22.9):
+  the `comm_dummy` march past script end was reasoned about, not executed.
+  Reachability rests on the same static-scan grounds as §20.5.
+- **§21.6's 781-cell census was not independently reproduced** (258 of the
+  781 were, under a stricter byte-aligned predicate). The stream compare
+  supersedes the census for every script this pass needed to decide, but the
+  number 781 itself still rests on §21.6's derivation alone.
+- **The frozen-camera merge path** (`bg_stop != 0` in `check_cg_zoom`) was
+  traced for which bits it reads, not exercised; the Yun/Yang `0x4000`
+  three-cell differences were classified by mechanism, and their on-screen
+  visibility was not confirmed on device.
