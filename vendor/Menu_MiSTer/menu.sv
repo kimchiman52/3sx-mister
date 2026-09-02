@@ -292,14 +292,18 @@ localparam CONF_STR = {
 	// "Balance Status Line".
 	"-,Balance:;",
 	"T[29],Play Online;",
-	// Top-level by design: the replay browser is a primary activity, so it
+	// Top-level by design: watching replays is a primary activity, so it
 	// sits with Play Online rather than inside a page.
+	// Selecting this row starts the weekly-best shuffle viewer, which plays
+	// the cached .3sr set back to back. The row is UNCONDITIONAL by design:
+	// with an empty or stale cache it still appears and the viewer plays
+	// whatever is on disk, so there is no dynamic-menu logic to get wrong.
 	// Bit 31 was V-Position's top bit through release v20260416 (stale CFGs
 	// may carry it set). Safe for a T: the HPS menu intercepts the OSD
 	// select directly (main-mister-full-menu.patch, bit==31) and the bit's
 	// value is never read by RTL or wrapper. Do NOT reuse [31] for an
 	// O-value field without the [30]-style seed-after-CFG defense.
-	"T[31],Replay Browser;",
+	"T[31],Watch Replays;",
 	"T[23],Button Check;",
 	"-;",
 	// Pages. Reordering rows is presentation-only: the HPS wrapper keys
