@@ -27,10 +27,14 @@ extern "C" {
  * /media/fat/games/3s-arm/balance.status (the file the game rewrites on
  * every boot with the outcome of arcade-vs-PS2 auto-select), or
  * " Balance: (unknown)" when that file is missing or empty. menu.cpp calls
- * this when it renders the CONF_STR "-,Balance:;" text row -- see
- * tools/mister-wrapper/main-mister-full-menu.patch. There is no toggle:
- * balance is chosen at game boot and the only override is a hand-added
- * `balance = ps2` line in `config` (docs/config.md "balance").
+ * this when it renders the CONF_STR "P1-,Balance:;" text row on the Game
+ * page -- see tools/mister-wrapper/main-mister-full-menu.patch.
+ *
+ * This row reports the OUTCOME. The REQUEST is the separate
+ * "P1O[48],Balance,Arcade,PS2;" toggle directly above it, which writes the
+ * `balance` key in `config` (docs/config.md "balance"); the game resolves
+ * that request once at boot and can still land on PS2 -- which is exactly
+ * what this row is for.
  *
  * Result is cached and re-read only when the file's mtime/size change, so
  * calling it once per OSD render is cheap. */

@@ -44,8 +44,9 @@ With this setting on, these stage decorations are disabled to prevent overlappin
 
 ### `balance`
 
-Arcade (CPS3) vs PS2 balance **auto-selects at boot** — there is no OSD
-toggle. Values:
+Which balance the game *prefers*. The outcome is still decided at boot:
+asking for arcade on a machine with no verifiable CPS3 ROM boots PS2 anyway,
+with the reason logged. Values:
 
 - `auto` (default): arcade balance is used when a CPS3 ROM source passes
   content verification AND the full 20-character adaptation succeeds;
@@ -53,8 +54,25 @@ toggle. Values:
   to `<pref>/balance.status` (line 1: `Arcade (CPS3)` / `PS2`; line 2: the
   reason). Adaptation is all-or-nothing: a single character failing means the
   whole session is PS2, never a per-character mix.
-- `ps2`: force PS2 balance even with a valid ROM (config-file-only knob for
-  players who own the ROM but prefer PS2 balance).
+- `arcade`: an exact synonym for `auto`, and the value the MiSTer OSD writes.
+  It exists so the config file reads the way the OSD row is labelled. Same
+  ROM-verify-then-fall-back-to-PS2 behaviour, no stricter: use
+  `--test-balance arcade` (below) if you want a hard failure instead.
+- `ps2`: force PS2 balance even with a valid ROM (for players who own the ROM
+  but prefer PS2 balance).
+
+Anything else logs `Unknown balance override '<value>' (expected 'auto',
+'arcade' or 'ps2'); treating as auto` and behaves as `auto`.
+
+On MiSTer this key is what the OSD **Game -> Balance** toggle writes
+(`Arcade` -> `balance = arcade`, `PS2` -> `balance = ps2`;
+`vendor/Menu_MiSTer/menu.sv` status bit `[48]`, polled by
+`write_runtime_balance_default()` in
+`vendor/Main_MiSTer/thirdsarm_wrapper.cpp`). Balance is read once at game
+boot, so an OSD change applies on the **next game launch**. The toggle is a
+request and is never greyed out on a ROM-less machine — the read-only
+` Balance:` status row directly beneath it reports what the game actually
+resolved.
 
 No ROM ships with 3S-ARM and none is looked for anywhere in the program's own
 install directory. ROM discovery tries, in order: the `THIRDSARM_CPS3_ZIP`
@@ -95,14 +113,17 @@ Notes:
   `vendor/Main_MiSTer/thirdsarm_wrapper.cpp` is a line-preserving
   copy-through: it rewrites only the single line whose trimmed key
   `strcasecmp`-matches its own target and emits every other line verbatim
-  via `fputs(line, out)`. The 15 targeted keys (`scale-mode`, `arm-clock`,
-  `game-mode`, `hold-to-pause`, `language`, `bgm-type`,
+  via `fputs(line, out)`. The 16 targeted keys (`scale-mode`, `arm-clock`,
+  `game-mode`, `hold-to-pause`, `language`, `bgm-type`, `balance`,
   `aspect-ratio`, `h-position`, `v-position-v2`, `v-position`,
-  `vertical-crop`, `crop-offset`, `scale`, `h-size`, `show-fps`) do not
-  include `balance`, and no writer regenerates the file from a template.
-  (`arcade-balance` was on that list until the Arcade Balance OSD row was
-  replaced by the read-only Balance status row; the wrapper no longer
-  writes that key at all.)
+  `vertical-crop`, `crop-offset`, `scale`, `h-size`, `show-fps`) now DO
+  include `balance` — the OSD toggle owns that key, so a hand-added
+  `balance = ps2` line survives every *other* writer but is replaced (in
+  place, comments and all other lines intact) the next time someone moves
+  the OSD Balance row. No writer regenerates the file from a template.
+  `balance` is deliberately absent from the OSD's **Reset to Default**, so
+  a reset does not stomp a `ps2` preference. (`arcade-balance`, the
+  pre-`balance` key, is no longer written or read by anything.)
 - Netplay arms only in verified-arcade state and the MIST handshake carries a
   digest of the adapted data, so peers always simulate identical balance.
 - The test runner picks its balance EXPLICITLY, via `--test-balance ps2|arcade`
@@ -126,7 +147,7 @@ menu's BGM Type setting (`sys_w.bgm_type`, `BGM_ARRANGED`/`BGM_ORIGINAL` in
 
 On MiSTer this is exposed as the **BGM Type** option in the OSD menu (status
 bit `[14]`). The wrapper writes the toggle into this config key, so it
-persists across launches; like Arcade Balance it applies on the **next game
+persists across launches; like Balance and Overclock it applies on the **next game
 launch** (use OSD → Restart), because the boot-time override
 (`BgmType_ApplyBootOverride()`) only runs once, right after the settings save
 file finishes loading.

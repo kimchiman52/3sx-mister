@@ -277,20 +277,6 @@ assign LED_POWER[0]= FB ? led[2] : act_cnt2[26] ? act_cnt2[25:18] > act_cnt2[7:0
 `include "build_id.v" 
 localparam CONF_STR = {
 	"MENU;UART31250,MIDI;",
-	// Read-only status row — NOT an option, and deliberately without a
-	// status bit. Arcade-vs-PS2 balance auto-selects at game boot (ROM
-	// present + full 20-character adaptation -> arcade, else PS2) and
-	// cannot be toggled from the OSD; the old "O[30],Arcade Balance,Off,On;"
-	// row became a placebo the moment the game stopped reading the
-	// `arcade-balance` config key, so it was removed and bit [30] is now
-	// retired. menu.cpp substitutes the live value from
-	// /media/fat/games/3s-arm/balance.status into any text row whose label
-	// is exactly "Balance:" (thirdsarm_balance_status_line() in
-	// thirdsarm_wrapper.cpp, wired up by
-	// tools/mister-wrapper/main-mister-full-menu.patch) — keep the label
-	// byte-identical if this row ever moves. See docs/mister-wrapper.md
-	// "Balance Status Line".
-	"-,Balance:;",
 	"T[29],Play Online;",
 	// Top-level by design: watching replays is a primary activity, so it
 	// sits with Play Online rather than inside a page.
@@ -313,6 +299,43 @@ localparam CONF_STR = {
 	// by 57ec219d, which shipped a "P1,Performance;" page in this same
 	// config string.
 	"P1,Game;",
+	// Balance request. Bit 48 is deliberately BRAND NEW: it has never
+	// appeared in any CONF_STR in this tree's history, in any
+	// user_io_status_* call in the wrapper, or in upstream Main_MiSTer's
+	// MENU-core handling, so no existing 3S-ARM.CFG can carry it set.
+	// Every reuse candidate is contaminated: [30] is the retired
+	// ex-"Arcade Balance" bit AND V-Position's middle bit before
+	// v20260416, [15]/[18:16] are the retired SA-quality rows, [31] is
+	// now Watch Replays and [47] is Language.
+	//
+	// This row is a REQUEST, not an outcome. It writes the `balance` key
+	// in the game config (index 0 -> "arcade", index 1 -> "ps2") and the
+	// game resolves it once at boot (ArcadeBalance_Init(),
+	// src/arcade/arcade_balance.c), so a change applies on the NEXT game
+	// launch. Asking for Arcade on a device with no CPS3 romset -- or one
+	// whose 20-character adaptation fails -- still boots PS2, with the
+	// reason logged. The "Balance:" status row directly below reports
+	// what the game actually resolved.
+	//
+	// The row is deliberately NOT locked out when no ROM is present.
+	// Locking it would mean either overwriting the player's stored
+	// preference with `ps2` -- silently losing their choice the day they
+	// install the romset -- or new status_menumask plumbing driven from
+	// RTL, which cannot see whether a ROM exists on the HPS filesystem.
+	// Keeping the request live and reporting the outcome underneath is
+	// the whole design; do not "fix" it into a lockout.
+	"P1O[48],Balance,Arcade,PS2;",
+	// Live status row: what the game actually resolved, moved here from
+	// top level so it sits directly under the toggle it reports on. NOT
+	// an option and deliberately without a status bit. menu.cpp
+	// substitutes the live value from
+	// /media/fat/games/3s-arm/balance.status into any text row whose
+	// label is exactly "Balance:" (thirdsarm_balance_status_line() in
+	// thirdsarm_wrapper.cpp, wired up by
+	// tools/mister-wrapper/main-mister-full-menu.patch) -- keep the label
+	// byte-identical if this row ever moves again. See
+	// docs/mister-wrapper.md "Balance Status Line".
+	"P1-,Balance:;",
 	"P1O[13],Game Mode,Console,Arcade;",
 	// Bit 47 is brand new: it has never appeared in any CONF_STR in this
 	// tree's history, in any user_io_status_* call in the wrapper, or in
@@ -355,12 +378,12 @@ localparam CONF_STR = {
 };
 
 wire forced_scandoubler;
-// Width tracks the highest bit the CONF_STR above declares ([47], Language).
-// [47] is HPS-side only — nothing in this file reads it — but keeping the
-// wire wide enough to cover the whole config string preserves the invariant
-// that every declared bit exists here. hps_io drives a 128-bit status; the
-// connection simply truncates.
-wire [47:0] status;
+// Width tracks the highest bit the CONF_STR above declares ([48], Balance).
+// [47] (Language) and [48] (Balance) are HPS-side only — nothing in this
+// file reads them — but keeping the wire wide enough to cover the whole
+// config string preserves the invariant that every declared bit exists
+// here. hps_io drives a 128-bit status; the connection simply truncates.
+wire [48:0] status;
 
 hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(1)) hps_io
 (

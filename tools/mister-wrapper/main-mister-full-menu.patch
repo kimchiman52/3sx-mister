@@ -176,16 +176,16 @@ index a8d8bd8..71d074e 100644
  							s[0] = ' ';
  							s[1] = 0;
  							substrcpy(s + 1, p, 1);
-+							/* 3S-ARM: read-only Balance status row. CONF_STR
-+							   carries the literal "-,Balance:;" (menu.sv);
-+							   fill in the live value from
-+							   <pref>/balance.status. Unlike every other row
-+							   in that config string this one has no status
-+							   bit at all — arcade-vs-PS2 balance is chosen at
-+							   game boot and cannot be toggled from the OSD
++							/* 3S-ARM: read-only Balance OUTCOME row. CONF_STR
++							   carries the literal "P1-,Balance:;" (menu.sv,
++							   Game page); fill in the live value from
++							   <pref>/balance.status. It has no status bit of
++							   its own: the request lives on the separate
++							   "P1O[48],Balance,Arcade,PS2;" toggle above it,
++							   and the game can still resolve to PS2 — which
++							   is what this row exists to report
 +							   (docs/mister-wrapper.md "Balance Status Line").
-+							   Left unsubstituted the row degrades to a bare
-+							   " Balance:" label. */
++							   Unsubstituted it degrades to " Balance:". */
 +							if (!strcmp(s + 1, "Balance:")) thirdsarm_balance_status_line(s, sizeof(s));
  							last_space = (strlen(s) == 1);
  							MenuWrite(entry, s, 0, d);

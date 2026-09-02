@@ -127,6 +127,20 @@ enum RuntimeBgmTypeMenu
 	kBgmTypeMenuCount
 };
 
+// CONF_STR "P1O[48],Balance,Arcade,PS2;" index order. This mirrors the OSD
+// row's REQUEST, not the game's resolved outcome: index 0 writes
+// `balance = arcade` and index 1 writes `balance = ps2`, and
+// ArcadeBalance_Init() (src/arcade/arcade_balance.c) still falls back to PS2
+// when no CPS3 romset verifies. The read-only " Balance:" status row right
+// below the toggle reports what actually happened -- see
+// thirdsarm_balance_status_line().
+enum RuntimeBalanceMenu
+{
+	kBalanceArcade = 0,
+	kBalancePs2,
+	kBalanceMenuCount
+};
+
 // CONF_STR "O[47],Language,English,Japanese;" index order.
 enum RuntimeLanguageMenu
 {
@@ -161,6 +175,7 @@ int g_wrapper_arm_clock_active = kArmClockStock;
 int g_wrapper_game_mode = kGameModeConsole;
 int g_wrapper_hold_to_pause = kHoldToPauseOff;
 int g_wrapper_bgm_type = kBgmTypeArranged;
+int g_wrapper_balance = kBalanceArcade;
 int g_wrapper_language = kLanguageEnglish;
 int g_wrapper_aspect_ratio = kAspectRatio4x3;
 int g_wrapper_h_position = 0;
@@ -971,18 +986,23 @@ bool write_runtime_hold_to_pause_default(int mode)
 
 // --- Balance status row (read-only) ------------------------------------
 //
-// Arcade-vs-PS2 balance is no longer an OSD toggle. The game auto-selects
-// it at boot -- arcade when a CPS3 ROM passes content verification AND the
-// full 20-character adaptation succeeds, PS2 otherwise (docs/config.md
+// The OUTCOME half of the two-row Balance pair on the OSD Game page. The
+// REQUEST half is the "P1O[48],Balance,Arcade,PS2;" toggle right above it,
+// backed by read/write_runtime_balance_default() further down; this row
+// reports what the game actually did with that request. The game resolves
+// balance at boot -- arcade when a CPS3 ROM passes content verification AND
+// the full 20-character adaptation succeeds, PS2 otherwise (docs/config.md
 // "balance"; src/arcade/arcade_balance.c) -- and writes the outcome to
 // <kRuntimeHome>/balance.status: line 1 is the status text ("Arcade (CPS3)"
-// or "PS2"), line 2 is the reason when PS2. Status bit [30] and the
-// write/read_runtime_arcade_balance_default() pair that used to back the
-// toggle were deleted with this row: the game stopped reading the
-// `arcade-balance` config key entirely, so the toggle had become a placebo
-// (docs/mister-wrapper.md "Balance Status Line").
+// or "PS2"), line 2 is the reason when PS2.
 //
-// menu.cpp renders the CONF_STR "-,Balance:;" text row through this helper
+// Status bit [30] is NOT the toggle's bit and must stay retired: it backed
+// the old "O[30],Arcade Balance,Off,On;" row (a placebo once the game
+// stopped reading `arcade-balance`) and was V-Position's middle bit before
+// v20260416, so live 3S-ARM.CFG files can carry it set. The new toggle took
+// a brand-new [48] instead (docs/mister-wrapper.md "Balance Status Line").
+//
+// menu.cpp renders the CONF_STR "P1-,Balance:;" text row through this helper
 // (tools/mister-wrapper/main-mister-full-menu.patch). Only line 1 is shown:
 // the OSD row is 32 columns and the longest line-2 reason ("CPS3 ROM not
 // found or failed content verification") is 48, so the reason stays an
@@ -1119,6 +1139,97 @@ bool write_runtime_bgm_type_default(int mode)
 	if (!wrote_value)
 	{
 		fprintf(out, "\nbgm-type = %s\n", runtime_bgm_type_config_value(mode));
+	}
+
+	if (fclose(out) != 0) return false;
+	if (rename(temp_path, path) != 0)
+	{
+		remove(temp_path);
+		return false;
+	}
+
+	return true;
+}
+
+// Arcade-vs-PS2 balance, backing the CONF_STR "P1O[48],Balance,Arcade,PS2;"
+// row on the Game page. The key is `balance` in the game config
+// (docs/config.md "balance"); the game accepts "arcade", "auto" (its
+// historical spelling of the same thing) and "ps2".
+int read_runtime_balance_default()
+{
+	char value[64] = {};
+	if (!read_runtime_config_value("balance", value, sizeof(value))) return kBalanceArcade;
+
+	if (!strcasecmp(value, "ps2")) return kBalancePs2;
+	// "auto" and "arcade" are the same request, and anything unrecognised
+	// falls to arcade here for the same reason the game itself treats an
+	// unknown override as auto: prefer arcade, let boot decide.
+	return kBalanceArcade;
+}
+
+static const char *runtime_balance_config_value(int mode)
+{
+	switch (mode)
+	{
+	case kBalancePs2: return "ps2";
+	default: return "arcade";
+	}
+}
+
+bool write_runtime_balance_default(int mode)
+{
+	char path[PATH_MAX] = {};
+	char temp_path[PATH_MAX] = {};
+	snprintf(path, sizeof(path), "%s/config", kRuntimeHome);
+	snprintf(temp_path, sizeof(temp_path), "%s/config.tmp", kRuntimeHome);
+
+	FILE *in = fopen(path, "r");
+	FILE *out = fopen(temp_path, "w");
+	if (!out)
+	{
+		if (in) fclose(in);
+		return false;
+	}
+
+	bool wrote_value = false;
+	char line[256] = {};
+	if (in)
+	{
+		while (fgets(line, sizeof(line), in))
+		{
+			char inspect[256] = {};
+			snprintf(inspect, sizeof(inspect), "%s", line);
+
+			char *cursor = inspect;
+			while (*cursor && isspace((unsigned char)*cursor)) cursor++;
+			if (*cursor == '#')
+			{
+				fputs(line, out);
+				continue;
+			}
+
+			char *equals = strchr(cursor, '=');
+			if (equals)
+			{
+				*equals = 0;
+				trim_in_place(cursor);
+				if (!strcasecmp(cursor, "balance"))
+				{
+					fprintf(out, "balance = %s\n", runtime_balance_config_value(mode));
+					wrote_value = true;
+					continue;
+				}
+			}
+
+			fputs(line, out);
+		}
+
+		fclose(in);
+	}
+
+	if (!wrote_value)
+	{
+		fprintf(out, "\nbalance = %s\n", runtime_balance_config_value(mode));
 	}
 
 	if (fclose(out) != 0) return false;
@@ -1993,6 +2104,7 @@ void poll_status_changes(pid_t child)
 	static uint32_t prev_game_mode = 0xFFFFFFFF;
 	static uint32_t prev_hold_to_pause = 0xFFFFFFFF;
 	static uint32_t prev_bgm_type = 0xFFFFFFFF;
+	static uint32_t prev_balance = 0xFFFFFFFF;
 	static uint32_t prev_language = 0xFFFFFFFF;
 	static uint32_t prev_aspect_ratio = 0xFFFFFFFF;
 	static uint32_t prev_h_position = 0xFFFFFFFF;
@@ -2066,6 +2178,35 @@ void poll_status_changes(pid_t child)
 			// Options change *does* apply immediately, via the existing
 			// checkAdxFileLoaded()/adx_NowOnMemoryType reload on menu
 			// exit -- that path is unrelated to this OSD write.)
+		}
+	}
+
+	uint32_t balance = user_io_status_get("[48]");
+	if (balance != prev_balance) {
+		prev_balance = balance;
+		int target = (int)balance;
+		// Same disk refresh as bgm_type above. The game process rewrites
+		// `config` itself for other keys, and a config hand-edited between
+		// launches is expected here (docs/config.md "balance"), so the
+		// on-disk value -- not this process's mirror -- is what the OSD
+		// change has to be compared against.
+		g_wrapper_balance = read_runtime_balance_default();
+		if (target != g_wrapper_balance) {
+			write_runtime_balance_default(target);
+			g_wrapper_balance = target;
+			// No child signal: like Overclock and BGM Type, balance is
+			// resolved once at game boot (ArcadeBalance_Init(),
+			// src/arcade/arcade_balance.c) -- the new value takes effect
+			// on the NEXT game launch, not live mid-session.
+			//
+			// Deliberately no ROM-presence lockout either: this row is a
+			// request, and asking for Arcade with no verifiable CPS3
+			// romset still boots PS2 with the reason logged. Locking the
+			// row would mean overwriting the player's stored preference
+			// with `ps2` (losing their choice the day they install the
+			// romset) or new status_menumask plumbing from RTL, which
+			// cannot see the HPS filesystem. The " Balance:" status row
+			// beneath the toggle reports the real outcome instead.
 		}
 	}
 
@@ -2193,6 +2334,13 @@ void poll_status_changes(pid_t child)
 		user_io_status_set("[13]", 0);    // Game Mode = Console
 		user_io_status_set("[24]", 0);    // Hold to Pause = Off
 		user_io_status_set("[14]", 0);    // BGM Type = Arranged
+		// Balance ([48]) is deliberately NOT reset. It is the one row whose
+		// right answer depends on the player's hardware (do they own a
+		// verifiable CPS3 romset?) rather than on taste, and a hand-added
+		// `balance = ps2` in `config` is a documented, supported override
+		// (docs/config.md "balance"). Stomping it back to `arcade` here
+		// would silently discard that. Leaving it also keeps the OSD row
+		// and the on-disk key in agreement, since nothing rewrote either.
 		// Language = English. Deliberately English and not the `auto`
 		// sentinel: the OSD row can only render English/Japanese, so
 		// resetting to "auto" would leave the row asserting English while
@@ -2812,6 +2960,7 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 	g_wrapper_game_mode = read_runtime_game_mode_default();
 	g_wrapper_hold_to_pause = read_runtime_hold_to_pause_default();
 	g_wrapper_bgm_type = read_runtime_bgm_type_default();
+	g_wrapper_balance = read_runtime_balance_default();
 	g_wrapper_language = read_runtime_language_default();
 	g_wrapper_aspect_ratio = read_runtime_aspect_ratio_default();
 	g_wrapper_h_position = read_runtime_h_position_default();
@@ -2879,6 +3028,12 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 		// is the ONLY defense -- it must stay after user_io_init's CFG load
 		// and before the first poll_status_changes.
 		user_io_status_set("[14]", (uint32_t)g_wrapper_bgm_type);
+		// [48] is brand new -- it has never appeared in any CONF_STR or in
+		// any user_io_status_* call in this tree, so no 3S-ARM.CFG can carry
+		// it set. Seeded here anyway, in the same block and the same order,
+		// because the game config is authoritative for every wrapper-owned
+		// option regardless of what the CFG held.
+		user_io_status_set("[48]", (uint32_t)g_wrapper_balance);
 		// [47] has no such history -- it has never appeared in any CONF_STR
 		// or in any user_io_status_* call in this tree, so no 3S-ARM.CFG can
 		// carry it set. It is seeded here anyway, in the same block and the
@@ -3239,6 +3394,14 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 			// than this process's last-known-at-launch mirror.
 			g_wrapper_bgm_type = read_runtime_bgm_type_default();
 			user_io_status_set("[14]", (uint32_t)g_wrapper_bgm_type);
+			// Same re-read for balance: the run that just ended may have
+			// materialized or changed `balance` in `config` behind this
+			// wrapper's back, and a config hand-edited between launches is
+			// an expected flow (docs/config.md "balance"), so reseed the
+			// OSD from the CURRENT on-disk value rather than this process's
+			// last-known-at-launch mirror.
+			g_wrapper_balance = read_runtime_balance_default();
+			user_io_status_set("[48]", (uint32_t)g_wrapper_balance);
 			// Same for language: the in-game Screen Adjust row calls
 			// Language_PersistToConfig() from the game process, and on the
 			// very first boot Language_ApplyBootOverride() also materializes
