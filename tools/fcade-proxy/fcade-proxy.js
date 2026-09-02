@@ -395,8 +395,10 @@ const DISK_FLOOR_BYTES = Math.max(0, Number(process.env.FCADE_DISK_FLOOR_BYTES) 
 //   2. S4's device player is "play a growing `.3sr` file". Offset-based polling
 //      maps one-to-one onto that: each `watchpoll {from}` returns the appended
 //      bytes from `from`, which the fetch worker writes into a local growing
-//      file at that offset — identical in spirit to ProxyClient_Fetch3sr's
-//      write-as-you-go loop (proxy_client.h:176-186).
+//      file at that offset — identical in spirit to RpFetch3sr's
+//      write-as-you-go loop (vendor/Main_MiSTer/replay_proxy.h). The old
+//      in-game ProxyClient_Fetch3sr was deleted in the replay descope;
+//      the wrapper's port is the live one.
 //   3. The tracker patches the header's frame_count/checksum_count IN PLACE at
 //      finalize (runner-track-3sr.patch: Track3srFinalizeGame fseek(20)/fseek(26))
 //      and appends the checksum table only at finalize. Pure forward

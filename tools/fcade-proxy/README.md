@@ -224,7 +224,7 @@ So `get3sr` has two response shapes, selected by `game_index`:
 - **PER-GAME** (`game_index >= 0`) — exactly one game's blobs, hard-guarded
   against the device frame cap (see below).
 
-The device's fetch-all path (`ProxyClient_Fetch3sr` with `game_index < 0`)
+The device's fetch-all path (`RpFetch3sr` with `game_index < 0`)
 requests the MANIFEST first, then loops one PER-GAME request per listed game —
 so every frame it ever receives is bounded.
 
@@ -990,7 +990,15 @@ corrupt/oversize file on disk is refused rather than ever base64-encoded.
 
 ### Device fetch
 
-`src/replay/proxy_client.c`'s `ProxyClient_Fetch3sr()` writes BOTH
+> **Naming note (2026-09-02, replay descope).** This path moved from the
+> GAME to the HPS WRAPPER. The old in-game client
+> `src/replay/proxy_client.c` (`ProxyClient_Fetch3sr`) was deleted -- it was
+> dead code that nothing ever called. The live implementation is the
+> wrapper's de-SDL'd port, `vendor/Main_MiSTer/replay_proxy.c`
+> (`RpFetch3sr`), which the weekly-set sync drives. The framing and the
+> manifest-then-per-game loop described below are unchanged.
+
+`vendor/Main_MiSTer/replay_proxy.c`'s `RpFetch3sr()` writes BOTH
 `<replay-root>/<quarkid>/game_N.3sr` and `game_N.meta.json` to disk — never
 just the `.3sr` alone, since a sidecar-less file plays back but shows no
 names (exactly the gap this stage exists to close). To keep every frame under
@@ -1208,7 +1216,7 @@ frames until the game ends) vs. (b) offset-based chunked polling (each
    request frame and reads exactly one response frame. A long-lived stream
    would need a new multi-frame reader on that client; polling reuses the
    existing request/response client verbatim — the very code path `get3sr`
-   already uses (`ProxyClient_Fetch3sr`).
+   already uses (`RpFetch3sr`).
 2. **The Stage S4 device player is "play a growing `.3sr` file."** Offset
    polling maps one-to-one onto that: each response's `b64` is appended to a
    local growing file at offset `from`, identical in spirit to `get3sr`'s
