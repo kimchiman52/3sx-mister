@@ -281,11 +281,15 @@ void sw_blit_indexed4_row(uint32_t* dst, const uint8_t* packed, const uint32_t* 
         packed += 8;
     }
 
-    // Scalar tail.
-    int local_x = (x_lsb != 0) ? 1 : 0;
+    // Scalar tail.  The x_lsb pre-step consumed the odd texel and advanced
+    // `packed`, and the SIMD body advances it 8 bytes per 16 texels, so `packed`
+    // always points at a byte whose LOW nibble is the next texel: parity starts
+    // at 0 regardless of x_lsb.  (Starting it at 1 transposes every texel pair,
+    // which is what garbled odd-x glyphs on the 32bpp Mac build.)
+    int local_x = 0;
 
     for (; i < count; i++, local_x++) {
-        const uint8_t byte = packed[(local_x - ((x_lsb != 0) ? 1 : 0)) >> 1];
+        const uint8_t byte = packed[local_x >> 1];
         const uint8_t nib = ((local_x & 1) == 0) ? (byte & 0x0F) : ((byte >> 4) & 0x0F);
         const uint32_t p = pal16[nib];
         const uint32_t sa = (p >> 24) & 0xFF;

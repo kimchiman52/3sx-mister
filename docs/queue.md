@@ -3884,7 +3884,41 @@ Gates GREEN, harness 13; baselines `scopes=11 breached=0 slack=0`.
 **NOT verified:** the wrapper OSD on real hardware (no gate builds it), and no
 live v4 pairing between two machines.
 
-## #156 — the '1' glyph renders corrupt everywhere — OPEN
+## #156 — the '1' glyph renders corrupt everywhere — CLOSED 2026-09-02
+
+> **ROOT-CAUSED AND FIXED.** Not a tile-content bug, and not an August
+> regression. It is a **nibble-parity bug in the macOS-only NEON 4bpp blit
+> tail**, dating to `b2c79d7c` (giblet renderer, 2026-05-05).
+>
+> `sw_blit_neon.c` -> `sw_blit_indexed4_row()`: when `x_lsb != 0`, a pre-step
+> consumes the odd texel and advances `packed` to a low-nibble boundary, and the
+> SIMD body advances 8 bytes per 16 texels — so the scalar tail always resumes
+> on parity 0. The tail instead started at `local_x = 1`, **transposing every
+> remaining texel pair**. Fixed by starting parity at 0, matching the
+> already-correct `sw_blit_neon_armv7.c` (`int parity = 0;`).
+>
+> **Trigger: any unscaled 4bpp blit starting at an odd texel x.**
+> `SSPutStrTexInputPro` gives `'1'` a `sideL` of 1 (`ascProData['1'] = 0x12`)
+> → u=137, odd. `'1'` is the only digit or uppercase letter with odd `sideL`,
+> which is why it was the only corrupt character. The same bug corrupts the
+> training-mode readout digits, where glyphs sit at `u = digit * 11`, so **odd
+> digits corrupt and even digits are clean** — proven by running the kernel
+> against chunk 4 of the real `scrscrn.ppg` from `SF33RD.AFS`: `'5'`'s
+> `.#########.` becomes `.########.#` (the reported stray bar), `'3'` breaks at
+> both edges, `'2'` is bit-identical.
+>
+> **macOS-only because of compile gates, not timing.** The NEON file's gate
+> requires `__ARM_NEON && __aarch64__ && !CRS_SW_CANVAS_16BPP`; MiSTer sets
+> `CRS_SW_CANVAS_16BPP=1` so the TU is empty, and Windows x86 has no
+> `__ARM_NEON`. An **ARM64 Windows** build would be exposed — unverified
+> whether any tester runs one.
+>
+> **Two conclusions below are superseded — left in place deliberately, as the
+> record of how a plausible reading of correct evidence still pointed the wrong
+> way.** (a) "Therefore the tile's CONTENT is wrong" — the tiles are fine; every
+> observation supporting it is also consistent with a sampler that transposes
+> pairs. (b) The prescribed bisect over ~12 August commits would have found
+> nothing; the defect predates all of them by three months.
 
 User-reported 2026-08-31, with a screenshot of the netplay stats overlay
 (`R:0 P:16`) where the `1` is a garbled block. **Every `1` in the UI is
