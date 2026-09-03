@@ -9,6 +9,7 @@
 #include "sf33rd/Source/Game/effect/eff06.h"
 #include "sf33rd/Source/Game/effect/eff12.h"
 #include "sf33rd/Source/Game/effect/eff44.h"
+#include "sf33rd/Source/Game/effect/effc74.h"
 #include "sf33rd/Source/Game/effect/effl4.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/stage/bg.h"
@@ -53,6 +54,11 @@ void bg1902_init00() {
     bgw_ptr->zuubun = 0;
     effect_05_init();
     effect_06_init();
+    // CPS3 spawns its effect 74 here (arcade order 5, 6, 74, 14, 14, L4, 44,
+    // 12). Ordering inside class 4 is load-bearing: it fixes the frame on
+    // which each work's move routine draws. See
+    // docs/research-arcade-cg-data-accuracy.md §23.10.
+    effect_C74_init();
     effect_L4_init();
     effect_44_init(6);
     effect_12_init(3);

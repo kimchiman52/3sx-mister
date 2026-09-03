@@ -8,6 +8,7 @@
 #include "sf33rd/Source/Game/effect/eff05.h"
 #include "sf33rd/Source/Game/effect/eff06.h"
 #include "sf33rd/Source/Game/effect/eff71.h"
+#include "sf33rd/Source/Game/effect/effc08.h"
 #include "sf33rd/Source/Game/effect/effl2.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/stage/bg.h"
@@ -50,6 +51,11 @@ void bg0301_init00() {
     bgw_ptr->zuubun = 0;
     effect_05_init();
     effect_06_init();
+    // CPS3 spawns its effect 8 here (arcade order 5, 6, 8, 71, L2). It has to
+    // precede effect 71 — both draw from `random_16()`, so their order inside
+    // class 4 decides which index each one gets. See
+    // docs/research-arcade-cg-data-accuracy.md §23.10.
+    effect_C08_init();
     effect_71_init();
     effect_L2_init();
 }
