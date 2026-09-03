@@ -455,6 +455,24 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
     s16 ix;
     PatternCode cc;
     PatternInstance* cp;
+    /* DEV/TEST ONLY -- "first light" (see the CPS3_FIRST_LIGHT_PS2_CG hijack
+     * below). Position within THIS draw's own trsptr walk, counting every
+     * TileMapEntry (wh=1/2/4 alike) in visit order starting at 0 -- the
+     * closest available analogue to the arcade CgList's own per-CG record
+     * index `k` (doc §5G: "n_spr entries, 1:1 with dma[] BY INDEX"; the
+     * live-captured trans_table for this CG visits its 15 TileMapEntry in
+     * the same fixed order on every redraw of the same pose, confirmed by
+     * repeated identical `code`/`x`/`y` sequences -- see
+     * Cps3FirstLight_TileForChip()'s own comment for what this ordinal does
+     * and does NOT establish). Incremented unconditionally below (not
+     * guarded by a cg_number check) because for every other cg_number the
+     * variable is simply never read -- an unconditional add is cheaper than
+     * a guarded one: the guard would need `wk->cg_number` reloaded from
+     * memory every iteration (`wk` is a pointer the compiler cannot prove
+     * unaliased across the loop's own calls to get_mltbuf16_ext_2 /
+     * seqsStoreChip / etc.), for a compare-and-branch that is dead weight
+     * on every cg_number but one. */
+    u32 cps3_chip_ordinal;
 
     n = wk->cg_number;
     i = obj_group_table[n];
@@ -476,6 +494,7 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
     x = y = 0.0f;
     attr = flptbl[wk->cg_flip ^ wk->rl_flag];
     palo = wk->colcd;
+    cps3_chip_ordinal = 0;
 
     if (wk->my_bright_type) {
         curr_bright = bright_type[wk->my_bright_type - 1][wk->my_bright_level];
@@ -565,11 +584,56 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                          * real CPS-3-decoded tile instead of the PS2 LZ blob.
                          * `size == CPS3_FIRST_LIGHT_TILE_BYTES` restricts this to
                          * the PS2 texture's own 16x16 (wh=2) chips, the one size
-                         * class that matches a CPS-3 tile 1:1 -- wh=1 (64 B)
-                         * chips still decode PS2 pixels as today. */
+                         * class that matches a CPS-3 tile 1:1. Only 5 of this CG's
+                         * 15 chips are wh=2 (5 hijacked, 3 of those drawn at
+                         * dw=8 -- half-width -- so the left half only); the
+                         * remaining 10 are wh=4 and stay PS2 unconditionally (see
+                         * `case 4` below) -- 89% of this CG's own texture bytes.
+                         * Making the picture correct is NOT this scaffolding's
+                         * goal; see docs/cps3-rom-graphics.md.
+                         *
+                         * The x16 cache this hijack writes into is keyed by
+                         * (cc.code, palt) only (mts_hash_lookup(), mts_hash.h) --
+                         * cc.code is (texture-group-index << 16) | trsptr->code
+                         * (PatternCode, structs.h), with NO cg_number component.
+                         * CG 0x062A shares texture group 2 (obj_group_table[],
+                         * chren3rd.c) with 0x0623/0x0624/0x062B, and this CG's own
+                         * wh=2 texture codes 54 (chip @1) and 55 (chip @11) are
+                         * the SAME codes those other CGs' chips @1/@1/@1 (54) and
+                         * @13/@12 (55) reference (verified against SF33RD.AFS's
+                         * trans_table for all four CGs). Whichever CG's chip
+                         * populates that cache slot first wins for every CG that
+                         * shares it until eviction -- a real cross-CG leak, not
+                         * contained by anything here.
+                         *
+                         * wh=1 (64 B) chips still decode PS2 pixels, and that stays
+                         * true on purpose: doc §5G's DMA length-code histogram (also
+                         * reproduced directly against this CG's own 11 ROM records
+                         * while deriving cps3_chip_ordinal below) takes exactly 5
+                         * values -- 256/512/1024/2048/4096 B -- so CPS-3 CHARRAM DMA
+                         * never writes fewer than one full 256 B (16x16) tile. There
+                         * is no 64 B CPS-3-side unit for a wh=1 chip to BE a fragment
+                         * of, so substituting a decoded tile here would not be
+                         * "smaller than the source", it would be a fabricated
+                         * correspondence. Left on the PS2 path deliberately -- not an
+                         * oversight, though moot for THIS CG specifically: CG 0x062A's
+                         * own 15 chips are 5 wh=2 + 10 wh=4 and include zero wh=1
+                         * instances (live-captured trans_table dump), so this branch
+                         * never fires for 0x062A either way.
+                         *
+                         * wh=4 chips (case 4, below) are a separate, larger gap this
+                         * task did not scope. The blocker is NOT the different
+                         * texture-table/cache indexing scheme (get_mltbuf32_ext_2 /
+                         * mltgidx32 is structurally the same lookup-miss-upload shape
+                         * as get_mltbuf16_ext_2 / mltgidx16 above, just sized for 32x32);
+                         * it is that a wh=4 chip's 1024 B texture is four 16x16 CPS-3
+                         * tiles assembled into one 32x32 twiddled upload, plus that
+                         * this CG's own wh=4 draw boxes are not uniformly 32x32 (e.g.
+                         * chip @0 is dw=24, chip @12 is dw=8/dh=24, chips @7/@14 are
+                         * dh=16) -- both unimplemented here. */
                         if (wk->cg_number == CPS3_FIRST_LIGHT_PS2_CG && size == CPS3_FIRST_LIGHT_TILE_BYTES &&
                             Cps3FirstLight_Ready()) {
-                            Cps3FirstLight_NextTile(mt->mltbuf);
+                            Cps3FirstLight_TileForChip(cps3_chip_ordinal, mt->mltbuf);
                         } else {
                             lz_ext_p6_fx(&((u8*)texptr)[1], mt->mltbuf, size);
                         }
@@ -619,6 +683,17 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                                          mt->id);
                     break;
                 }
+
+                /* DEV/TEST ONLY -- "first light". Advances cps3_chip_ordinal
+                 * once per trsptr entry (every wh class, not just the wh=1/2
+                 * chips the hijack above reads it for) so it tracks this draw's
+                 * own position in trans_table -- see cps3_chip_ordinal's
+                 * declaration comment and Cps3FirstLight_TileForChip() for what
+                 * that position is (and is not) known to correspond to.
+                 * Unconditional on purpose (see the declaration comment): the
+                 * variable is dead for every cg_number except
+                 * CPS3_FIRST_LIGHT_PS2_CG, so there is nothing to guard. */
+                cps3_chip_ordinal++;
 
                 if (rnum == 0) {
                     break;

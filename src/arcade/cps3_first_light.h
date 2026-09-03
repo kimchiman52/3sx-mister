@@ -75,17 +75,89 @@ bool Cps3FirstLight_Ready(void);
  * Only valid when Cps3FirstLight_Ready(). */
 const uint16_t* Cps3FirstLight_PaletteRaw(void);
 
-/* Writes the next 256-byte tile out of the 39-tile decode into `out`,
- * round-robining across CPS3_FIRST_LIGHT_TILE_COUNT (in CHARRAM/`dst`
- * order, see kCg060aRecords in cps3_first_light.c) so repeated draws (one
- * chip per lz_ext_p6_fx call the demo intercepts) sweep CG 0x060A's own
- * tiles in their real order instead of freezing on tile 0. NOT a copy:
- * the decoder's row-major output is re-twiddled into the Dreamcast/
- * PowerVR Morton order njReLoadTexturePartNumG's consumer
+/* Writes ONE of the 39 decoded tiles into `out`, selected by
+ * `chip_ordinal % CPS3_FIRST_LIGHT_TILE_COUNT` (in CHARRAM/`dst` order, see
+ * kCg060aRecords in cps3_first_light.c) -- a pure function of its argument,
+ * with NO carried state between calls. `chip_ordinal` is the caller's own
+ * position counter (mtrans.c's `cps3_chip_ordinal`): the same physical
+ * chip must always pass the same ordinal, every time it is drawn, so it
+ * always gets the same tile.
+ *
+ * WHY THIS REPLACED THE OLD ROUND-ROBIN. The previous Cps3FirstLight_
+ * NextTile() advanced a single global counter on every call, from every
+ * chip, of every draw, of every frame this CG appeared in -- so which tile
+ * a given physical chip got depended on how many OTHER chips had drawn
+ * since boot, not on which chip it was. Two chips 39 (or 78, or ...) calls
+ * apart got the same tile by coincidence; the same chip got a DIFFERENT
+ * tile on its next redraw. That is the "known cosmetic glitches ...
+ * arbitrary" flicker docs/cps3-rom-graphics.md records. Keying off a
+ * caller-supplied per-chip ordinal instead makes the assignment
+ * deterministic and stable per chip FOR THIS ONE FUNCTION, given that
+ * trans_table traversal order is fixed per pose. That premise was
+ * live-captured, not assumed: instrumenting mlt_obj_trans_ext() to log
+ * each trsptr entry's (code, x, y, wh) while drawing this CG showed an
+ * IDENTICAL 15-entry sequence on every redraw of the same pose (Alex,
+ * training mode, `--test-scene-preset training-frame-data
+ * --test-p1-character 1 --test-balance arcade`) -- trans_table is static
+ * per-cg_number asset data, so the same trsptr index always yields the
+ * same TileMapEntry, and cps3_chip_ordinal (mtrans.c) always counts up to
+ * it the same way.
+ *
+ * THIS DOES NOT MAKE THE FLICKER GONE, ONLY THIS SOURCE OF IT. The x16
+ * texture cache the hijack site writes into (get_mltbuf16_ext_2 ->
+ * mts_hash_lookup(mt->hash16, code, palt, mc), mtrans.c / mts_hash.h) is
+ * keyed by (code, palt) with NO cg_number component, and `code` here is
+ * (texture-group-index << 16) | trsptr->code (PatternCode, structs.h), not
+ * a value unique to this CG. CG 0x062A shares texture group 2 with CGs
+ * 0x0623, 0x0624 and 0x062B, and this CG's own wh=2 texture codes 54
+ * (chip @1) and 55 (chip @11) are the exact same codes those other CGs'
+ * chips reference too (0x0623@1/0x0624@1/0x062B@1 = 54, 0x0623@13/
+ * 0x062B@12 = 55 -- confirmed against SF33RD.AFS's trans_table for all
+ * four CGs). Whichever CG's chip populates that cache slot first wins it
+ * for every CG that shares it, until eviction; deterministic ordinal
+ * assignment within 0x062A's own draw does nothing about that. See
+ * docs/cps3-rom-graphics.md for the fuller accounting of what this
+ * scaffolding does and does not fix.
+ *
+ * WHAT THIS DOES NOT ESTABLISH. `chip_ordinal` counts this draw's own
+ * trans_table position (0, 1, 2, ...) -- it is NOT the arcade CgList's
+ * per-CG record index `k` that doc §5G's invariant is stated in terms of.
+ * Confirmed by directly reconstructing CG 0x060A's ROM CgList this task
+ * (SIMM byte offsets/lengths/x_off/y_off/tile-shape for all 11 records,
+ * cross-checked byte-for-byte against every worked-example value doc §5G
+ * quotes for k=0, k=5, k=10): the arcade side has 11 records covering 39
+ * tiles; the PS2 trans_table for CG 0x062A has 15 TileMapEntry (5 wh=2 +
+ * 10 wh=4, live-captured). That the two counts (15 vs. 11 or 39) don't
+ * divide evenly is not, by itself, meaningful -- lots of unrelated counts
+ * don't divide each other. The stronger evidence is geometric: walking
+ * this CG's own trans_table and accumulating (x, y) the way
+ * mlt_obj_trans_ext() does (`x += trsptr->x`, `y += trsptr->y` under this
+ * pose's flip attr) puts every chip's position on a 16 px grid on the x
+ * axis (x in {-32,-16,0,16,32,48}) except three: chips @0 (x=51), @1
+ * (x=55) and @2 (x=36, also off the loosely-32-px-spaced y values this
+ * CG's other chips cluster around) -- i.e. the trimmed-looking chips are
+ * the same three whose PS2 draw box also isn't a round multiple of 16 (one
+ * wh=4 chip's box is 24 px wide). NOTE: `dw`/`dh` here are the DRAW BOX
+ * seqsStoreChip() paints, not the underlying texture -- every chip's
+ * source texture is still a full 16x16 (wh=2) or 32x32 (wh=4) tile
+ * regardless of dw/dh, so a non-multiple-of-16 dw is evidence of edge
+ * cropping in the PS2 asset pipeline (consistent with "same tiles, margins
+ * trimmed"), not proof by itself that chip boundaries were re-cut from the
+ * arcade tile grid. Net: `chip_ordinal % 39` is a stable BUT UNVERIFIED
+ * assignment of tiles to chips -- it removes the round-robin flicker
+ * covered above, not necessarily the wrong-tile-in-the-right-place case.
+ * Proving per-chip correctness needs an offline content-match: this IS
+ * buildable from what already exists here -- the 39 decoded tiles are in
+ * `g_tiles` (cps3_first_light.c) and the PS2 chips' own pixels come from
+ * the ordinary `lz_ext_p6_fx()` path (mtrans.c) -- nobody has built that
+ * audit yet. A human still needs to confirm the picture by eye either way.
+ *
+ * NOT a copy: the decoder's row-major output is re-twiddled into the
+ * Dreamcast/PowerVR Morton order njReLoadTexturePartNumG's consumer
  * (ppgRenewDotDataSeqs case 0x100, via dctex_linear) expects -- see the
  * comment on this function's definition. Only valid when
  * Cps3FirstLight_Ready(). */
-void Cps3FirstLight_NextTile(uint8_t out[CPS3_FIRST_LIGHT_TILE_BYTES]);
+void Cps3FirstLight_TileForChip(uint32_t chip_ordinal, uint8_t out[CPS3_FIRST_LIGHT_TILE_BYTES]);
 
 #if defined(ENABLE_NETPLAY_TESTS)
 /* Test seam for src/test/test_cps3_chardma.c: exposes the ported
@@ -99,7 +171,7 @@ bool Cps3FirstLight_TestDecodeRecord(const uint8_t* gfx, uint32_t gfx_size, uint
                                       uint32_t dict_addr, uint8_t* dest, uint32_t real_length);
 
 /* Test seam for src/test/test_cps3_chardma.c: exposes the exact
- * row-major-to-Dreamcast-twiddled re-mapping Cps3FirstLight_NextTile()
+ * row-major-to-Dreamcast-twiddled re-mapping Cps3FirstLight_TileForChip()
  * applies before handing a tile to njReLoadTexturePartNumG, so the
  * harness can round-trip a synthetic tile through it and PPGFile.c's own
  * `dctex_linear`-based un-twiddle and confirm the two invert each other.
@@ -108,6 +180,15 @@ bool Cps3FirstLight_TestDecodeRecord(const uint8_t* gfx, uint32_t gfx_size, uint
  * sets that up. Test builds only. */
 void Cps3FirstLight_TestTwiddleTile(const uint8_t tile[CPS3_FIRST_LIGHT_TILE_BYTES],
                                      uint8_t out[CPS3_FIRST_LIGHT_TILE_BYTES]);
+
+/* Test seam for src/test/test_cps3_chardma.c: injects `tiles` as the
+ * module's decoded-tile set and marks Cps3FirstLight_Ready() true,
+ * without a ROM/zip load -- so the harness can exercise
+ * Cps3FirstLight_TileForChip()'s statelessness and its
+ * `chip_ordinal % CPS3_FIRST_LIGHT_TILE_COUNT` periodicity using tiles it
+ * already decoded via Cps3FirstLight_TestDecodeRecord(). Test builds
+ * only. */
+void Cps3FirstLight_TestSetTiles(const uint8_t tiles[CPS3_FIRST_LIGHT_TILE_COUNT][CPS3_FIRST_LIGHT_TILE_BYTES]);
 #endif
 
 #endif

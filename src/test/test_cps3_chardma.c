@@ -61,7 +61,7 @@ int Cps3Chardma_Test_Decode(void) {
 #include "arcade/cps3_first_light.h"
 #include "sf33rd/Source/Common/PPGFile.h"
 
-#define EXPECTED_SUBTESTS 3
+#define EXPECTED_SUBTESTS 4
 
 static int g_ran;
 static int g_fail;
@@ -918,7 +918,7 @@ static void sub_b_whole_cg(void) {
     free(buf);
 }
 
-/* 3. Cps3FirstLight_NextTile()'s row-major -> Dreamcast-twiddled re-map
+/* 3. Cps3FirstLight_TileForChip()'s row-major -> Dreamcast-twiddled re-map
  *    (cps3_first_light.c's cps3_first_light_twiddle_tile(), P-1.1 in the
  *    review this test was added for) round-tripped against PPGFile.c's
  *    OWN un-twiddle math (ppgRenewDotDataSeqs() case 0x100). A synthetic
@@ -965,12 +965,51 @@ static void sub_c_twiddle_roundtrip(void) {
           mismatches);
 }
 
+/* 4. Cps3FirstLight_TileForChip()'s statelessness and its documented
+ *    `chip_ordinal % CPS3_FIRST_LIGHT_TILE_COUNT` periodicity (P-2.6 in the
+ *    review this test was added for) -- pinning as an assertion what the
+ *    header comment currently only carries as prose ("a pure function of
+ *    its argument, with NO carried state between calls"). Reuses
+ *    kGoldenDecoded (sub_b already proved it byte-equals a real decode) via
+ *    Cps3FirstLight_TestSetTiles(), so no ROM/zip load is needed. Depends
+ *    on sub_c having already initialised dctex_linear. */
+static void sub_d_stateless_and_periodic(void) {
+    g_ran++;
+
+    Cps3FirstLight_TestSetTiles((const uint8_t(*)[CPS3_FIRST_LIGHT_TILE_BYTES])kGoldenDecoded);
+
+    for (uint32_t k = 0; k < CPS3_FIRST_LIGHT_TILE_COUNT; k++) {
+        uint8_t before[CPS3_FIRST_LIGHT_TILE_BYTES];
+        uint8_t after[CPS3_FIRST_LIGHT_TILE_BYTES];
+        uint8_t wrapped[CPS3_FIRST_LIGHT_TILE_BYTES];
+        uint8_t scratch[CPS3_FIRST_LIGHT_TILE_BYTES];
+
+        Cps3FirstLight_TileForChip(k, before);
+
+        /* Intervening calls for unrelated ordinals: if TileForChip() carried
+         * any state (like the old NextTile()'s self-advancing counter), one
+         * of these would perturb what ordinal k produces next. */
+        Cps3FirstLight_TileForChip((k + 7) % CPS3_FIRST_LIGHT_TILE_COUNT, scratch);
+        Cps3FirstLight_TileForChip((k + 19) % CPS3_FIRST_LIGHT_TILE_COUNT, scratch);
+        Cps3FirstLight_TileForChip(k, scratch);
+
+        Cps3FirstLight_TileForChip(k, after);
+        CHECK(memcmp(before, after, sizeof(before)) == 0,
+              "ordinal %u: TileForChip output changed after intervening calls for other ordinals", k);
+
+        Cps3FirstLight_TileForChip(k + CPS3_FIRST_LIGHT_TILE_COUNT, wrapped);
+        CHECK(memcmp(before, wrapped, sizeof(before)) == 0, "ordinal %u: TileForChip(k) != TileForChip(k+%u)", k,
+              (unsigned)CPS3_FIRST_LIGHT_TILE_COUNT);
+    }
+}
+
 int Cps3Chardma_Test_Decode(void) {
     printf("=== CPS-3 char-DMA decoder harness (CG 0x060A, doc %s) ===\n", "5S 4.2/5G");
 
     sub_a_per_record();
     sub_b_whole_cg();
     sub_c_twiddle_roundtrip();
+    sub_d_stateless_and_periodic();
 
     if (g_ran != EXPECTED_SUBTESTS) {
         printf("COVERAGE FAIL: ran %d sub-test(s), expected exactly %d\n", g_ran, EXPECTED_SUBTESTS);

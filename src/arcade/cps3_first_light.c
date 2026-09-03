@@ -356,11 +356,15 @@ static bool cps3_do_char_dma(const Uint8* gfx, Uint32 gfx_size, Uint32 real_sour
  * decoding in `i=` order and laying tiles out by `flat_off += real_length`
  * (as TryLoad does below) would NOT reproduce CHARRAM tile order. Sorting
  * here by `dst` instead makes g_tiles[k] the tile CHARRAM would hold at
- * offset dst_base + k*256, so Cps3FirstLight_NextTile()'s round-robin
- * sweep visits CG 0x060A's own tiles in their real order. This is still
- * only ONE (arbitrarily-selected-by-draw-order) chip's worth of tile per
- * frame, round-robining across all 39 -- not "CG 0x060A rendered in full"
- * on any single frame. */
+ * offset dst_base + k*256, so `g_tiles[chip_ordinal % 39]`
+ * (Cps3FirstLight_TileForChip(), below) indexes into CG 0x060A's own tiles
+ * in their real CHARRAM order rather than an arbitrary decode order -- see
+ * that function's declaration comment in cps3_first_light.h for what
+ * `chip_ordinal` is and is not known to correspond to. This is still only
+ * a per-chip assignment across the 39 -- not "CG 0x060A rendered in full"
+ * on any single frame in the sense of every tile appearing in its
+ * geometrically correct place; see the same comment for what remains
+ * unverified. */
 typedef struct Cg060aRecord {
     Uint32 real_source;
     Uint32 real_length;
@@ -405,7 +409,6 @@ static const Cg060aRecord kCg060aRecords[CG_060A_RECORD_COUNT] = {
 static Uint8 g_tiles[CPS3_FIRST_LIGHT_TILE_COUNT][CPS3_FIRST_LIGHT_TILE_BYTES];
 static Uint16 g_palette[CG_060A_PALETTE_ENTRIES];
 static bool g_ready = false;
-static Uint32 g_next_tile = 0;
 
 static Uint16 read_be16(const Uint8* p) {
     return (Uint16)(((Uint16)p[0] << 8) | (Uint16)p[1]);
@@ -464,7 +467,6 @@ void Cps3FirstLight_TryLoad(const char* zip_path) {
     SDL_free(gfx);
 
     g_ready = true;
-    g_next_tile = 0;
 
     SDL_Log("Cps3FirstLight: CG 0x060A decoded -- %u tiles (%u bytes) from %s, ready for PS2 CG 0x%04X",
             CPS3_FIRST_LIGHT_TILE_COUNT,
@@ -489,7 +491,7 @@ const Uint16* Cps3FirstLight_PaletteRaw(void) {
  * address. `dctex_linear` is built by ppgMakeConvTableTexDC()
  * (src/sf33rd/Source/Common/PPGFile.c) before any frame renders (main.c's
  * sf3_init() -> distributeScratchPadAddress() + ppgMakeConvTableTexDC(),
- * both ahead of the game loop that first calls Cps3FirstLight_NextTile()),
+ * both ahead of the game loop that first calls Cps3FirstLight_TileForChip()),
  * so it is guaranteed initialised here.
  *
  * The decoder above deliberately emits ROW-MAJOR bytes (see the "ONE
@@ -504,7 +506,7 @@ const Uint16* Cps3FirstLight_PaletteRaw(void) {
  * will read it back from. Without this, the tile renders with its 16x16
  * pixels scrambled into their Z-order permutation.
  *
- * Factored out of Cps3FirstLight_NextTile() so the test harness
+ * Factored out of Cps3FirstLight_TileForChip() so the test harness
  * (src/test/test_cps3_chardma.c) can exercise this exact math without a
  * full ROM/tile load -- see Cps3FirstLight_TestTwiddleTile(). */
 static void cps3_first_light_twiddle_tile(const Uint8 tile[CPS3_FIRST_LIGHT_TILE_BYTES],
@@ -516,14 +518,18 @@ static void cps3_first_light_twiddle_tile(const Uint8 tile[CPS3_FIRST_LIGHT_TILE
     }
 }
 
-void Cps3FirstLight_NextTile(Uint8 out[CPS3_FIRST_LIGHT_TILE_BYTES]) {
+void Cps3FirstLight_TileForChip(Uint32 chip_ordinal, Uint8 out[CPS3_FIRST_LIGHT_TILE_BYTES]) {
     if (!g_ready) {
         SDL_memset(out, 0, CPS3_FIRST_LIGHT_TILE_BYTES);
         return;
     }
 
-    cps3_first_light_twiddle_tile(g_tiles[g_next_tile], out);
-    g_next_tile = (g_next_tile + 1) % CPS3_FIRST_LIGHT_TILE_COUNT;
+    /* Stateless on purpose -- see this function's declaration comment in
+     * cps3_first_light.h for why keying off the caller's own per-chip
+     * ordinal (instead of a self-advancing counter here) is what fixes the
+     * "chips get tiles that do not belong to them" round-robin defect, and
+     * for what it does and does not prove about correctness. */
+    cps3_first_light_twiddle_tile(g_tiles[chip_ordinal % CPS3_FIRST_LIGHT_TILE_COUNT], out);
 }
 
 #if defined(ENABLE_NETPLAY_TESTS)
@@ -543,5 +549,11 @@ bool Cps3FirstLight_TestDecodeRecord(const Uint8* gfx, Uint32 gfx_size, Uint32 r
 void Cps3FirstLight_TestTwiddleTile(const Uint8 tile[CPS3_FIRST_LIGHT_TILE_BYTES],
                                      Uint8 out[CPS3_FIRST_LIGHT_TILE_BYTES]) {
     cps3_first_light_twiddle_tile(tile, out);
+}
+
+/* Test seam for src/test/test_cps3_chardma.c -- see cps3_first_light.h. */
+void Cps3FirstLight_TestSetTiles(const Uint8 tiles[CPS3_FIRST_LIGHT_TILE_COUNT][CPS3_FIRST_LIGHT_TILE_BYTES]) {
+    SDL_memcpy(g_tiles, tiles, sizeof(g_tiles));
+    g_ready = true;
 }
 #endif
