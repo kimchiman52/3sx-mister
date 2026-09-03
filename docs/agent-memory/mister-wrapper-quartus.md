@@ -119,6 +119,7 @@ tools/mister/setup-colima-vm.sh
 - `tools/mister-wrapper/build-core.sh` selecting Docker mode does not prove the image path is the right host strategy on this Mac. -> Use the local-in-VM `quartus_sh` path first for real compile diagnosis.
 - VZ+Rosetta (aarch64 VM with Rosetta x86 binary translation) does not work for Quartus 17.0 compilation. -> Do not attempt; `quartus_map` deadlocks after `fork()`. Stick with x86_64 QEMU VM.
 - QEMU user-mode (qemu-x86_64) inside a VZ VM segfaults during Quartus synthesis. -> Do not attempt; the QEMU 8.2 TCG translator crashes during heavy x86_64 computation.
+- `~/.colima` is a symlink onto the external volume `/Volumes/KimchDrive`, so an `Include /Users/sb/.colima/ssh_config` in `~/.ssh/config` hangs **every** ssh started by any LaunchAgent on this machine, forever: macOS TCC denies launchd-spawned processes access to removable volumes by blocking `open()`/`readdir()` indefinitely rather than returning `EPERM`, and OpenSSH reads `Include` files unconditionally at parse time -- before any host is resolved, inside non-matching `Host` blocks, and in glob form. The glob form does not help; it only silences the error while still hanging. -> Do not put that `Include` in `~/.ssh/config`. The Quartus workflow does not need it: `colima ssh --profile quartus2` passes its own `-F` lima config. For a direct connection use `ssh -F ~/.colima/ssh_config colima-quartus2`.
 
 ## Update Rules
 

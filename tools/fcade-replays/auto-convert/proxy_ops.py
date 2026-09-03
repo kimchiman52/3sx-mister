@@ -58,6 +58,7 @@ import argparse
 import json
 import os
 import select
+import shlex
 import struct
 import subprocess
 import sys
@@ -322,7 +323,22 @@ def send_over_ssh(
             except Exception:
                 pass
             detail = f": {stderr_text}" if stderr_text else ""
-            raise RuntimeError(f"{exc} (ssh -W {host}:{port}){detail}") from exc
+            # Report the command we ACTUALLY ran. This used to print
+            # `ssh -W {host}:{port}`, which is not a command that ever runs --
+            # the forward target is the VPS's own loopback, and `host` is the
+            # ssh destination. That fiction cost two wrong diagnoses on
+            # 2026-09-03 (people went looking for a listener on `host:port`).
+            if not stderr_text:
+                # ssh died without saying anything. Overwhelmingly this means it
+                # never got as far as the network: it blocked while PARSING its
+                # config. On macOS an `Include` under ~/.ssh/config that resolves
+                # onto an external/removable volume blocks forever for any
+                # launchd-spawned process (TCC denies content access by stalling,
+                # not by returning an error). Check with:
+                #   ssh -vvv -G <host>   (run it from the agent, not a terminal)
+                detail = " (ssh wrote nothing to stderr -- it likely blocked before"
+                detail += " connecting; check `ssh -G` and any ~/.ssh/config Include)"
+            raise RuntimeError(f"{exc} ({shlex.join(cmd)}){detail}") from exc
     finally:
         try:
             proc.terminate()
