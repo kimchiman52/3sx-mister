@@ -85,6 +85,17 @@ OUT_DIR="${FCADE_CONVERT_OUT:-$INSTALL_ROOT/3sr-out}"
 VPS_TARGET="${FCADE_VPS_TARGET:-hetzner-3s-arm:/opt/fcade-proxy}"
 # statcheck per-game gate timeout handed to publish_3sr.py.
 STATCHECK_TIMEOUT="${FCADE_STATCHECK_TIMEOUT:-30}"
+# FBNeo runner timeout handed to publish_3sr.py, seconds.
+#
+# MUST match the VPS lane (fcade-proxy.js CONVERT_RUNNER_TIMEOUT_MS = 30 min).
+# publish_3sr.py's own default is 900 s and this script did not pass the flag,
+# so the Mac lane killed the runner at half the VPS budget. Not a rare edge:
+# over 72 conversions on 2026-09-03 the Mac failed 30 (42 %), every one a
+# "runner timed out after 900s", on quarks the VPS converts fine; 28 of that
+# day's 147 catalog rows ran longer than 900 s. The failures were recorded as
+# `publish_error` (classify_failure_reason buckets any non-savestate error
+# there), which pointed diagnosis at the push leg instead of the runner budget.
+RUNNER_TIMEOUT="${FCADE_RUNNER_TIMEOUT:-1800}"
 
 # --- Worker-specific config ---------------------------------------------------
 # Up to 3 leased items per tick (docs/plan-preconvert-fleet.md §Q5; the
@@ -269,7 +280,7 @@ if [ "$DRY_RUN" = "1" ]; then
   log "       $VENV_PY $PUBLISH \\"
   log "         --catalog $PLACEHOLDER_CATALOG --runner $RUNNER_BIN \\"
   log "         --statcheck $STATCHECK_BIN --out-dir $OUT_DIR \\"
-  log "         --quark $PLACEHOLDER_QID --statcheck-timeout $STATCHECK_TIMEOUT"
+  log "         --quark $PLACEHOLDER_QID --statcheck-timeout $STATCHECK_TIMEOUT --runner-timeout $RUNNER_TIMEOUT"
 
   log ""
   log "  3. if >=1 game_N.3sr resulted, would push to the VPS staging dir and fix perms:"
@@ -326,7 +337,17 @@ try:
     if entry:
         err = entry.get("error")
         if isinstance(err, str) and err:
-            reason = "no_savestate" if "savestate" in err.lower() else "publish_error"
+            low = err.lower()
+            # Order matters: a runner timeout is NOT a publish failure. It used
+            # to fall into the publish_error bucket, which sent diagnosis at the
+            # push leg while the real cause was the runner budget (see
+            # RUNNER_TIMEOUT above). Keep it ahead of the catch-all.
+            if "savestate" in low:
+                reason = "no_savestate"
+            elif "timed out" in low or "timeout" in low:
+                reason = "runner_timeout"
+            else:
+                reason = "publish_error"
 except Exception:
     pass
 print(reason)
@@ -423,7 +444,8 @@ for i in "${!SELECTED[@]}"; do
         --statcheck "$STATCHECK_BIN" \
         --out-dir "$OUT_DIR" \
         --quark "$QID" \
-        --statcheck-timeout "$STATCHECK_TIMEOUT"
+        --statcheck-timeout "$STATCHECK_TIMEOUT" \
+        --runner-timeout "$RUNNER_TIMEOUT"
     )
     PUB_RC=$?
     log "publish_3sr.py exited $PUB_RC (0=published, 1=nothing published for this quark)"
