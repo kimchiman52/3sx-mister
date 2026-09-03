@@ -325,17 +325,6 @@ localparam CONF_STR = {
 	// Keeping the request live and reporting the outcome underneath is
 	// the whole design; do not "fix" it into a lockout.
 	"P1O[48],Balance,Arcade,PS2;",
-	// Live status row: what the game actually resolved, moved here from
-	// top level so it sits directly under the toggle it reports on. NOT
-	// an option and deliberately without a status bit. menu.cpp
-	// substitutes the live value from
-	// /media/fat/games/3s-arm/balance.status into any text row whose
-	// label is exactly "Balance:" (thirdsarm_balance_status_line() in
-	// thirdsarm_wrapper.cpp, wired up by
-	// tools/mister-wrapper/main-mister-full-menu.patch) -- keep the label
-	// byte-identical if this row ever moves again. See
-	// docs/mister-wrapper.md "Balance Status Line".
-	"P1-,Balance:;",
 	"P1O[13],Game Mode,Console,Arcade;",
 	// Bit 47 is brand new: it has never appeared in any CONF_STR in this
 	// tree's history, in any user_io_status_* call in the wrapper, or in
@@ -356,6 +345,21 @@ localparam CONF_STR = {
 	"P1O[14],BGM Type,Arranged,Original;",
 	"P1O[24],Hold to Pause,Off,On;",
 	"P1O[11:10],FPS Counter,Off,FPS,Debug;",
+	// Live status row: what the game actually RESOLVED, as opposed to the
+	// P1O[48] toggle above, which is only the REQUEST. Deliberately last on
+	// the page and rendered inverted (menu.cpp, via
+	// tools/mister-wrapper/main-mister-full-menu.patch) so it reads as a
+	// footer rather than as another setting -- it sat mid-list under the
+	// toggle before and looked like a broken option row.
+	// NOT an option and deliberately without a status bit. menu.cpp
+	// substitutes the live value from
+	// /media/fat/games/3s-arm/balance.status into any text row whose label
+	// is exactly "Balance:" (thirdsarm_balance_status_line() in
+	// thirdsarm_wrapper.cpp) -- keep the label byte-identical if this row
+	// ever moves again, and keep it LAST so the inverted styling does not
+	// read as a selected row mid-list. See docs/mister-wrapper.md
+	// "Balance Status Line".
+	"P1-,Balance:;",
 	"P2,Video;",
 	"P2O[12],Aspect Ratio,4:3,Full;",
 	"P2O[32],Vertical Crop,Disabled,216p(5x);",

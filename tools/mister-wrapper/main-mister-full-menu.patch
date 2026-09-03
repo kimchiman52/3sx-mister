@@ -172,7 +172,7 @@ index a8d8bd8..71d074e 100644
  void HandleUI(void)
  {
  	PROFILE_FUNCTION();
-@@ -2115,6 +2265,17 @@ void HandleUI(void)
+@@ -2115,6 +2265,24 @@ void HandleUI(void)
  							s[0] = ' ';
  							s[1] = 0;
  							substrcpy(s + 1, p, 1);
@@ -186,11 +186,19 @@ index a8d8bd8..71d074e 100644
 +							   is what this row exists to report
 +							   (docs/mister-wrapper.md "Balance Status Line").
 +							   Unsubstituted it degrades to " Balance:". */
-+							if (!strcmp(s + 1, "Balance:")) thirdsarm_balance_status_line(s, sizeof(s));
++							/* Render the Balance status row INVERTED, and note that
++							   menu.sv keeps it LAST on the Game page. Inverted is
++							   also how a SELECTED row is drawn, so mid-list this
++							   styling reads as a stuck cursor; as the final row it
++							   reads as a footer, which is what it is -- the resolved
++							   outcome, not another setting. */
++							const int balance_row = !strcmp(s + 1, "Balance:");
++							if (balance_row) thirdsarm_balance_status_line(s, sizeof(s));
  							last_space = (strlen(s) == 1);
- 							MenuWrite(entry, s, 0, d);
+-							MenuWrite(entry, s, 0, d);
++							MenuWrite(entry, s, balance_row, d);
  							entry++;
-@@ -2468,6 +2629,28 @@ void HandleUI(void)
+@@ -2468,6 +2636,39 @@ void HandleUI(void)
  							int ex = (p[0] == 't') || (p[0] == 'r');
  							if (user_io_status_bits(p + 1, &bit, 0, ex) == 1)
  							{
@@ -213,13 +221,24 @@ index a8d8bd8..71d074e 100644
 +									 * the generic option handler, which would toggle
 +									 * the status bit instead of launching anything. */
 +									replay_shuffle_handoff();
++									/* Close the OSD so the viewer comes up on a clean
++									 * screen instead of behind the menu. Gated on the
++									 * arm flag, mirroring MENU_DIRECT_P2P_CONFIRM: if
++									 * the handoff refused, the child is not being
++									 * relaunched, so dismissing would leave the user
++									 * staring at a game that never restarts. */
++									if (g_replay_shuffle_armed)
++									{
++										menustate = MENU_NONE1;
++										menusub = 0;
++									}
 +								}
 +								else
 +								{
  								const char *opt = p + 1;
  								if (!bit && (is_x86() || is_pcxt()))
  								{
-@@ -2506,6 +2689,7 @@ void HandleUI(void)
+@@ -2506,6 +2707,7 @@ void HandleUI(void)
  									menustate = MENU_GENERIC_MAIN1;
  									if (p[0] == 'R' || p[0] == 'r') menustate = MENU_NONE1;
  								}
@@ -227,7 +246,7 @@ index a8d8bd8..71d074e 100644
  							}
  						}
  					}
-@@ -2749,17 +2933,15 @@ void HandleUI(void)
+@@ -2749,17 +2951,15 @@ void HandleUI(void)
  			parentstate = MENU_COMMON1;
  			int n;
  
@@ -247,7 +266,7 @@ index a8d8bd8..71d074e 100644
  				if (cfg.osd_lock[0] && !cfg.osd_lock_time)
  				{
  					MenuWrite(n++, " Lock OSD", menusub == 1, 0);
-@@ -6608,7 +6790,7 @@ void HandleUI(void)
+@@ -6608,7 +6808,7 @@ void HandleUI(void)
  		/* system menu */
  		/******************************************************************/
  	case MENU_SYSTEM1:
@@ -256,7 +275,7 @@ index a8d8bd8..71d074e 100644
  		{
  			menustate = MENU_NONE1;
  			break;
-@@ -6851,6 +7033,356 @@ void HandleUI(void)
+@@ -6851,6 +7051,356 @@ void HandleUI(void)
  		}
  		break;
  
