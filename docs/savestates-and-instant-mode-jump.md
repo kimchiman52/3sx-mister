@@ -80,6 +80,7 @@ No findings overlap between them.
 | SJ-23 | Quick Training reaches the same live match from ANY offline scene, not just the title — via the shipped soft-reset teardown | §10.2 | Edge cases closed |
 | SJ-24 | Wrapping the jump in the diagonal wipe (type 1) is sequential with the `No_Trans` cover, never overlapping | §10.3 | Wipe/cover are mutually exclusive |
 | SJ-25 | Quick Training reads/writes the SAME persisted training file with no drift; the OSD trigger is a live SIGRTMIN+5, no restart | §10.4 | No new persistence; live channel |
+| SJ-26 | `WipeLimit` is SHARED with the engine's own transitions, and `WipeOut` increments it OUTSIDE its `!No_Trans` guard — a cover hides the drawing, never the counter | §10.5 | Quick Training must defer, not start, on an in-flight wipe |
 
 ## Revision log
 
@@ -937,6 +938,49 @@ MiSTer hardware, and the ARM build + device deploy were out of scope for this
 lane. The patch was confirmed to apply cleanly against the pinned upstream
 `menu.cpp` (`3380931329b8...`). A device run is still needed to confirm
 end-to-end OSD behaviour.
+
+### 10.5 [SJ-26] `WipeLimit` is shared, and a cover does not stop it
+
+Found 2026-09-02, after §10.3 shipped, from a parallel investigation into
+driving the wipe from a replay viewer. It applies here too, narrowly.
+
+`ui/sc_sub.c` -> `WipeOut` / `WipeIn` and `system/sys_sub.c` ->
+`Switch_Screen_Init` / `Switch_Screen` / `Switch_Screen_Revival` operate on
+**one** module-level counter, `WipeLimit`, which the engine's own transitions
+already drive (`Switch_Screen_Init` call sites throughout `game.c`, plus
+`Sel_PL_Cont_*`, `Game_Manage_2_1`). Two consequences:
+
+1. **`Switch_Screen_Init` resets the counter.** It calls `WipeInit()`
+   (`WipeLimit = 0`) and also overwrites `Forbid_Break`, `Gap_Timer`,
+   `Stop_SG`, `Escape_SS`. Starting a Quick Training wipe on top of an engine
+   transition restarts that transition's wipe from zero and stomps its flags.
+2. **A cover suppresses the drawing, not the counter.** In `WipeOut`, the
+   `if (!No_Trans)` guard wraps only the `njDrawPolygon2D` loop —
+   `WipeLimit += 1;` sits *outside* it. So an engine wipe keeps advancing
+   while `No_Trans` is held.
+
+**In netplay this class is a desync**, because `Exec_Wipe` is in the save set
+(`GS_SAVE(Exec_Wipe)` / `GS_SAVE(Exec_Wipe_F)`, `game_state.c`) and gates
+effect routines -> RNG consumption. **That consequence does not reach Quick
+Training**: `qt_refusal()` rejects netplay sessions, direct-P2P orchestration,
+netplay nav, replay playback and the shuffle viewer, and the tick aborts if a
+session activates mid-sequence. The reachable damage here is an offline engine
+transition being silently retimed.
+
+**Fix: defer, don't refuse.** `QuickTraining_Tick` now holds the request while
+`Exec_Wipe != 0` rather than consuming it, bounded by `QT_DEFER_MAX_FRAMES`
+(240) so a wedged transition drops the request instead of arming forever.
+Refusing was rejected: the row is the first entry in the OSD, and a press that
+silently did nothing would read as a bug.
+
+**Also recorded, because it is easy to assume otherwise: there is no
+checkerboard wipe.** `WipeOut` offers exactly two shapes — type 0 is a
+28-band horizontal venetian blind (`for (i = 224; i > 0; i -= 8)`), and any
+non-zero type is a 76-band diagonal (`for (i = -224; i < 384; i += 8)`, with
+`wipe_p[2].x = 224.0f + wipe_p[0].x` doing the skew). Quick Training uses
+**type 1, the diagonal**, confirmed by the maintainer on a live host run
+2026-09-02. The `hnc_wipe*` table is the "Here Comes A New Challenger"
+banner, not a screen wipe.
 
 ## Appendix A — reproducing the measurements
 

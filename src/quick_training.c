@@ -57,6 +57,7 @@ typedef enum QtPhase {
 
 static QtPhase qt_phase = QT_IDLE;
 static bool qt_request;       /* set by QuickTraining_Request, consumed by the tick */
+static Uint32 qt_defer_frames; /* frames spent waiting out an engine wipe */
 static Uint32 qt_frame;       /* frames since the running sequence started */
 static Uint32 qt_phase_start; /* qt_frame at the current phase's entry */
 static int qt_teardown;       /* 0 = not started, 1 = LDREQ break requested, 2 = reset done */
@@ -68,6 +69,17 @@ static Uint32 qt_completions; /* finished sequences (read by the DEBUG test driv
  * title dash (the spike's title watchdog was 1200); DRAIN and WAIT_LIVE
  * mirror the spike's 600/900. Blowing one is a bug, not an expected path —
  * qt_fail() recovers to the title so the game stays usable. */
+/* An engine transition already in flight owns WipeLimit. Switch_Screen_Init
+ * would call WipeInit() and reset that counter to 0 under it, restarting the
+ * engine's wipe and stomping Forbid_Break/Gap_Timer/Stop_SG/Escape_SS with it
+ * -- WipeLimit is shared state, and note WipeOut's `WipeLimit += 1` sits
+ * OUTSIDE its `if (!No_Trans)` guard, so a cover suppresses the drawing but
+ * never the counter. So hold the request until Exec_Wipe clears rather than
+ * starting on top of it. Deferring beats refusing: the row is the first thing
+ * in the OSD, and a press that silently did nothing would read as a bug.
+ * Bounded so a wedged transition drops the request instead of arming forever. */
+#define QT_DEFER_MAX_FRAMES 240
+
 #define QT_TIMEOUT_GOTO_TITLE 1200
 #define QT_TIMEOUT_DRAIN 600
 #define QT_TIMEOUT_WAIT_LIVE 900
@@ -120,6 +132,7 @@ static void qt_begin(void) {
     qt_phase_start = 0;
     qt_teardown = 0;
     qt_stage = -1;
+    qt_defer_frames = 0;
 
     /* Last-used characters/arts from the persisted training config
      * (SJ-10: both training entry paths already restore from it; this is
@@ -202,8 +215,25 @@ void QuickTraining_Tick(void) {
         return;
     }
 
+    /* Hold, do not start, while an engine transition owns WipeLimit
+     * (see QT_DEFER_MAX_FRAMES). Checked before the request is consumed so the
+     * press survives the wait. */
+    if (qt_request && qt_phase == QT_IDLE && Exec_Wipe != 0) {
+        qt_defer_frames += 1;
+
+        if (qt_defer_frames <= QT_DEFER_MAX_FRAMES) {
+            return;
+        }
+
+        SDL_Log("quick-training: request dropped - engine wipe still active after %u frames", qt_defer_frames);
+        qt_request = false;
+        qt_defer_frames = 0;
+        return;
+    }
+
     if (qt_request) {
         qt_request = false;
+        qt_defer_frames = 0;
 
         if (qt_phase != QT_IDLE) {
             SDL_Log("quick-training: request ignored - sequence already running (phase=%d)", (int)qt_phase);
