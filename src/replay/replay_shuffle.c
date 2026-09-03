@@ -29,10 +29,11 @@
  *     why this module never leans on the boot path.
  *
  *  3. The player's title -> menu -> char-select -> game walk is never
- *     short-circuited. PHASE_GAME's first act is `if (game_ended()) finish()`
- *     where game_ended() is `PL_Wins[0] == 2 || PL_Wins[1] == 2`, and
- *     PL_Wins is zeroed by Game01_Sub() — NOT by Soft_Reset_Sub(). Only the
- *     full walk clears it; skip it and replay N+1 terminates at frame 0.
+ *     short-circuited. PHASE_GAME ends on `game_ended()`, i.e.
+ *     `PL_Wins[0] == 2 || PL_Wins[1] == 2` (via the bounded PHASE_POSTMATCH
+ *     window that plays the round-end animation out first), and PL_Wins is
+ *     zeroed by Game01_Sub() — NOT by Soft_Reset_Sub(). Only the full walk
+ *     clears it; skip it and replay N+1 terminates at frame 0.
  *
  *  4. The transition delay is shorter than the overlay's own message hold.
  *     ReplayOverlay_Draw's complete_hold latches to RPL_OVL_COMPLETE_HOLD
@@ -89,7 +90,14 @@
 
 /* Frames the terminal overlay is left on screen before the next replay is
  * loaded. Mirrors the deleted browser's RB_RETURN_LINGER_FRAMES, and stays
- * under RPL_OVL_COMPLETE_HOLD (180) so "REPLAY COMPLETE" is still up. */
+ * under RPL_OVL_COMPLETE_HOLD (180) so "REPLAY COMPLETE" is still up.
+ *
+ * This does NOT compose with the player's post-match window
+ * (REPLAY_POSTMATCH_MAX_FRAMES, replay_player.c) into a doubled dead gap. That
+ * window runs BEFORE the player is terminal — the engine is still animating
+ * the KO and win pose, status is still PLAYING, and the overlay's complete_hold
+ * has not latched (it latches on the first COMPLETE frame). The frozen part of
+ * the gap is still these 90 frames. */
 #define RS_TRANSITION_FRAMES 90
 
 /* Hold-to-skip. SWK_NORTH is MP: the C1 player never reads it (it reads only
@@ -572,9 +580,14 @@ void ReplayShuffle_Tick(void) {
     }
 
     case RS_TRANSITION:
-        /* The player freezes every frame while terminal (s_browser_owned), so
-         * the last rendered frame plus the overlay stay on screen throughout.
-         * A skip during the hold just shortens it. */
+        /* The player freezes every frame while terminal (s_browser_owned).
+         * Those held frames render BLACK with only the overlay text on them —
+         * nothing of the last battle frame is retained (replay_player.c's
+         * s_stall_frame comment has the render-path proof). So this hold is a
+         * black "REPLAY COMPLETE" card between replays, not a freeze-frame;
+         * the round-end animation the viewer sees is played live BEFORE it, in
+         * the player's PHASE_POSTMATCH window. A skip during the hold just
+         * shortens it. */
         if (rs_handle_skip()) {
             break;
         }

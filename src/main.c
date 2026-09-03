@@ -959,9 +959,14 @@ static void game_step_0() {
         DirectP2P_Tick();
         step0_phase_end(STEP0_PHASE_NETPLAY);
     } else if (replay_frame_hold) {
-        /* Engine tick held. Draw the replay overlay over the last rendered
-         * frame and flush the 2D buffer, mirroring the netplay-stall branch
-         * above.
+        /* Engine tick held. Draw the replay overlay and flush the 2D buffer,
+         * mirroring the netplay-stall branch above. Skipping njUserMain here
+         * means the frame carries NO game geometry: SoftwareRenderer_RenderFrame
+         * clears the canvas to opaque black every frame and draws only the
+         * quads submitted since the last one, so a held frame is black plus
+         * whatever these two Draw calls put on it. That is the intended
+         * "freeze + message" card, not a retained freeze-frame — see
+         * replay_player.c's s_stall_frame comment.
          *
          * The three phase_end calls are not decoration: step0_phase_end()
          * accumulates (now - mark) into a phase and advances the mark, so a

@@ -79,7 +79,8 @@ typedef enum Phase {
     PHASE_CHARACTER_SELECT,
     PHASE_GAME_TRANSITION,
     PHASE_GAME,
-    PHASE_DONE, /* complete/desynced/aborted — pads released, module idle */
+    PHASE_POSTMATCH, /* KO landed; the engine plays the round-end tail out */
+    PHASE_DONE,      /* complete/desynced/aborted — pads released, module idle */
 } Phase;
 
 static bool loaded = false;
@@ -135,12 +136,98 @@ static Uint32 checksums_skipped_nonbattle = 0;
 static Uint32 checksums_r16_resynced = 0;
 
 /* THIS frame is held: the engine tick is skipped entirely (main.c reads
- * ReplayPlayer_IsStallingThisFrame and branches around njUserMain) while the
- * last rendered frame + the replay overlay stay on screen. Set by finish()
- * and tick_terminal() below — it is the mechanism the qix-trap freeze is
- * built out of, not a streaming leftover. Also read by Epilogue, which must
- * not advance the play cursor across a frame the engine never ran. */
+ * ReplayPlayer_IsStallingThisFrame and branches around njUserMain). Set by
+ * finish() and tick_terminal() below — it is the mechanism the qix-trap
+ * freeze is built out of, not a streaming leftover. Also read by Epilogue,
+ * which must not advance the play cursor across a frame the engine never ran.
+ *
+ * A HELD FRAME RENDERS BLACK, not the last battle frame. There is no retained
+ * scene: SDLApp_EndFrame calls SoftwareRenderer_RenderFrame() every frame,
+ * and RenderFrame -> render_band -> clear_band fills the canvas with
+ * 0xFF000000 before drawing this frame's `quads`, then arrsetlen(quads, 0)
+ * empties the queue. The held branch in main.c's game_step_0 skips
+ * njUserMain (Game_Task -> BG_Draw_System / reqPlayerDraw) and
+ * seqsAfterProcess (-> Renderer_DrawSprites2Batch), so the ONLY quads a held
+ * frame submits are the ones ReplayOverlay_Draw / ReplayShuffle_Draw put
+ * there. Black plus overlay text is the whole picture — which is exactly why
+ * PHASE_POSTMATCH below exists: the freeze is a cut to black, so the KO and
+ * win pose have to be played out BEFORE it, not behind it. */
 static bool s_stall_frame = false;
+
+/* Post-match window: let the round-end animation PLAY before freezing.
+ *
+ * game_ended() (PL_Wins == 2) goes true on the winning hit, and finish()
+ * freezes the whole frame from that tick on. Cutting there is correct for
+ * safety but reads as a hard stop on the KO — no fall, no win pose, no
+ * winner message — and worse, a held frame renders BLACK (see s_stall_frame),
+ * so it is a cut to black ON the winning hit. What this window buys is
+ * LIVE-RENDERED frames: the animation has to play before the freeze, because
+ * nothing plays behind it. So instead of finishing on that frame we hand the
+ * engine a BOUNDED number of further frames (PHASE_POSTMATCH), with NEUTRAL
+ * pads and no checkpointing, and only then call finish() exactly as before.
+ * The black "REPLAY COMPLETE" card still lands — after the round-end
+ * presentation now, rather than in place of it.
+ *
+ * WHY IT IS STILL SAFE. The trap this defers (see the block comment below)
+ * lives in Game_Manage_10th — Management_Jmp_Tbl[C_No[0]] index 9, so it runs
+ * only at C_No[0] == 9. Reaching it from where the KO leaves us is a one-way
+ * climb through C_No[0] == 7 and 8: every PL_Wins increment in manage.c fires
+ * at C_No[0] <= 6 (Game_Manage_4th, Game_Manage_6_1's complete-judgement
+ * tail), and the ONLY assignments that take C_No[0] above 6 from there are
+ * `C_No[0] = 7` / `C_No[0] = 12` (Game_Manage_6th case 1, Game_Manage_7_3,
+ * Game_Manage_7_6's C_No[0]++) — `C_No[0] = 10` lives inside Game_Manage_9th,
+ * which is already past 6. So `C_No[0] > 6` is a complete "the round-end
+ * presentation is over, the teardown flow is starting" tell, and it is where
+ * the window ends — one full stage before Game_Manage_10th can run.
+ *
+ * HOW THE CAP WAS MEASURED (2026-09-02, host, three real .3sr files —
+ * 3sr-out/{1783909831386-3826,1784866348472-2003,1784866353037-3646}/game_0):
+ * a temporary probe logged G_No[]/C_No[]/Game_pause/Disp_Cockpit every frame
+ * after game_ended() while letting the engine free-run. The three runs agreed
+ * closely:
+ *
+ *     event                                   replay A / B / C   (frames
+ *                                                                 after
+ *                                                                 game_ended)
+ *     C_No[0] > 6   (win pose + message done)     365 / 370 / 328
+ *     Disp_Cockpit == 0  (HUD torn down)          495 / 500 / 458
+ *     G_No[1] != 2  (left the in-game state)      579 / 584 / 542
+ *
+ * REPLAY_POSTMATCH_MAX_FRAMES is the backstop for the case where the C_No[0]
+ * guard somehow never fires (e.g. a win pose that stalls). 420 sits above the
+ * worst measured presentation length (370) and below the EARLIEST measured
+ * screen teardown (458), so the cap alone stops the engine before it leaves
+ * the battle screen even with the state guard removed. Re-derive by
+ * reinstating the probe, not by guessing.
+ *
+ * HEADROOM, if a later change wants a longer window. From C_No[0] == 7 the
+ * shortest possible path to Game_Manage_10th's Switch_Screen_Init(0) is about
+ * 198 frames of fixed countdowns with neutral pads (Game_Manage_8_0 1 +
+ * 81_0 20 + 81_1 + 81_2 20 + 81_3 + 8_2 50 + 8_3 30 + Game_Manage_9th 1 +
+ * Game_Manage_10th's Button_Cut_EX(C_Timer = 75)), and the Scene_Cut
+ * shortcuts in 8_3 / 7_6 need SWK_ATTACKS in p1sw_0/p2sw_0, which this window
+ * never injects. So there is real room past where we stop; we stop early
+ * because the score tally is not "the round ending", not because it is unsafe.
+ *
+ * WHAT THE PROBE COULD NOT CONFIRM. The s_browser_owned comment below
+ * attributes the fatal "qix is out of range" to Game_Manage_10th. The probe
+ * free-ran three replays 25,000+ frames past game_ended() — through
+ * Game_Manage_10th, the continue flow, char select and into a whole further
+ * match — and never tripped it. So that attribution is UNVERIFIED here. It is
+ * not a reason to drop the freeze: the fatal is real (it is what ff626551 was
+ * written for), the reproducer is simply not these three files. The safety
+ * argument above deliberately does not lean on the free-run result.
+ *
+ * ONLY THE MATCH END IS AFFECTED. game_ended() is PL_Wins == 2, i.e. the
+ * match; between rounds it stays false and PHASE_GAME keeps injecting
+ * recorded inputs (including the inter-round skip taps) exactly as before.
+ * The probe runs confirmed one PHASE_POSTMATCH entry per replay.
+ *
+ * The pads are held NEUTRAL here on purpose: inter_round_skip_needed() would
+ * otherwise mash SWK_ATTACKS through Game_Manage_7_2's Button_Cut_EX and skip
+ * the very animation this window exists to show. */
+#define REPLAY_POSTMATCH_MAX_FRAMES 420
+static int postmatch_frames = 0;
 
 /* Post-terminal freeze + teardown (qix-trap fix). A .3sr is a VIEWER of a
  * recorded stream: the recording ends at match end, but the game's LIVE
@@ -459,12 +546,15 @@ static void reset_runtime_state(void) {
     s_browser_owned = false;
     terminal_linger = 0;
     terminal_exit_requested = false;
+    postmatch_frames = 0;
 }
 
 /* True while the player is holding the whole engine frame (see s_stall_frame).
- * main.c skips njUserMain and draws the overlay over the last frame instead —
- * that hold is what keeps the game's post-match flow from free-running into
- * the qix effect trap once playback reaches a terminal state. */
+ * main.c skips njUserMain and draws only the overlay — the frame comes out
+ * black with the overlay text on it, not a frozen battle scene (see
+ * s_stall_frame). That hold is what keeps the game's post-match flow from
+ * free-running into the qix effect trap once playback reaches a terminal
+ * state. */
 bool ReplayPlayer_IsStallingThisFrame(void) {
     return s_stall_frame;
 }
@@ -953,10 +1043,15 @@ static void finish(const char* reason) {
     /* Freeze from this very frame. finish() fires at match end (inputs
      * exhausted / game_ended: a player just hit 2 wins) — the LAST recorded
      * frame was already simulated on the prior tick, and the game's live
-     * win-pose flow (Game_Manage_10th) would start THIS frame if njUserMain
-     * ran. Holding now (main.c skips njUserMain when we stall) stops that flow
+     * post-match flow (Game_Manage_10th) would keep running if njUserMain did.
+     * Holding now (main.c skips njUserMain when we stall) stops that flow
      * before it can push the out-of-range win-pose effect WORK that trips the
-     * qix trap (effect.c:229). tick_terminal keeps the hold on later ticks. */
+     * qix trap (effect.c:229). tick_terminal keeps the hold on later ticks.
+     *
+     * From this frame on the screen is BLACK plus the overlay message — a held
+     * frame retains nothing (see s_stall_frame). The KO and win pose have
+     * already played by the time we get here: PHASE_POSTMATCH runs them live
+     * first, and calls us on the tick it sees C_No[0] > 6. */
     s_stall_frame = true;
     SDL_Log("REPLAY COMPLETE frames=%u checksums=%u/%u r16_resyncs=%u%s reason=%s",
             play_index,
@@ -985,8 +1080,9 @@ static void finish(const char* reason) {
  * then tear the session down per ownership. Runs every tick while terminal. */
 static void tick_terminal(void) {
     /* Freeze: main.c reads ReplayPlayer_IsStallingThisFrame() and skips
-     * njUserMain (and thus Game_Management -> Game_Manage_10th) this frame,
-     * leaving the last battle frame + the terminal overlay on screen. Pads stay
+     * njUserMain (and thus Game_Management -> Game_Manage_10th) this frame.
+     * The screen goes BLACK with just the terminal overlay on it — nothing is
+     * retained from the last battle frame (see s_stall_frame). Pads stay
      * released so nothing the frozen engine might still read is pressed. */
     s_stall_frame = true;
     p1sw_buff = 0;
@@ -1200,9 +1296,18 @@ void ReplayPlayer_Tick(void) {
              * post-KO win-pose tail (RAM game-state G_No[1] stays == 2 through
              * the whole win pose, so it keeps emitting checkpoints there —
              * see docs/plan-fix-diverged-falsepositive.md), not further
-             * battle — so they never indicate a real divergence here. */
-            finish("game-ended");
-            return;
+             * battle — so they never indicate a real divergence here.
+             *
+             * Rather than finish() on this very frame — which froze the engine
+             * on the winning hit — hand it a bounded post-match window so the
+             * KO and win pose actually play (REPLAY_POSTMATCH_MAX_FRAMES block
+             * comment). finish() still runs, just later and unchanged. */
+            phase = PHASE_POSTMATCH;
+            postmatch_frames = 0;
+            /* Neutral pads this frame (input_buffers were zeroed above) and
+             * the engine ticks normally; the window is counted from the next
+             * tick, in case PHASE_POSTMATCH below. */
+            break;
         }
 
         pure_words[0] = replay.inputs[play_index][0];
@@ -1213,6 +1318,22 @@ void ReplayPlayer_Tick(void) {
         if (inter_round_skip_needed()) {
             tap_button(SWK_ATTACKS, 0);
             tap_button(SWK_ATTACKS, 1);
+        }
+
+        break;
+
+    case PHASE_POSTMATCH:
+        /* Pads stay neutral (input_buffers were zeroed above) and the play
+         * cursor stays put — Epilogue only checkpoints/advances in PHASE_GAME,
+         * so the recording's post-KO tail is never compared against the win
+         * pose we are letting run. The KO and win pose are engine-driven, not
+         * input-driven, so neutral is all they need. */
+        postmatch_frames += 1;
+        if (C_No[0] > 6 || postmatch_frames >= REPLAY_POSTMATCH_MAX_FRAMES) {
+            SDL_Log("replay: round-end tail played for %d frame(s) (C_No[0]=%u, cap %d) — freezing now",
+                    postmatch_frames, C_No[0], REPLAY_POSTMATCH_MAX_FRAMES);
+            finish("game-ended");
+            return;
         }
 
         break;
