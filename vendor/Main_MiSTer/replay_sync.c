@@ -3,14 +3,15 @@
  *
  * One refresh cycle is:
  *
- *   1. up to three paged `search` calls (offset 0/50/100, limit 50) with
- *      best=true, gameid=sfiii3nr1 and the weekly `since` — RP_MAX_ROWS is a
- *      hard server-side cap of 50, so a 150-row set is three requests, not one;
+ *   1. paged `search` calls (offset 0/50/100, limit 50) with best=true,
+ *      gameid=sfiii3nr1 and the weekly `since`, until RS_SET_MAX quarks are in
+ *      hand — RP_MAX_ROWS is a hard server-side cap of 50, so a 90-quark set is
+ *      two requests, not one;
  *   2. one `get3sr` fetch-all per quarkid that is not already on disk, paced
  *      apart so we never burst at the upstream API;
  *   3. one rewrite of <replay_root>/manifest.json.
  *
- * The set is the first 150 rows IN SERVER ORDER. No client-side sort and no
+ * The set is the first RS_SET_MAX rows IN SERVER ORDER. No client-side sort and no
  * ranking key of our own: the viewer shuffles, so any ordering we imposed would
  * be thrown away immediately.
  *
@@ -39,14 +40,32 @@
  * every Fightcade match is played on). */
 #define RS_GAMEID "sfiii3nr1"
 
-/* 150 rows = three pages of RP_MAX_ROWS. The cap is ours, not the server's. */
-#define RS_SET_MAX 150
+/* How many quarks the weekly set downloads. The cap is ours, not the server's.
+ *
+ * SIZED AGAINST RB_MAX_ENTRIES (src/replay/replay_browser_scan.h) — CHANGE
+ * BOTH. A quark is a whole session between two players, not one game: over 15
+ * real quarks it holds 5.7 games on average (median 5), and each game lands as
+ * its own game_N.3sr that the game side enumerates as one RbEntry. So the two
+ * caps are one arithmetic:
+ *
+ *     RB_MAX_ENTRIES / 5.7 games-per-quark = quarks worth downloading
+ *     512 / 5.7 = 89.8  ->  RS_SET_MAX = 90
+ *
+ * At the old 150 the wrapper downloaded ~60 quarks past what RbScan could
+ * ever enumerate — bandwidth and SD writes for replays the viewer never saw. */
+#define RS_SET_MAX 90
+
+/* Search pages to walk at RP_MAX_ROWS rows each. rs_search_take() also stops
+ * early on `s_quark_count >= RS_SET_MAX`, so this is the ceiling on requests,
+ * not on the set: it only has to be able to SUPPLY RS_SET_MAX quarks once
+ * duplicates across pages are deduped. */
 #define RS_PAGES 3
 
-/* Compile-time proof that RS_SET_MAX really is RS_PAGES full pages: if
- * replay_proxy's cap ever moves, this fails to compile instead of silently
- * fetching a short or over-long set. */
-typedef char rs_pagecount_static_assert[(RS_SET_MAX == RS_PAGES * RP_MAX_ROWS) ? 1 : -1];
+/* Compile-time proof that RS_PAGES pages can actually supply RS_SET_MAX: if
+ * either cap or replay_proxy's row cap moves such that the pages can no longer
+ * fill the set, this fails to compile instead of silently fetching a short
+ * set. */
+typedef char rs_pagecount_static_assert[(RS_SET_MAX <= RS_PAGES * RP_MAX_ROWS) ? 1 : -1];
 
 /* ---- Time ---------------------------------------------------------------- */
 
@@ -466,8 +485,9 @@ static void rs_fetch_kick(void) {
      * loop is what keeps the daily refresh cheap.
      *
      * Bounded per tick: each skip costs two stat()s, and on a fully-warm set the
-     * whole 150 would otherwise be walked inside ONE iteration of the wrapper's
-     * ~1 kHz loop. Spreading them over successive ticks keeps every call short. */
+     * whole RS_SET_MAX would otherwise be walked inside ONE iteration of the
+     * wrapper's ~1 kHz loop. Spreading them over successive ticks keeps every
+     * call short. */
     int skipped_here = 0;
     while (s_fetch_i < s_quark_count && skipped_here < RS_SKIP_PER_TICK && rs_quark_cached(s_quarks[s_fetch_i])) {
         s_ok[s_fetch_i] = true;

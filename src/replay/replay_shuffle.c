@@ -42,6 +42,16 @@
  *     deleted browser's RB_RETURN_LINGER_FRAMES) keeps the screen alive
  *     across the whole transition.
  *
+ * WHAT "SHUFFLE" MEANS HERE. The unit of shuffling is the QUARK, not the
+ * file. A Fightcade quark is a whole session between two players, downloaded
+ * whole by the wrapper as <replays_root>/<quarkid>/game_N.3sr (replay_sync.c
+ * -> rs_fetch_kick, replay_proxy.c -> fetch3sr_write_game); over 15 real
+ * quarks it holds 5.7 games on average. Shuffling the flat file list
+ * interleaved the same pairing at random, which both watches badly and made
+ * the natural repetition look like a shuffle bug. So: group by quark, shuffle
+ * the QUARK order, and play each quark's games in game_N index order before
+ * moving to the next quark. Show the whole set.
+ *
  * WHERE THE TICK RUNS. Before ReplayPlayer_Tick(), not after it (where
  * ReplayBrowser_Tick() used to sit). ReplayPlayer_Tick reads
  * (p1sw_buff | p2sw_buff) & SWK_START for its own hold-to-exit and then
@@ -142,8 +152,20 @@ static bool s_cli_enable = false;
 static const char* s_cli_root = NULL;
 
 static RbEntry s_entries[RB_MAX_ENTRIES];
-static int s_count = 0;              /* playable (non-needs_conversion) entries */
-static Uint16 s_order[RB_MAX_ENTRIES]; /* shuffled permutation of [0, s_count) */
+static int s_count = 0; /* playable (non-needs_conversion) entries */
+
+/* The quark grouping. rs_group() sorts s_entries so that one quark's games are
+ * CONTIGUOUS and in game_N index order, then records each run here:
+ * s_group_start[g] is its first entry index, s_group_len[g] its game count.
+ * s_group_order is the shuffled permutation of [0, s_group_count) — the only
+ * thing randomized. s_order is the flattened play order it expands to, so
+ * rs_start_next() still just walks entry indices one slot at a time. */
+static Uint16 s_group_start[RB_MAX_ENTRIES];
+static Uint16 s_group_len[RB_MAX_ENTRIES];
+static Uint16 s_group_order[RB_MAX_ENTRIES];
+static int s_group_count = 0;
+
+static Uint16 s_order[RB_MAX_ENTRIES]; /* quark-grouped permutation of [0, s_count) */
 static int s_cursor = 0;             /* next slot of s_order to play */
 static int s_current = -1;           /* entry index of the replay on screen */
 static Uint32 s_played = 0;          /* replays started this session (1-based counter) */
@@ -201,6 +223,172 @@ const char* ReplayShuffle_GetRoot(void) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Quark grouping                                                         */
+/* ---------------------------------------------------------------------- */
+
+/* Lines of per-quark detail rs_group() will log. A weekly set is ~90 quarks;
+ * dumping all of them would bury everything else, and the first two dozen are
+ * enough to read the grouping back out of a log. */
+#define RS_GROUP_LOG_MAX 24
+
+/* The grouping key for an entry: the <quarkid> directory component of its
+ * path.
+ *
+ * RbScan walks the root flat plus EXACTLY ONE level of subdirectories
+ * (replay_browser_scan.c -> RbScan), and that one level is precisely the
+ * directory the fetcher writes a quark into —
+ * <replays_root>/<quarkid>/game_N.{3sr,meta.json} (replay_proxy.c ->
+ * fetch3sr_write_game). So the first path component below the root IS the
+ * quark id; no sidecar field and no extra stat() is needed.
+ *
+ * FILES AT THE ROOT have no quark. They are hand-dropped .3sr files rather
+ * than anything the fetcher produced, and nothing says two of them belong to
+ * the same session. DECISION: each root-level file is its own single-game
+ * group. That falls out of keying it on its own full path — unique per entry —
+ * so the run detection below gives it a group of one and the quark shuffle
+ * then scatters root-level files individually, exactly as the old per-file
+ * shuffle did. */
+static void rs_quark_key(const RbEntry* e, char* out, size_t out_sz) {
+    const char* root = ReplayShuffle_GetRoot();
+    size_t rlen = SDL_strlen(root);
+    /* RbScan composes children as "<root>/<child>"; tolerate a root that was
+     * configured with a trailing slash. */
+    while (rlen > 0 && root[rlen - 1] == '/') {
+        rlen -= 1;
+    }
+
+    if (rlen > 0 && SDL_strncmp(e->path, root, rlen) == 0 && e->path[rlen] == '/') {
+        const char* rel = e->path + rlen + 1;
+        const char* slash = SDL_strchr(rel, '/');
+        if (slash != NULL) {
+            size_t n = (size_t)(slash - rel);
+            if (n >= out_sz) {
+                n = out_sz - 1;
+            }
+            SDL_memcpy(out, rel, n);
+            out[n] = '\0';
+            return;
+        }
+    }
+
+    SDL_strlcpy(out, e->path, out_sz);
+}
+
+/* The key's job is uniqueness, not readability: a real quark keys on its
+ * quarkid, a root-level loner on its whole path. Log the loner as just its
+ * filename so an absolute path does not swamp the quark-order line. */
+static const char* rs_key_display(const char* key) {
+    const char* base = key;
+    for (const char* p = key; *p != '\0'; p++) {
+        if (*p == '/' || *p == '\\') {
+            base = p + 1;
+        }
+    }
+    return base;
+}
+
+/* `game_N` -> N. The label is the basename with ".3sr" stripped
+ * (replay_browser_scan.c -> label_from_path), so the index is the digit run at
+ * its end. Returns false when the name is not of that shape.
+ *
+ * PARSED, NOT COMPARED LEXICALLY, on purpose: "game_10" sorts BEFORE "game_2".
+ * Quarks that long are uncommon but the fetcher does write them (game_index
+ * comes straight from the server), and a lexical order would silently show
+ * game 10 second. */
+static bool rs_game_index(const RbEntry* e, long* out) {
+    const size_t len = SDL_strlen(e->label);
+    size_t i = len;
+    while (i > 0 && e->label[i - 1] >= '0' && e->label[i - 1] <= '9') {
+        i -= 1;
+    }
+    if (i == len || i == 0 || e->label[i - 1] != '_') {
+        return false;
+    }
+    *out = SDL_strtol(e->label + i, NULL, 10);
+    return true;
+}
+
+/* Total order: quark key, then game index, then label. Entries whose name is
+ * not `*_<digits>` sort after the numbered ones inside their quark rather than
+ * being dropped — the viewer plays everything it scanned. */
+static int rs_entry_cmp(const void* pa, const void* pb) {
+    const RbEntry* a = (const RbEntry*)pa;
+    const RbEntry* b = (const RbEntry*)pb;
+
+    char ka[RB_PATH_MAX];
+    char kb[RB_PATH_MAX];
+    rs_quark_key(a, ka, sizeof(ka));
+    rs_quark_key(b, kb, sizeof(kb));
+
+    const int q = SDL_strcmp(ka, kb);
+    if (q != 0) {
+        return q;
+    }
+
+    long ia = 0;
+    long ib = 0;
+    const bool ha = rs_game_index(a, &ia);
+    const bool hb = rs_game_index(b, &ib);
+    if (ha && hb) {
+        if (ia < ib) {
+            return -1;
+        }
+        if (ia > ib) {
+            return 1;
+        }
+    } else if (ha != hb) {
+        return ha ? -1 : 1;
+    }
+
+    return SDL_strcmp(a->label, b->label);
+}
+
+/* Sort s_entries into quark-contiguous, game-index order and record the runs.
+ * Called once per scan; the shuffle then permutes only the run order. */
+static void rs_group(void) {
+    s_group_count = 0;
+    if (s_count <= 0) {
+        return;
+    }
+
+    SDL_qsort(s_entries, (size_t)s_count, sizeof(s_entries[0]), rs_entry_cmp);
+
+    char prev[RB_PATH_MAX];
+    prev[0] = '\0';
+
+    for (int i = 0; i < s_count; i++) {
+        char key[RB_PATH_MAX];
+        rs_quark_key(&s_entries[i], key, sizeof(key));
+
+        if (s_group_count == 0 || SDL_strcmp(key, prev) != 0) {
+            s_group_start[s_group_count] = (Uint16)i;
+            s_group_len[s_group_count] = 0;
+            s_group_count += 1;
+            SDL_strlcpy(prev, key, sizeof(prev));
+        }
+        s_group_len[s_group_count - 1] += 1;
+    }
+
+    /* Tenths without floating point, so the line reads the same on every
+     * libc: 57 -> "5.7 games/quark". */
+    const int tenths = (s_count * 10 + s_group_count / 2) / s_group_count;
+    SDL_Log("replay-shuffle: %d playable replay(s) group into %d quark(s) — %d.%d games/quark", s_count,
+            s_group_count, tenths / 10, tenths % 10);
+
+    const int shown = s_group_count < RS_GROUP_LOG_MAX ? s_group_count : RS_GROUP_LOG_MAX;
+    for (int g = 0; g < shown; g++) {
+        const int start = (int)s_group_start[g];
+        char key[RB_PATH_MAX];
+        rs_quark_key(&s_entries[start], key, sizeof(key));
+        SDL_Log("replay-shuffle:   quark %d '%s' — %d game(s), entries %d..%d (first '%s')", g, rs_key_display(key),
+                (int)s_group_len[g], start, start + (int)s_group_len[g] - 1, s_entries[start].label);
+    }
+    if (shown < s_group_count) {
+        SDL_Log("replay-shuffle:   ... and %d more quark(s) not listed", s_group_count - shown);
+    }
+}
+
+/* ---------------------------------------------------------------------- */
 /* Shuffle RNG                                                            */
 /* ---------------------------------------------------------------------- */
 
@@ -234,38 +422,60 @@ static void rs_seed(void) {
     SDL_Log("replay-shuffle: seeded from performance counter + ns clock (seed=%016" SDL_PRIx64 ")", seed);
 }
 
-/* Fisher-Yates over s_order. Logs the resulting head of the order so two
- * boots can be compared from the log alone. */
+/* Fisher-Yates over the QUARK order (s_group_order), then flatten it into the
+ * entry play order (s_order). Only the quark order is randomized: inside a
+ * quark the games stay in the game_N order rs_group() sorted them into, so a
+ * session is always watched start to finish.
+ *
+ * Logs the head of the quark order by quarkid, so two boots can be compared
+ * from the log alone — and so it is visible that what moved is the quark
+ * order, not the order within one. */
 static void rs_shuffle(void) {
-    for (int i = 0; i < s_count; i++) {
-        s_order[i] = (Uint16)i;
+    for (int g = 0; g < s_group_count; g++) {
+        s_group_order[g] = (Uint16)g;
     }
 
-    for (int i = s_count - 1; i > 0; i--) {
-        const int j = (int)(rs_rand() % (Uint32)(i + 1));
-        const Uint16 t = s_order[i];
-        s_order[i] = s_order[j];
-        s_order[j] = t;
+    for (int g = s_group_count - 1; g > 0; g--) {
+        const int j = (int)(rs_rand() % (Uint32)(g + 1));
+        const Uint16 t = s_group_order[g];
+        s_group_order[g] = s_group_order[j];
+        s_group_order[j] = t;
+    }
+
+    int flat = 0;
+    for (int i = 0; i < s_group_count; i++) {
+        const int g = (int)s_group_order[i];
+        for (int k = 0; k < (int)s_group_len[g]; k++) {
+            s_order[flat] = (Uint16)((int)s_group_start[g] + k);
+            flat += 1;
+        }
     }
 
     s_cursor = 0;
     s_shuffles += 1;
 
-    /* One compact line: the permutation head plus the label of its first
-     * entry. Bounded so a 256-entry set cannot spam the log. */
-    char head[192];
+    /* One compact line: the head of the quark order plus the first game it
+     * will play. Bounded so a 90-quark set cannot spam the log. `flat` is
+     * logged rather than asserted — every entry belongs to exactly one group,
+     * so it must equal s_count, and a mismatch would be visible here in a
+     * release build too. */
+    char head[320];
     int n = 0;
     head[0] = '\0';
-    for (int i = 0; i < s_count && i < 12; i++) {
-        const int written = SDL_snprintf(head + n, sizeof(head) - (size_t)n, "%s%d", i ? "," : "", (int)s_order[i]);
+    for (int i = 0; i < s_group_count && i < 8; i++) {
+        char key[RB_PATH_MAX];
+        rs_quark_key(&s_entries[s_group_start[s_group_order[i]]], key, sizeof(key));
+        const int written =
+            SDL_snprintf(head + n, sizeof(head) - (size_t)n, "%s%s", i ? "," : "", rs_key_display(key));
         if (written <= 0 || (size_t)(n + written) >= sizeof(head)) {
             break;
         }
         n += written;
     }
 
-    SDL_Log("replay-shuffle: shuffle #%u of %d replay(s) — order=[%s%s] first='%s'", s_shuffles, s_count, head,
-            s_count > 12 ? ",..." : "", s_count > 0 ? s_entries[s_order[0]].label : "(none)");
+    SDL_Log("replay-shuffle: shuffle #%u of %d quark(s) / %d replay(s) — quark order=[%s%s] first='%s'", s_shuffles,
+            s_group_count, flat, head, s_group_count > 8 ? ",..." : "",
+            s_group_count > 0 ? s_entries[s_order[0]].label : "(none)");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -276,7 +486,10 @@ static void rs_shuffle(void) {
  * needs_conversion entries are raw Fightcade fetch directories (inputs +
  * savestate, no `.3sr` yet — replay_browser_scan.h) whose `path` is a
  * directory, not a file: ReplayPlayer_LoadAndStart would fail on every one.
- * No RbSort: the order is about to be randomized anyway. */
+ *
+ * No RbSort — its newest-date-first order is not the one the viewer wants.
+ * rs_group() re-sorts into quark/game_N order instead, which is the order
+ * playback actually uses, and the quark order on top of it is randomized. */
 static void rs_scan(void) {
     const char* root = ReplayShuffle_GetRoot();
 
@@ -297,6 +510,8 @@ static void rs_scan(void) {
 
     SDL_Log("replay-shuffle: scan of '%s' found %d entr(ies), %d playable (%d awaiting conversion, skipped)", root,
             found, s_count, found - s_count);
+
+    rs_group();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -409,9 +624,15 @@ static void rs_start_next(void) {
             s_transition_frames = 0;
             s_hud_logged = false;
             s_state = RS_PLAYING;
-            SDL_Log("replay-shuffle: now playing #%u (entry %d, slot %d/%d) '%s' — %s vs %s — %s", s_played, idx,
-                    s_cursor, s_count, e->label, e->p1[0] ? e->p1 : "(unknown)", e->p2[0] ? e->p2 : "(unknown)",
-                    e->path);
+
+            /* The quark is named on every line on purpose: it is what makes
+             * "these five played back to back" readable straight out of a
+             * log, without cross-referencing paths. */
+            char key[RB_PATH_MAX];
+            rs_quark_key(e, key, sizeof(key));
+            SDL_Log("replay-shuffle: now playing #%u (quark '%s' game '%s', entry %d, slot %d/%d) — %s vs %s — %s",
+                    s_played, rs_key_display(key), e->label, idx, s_cursor, s_count, e->p1[0] ? e->p1 : "(unknown)",
+                    e->p2[0] ? e->p2 : "(unknown)", e->path);
             return;
         }
 

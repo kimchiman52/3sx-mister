@@ -41,10 +41,23 @@
 #define RB_PATH_MAX 1024
 #define RB_DATE_MAX 16 /* "YYYY-MM-DD\0" */
 
-/* Hard cap on entries a single scan will collect. A flat Fightcade corpus of
- * a few hundred games is the realistic upper bound; beyond this the scan
- * stops and logs, rather than growing unbounded. */
-#define RB_MAX_ENTRIES 256
+/* Hard cap on entries a single scan will collect; beyond this the scan stops
+ * and logs, rather than growing unbounded.
+ *
+ * SIZED AGAINST RS_SET_MAX (vendor/Main_MiSTer/replay_sync.c) — CHANGE BOTH.
+ * The wrapper downloads whole Fightcade *quarks*, and one quark is a whole
+ * session between two players: measured over 15 real quarks it holds 5.7
+ * games on average (median 5). So the two caps are one arithmetic:
+ *
+ *     RB_MAX_ENTRIES / 5.7 games-per-quark = quarks the game can enumerate
+ *     512 / 5.7 = 89.8  ->  RS_SET_MAX = 90
+ *
+ * Raising this without raising RS_SET_MAX just leaves the array empty;
+ * raising RS_SET_MAX without raising this makes the wrapper download quarks
+ * the scan will never reach. An RbEntry is ~1.2 KB, so 512 costs ~600 KB of
+ * .bss — nothing on the DE10-Nano's 1 GB (the headroom fight on this project
+ * is CPU, not memory). */
+#define RB_MAX_ENTRIES 512
 
 typedef struct RbEntry {
     char path[RB_PATH_MAX];   /* full path to the .3sr file, OR (needs_conversion) the fetch dir */
