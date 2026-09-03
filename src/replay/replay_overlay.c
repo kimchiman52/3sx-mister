@@ -68,14 +68,16 @@
 #define RPL_OVL_NAME_COL 0xFFF0E040u /* bright yellow (ARGB): distinct from the white HUD name plates */
 
 /* Battle-state gate (read-only). The top-HUD health/stun/portrait/name cluster
- * is drawn only when `Disp_Cockpit && Game_pause != GAME_PAUSE_TRAINING`
- * (game.c:563,579); `Allow_a_battle_f` is 1 only while a round is actively
- * being fought — it is cleared at KO/round-end (game.c:1342,1898; bbbscom.c),
- * during char-select/menus, and in the attract demo before a fight. Requiring
- * both means the name labels appear exactly when the health bars are on screen
- * AND a round is live, and never during menus / char-select / KO / attract.
- * These are plain globals (workuser.h:256,281); we only READ them. */
-extern u8 Allow_a_battle_f;
+ * is drawn only when `Disp_Cockpit && Game_pause != GAME_PAUSE_TRAINING`, so
+ * Disp_Cockpit alone already excludes menus, char-select, KO and the attract
+ * demo — everywhere the health bars are not on screen.
+ *
+ * We deliberately do NOT also require `Allow_a_battle_f`. That flag is 1 only
+ * while a round is actively being fought: it goes true after the round-start
+ * banner and is what gates the timer (count.c) and gameplay (game.c). Gating
+ * on it held the names back through the entire "FIGHT!" intro, which is exactly
+ * when a viewer wants to know who is playing. Names now appear with the health
+ * bars. A plain global (workuser.h); we only READ it. */
 extern u8 Disp_Cockpit;
 
 /* sc_sub.c exports SSGetDrawSizePro (glyph-accurate string width in the
@@ -87,8 +89,8 @@ extern s32 SSGetDrawSizePro(const s8* str);
 /* S4: draw the two player names at y=48, under their respective health bars —
  * P1 left-anchored, P2 right-anchored (width measured with SSGetDrawSizePro,
  * never flag=1 auto-center). Self-gates so it only fires while a round is being
- * fought (see the RPL_OVL_HUD_NAMES comment block): status must be PLAYING and
- * the HUD's own battle gate (Disp_Cockpit && Allow_a_battle_f) must be set.
+ * shown (see the RPL_OVL_HUD_NAMES comment block): status must be PLAYING and
+ * the HUD must be up (Disp_Cockpit).
  * Read-only over both player and engine state. A replay whose meta has no
  * players[] (both getters NULL) draws nothing here, and there is no bottom-line
  * fallback any more — a no-names replay simply shows no label. */
@@ -108,9 +110,15 @@ static void compose_name_label(const char* name, int rank, char* out, size_t out
 }
 
 static void draw_name_labels(void) {
-    /* In-battle gate: exactly the window in which the health bars are shown and
-     * a round is live. Excludes menus / char-select / KO / attract demo. */
-    if (ReplayPlayer_GetStatus() != REPLAY_PLAYER_PLAYING || Disp_Cockpit == 0 || Allow_a_battle_f == 0) {
+    /* Gate on the HUD being up, NOT on the round being live. Disp_Cockpit is
+     * set with the health bars (manage.c), while Allow_a_battle_f only goes
+     * true once the round-start banner finishes and the timer starts running
+     * (it also gates the timer in count.c and gameplay in game.c). Gating on
+     * both used to hold the names back through the whole "FIGHT!" intro, which
+     * is precisely when a viewer is looking for who is playing. Names now
+     * appear the moment the health bars do. Still excludes menus,
+     * char-select, KO and the attract demo, because Disp_Cockpit is 0 there. */
+    if (ReplayPlayer_GetStatus() != REPLAY_PLAYER_PLAYING || Disp_Cockpit == 0) {
         return;
     }
 
