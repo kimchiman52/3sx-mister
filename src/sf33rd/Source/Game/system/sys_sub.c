@@ -288,9 +288,23 @@ void Score_Sub() {
     s32 assign2;
     s8 assign3;
 
-    if (Is_Training_Mode(Mode_Type)) {
-        return;
-    }
+    /* DELIBERATE DIVERGENCE FROM STOCK (docs/training-score.md).
+     *
+     * Retail PS2 returns here under training -- the guard came in with this
+     * function's original matched decompilation (upstream 468c38b8, as
+     * `Mode_Type == 3 || Mode_Type == 4`) and no port commit ever changed the
+     * behaviour. It is dropped on purpose so training shows the score.
+     *
+     * Only the DRAW was ever suppressed: cmb_win.c -> SCORE_PLUS and the whole
+     * combo chain feeding it have no training gate and already accumulate here.
+     * Nothing else was needed -- Game2_1 already calls this inside the training
+     * HUD block (Disp_Cockpit), and score8x16_put's font is the same
+     * scfont_sqput atlas the combo "PTS" digits already draw from.
+     *
+     * Do NOT re-add a training gate to "fix" a low number: training scores are
+     * combo/first-attack/reversal points only, because Game_Manage_7_1 short-
+     * circuits on KO before Game_Manage_8_0's round-end bonuses. That is
+     * expected, not a bug. */
 
     if (omop_cockpit == 0) {
         return;
