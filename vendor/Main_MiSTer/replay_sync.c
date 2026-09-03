@@ -120,13 +120,34 @@ long long ReplaySyncLastDueMs(long long now_ms) {
 /* Cadence of the async-slot polls once a cycle is running. */
 #define RS_BUSY_POLL_MS 50LL
 
-/* Gaps between upstream requests. The proxy fronts an API that rate-limits and
- * degrades to non-JSON under load; replay_proxy already reports those as typed
- * errors, and the correct response to them is to go slower, never to retry in a
- * tight loop. Nothing here is latency-sensitive — a full cold set takes a few
- * minutes of wall clock and that is fine. */
-#define RS_PAGE_GAP_MS 750LL
-#define RS_FETCH_GAP_MS 1500LL
+/* Gaps between requests to OUR proxy. Deliberately small.
+ *
+ * These used to be 750 ms / 1500 ms, justified as protecting the rate-limited
+ * upstream API. That justification no longer holds on this hop, and the
+ * distinction is worth stating because it is easy to re-derive wrongly:
+ *
+ *   device -> our proxy   (this file)  is a LOCAL read on our own box
+ *   our proxy -> upstream (preconvert) is the rate-limited hop
+ *
+ * The device physically cannot reach upstream from here. replay_proxy.c emits
+ * exactly three ops — search, get3sr, convertstatus — and has no `convert` at
+ * all, so it cannot ask the proxy to go fetch anything. handleGet3sr() is a
+ * pure local-disk read: it lists game indices under the quark dir and returns
+ * `not_found` when nothing is converted, rather than falling through to a
+ * conversion the way an earlier design did. With FCADE_SEARCH_READY_ONLY=1 the
+ * device is never even offered a quark that is not already on disk.
+ *
+ * So the old gaps bought nothing and cost real time: 1500 ms x 90 quarks is
+ * 135 s of sleeping between LAN reads, against roughly 10 MB of actual payload.
+ *
+ * NOT zero, on purpose. The async slot polls at RS_BUSY_POLL_MS (50 ms) and each
+ * fetch hands back a base64 frame the wrapper must parse and write to SD; a gap
+ * at least a couple of poll intervals wide keeps a 90-quark burst from
+ * monopolising the wrapper tick. The upstream-pacing that DOES matter lives
+ * server-side (fcade-proxy.js PRECONVERT_GAP_MS, the worker's jittered sleep,
+ * the crawler's REQUEST_DELAY_MS) and is untouched by this. */
+#define RS_PAGE_GAP_MS 150LL
+#define RS_FETCH_GAP_MS 150LL
 
 /* After a cycle that could not even get its first page, wait this long before
  * trying again rather than re-attempting every RS_IDLE_POLL_MS. The daily due
