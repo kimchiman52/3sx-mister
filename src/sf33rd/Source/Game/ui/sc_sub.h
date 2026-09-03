@@ -43,6 +43,26 @@ void Sa_frame_Write();
 void SSPutStr(u16 x, u16 y, u8 atr, const s8* str, u16 priority);
 s32 SSPutStrPro(u16 flag, u16 x, u16 y, u8 atr, u32 vtxcol, const char* str);
 s32 SSPutStrProP(u16 flag, u16 x, u16 y, u8 atr, u32 vtxcol, const char* str, u16 priority);
+s32 SSGetDrawSizePro(const s8* str);
+
+/* Proportional-font layout helpers. The 384-wide canvas holds far fewer
+ * glyphs than a message can carry; these keep a string inside a pixel
+ * budget using the SAME metric SSPutStrProP advances by
+ * (SSGetDrawSizePro), so a line that measures within the budget draws
+ * within it. Budgets and the audit behind them: docs/ui-text-width.md. */
+#define SS_PRO_LINE_MAX 255      /* glyphs per wrapped line, incl. a hard-split word */
+#define SS_PRO_WRAP_MAX_LINES 16 /* lines SSPutStrProWrapP will lay out */
+
+typedef struct {
+    u16 off;   /* byte offset of the line's first glyph within the source */
+    u16 len;   /* glyph count; never ends on a space */
+    s32 width; /* SSGetDrawSizePro of exactly those glyphs, px */
+} SSProLine;
+
+s32 SSWrapStrPro(const char* str, u16 max_w, SSProLine* lines, s32 max_lines);
+s32 SSPutStrProWrapP(u16 flag, u16 x, u16 y, u16 line_h, u16 max_w, s32 max_lines, u8 atr, u32 vtxcol,
+                     const char* str, u16 priority);
+s32 SSFitStrPro(char* str, u16 max_w);
 void SSPutStr2(u16 x, u16 y, u8 atr, const s8* str);
 void SSPutStr_Bigger(u16 x, u16 y, u8 atr, s8* str, f32 sc, u8 gr, u16 priority);
 void SSPutDec(u16 x, u16 y, u8 atr, u8 dec, u8 size);

@@ -318,7 +318,11 @@ static int s_bilateral_fail_count = 0;
  * without a race. Writes from worker -> readers from main. Char buffer
  * is bounded; a torn read shows at worst a truncated but NUL-terminated
  * string because we always write the NUL first if we shorten. */
-static char s_status[128] = { 0 };
+/* 256, not 128: the arm-time refusal text from Netplay_RefuseArm (prefix +
+ * arcade_balance.c ps2_reason[192]) can run to ~150 glyphs, and the overlay
+ * wraps rather than clips, so the buffer must not be the thing that cuts
+ * the diagnostic. report_connect_outcome's line[] grew by the same amount. */
+static char s_status[256] = { 0 };
 
 /* UPnP mapping owned by the orchestrator until session teardown fires
  * direct_p2p_on_teardown(). "active == true" gates the RemoveMapping
@@ -5991,7 +5995,7 @@ static void report_connect_outcome(DirectP2PState st, bool success) {
         return;
     }
     s_outcome_reported = true;
-    /* The msg field can already be a full 128-char s_status.
+    /* The msg field can already be a full sizeof(s_status)-1 chars.
      * SDL_snprintf truncates safely, but a truncated report line is a
      * silently degraded diagnostic, so the buffer keeps real headroom
      * rather than sitting just under. (The relay's `via_relay=` /
@@ -6001,8 +6005,10 @@ static void report_connect_outcome(DirectP2PState st, bool success) {
      * it again to 1024 for the five host-ladder fields — the ARM build
      * treats -Wformat-truncation as an error (see the netplay_nav.c
      * nav-deadline buffer widening), so headroom here is a build gate,
-     * not a style preference. */
-    char line[1024];
+     * not a style preference. s_status then grew 128 -> 256 for the
+     * wrapped refusal overlay; this grew by the same 128 to keep the
+     * headroom it had. */
+    char line[1152];
     if (success) {
         /* #104: `attempts=` is s_work.join_attempts and is JOINER-ONLY —
          * nothing on the host path ever increments it, so a host line has

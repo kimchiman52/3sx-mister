@@ -345,7 +345,13 @@ static void draw_training_input_history() {
     }
 
     player_id = Training_ID & 1;
-    line_x = (player_id == 0) ? 8 : 320;
+    /* A row is at most 72 px: "%2u" frames (2 x CHAR_WIDTH) + one direction
+     * glyph or its 1-glyph fallback label (GLYPH_WIDTH) + all six buttons in
+     * training_input_button_labels (6 x BUTTON_LABEL_WIDTH). P1 keeps an 8 px
+     * left margin; P2's anchor is 384 - 8 - 72 so the widest row keeps the
+     * same 8 px on the right (it used to start at 320 and run to 392 when
+     * PPP+KKK were held together -- see docs/ui-text-width.md). */
+    line_x = (player_id == 0) ? 8 : 304;
 
     for (i = 0; i < training_input_history_size; i++) {
         input = training_input_history[i].input;
@@ -681,6 +687,197 @@ s32 SSGetDrawSizePro(const s8* str) {
     }
 
     return size;
+}
+
+/* Width of str[0..n) -- measured through SSGetDrawSizePro on a terminated
+ * copy, never by re-deriving the ascProData arithmetic, so the layout
+ * helpers below cannot drift from the metric SSPutStrProP draws with. */
+static s32 ss_pro_width_n(const char* str, size_t n) {
+    char buf[SS_PRO_LINE_MAX + 1];
+
+    if (n > SS_PRO_LINE_MAX) {
+        n = SS_PRO_LINE_MAX;
+    }
+
+    SDL_memcpy(buf, str, n);
+    buf[n] = '\0';
+    return SSGetDrawSizePro((const s8*)buf);
+}
+
+/* Greedy word-wrap of `str` into lines no wider than max_w px. A line breaks
+ * at the last space that still fits; a single word wider than max_w is split
+ * at the last glyph that fits (never fewer than one, so the walk always
+ * advances). Lines never start or end on a space. Fills at most max_lines
+ * entries and returns the number of lines the WHOLE text needs, which can
+ * exceed max_lines -- that is how a caller learns its budget was too small. */
+s32 SSWrapStrPro(const char* str, u16 max_w, SSProLine* lines, s32 max_lines) {
+    s32 count = 0;
+    size_t pos = 0;
+
+    if (str == NULL) {
+        return 0;
+    }
+
+    while (str[pos] != '\0') {
+        size_t len = 0;
+        size_t q;
+
+        while (str[pos] == ' ') {
+            pos++;
+        }
+
+        if (str[pos] == '\0') {
+            break;
+        }
+
+        q = pos;
+
+        for (;;) {
+            size_t w = q;
+            size_t cand;
+
+            while (str[w] != '\0' && str[w] != ' ') {
+                w++;
+            }
+
+            cand = w - pos;
+
+            if (cand > SS_PRO_LINE_MAX || ss_pro_width_n(str + pos, cand) > max_w) {
+                break;
+            }
+
+            len = cand;
+
+            if (str[w] == '\0') {
+                break;
+            }
+
+            q = w + 1;
+        }
+
+        if (len == 0) {
+            size_t k = 1;
+
+            while (str[pos + k] != '\0' && str[pos + k] != ' ' && k < SS_PRO_LINE_MAX &&
+                   ss_pro_width_n(str + pos, k + 1) <= max_w) {
+                k++;
+            }
+
+            len = k;
+        }
+
+        while (len > 1 && str[pos + len - 1] == ' ') {
+            len--;
+        }
+
+        if (count < max_lines) {
+            lines[count].off = (u16)pos;
+            lines[count].len = (u16)len;
+            lines[count].width = ss_pro_width_n(str + pos, len);
+        }
+
+        count++;
+        pos += len;
+    }
+
+    return count;
+}
+
+/* SSPutStrProP over SSWrapStrPro: draws each wrapped line line_h px below
+ * the previous one. `flag` and `x` mean exactly what they mean for
+ * SSPutStrProP (flag=1: x is the centring width, so pass the canvas width;
+ * flag=0: x is the left anchor). max_w is the wrap budget -- for a centred
+ * draw pass something narrower than x so the text keeps a side margin.
+ * When the text needs more than max_lines lines the last drawn line is cut
+ * and marked with "..." so the loss is visible, never silent. Returns the
+ * number of lines drawn. */
+s32 SSPutStrProWrapP(u16 flag, u16 x, u16 y, u16 line_h, u16 max_w, s32 max_lines, u8 atr, u32 vtxcol,
+                     const char* str, u16 priority) {
+    SSProLine lines[SS_PRO_WRAP_MAX_LINES];
+    char buf[SS_PRO_LINE_MAX + 4];
+    s32 needed;
+    s32 drawn;
+    s32 i;
+
+    if (max_lines > SS_PRO_WRAP_MAX_LINES) {
+        max_lines = SS_PRO_WRAP_MAX_LINES;
+    }
+
+    if (str == NULL || max_lines < 1) {
+        return 0;
+    }
+
+    needed = SSWrapStrPro(str, max_w, lines, max_lines);
+    drawn = needed < max_lines ? needed : max_lines;
+
+    for (i = 0; i < drawn; i++) {
+        size_t len = lines[i].len;
+
+        SDL_memcpy(buf, str + lines[i].off, len);
+        buf[len] = '\0';
+
+        if (i == drawn - 1 && needed > drawn) {
+            for (;;) {
+                SDL_memcpy(buf + len, "...", 4);
+
+                if (len == 0 || SSGetDrawSizePro((const s8*)buf) <= max_w) {
+                    break;
+                }
+
+                len--;
+            }
+        }
+
+        SSPutStrProP(flag, x, (u16)(y + i * line_h), atr, vtxcol, buf, priority);
+    }
+
+    return drawn;
+}
+
+/* Truncate `str` IN PLACE until it measures within max_w px, marking the cut
+ * with "..." (glyphs are dropped from the end until the marker fits; if the
+ * string is under three glyphs or even "..." is too wide, it is cut plain).
+ * Returns the final width. This is the last resort -- for text that has no
+ * vertical room to wrap into, such as a player handle on a shared HUD row.
+ * Where a second line is possible, use SSPutStrProWrapP instead. */
+s32 SSFitStrPro(char* str, u16 max_w) {
+    s32 w = SSGetDrawSizePro((const s8*)str);
+    size_t len;
+
+    if (w <= max_w) {
+        return w;
+    }
+
+    len = SDL_strlen(str);
+
+    if (len >= 3) {
+        len -= 3;
+
+        for (;;) {
+            SDL_memcpy(str + len, "...", 4);
+            w = SSGetDrawSizePro((const s8*)str);
+
+            if (w <= max_w || len == 0) {
+                break;
+            }
+
+            len--;
+        }
+
+        if (w <= max_w) {
+            return w;
+        }
+    }
+
+    len = SDL_strlen(str);
+
+    while (len > 0 && w > max_w) {
+        len--;
+        str[len] = '\0';
+        w = SSGetDrawSizePro((const s8*)str);
+    }
+
+    return w;
 }
 
 void SSPutStr2(u16 x, u16 y, u8 atr, const s8* str) {

@@ -28,6 +28,13 @@
 #define RPL_OVL_CANVAS_W 384
 #define RPL_OVL_HINT_Y 214
 #define RPL_OVL_CENTER_Y 100
+/* Wrap budget for the centred terminal-state line: 8 px margin each side,
+ * 12 px pitch, three rows (y=100..124) -- the DIVERGED line measures 455 px
+ * with a one-digit frame number and 530 px with a ten-digit one, so it is
+ * never a one-liner on this canvas. */
+#define RPL_OVL_TEXT_W 368
+#define RPL_OVL_LINE_H 12
+#define RPL_OVL_CENTER_MAX_LINES 3
 #define RPL_OVL_ATR 9
 #define RPL_OVL_COL 0xFFFFFFFFu
 #define RPL_OVL_PRIO 1
@@ -64,6 +71,13 @@
 #define RPL_OVL_NAME_Y 48
 #define RPL_OVL_NAME_X_LEFT 8
 #define RPL_OVL_NAME_X_RIGHT 376
+/* Per-label width cap. The two labels share one 368 px row (LEFT..RIGHT);
+ * half each minus an 8 px gap between them. Handles come from an external
+ * sidecar and can be 63 glyphs (meta_p1_name[64] in replay_player.c) --
+ * up to ~500 px -- so a label is cut to this with "..." (SSFitStrPro).
+ * Truncation, not wrapping, because the row sits directly above the
+ * play-field: there is no second line to wrap into. */
+#define RPL_OVL_NAME_MAX_W 176
 #define RPL_OVL_NAME_ATR 9
 #define RPL_OVL_NAME_COL 0xFFF0E040u /* bright yellow (ARGB): distinct from the white HUD name plates */
 
@@ -135,15 +149,17 @@ static void draw_name_labels(void) {
 
     if (p1 != NULL) {
         compose_name_label(p1, ReplayPlayer_GetP1Rank(), label1, sizeof(label1));
+        (void)SSFitStrPro(label1, RPL_OVL_NAME_MAX_W);
         SSPutStrProP(0, RPL_OVL_NAME_X_LEFT, RPL_OVL_NAME_Y, RPL_OVL_NAME_ATR, RPL_OVL_NAME_COL, label1,
                      RPL_OVL_PRIO);
     }
 
     if (p2 != NULL) {
         compose_name_label(p2, ReplayPlayer_GetP2Rank(), label2, sizeof(label2));
-        /* Right-anchor: measure real glyph width and subtract from the right
-         * edge. Clamp so a very long handle can't underflow the u16 x. */
-        const s32 w = SSGetDrawSizePro((const s8*)label2);
+        /* Right-anchor: fit to the cap (returns the real glyph width) and
+         * subtract from the right edge. The clamp cannot fire now that the
+         * width is capped, but it costs nothing and keeps the u16 x safe. */
+        const s32 w = SSFitStrPro(label2, RPL_OVL_NAME_MAX_W);
         s32 x = RPL_OVL_NAME_X_RIGHT - w;
         if (x < 0) {
             x = 0;
@@ -257,7 +273,8 @@ void ReplayOverlay_Draw(void) {
         char line[80];
         SDL_snprintf(line, sizeof(line), "REPLAY DIVERGED (frame %u) - can't reproduce this recording exactly",
                      ReplayPlayer_GetDesyncFrame());
-        SSPutStrProP(1, RPL_OVL_CANVAS_W, RPL_OVL_CENTER_Y, RPL_OVL_ATR, RPL_OVL_COL, line, RPL_OVL_PRIO);
+        SSPutStrProWrapP(1, RPL_OVL_CANVAS_W, RPL_OVL_CENTER_Y, RPL_OVL_LINE_H, RPL_OVL_TEXT_W,
+                         RPL_OVL_CENTER_MAX_LINES, RPL_OVL_ATR, RPL_OVL_COL, line, RPL_OVL_PRIO);
         break;
     }
 

@@ -10,6 +10,7 @@ You can find documentation and other useful resources in this folder.
 - [MiSTer Runbook](mister-runbook.md)
 - [MiSTer Wrapper Core](mister-wrapper.md)
 - [Training-mode SELECT reset](training-select-reset.md)
+- [On-screen text and the 384 px canvas](ui-text-width.md)
 
 ## `archive/`
 

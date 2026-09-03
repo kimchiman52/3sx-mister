@@ -2888,7 +2888,13 @@ bool Netplay_ArmAllowed(void) {
 // the same route the MIST handshake reject path uses (ERROR + status
 // text, rendered by NetplayScreen_Render -> DirectP2P_DrawOverlay).
 void Netplay_RefuseArm(void) {
-    char msg[120];
+    /* Sized to hold the whole reason: ArcadeBalance_GetReason() is
+     * arcade_balance.c's ps2_reason[192], and the two adapt_all_characters
+     * failures fill ~120 of it -- with the 31-glyph prefix that is ~150,
+     * which the previous msg[120] cut off before it ever reached the
+     * overlay. The overlay word-wraps (direct_p2p_overlay.c), so length is
+     * no longer a reason to shorten a diagnostic here. */
+    char msg[256];
     SDL_snprintf(msg, sizeof(msg), "Netplay needs arcade balance - %s", ArcadeBalance_GetReason());
     // SDL_Log, not a bare printf: this fires during set_netplay_params()
     // at boot, long before any of the fflush(stdout) pairings elsewhere
