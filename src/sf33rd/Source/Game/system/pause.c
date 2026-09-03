@@ -177,18 +177,6 @@ s32 Check_Pause_Term(u16 sw, u8 PL_id) {
         return 0;
     }
 
-    if (sw & SWK_START) {
-        Pause_Type = 1;
-        return PAUSE_X = 1;
-    }
-
-#if defined(DEBUG)
-    // This skips checking controller connection status during gameplay testing
-    if (configuration.test.enabled) {
-        return 0;
-    }
-#endif
-
     /* Step C1 (docs/plan-fcade-replay-browser.md): the runtime .3sr replay
      * player (release code, src/replay/replay_player.c) injects both pads
      * directly into p1sw_buff/p2sw_buff — no physical controller needs to
@@ -200,10 +188,45 @@ s32 Check_Pause_Term(u16 sw, u8 PL_id) {
      * the DEBUG/STATCHECK carve-outs around this one, but scoped at
      * runtime to an actively-injecting replay session — once playback
      * completes or desyncs the pads are released and stock pause behavior
-     * returns. */
+     * returns.
+     *
+     * THIS MUST STAY ABOVE THE SWK_START CHECK. A .3sr is a recording of an
+     * ARCADE session, where START is not a pause button; the recorded words
+     * therefore contain ordinary in-match START presses, and
+     * Convert_User_Setting (sys_sub.c) passes SWK_START straight through.
+     * With the carve-out sitting below, such a press took the branch above
+     * and set Game_pause = 0x81, which stops Game_timer from incrementing
+     * (game.c -> Game2_1) while playback keeps advancing — 4 of the 22
+     * failures in the 44-replay comparison corpus, e.g. 1784866358738-6178,
+     * whose P2 START rising edge at .3sr frame 2142 froze Game_timer at its
+     * 2141 value. Suppressing the pause makes those replays verify clean
+     * against the CPS3 checksums for the rest of the match.
+     *
+     * NOT VERIFIED: whether START additionally drives a personal
+     * action/taunt in this engine. The only evidence gathered is that every
+     * post-press checkpoint passes once the pause is suppressed, which does
+     * not distinguish "the taunt is reproduced" from "the taunt affects no
+     * hashed field".
+     *
+     * The STATCHECK carve-out below is deliberately left where it is:
+     * statcheck_runner.c -> read_input_buff never emits SWK_START (it maps
+     * only the direction and attack bits of the archived sw_lvbt mirror), so
+     * that path cannot reach the START branch at all. */
     if (ReplayPlayer_GetStatus() == REPLAY_PLAYER_PLAYING) {
         return 0;
     }
+
+    if (sw & SWK_START) {
+        Pause_Type = 1;
+        return PAUSE_X = 1;
+    }
+
+#if defined(DEBUG)
+    // This skips checking controller connection status during gameplay testing
+    if (configuration.test.enabled) {
+        return 0;
+    }
+#endif
 
 #if defined(STATCHECK)
     /* A3b (docs/plan-fcade-replay-browser.md): statcheck replays inject

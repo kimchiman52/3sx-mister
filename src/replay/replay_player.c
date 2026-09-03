@@ -123,9 +123,11 @@ static int char_select_phase = 0;
 static int wait_timer = 0;
 static Uint32 play_index = 0; /* .3sr frame index currently being played */
 static Uint16 input_buffers[2] = { 0 };
-/* This tick's injected SWK words BEFORE inter-round skip taps — the exact
- * conversion of .3sr word [play_index]; the checksum recomputation inverts
- * these back to the arcade words the hash covered (see hash_live_state). */
+/* This tick's injected SWK words with nothing added on top — the exact
+ * conversion of .3sr word [play_index]. PHASE_GAME no longer adds taps, but
+ * the pre-battle nav phases do, and live p1sw_0 also carries whatever the
+ * local pads are doing; the checksum recomputation inverts THESE back to the
+ * arcade words the hash covered (see hash_live_state). */
 static Uint16 pure_words[2] = { 0 };
 
 static ReplayPlayerStatus status = REPLAY_PLAYER_INACTIVE;
@@ -219,13 +221,14 @@ static bool s_stall_frame = false;
  * argument above deliberately does not lean on the free-run result.
  *
  * ONLY THE MATCH END IS AFFECTED. game_ended() is PL_Wins == 2, i.e. the
- * match; between rounds it stays false and PHASE_GAME keeps injecting
- * recorded inputs (including the inter-round skip taps) exactly as before.
+ * match; between rounds it stays false and PHASE_GAME keeps injecting the
+ * recorded input words exactly as before.
  * The probe runs confirmed one PHASE_POSTMATCH entry per replay.
  *
- * The pads are held NEUTRAL here on purpose: inter_round_skip_needed() would
- * otherwise mash SWK_ATTACKS through Game_Manage_7_2's Button_Cut_EX and skip
- * the very animation this window exists to show. */
+ * The pads are held NEUTRAL here on purpose: the recording's post-KO tail is
+ * not replayed (the play cursor stops at game_ended()), and feeding its
+ * attack presses in would mash through Game_Manage_7_2's Button_Cut_EX and
+ * skip the very animation this window exists to show. */
 #define REPLAY_POSTMATCH_MAX_FRAMES 420
 static int postmatch_frames = 0;
 
@@ -1025,17 +1028,40 @@ static bool game_ended(void) {
     return (PL_Wins[0] == 2) || (PL_Wins[1] == 2);
 }
 
-/* Inter-round/inter-scene skip — statcheck_runner.c:176-181, evaluated on
- * LIVE state instead of the archived frame. statcheck reads the condition
- * from the archive frame being simulated this tick (post-step state, i.e.
- * one frame in the future); live state can only supply the previous tick's
- * post-step values, so our taps start/stop exactly one frame later at each
- * scene boundary. The taps only mash through skippable win-pose/continue
- * scenes, so the one-frame skew has no state effect the checksum
- * checkpoints have ever flagged (verified in the C1 runs). */
-static bool inter_round_skip_needed(void) {
-    return ((C_No[0] == 6) && (C_No[1] == 3)) || (Scene_Cut && (C_No[0] > 6));
-}
+/* NO synthetic inter-round skip taps here — deliberately, and do not
+ * re-add them from statcheck_runner.c.
+ *
+ * statcheck needs its inter_round_skip_needed() because it replays a RAM
+ * ARCHIVE and not an input stream: it reads the recorded C_No/Scene_Cut out
+ * of the archived frame and re-creates, as SWK_ATTACKS taps, the skip the
+ * recorded session performed. A .3sr viewer has no such gap to fill. It
+ * injects the recorded input WORDS, and those words are exactly what made
+ * the original session skip — sys_sub.c -> Cut_Cut_Cut() is nothing more
+ * than "an operator is holding SWK_ATTACKS". Replaying them reproduces
+ * every Scene_Cut of the recording on the frame it really happened, and on
+ * no other frame.
+ *
+ * NEGATIVE RESULT: tapping on top of that was a feedback loop, not a skip.
+ * The removed condition was `(C_No[0] == 6 && C_No[1] == 3) || (Scene_Cut
+ * && C_No[0] > 6)` read off LIVE engine state, i.e. one frame BEHIND the
+ * archived value statcheck tests. By the time it saw C_No == [6,3],
+ * Game_Manage_7_2's Button_Cut_EX had already run and the tap could no
+ * longer skip anything; all it still did was set Scene_Cut itself (game.c
+ * -> Game02() re-derives Scene_Cut = Cut_Cut_Cut() from p1sw_0/p2sw_0 on
+ * every in-match frame). That re-satisfied the condition's own second clause, so the taps
+ * latched on through the whole round-end flow. Game_Manage_9th's `case 1`
+ * (manage.c) then took its `if (Scene_Cut) C_Timer = 1;` branch and
+ * collapsed a 60-frame score tally the recorded players never cut —
+ * desyncing C_No immediately and Game_timer a few frames later. That was 16
+ * of the 22 failures in the 44-replay comparison corpus (e.g.
+ * 1784785136322-3894 at frame 3120: the CPS3 archive holds C_No == [8,1,0,0]
+ * with Scene_Cut == 0 from .3sr frame 3066 to past 3123 and carries no
+ * attack bits in that range, while we left [8,1] after a single frame).
+ *
+ * statcheck cannot hit this: it reads the ARCHIVE's SCENE_CUT_OFFSET, which
+ * is 0 whenever nobody pressed, so its own taps can never feed its own
+ * condition. Anything derived from LIVE Scene_Cut can, which is why the
+ * skip must come from the recording and nowhere else. */
 
 static void finish(const char* reason) {
     phase = PHASE_DONE;
@@ -1315,10 +1341,9 @@ void ReplayPlayer_Tick(void) {
         input_buffers[0] = pure_words[0];
         input_buffers[1] = pure_words[1];
 
-        if (inter_round_skip_needed()) {
-            tap_button(SWK_ATTACKS, 0);
-            tap_button(SWK_ATTACKS, 1);
-        }
+        /* Nothing is added on top of the recorded words — see the
+         * "NO synthetic inter-round skip taps" block comment near
+         * game_ended() for why. */
 
         break;
 
@@ -1361,10 +1386,10 @@ void ReplayPlayer_Tick(void) {
  *   6-7  Random_ix16 / Random_ix32
  *   8-11 plw[i].wu.xyz[0/1].disp.pos  (get_position, statcheck_compare.c:98-101)
  *   12-13 this frame's P1SW_0/P2SW_0 — recovered by inverting the load-time
- *        arcade->SWK conversion on the words injected this tick (pre-tap:
- *        the archived P1SW_0 word IS the .3sr input word, format §4.2 note;
- *        live p1sw_0 would additionally carry our inter-round skip taps,
- *        which the original archive never saw).
+ *        arcade->SWK conversion on the words injected this tick (the archived
+ *        P1SW_0 word IS the .3sr input word, format §4.2 note; live p1sw_0
+ *        would additionally carry the local pads, which the original archive
+ *        never saw).
  * Canonicalization (format §4.3): each 16-bit value as 2 bytes LE,
  * concatenated in table order (26 bytes), hashed with the codebase's
  * additive djb2 (djb2_hash.h, verbatim — same fn netplay's desync detector
