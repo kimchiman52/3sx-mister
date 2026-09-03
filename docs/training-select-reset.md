@@ -447,6 +447,15 @@ simulation change on the shared arcade/netplay path for a training-only feature.
 
 ## Smaller things worth knowing
 
+- **FIRST ATTACK is preserved, deliberately.** `combo_cont_init()` zeroes
+  `first_attack` (`engine/cmb_win.c`) along with the rest of the combo/score
+  state. That is right at a real round start, but a SELECT reset is not a new
+  round — it repositions the players and leaves the round running — so
+  re-arming it made the FIRST ATTACK banner fire again on the next hit after
+  *every* reset. `Tr_Reset_Apply` now saves the value and restores it around
+  that one call. `combo_cont_init` itself is untouched, so every other caller
+  keeps the round-start behaviour. Maintainer request, 2026-09-03.
+
 - **Velocity, acceleration and sub-pixel position are zeroed.** `player_mv_0000`
   never touches `wu.mvxy`, so a reset mid-dash would otherwise carry the
   momentum straight back out of the start position — the same defect

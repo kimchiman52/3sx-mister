@@ -4341,7 +4341,28 @@ static void Tr_Reset_Apply() {
 
     vital_cont_init();
     stngauge_work_clear();
+
+    /* Preserve FIRST ATTACK across a SELECT reset.
+     *
+     * combo_cont_init() zeroes `first_attack` (cmb_win.c) along with the rest
+     * of the combo/score state. That is correct at a real round start, but a
+     * SELECT reset is not a new round -- it repositions the players and leaves
+     * the round running -- so re-arming it meant the FIRST ATTACK banner fired
+     * again on the next hit, every single reset. Save and restore around the
+     * one call that clears it rather than teaching combo_cont_init a mode: the
+     * engine function stays untouched and every other caller keeps the round
+     * -start behaviour.
+     *
+     * `first_attack` is in the rollback save set (GS_SAVE(first_attack),
+     * game_state.c), but this path is training-only and training is
+     * unreachable in netplay (src/netplay/ sets MODE_NETWORK and never
+     * references the training modes), so nothing here can reach a session. */
+    const s8 tr_reset_kept_first_attack = first_attack;
+
     combo_cont_init();
+
+    first_attack = tr_reset_kept_first_attack;
+
     clear_hit_queue();
 
     for (i = 0; i < 2; i++) {
