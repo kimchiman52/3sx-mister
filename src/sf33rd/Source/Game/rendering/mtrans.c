@@ -397,31 +397,47 @@ s16 getObjectHeight(u16 cgnum) {
 }
 
 /* DEV/TEST ONLY -- "first light" (docs/research-arcade-cg-data-accuracy.md,
- * 3sx-rom-only-research.md §5S 4.2). Pushes the CPS-3 ROM's own palette
- * into a scratch ColorRAM row the very first time it is needed, applying
- * the INDEX-based transparency rule at write time (doc §5O/§5I.1 --
- * "dst[0]=0; dst[i]=src[i]|0x8000 for i=1..63", NOT a value-based
- * "non-zero entry" rule, which would wrongly hide opaque black pixels).
- * lz_ext_p6_cx() reads ColorRAM directly for its own family of call sites,
- * which is why this rule is applied here rather than deferred to upload. */
-static bool cps3_first_light_palette_ready = false;
-
-static void cps3_first_light_ensure_palette(void) {
-    if (cps3_first_light_palette_ready) {
-        return;
-    }
-
-    const uint16_t* raw = Cps3FirstLight_PaletteRaw();
-
-    ColorRAM[CPS3_FIRST_LIGHT_PAL_ROW][0] = 0x0000;
-
-    for (int i = 1; i < 64; i++) {
-        ColorRAM[CPS3_FIRST_LIGHT_PAL_ROW][i] = (u16)(raw[i] | 0x8000);
-    }
-
-    palUpdateGhostCP3(CPS3_FIRST_LIGHT_PAL_ROW, 1);
-    cps3_first_light_palette_ready = true;
-}
+ * 3sx-rom-only-research.md §5S 4.2). REMOVED: this used to push the CPS-3
+ * ROM's own palette into ColorRAM[510] and point the hijacked chip at that
+ * row (see git history for the deleted cps3_first_light_ensure_palette()).
+ * That crashed. Root cause: a chip's palette argument is resolved by
+ * seqsStoreChip() -> ppgGetUsingPaletteHandle(NULL, attr & 0x1FF), which
+ * looks up `ppg_w.cur->pal` (mtrans.c:174's ppgSetupCurrentDataList(&mt->
+ * texList)) -- NOT col3rd_w.palCP3, the ColorRAM-backed directory
+ * palUpdateGhostCP3() actually wrote row 510 into. Which Palette directory
+ * mt->texList.pal IS depends on this CG's texture group's `mode` (mlt_obj_
+ * trans_init(), rendering/mtrans.c): CPS3_FIRST_LIGHT_PS2_CG (0x062A) maps
+ * via obj_group_table[0x062A] (rendering/chren3rd.c) to group 2, whose
+ * mts_base[2].mode (rendering/texcash.c) is 4113 -- `mode & 7 == 1`, the
+ * `default:` case, i.e. palGetChunkGhostDC() (color3rd.c), a directory
+ * ppgSetupPalChunkDir() (Common/PPGFile.c) sizes to `total = 16` (color3rd.
+ * c's `ppl.palettes = 0x1000`, byte-swapped by REVERT_U16). Row 510 is
+ * always out of range there, so ppgGetUsingPaletteHandle() returns the
+ * invalid-handle sentinel 0 (its own `ixNums >= pch->total` guard, PPGFile.
+ * c); Renderer_SetTexture() (platform/video/software/software_renderer.c)
+ * turns handle 0 into texture_spec.palette_index = -1; rasterize_textured()
+ * leaves `pal` NULL for that index and then unconditionally reads
+ * `pal->colors` for an SW_PALETTE_8 chip -- `colors` is SWPalette's first
+ * field, so that read is exactly address 0x0, matching the observed
+ * EXC_BAD_ACCESS/SIGSEGV in sw_blit_indexed8_row_rev.
+ *
+ * The correct fix would resolve the hijack's palette through whichever
+ * directory this CG's own texture group actually consults (here,
+ * col3rd_w.palDC's 16-entry pool) rather than ColorRAM. That pool's rows
+ * are not known to be free the way ColorRAM[510] was independently proven
+ * to be (see the deleted CPS3_FIRST_LIGHT_PAL_ROW comment in
+ * cps3_first_light.h) -- nothing here established which, if any, of its 16
+ * slots go unused during an attract-mode match, and borrowing one blind
+ * risks corrupting a real character's palette. So this scaffolding no
+ * longer overrides the palette at all: both hijack sites below now pass
+ * `palo` (Alex's own real colcd), the same argument the non-hijacked path
+ * already uses successfully for this exact CG. The CPS-3-decoded pixel
+ * INDICES still go through njReLoadTexturePartNumG/ppgRenewDotDataSeqs (the
+ * actual point of "first light" -- proving the loader/decoder/upload path
+ * composes), just looked up against Alex's PS2 palette instead of the ROM
+ * one, so colour fidelity is wrong on purpose. Cps3FirstLight_PaletteRaw()
+ * (cps3_first_light.c) still decodes and exposes the ROM palette for a
+ * future patch that routes it correctly; it just has no caller now. */
 
 void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
     u32* textbl;
@@ -553,7 +569,6 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                          * chips still decode PS2 pixels as today. */
                         if (wk->cg_number == CPS3_FIRST_LIGHT_PS2_CG && size == CPS3_FIRST_LIGHT_TILE_BYTES &&
                             Cps3FirstLight_Ready()) {
-                            cps3_first_light_ensure_palette();
                             Cps3FirstLight_NextTile(mt->mltbuf);
                         } else {
                             lz_ext_p6_fx(&((u8*)texptr)[1], mt->mltbuf, size);
@@ -572,16 +587,13 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                                          dh,
                                          mt->mltgidx16,
                                          code,
-                                         /* Same hijack, palette half: point this one chip
-                                          * at the scratch row cps3_first_light_ensure_palette()
-                                          * just filled instead of Alex's own wk->colcd, so the
-                                          * substituted pixel indices are looked up in the
-                                          * ROM-sourced CPS-3 palette (CG 0x060A's own slot 8,
-                                          * see cps3_first_light.c) rather than Alex's PS2 one. */
-                                         (wk->cg_number == CPS3_FIRST_LIGHT_PS2_CG &&
-                                          size == CPS3_FIRST_LIGHT_TILE_BYTES && Cps3FirstLight_Ready())
-                                             ? (CPS3_FIRST_LIGHT_PAL_ROW | ((trsptr->attr ^ attr) & 0xC000))
-                                             : (palo | ((trsptr->attr ^ attr) & 0xC000)),
+                                         /* No palette hijack here (see the removed
+                                          * cps3_first_light_ensure_palette() comment above this
+                                          * function): `palo` is Alex's own real colcd, unchanged
+                                          * for the hijacked chip too, so the substituted CPS-3
+                                          * pixel indices render through Alex's PS2 palette rather
+                                          * than the ROM one. Colour fidelity is wrong on purpose. */
+                                         palo | ((trsptr->attr ^ attr) & 0xC000),
                                          wk->my_clear_level,
                                          mt->id);
                     break;
@@ -671,21 +683,11 @@ void mlt_obj_trans_ext(MultiTexture* mt, WORK* wk, s32 base_y) {
                                      dh,
                                      mt->mltgidx16,
                                      code,
-                                     /* DEV/TEST ONLY -- "first light", cache-hit path. Mirrors
-                                      * the instance-miss hijack in mlt_obj_trans_ext() above:
-                                      * without this, a cached CPS-3-decoded chip is re-stored
-                                      * with Alex's own PS2 palette on every cache-hit frame, so
-                                      * the sprite would flicker between the ROM-sourced palette
-                                      * (miss) and the PS2 one (hit) as the pattern cache churns.
-                                      * `wh == 2` is this branch's equivalent of the miss branch's
-                                      * `size == CPS3_FIRST_LIGHT_TILE_BYTES` (wh=2 chips are
-                                      * exactly the 256-byte/16x16 class a CPS-3 tile matches;
-                                      * this switch case never sees any other wh here since case 4
-                                      * is separate). */
-                                     (wk->cg_number == CPS3_FIRST_LIGHT_PS2_CG && wh == 2 &&
-                                      Cps3FirstLight_Ready())
-                                         ? (CPS3_FIRST_LIGHT_PAL_ROW | ((trsptr->attr ^ attr) & 0xC000))
-                                         : (palo | ((trsptr->attr ^ attr) & 0xC000)),
+                                     /* No palette hijack on the cache-hit path either (see the
+                                      * removed cps3_first_light_ensure_palette() comment near the
+                                      * top of this file) -- always `palo`, same as every other
+                                      * chip, hijacked or not. */
+                                     palo | ((trsptr->attr ^ attr) & 0xC000),
                                      wk->my_clear_level,
                                      mt->id);
                 break;

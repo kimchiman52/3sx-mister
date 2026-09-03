@@ -39,27 +39,18 @@
  * made against the original task brief. */
 #define CPS3_FIRST_LIGHT_TILE_COUNT 39u
 
-/* ColorRAM row the demo's arcade-sourced palette lands in. 510 is NOT a
- * free/unused row -- it is deliberately overwritten by the boot-time PS2
- * asset load and its content is not incidental garbage.
- * color3rd.c's color_file[20] = { .data = 32, .type = 2, .apfn = 0x9 };
- * init_trans_color_ram() case 2 loads AFS file 0x9 (61,440 B = 480 rows)
- * starting at row `data` = 32, contiguously through row 32+480-1 = 511 --
- * i.e. it writes every row in [32, 511], 510 included. Only row 511 gets a
- * hand-written blanking palette immediately after (the `if (data == 32)`
- * branch, color3rd.c), which is itself evidence the load reaches all the
- * way to 511 and therefore also covers 510.
- *
- * This load is boot-once (Init_Task_1st() -> Init_load_on_memory_data() ->
- * load_any_color(0x14, 2), no ldreq_tbl row ever re-requests it), so this
- * demo's write at first-use permanently wins for the rest of the process;
- * nothing clobbers it back. No drawing consumer of row 510 was found
- * (mcs_sel_tbl uses 504/508; dmwk_kage.current_colcd is 0x1FF), but
- * absence could NOT be proven -- aboutspr.c computes
- * `current_colcd + conn[i].col` at runtime, so a reader cannot be ruled
- * out by grep alone. Flagged, not hidden: this is dev/test scaffolding
- * riding on a boot-once side effect, not a genuinely free row. */
-#define CPS3_FIRST_LIGHT_PAL_ROW 510
+/* REMOVED: a CPS3_FIRST_LIGHT_PAL_ROW borrowing ColorRAM[510] used to exist
+ * here, to point the hijacked chip's palette at the ROM-sourced colours
+ * Cps3FirstLight_PaletteRaw() below decodes. It caused a deterministic
+ * SIGSEGV -- see the palette-resolution comment in mlt_obj_trans_ext()
+ * (rendering/mtrans.c) for the full mechanism. In short: whether a
+ * ColorRAM row is free is the wrong question, because the chip that draws
+ * CPS3_FIRST_LIGHT_PS2_CG never resolves its palette against ColorRAM at
+ * all -- it resolves against a 16-entry directory (col3rd_w.palDC) that
+ * row 510 cannot address. The hijack now draws with Alex's own real
+ * palette instead (wrong colours, on purpose); Cps3FirstLight_PaletteRaw()
+ * is kept for a future patch that routes the ROM palette through the
+ * directory this CG's texture group actually uses. */
 
 /* Attempts to load SIMM3-6 (64 MiB gfx, pair-interleaved, doc §5B.3) from
  * the SAME zip $THIRDSARM_CPS3_ZIP already resolved for SIMM1/2, decode CG
