@@ -217,6 +217,33 @@ static void verify_configuration(Configuration* configuration) {
         }
     }
 
+    if (test->quick_training_frame >= 0 || test->quick_training_again_frame >= 0) {
+#ifndef DEBUG
+        error_out_with_code("--test-quick-training requires a Debug build (#if DEBUG).", EXIT_CODE_RUNTIME_ERROR);
+#endif
+        if (!test->enabled) {
+            error_out_with_code("--test-quick-training requires --test-enable.", EXIT_CODE_RUNTIME_ERROR);
+        }
+        if (test->quick_training_frame < 0) {
+            error_out_with_code("--test-quick-training-again requires --test-quick-training.",
+                                EXIT_CODE_RUNTIME_ERROR);
+        }
+        if (test->quick_training_again_frame >= 0 &&
+            test->quick_training_again_frame <= test->quick_training_frame) {
+            error_out_with_code("--test-quick-training-again must be a later frame than --test-quick-training.",
+                                EXIT_CODE_RUNTIME_ERROR);
+        }
+        if (test->instant_jump) {
+            error_out_with_code("--test-quick-training and --test-instant-jump both own the session; pick one.",
+                                EXIT_CODE_RUNTIME_ERROR);
+        }
+        if (test->scene_preset != NULL) {
+            error_out_with_code("--test-quick-training bypasses the scene-preset phase machine; drop "
+                                "--test-scene-preset.",
+                                EXIT_CODE_RUNTIME_ERROR);
+        }
+    }
+
     /* Task #108: balance is CHOSEN, never inherited from --test-enable. */
     if (!is_supported_test_balance(test->balance)) {
         error_out_with_code("--test-balance must be 'ps2' or 'arcade'.", EXIT_CODE_RUNTIME_ERROR);
@@ -729,6 +756,27 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                     "gate-runner harness discovery must NOT match it). Combine with --ldreq-barrier-force "
                     "for a same-frame load drain. Characters/super-arts/stage come from "
                     "--test-p1-character etc. (defaults: Yun vs Ryu, first super art, Ryu stage).",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-quick-training",
+                    &configuration->test.quick_training_frame,
+                    "Quick Training harness (src/quick_training.c): fire the OSD feature's request at this "
+                    "prologue frame — the SIGRTMIN+5 path minus the signal — exercising the full shipped "
+                    "sequence (diagonal wipe-out, teardown to title if needed, scene-jump chain, wipe-in), "
+                    "then verify liveness, print QUICK-TRAINING TEST PASS/FAIL and terminate. Characters/"
+                    "arts come from the persisted training config exactly as on device. Requires a #if "
+                    "DEBUG build and --test-enable.",
+                    NULL,
+                    0,
+                    0),
+        OPT_INTEGER(0,
+                    "test-quick-training-again",
+                    &configuration->test.quick_training_again_frame,
+                    "Second Quick Training fire at this (absolute) prologue frame — schedule it after the "
+                    "first sequence completes to exercise the mid-match teardown + re-jump edge case. "
+                    "Requires --test-quick-training.",
                     NULL,
                     0,
                     0),

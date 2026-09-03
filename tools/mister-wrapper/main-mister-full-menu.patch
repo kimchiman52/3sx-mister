@@ -172,7 +172,7 @@ index a8d8bd8..71d074e 100644
  void HandleUI(void)
  {
  	PROFILE_FUNCTION();
-@@ -2115,6 +2265,24 @@ void HandleUI(void)
+@@ -2115,6 +2264,24 @@ void HandleUI(void)
  							s[0] = ' ';
  							s[1] = 0;
  							substrcpy(s + 1, p, 1);
@@ -198,7 +198,7 @@ index a8d8bd8..71d074e 100644
 -							MenuWrite(entry, s, 0, d);
 +							MenuWrite(entry, s, balance_row, d);
  							entry++;
-@@ -2468,6 +2636,39 @@ void HandleUI(void)
+@@ -2468,6 +2635,58 @@ void HandleUI(void)
  							int ex = (p[0] == 't') || (p[0] == 'r');
  							if (user_io_status_bits(p + 1, &bit, 0, ex) == 1)
  							{
@@ -233,12 +233,31 @@ index a8d8bd8..71d074e 100644
 +										menusub = 0;
 +									}
 +								}
++								else if (bit == 15 && p[0] == 'T')
++								{
++									/* Quick Training (T[15]) -> a LIVE jump in the
++									 * RUNNING game: quick_training_signal() raises
++									 * SIGRTMIN+5 at the child, whose in-process
++									 * driver (src/quick_training.c) wipes into a
++									 * training match. The OSD must be dismissed HERE:
++									 * MENU_NONE1 is that dismissal. Unlike T[31]
++									 * above it is UNCONDITIONAL -- that one gates its
++									 * dismissal on g_replay_shuffle_armed because a
++									 * refused handoff means no restart is coming and
++									 * closing would strand the user; this path never
++									 * restarts, so there is no such failure mode and
++									 * nothing to gate on. Intercepted before the
++									 * generic option handler for the same reason as
++									 * T[31]. */
++									quick_training_signal();
++									menustate = MENU_NONE1;
++								}
 +								else
 +								{
  								const char *opt = p + 1;
  								if (!bit && (is_x86() || is_pcxt()))
  								{
-@@ -2506,6 +2707,7 @@ void HandleUI(void)
+@@ -2506,6 +2725,7 @@ void HandleUI(void)
  									menustate = MENU_GENERIC_MAIN1;
  									if (p[0] == 'R' || p[0] == 'r') menustate = MENU_NONE1;
  								}
@@ -246,7 +265,7 @@ index a8d8bd8..71d074e 100644
  							}
  						}
  					}
-@@ -2749,17 +2951,15 @@ void HandleUI(void)
+@@ -2749,17 +2969,15 @@ void HandleUI(void)
  			parentstate = MENU_COMMON1;
  			int n;
  
@@ -266,7 +285,7 @@ index a8d8bd8..71d074e 100644
  				if (cfg.osd_lock[0] && !cfg.osd_lock_time)
  				{
  					MenuWrite(n++, " Lock OSD", menusub == 1, 0);
-@@ -6608,7 +6808,7 @@ void HandleUI(void)
+@@ -6608,7 +6826,7 @@ void HandleUI(void)
  		/* system menu */
  		/******************************************************************/
  	case MENU_SYSTEM1:
@@ -275,7 +294,7 @@ index a8d8bd8..71d074e 100644
  		{
  			menustate = MENU_NONE1;
  			break;
-@@ -6851,6 +7051,356 @@ void HandleUI(void)
+@@ -6851,6 +7069,356 @@ void HandleUI(void)
  		}
  		break;
  

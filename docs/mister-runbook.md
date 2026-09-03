@@ -426,7 +426,7 @@ History, because this policy replaced one that destroyed real data twice: the
 deploy used to be `rsync -av --delete` shielding a fixed preserve list, so
 anything the device held and the package did not was deleted. It took out
 `libminiupnpc.so`, `replays/` and the user's ROM on 2026-07-25, and the user's
-`training` settings (`src/port/config/training_config.c:183`) plus
+`training` settings (`src/port/config/training_config.c:184`) plus
 `balance.status` (`src/arcade/arcade_balance.c:91`) on 2026-08-29, with no
 device backup. The list still did not cover `saves/` — the actual save data,
 `settings` and `sysdir` (`src/sf33rd/Source/PS2/mc/savesub.c:87,380,385`) — so

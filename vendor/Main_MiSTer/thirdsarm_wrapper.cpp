@@ -90,6 +90,7 @@ constexpr int kRuntimeFpsToggleSignal = SIGUSR1;
 #define kRuntimeArmClockCycleSignal (SIGRTMIN + 2)
 #define kRuntimeGameModeCycleSignal (SIGRTMIN + 3)
 #define kRuntimeHoldToPauseCycleSignal (SIGRTMIN + 4)
+#define kRuntimeQuickTrainingSignal (SIGRTMIN + 5)
 
 enum RuntimeScaleModeMenu
 {
@@ -2979,6 +2980,17 @@ extern "C" void replay_shuffle_handoff(void)
 	g_wrapper_restart_requested = 1;
 	pid_t pid = (pid_t)g_child_pid;
 	if (pid > 0) kill(pid, SIGTERM);
+}
+
+// Quick Training (OSD T[15]). A LIVE signal, deliberately unlike the two
+// handoffs above: no restart request, no armed flag, no payload — the game
+// is already running and performs the jump in-process (the SIGRTMIN+2..4
+// runtime-signal model, not the SIGTERM+relaunch model). The menu caller
+// dismisses the OSD itself.
+extern "C" void quick_training_signal(void)
+{
+	pid_t pid = (pid_t)g_child_pid;
+	if (pid > 0) kill(pid, kRuntimeQuickTrainingSignal);
 }
 
 int thirdsarm_wrapper_run(int argc, char *argv[])

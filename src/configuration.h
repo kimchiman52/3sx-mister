@@ -84,6 +84,17 @@ typedef struct TestRunnerConfiguration {
      * liveness and exit. Prototype only — src/test/scene_jump_spike.c.
      * Requires a #if DEBUG build and --test-enable. */
     bool instant_jump;
+    /* Quick Training harness (src/quick_training.c): fire the feature's
+     * request (the SIGRTMIN+5 path minus the signal) at this prologue
+     * frame, exercising the FULL shipped sequence — wipe-out, teardown if
+     * needed, chain, wipe-in — then verify liveness, print QUICK-TRAINING
+     * TEST PASS/FAIL and terminate. -1 (default) = off. Requires a
+     * #if DEBUG build and --test-enable. */
+    int quick_training_frame;
+    /* Optional second fire, at this (absolute) prologue frame — schedule
+     * it after the first sequence completes to exercise the mid-match
+     * teardown + re-jump edge case. -1 (default) = off. */
+    int quick_training_again_frame;
     /* Phase 1 Step H3 (docs/plan-frame-data-harness.md section 1.5): when
      * true, the training-mode RNG reseed in game.c's Game01() zeroes
      * Random_ix16/32/_ex via Setup_Net_Random_ix() instead of seeding

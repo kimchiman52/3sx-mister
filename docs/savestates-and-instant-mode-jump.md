@@ -76,6 +76,10 @@ No findings overlap between them.
 | SJ-19 | `Load_Replay_Sub` is an in-tree menu->match jump that bypasses char select | §4.5 | The template the spike copied |
 | SJ-20 | Hardcode census: 5 `Mode_Type = MODE_ARCADE` sites, 11 `Present_Mode` writes | §4.6 | Extends the Reset_Sub0 trap |
 | SJ-21 | A training match starts ON its menu; the round blocks until it is dismissed | §4.7 | Any jump must handle it |
+| SJ-22 | **The chain is SHIPPED** — promoted out of the spike into `src/scene_jump.c`, driving the OSD "Quick Training" feature | §10 | Design realized |
+| SJ-23 | Quick Training reaches the same live match from ANY offline scene, not just the title — via the shipped soft-reset teardown | §10.2 | Edge cases closed |
+| SJ-24 | Wrapping the jump in the diagonal wipe (type 1) is sequential with the `No_Trans` cover, never overlapping | §10.3 | Wipe/cover are mutually exclusive |
+| SJ-25 | Quick Training reads/writes the SAME persisted training file with no drift; the OSD trigger is a live SIGRTMIN+5, no restart | §10.4 | No new persistence; live channel |
 
 ## Revision log
 
@@ -86,6 +90,7 @@ No findings overlap between them.
 | 2026-08-30 | Corrected `sizeof(GameState)`: it drifted 17784 -> 17772 between `1f981b73` and `aa2c2bf1`. Read it from source. |
 | 2026-08-30 | **Citation audit at `ad480322`.** All 116 `path:line` citations resolved; 10 of 67 checked symbol/range pairs had drifted, §4 systematically. Conclusion then: grep the symbol, don't trust the line. |
 | 2026-09-02 | **Moved into the repo** (this file) and re-validated at `762b5052`. Load-bearing citations converted to durable `file -> symbol` anchors — the fix for the drift problem the audit found; the old `path:line` audit table is superseded by the conversion and removed. New findings SJ-15..SJ-21 from the `--test-instant-jump` prototype (built this revision, same commit): §9 open questions #1 and #2 settled. Stale facts fixed: `EXPECTED_GAME_STATE_SIZE` moved to `game_state.h` (17772 @ `762b5052`); `netplay_nav.c` is 494 lines; `Netplay_TickMatchmaking` no longer exists; `--headless` now has consumers. |
+| 2026-09-02 | **Quick Training SHIPPED** (this lane, on `a8250882`). The SJ-06 chain promoted from the spike into `src/scene_jump.c`; the OSD feature in `src/quick_training.c`; OSD row + wrapper + signal wired. New findings SJ-22..SJ-25, new §10. The spike now calls the shared chain, so `--test-instant-jump` still proves it (PASS, same numbers: drain=24, jump->live=62). |
 
 ---
 
@@ -753,7 +758,8 @@ Non-`CONF_STR` screens (Button Check, Direct-P2P) are added via
 | Black-cover mechanism | **Built** (`No_Trans`, `netplay.c`) |
 | Training settings + char-select persistence | **Built** (`training_config.c`) |
 | OSD -> game signal channel | **Built** (4 signals; add a 5th) |
-| **The chain function (§4)** | **PROTOTYPED** — `src/test/scene_jump_spike.c` PASSES on host (§4.1); productization (un-spike, device test, netplay variant) remains |
+| **The chain function (§4)** | **SHIPPED** — `src/scene_jump.c`, driving OSD Quick Training (§10, SJ-22); spike calls it and still PASSES. Device test + netplay variant remain |
+| **Quick Training feature (§10)** | **SHIPPED** — `src/quick_training.c` + OSD row + wrapper signal; host-verified, device run pending (SJ-22..SJ-25) |
 | **Audio suppression on restore (§3.2)** | **TO BUILD** |
 | Promote test-runner driver out of `#if DEBUG` | **TO BUILD** (optional; chain is cleaner) |
 | Save-state slot UI / hotkeys | **TO BUILD** |
@@ -768,9 +774,12 @@ wanted.
 ## 9. Open questions / UNVERIFIED
 
 1. ~~Does the chain run correctly outside its normal task dispatch context?~~
-   **SETTLED — yes.** SJ-15 (§4.1): direct chain call, `No_Trans` cover,
-   screenshot-verified healthy match, PASS on host. Remaining unverified
-   slice: the netplay-Versus variant and on-device behaviour.
+   **SETTLED — yes, and SHIPPED.** SJ-15 (§4.1): direct chain call, `No_Trans`
+   cover, screenshot-verified healthy match, PASS on host. Now promoted into
+   `src/scene_jump.c` and driving the OSD Quick Training feature (§10, SJ-22).
+   Remaining unverified slice: the netplay-Versus variant, and on-device
+   behaviour of Quick Training (the OSD/wrapper/signal path is patch-verified
+   only — SJ-25 boundary).
 2. ~~How many frames do the two async gates actually cost?~~ **SETTLED on
    host.** SJ-16/SJ-17: step 7 costs 0 frames (synchronous); step 10 costs
    24-25 frames at stock cadence or 1 frame barrier-forced (4 ms /
@@ -786,6 +795,148 @@ wanted.
    companion training-mode doc (Desktop, outside the repo), not here.
 
 ---
+
+## 10. Quick Training — the shipped feature
+
+Built this lane (on `a8250882`). Selecting "Quick Training" at the top of the
+MiSTer OSD dismisses the OSD and jumps the running game straight into a live
+training match with the last-used characters and settings — no menus, no
+character select. It is the §6 quick-training-mode design (SJ-10/SJ-11) built
+on the §4.1 chain (SJ-15), and it reuses the spike's proof rather than
+re-deriving it.
+
+### 10.1 [SJ-22] The chain is now shipped code — the spike calls it
+
+The SJ-06 chain was promoted verbatim out of `src/test/scene_jump_spike.c`
+(`#if DEBUG`) into `src/scene_jump.c` (always built). Public surface
+(`scene_jump.h`):
+
+- `SceneJump_ExecuteTrainingChain(params)` — the whole chain as one direct
+  call (sets `No_Trans = 1`, returns the stage used).
+- `SceneJump_TrainingLoadsDrained(stage)` — the step-10 drain predicate.
+- `SceneJump_EnterBattleScene()` — the `Game2_0` flip.
+- `SceneJump_TrainingMenuDismissTick(parity)` — the SJ-21 menu-dismissal +
+  liveness predicate.
+
+Two consumers: `src/quick_training.c` (the feature) and the spike
+(`scene_jump_spike.c` -> `SceneJumpSpike_Tick`, now a thin harness driver over
+these calls). So **`--test-instant-jump` still proves the exact code the
+feature runs** — re-run this revision on host, unchanged result:
+`SCENE-JUMP PASS ... drain=24 frames, jump->live=62 frames` (Yun vs Ryu,
+stage 2, Debug, `SDL_VIDEODRIVER=dummy`).
+
+One chain addition over the spike: `SceneJump_ExecuteTrainingChain` accepts
+`stage < 0` to mean "derive the stock choice", calling
+`sel_pl.c -> Setup_Battle_Country` (the challenger's character id, with the
+Q / double-Q random-stage special cases) — what character select would have
+picked. The spike always passed an explicit stage, so this arm is feature-only.
+
+### 10.2 [SJ-23] Edge cases — any offline scene reaches the match
+
+The spike only ever ran from the title. The feature must fire from wherever
+the player has the OSD open. `src/quick_training.c` (`QuickTraining_Tick`, a
+`QtPhase` machine) handles it:
+
+- **Refused** (logged, no-op) when the engine is not the feature's to drive:
+  a netplay session (`Netplay_GetSessionState() != NETPLAY_SESSION_IDLE`),
+  direct-P2P orchestration (`DirectP2P_GetState() != DIRECT_P2P_IDLE`),
+  netplay nav (`NetplayNav_IsActive()`), or a replay / shuffle-viewer session
+  (`ReplayPlayer_IsActive()` / `ReplayShuffle_IsEnabled()`). This is the
+  netplay prohibition the constraints demand — see §10.3.
+- **From the title idle** (`G_No {2,0,1}`): fire the chain directly, as the
+  spike does.
+- **From any other offline scene** — attract, a menu, character select, a
+  live match, win/continue/ranking, even the pause menu — tear down to the
+  title first via the shipped soft-reset flow (`Game_pause = 0x81`,
+  `Request_LDREQ_Break`, `effect_work_init`, then
+  `sys_sub.c -> Soft_Reset_Sub` once the break lands — the
+  `reset.c -> Reset_Move`/`Reset_Wait` sequence, the same one
+  `replay_player.c` and the netplay-disconnect path use), then coin back to
+  the title and fire. `qt_needs_teardown()` is the discriminator
+  (`G_No[0] == 2` outside `Game00` idle/dash).
+- **Pre-coin** (boot `G_No[0] == 0`, attract `G_No[0] == 1`): coin in with an
+  injected `SWK_START`, no teardown.
+- A request **while a sequence is already running** is ignored.
+- Every phase has a watchdog; a blown one calls `qt_fail()`, which recovers to
+  a clean title via `Soft_Reset_Sub` so the device is never bricked.
+
+Verified on host (`--test-quick-training <frame>` fires the feature's request
+without the signal; `--test-quick-training-again` schedules a second): PASS
+firing from boot (`G_No 0/0/0/0`), from attract (`G_No 1/1/0/0`), and — the
+mid-match re-entry case — a second fire while the first match is live
+(`G_No 2/2/1/0` -> teardown -> live again). `QUICK-TRAINING TEST PASS: 2
+sequence(s) verified`.
+
+### 10.3 [SJ-24] The wipe wraps the cover, sequentially — and stays offline
+
+The maintainer asked for the jump to happen inside the game's diagonal wipe,
+not a bare black cut. The sequence (`quick_training.c`):
+
+1. `Switch_Screen_Init(0)` then `Switch_Screen(1)` per frame until it returns
+   1 — the diagonal/checkered wipe-OUT (`sys_sub.c` -> `Switch_Screen`,
+   `sc_sub.c` -> `WipeOut`; **type 1** is the diagonal look).
+2. THEN `No_Trans = 1` and the chain + drain + menu dismissal run fully
+   hidden.
+3. `No_Trans = 0`, then `Switch_Screen_Init(0)` + `Switch_Screen_Revival(1)`
+   per frame — the wipe-IN over the live match.
+
+`WipeOut`/`WipeIn` both early-out on `if (!No_Trans)` (`sc_sub.c`), so the
+wipe and the black cover **cannot draw at the same time**; the code is
+strictly sequential (cover raised only after the wipe-out completes, lowered
+before the wipe-in starts) — getting this wrong yields an invisible wipe.
+`WipeIn`'s `WipeLimit == 0` frame fully covers (its own comment), so the
+cover-to-wipe handoff has no one-frame gap.
+
+**Rollback / netplay constraint (verified).** `Exec_Wipe` / `Exec_Wipe_F` are
+in the `GS_SAVE` set (`game_state.c`), so driving the wipe is
+rollback-visible. The wipe is driven **only** from `QuickTraining_Tick`, which
+runs offline: `qt_refusal()` rejects every request while any session /
+orchestration / nav / replay is active (§10.2), and the tick additionally
+aborts defensively if a session ever activates mid-sequence. So the wipe is
+unreachable from a live netplay session, exactly as required. This lane
+touches neither `GameState` nor the `GS_SAVE` set — `EXPECTED_GAME_STATE_SIZE`
+is unchanged (17772) and the rollback-determinism harness did not need to run.
+
+### 10.4 [SJ-25] Trigger + settings — live signal, no restart, no drift
+
+- **Persistence: none added** (SJ-10). Characters/arts come from the persisted
+  training config via a new `TrainingConfig_GetLastUsed(chars, arts)`
+  (`training_config.c`), which reads the same `TrainingConfigFile` (magic
+  `"TRN1"`, `my_char[2]`/`super_arts[2]`) that
+  `TrainingConfig_RestoreCharSelect` reads, with the same per-slot range
+  clamps. Defaults when the file is missing: Yun vs Ryu, first super art.
+  Verified on host that a run reads the stored characters, uses them, and
+  leaves the file byte-identical — no drift across either the fresh-title or
+  the mid-match-teardown path.
+- **Trigger: a live signal, no restart** (SJ-12). The OSD row is
+  `"T[15],Quick Training;"` at the top of `vendor/Menu_MiSTer/menu.sv`
+  `CONF_STR` (bit 15 verified free: RTL reads only `[4] [5] [8:6] [9] [12]
+  [32] [36:33] [38:37] [42:39]`, the wrapper reads none of 15; `cfg[15]` is a
+  different wire, the native-video menumask). The wrapper intercepts the OSD
+  select in `tools/mister-wrapper/main-mister-full-menu.patch`
+  (`bit == 15 && p[0] == 'T'`), calls the new
+  `thirdsarm_wrapper.cpp -> quick_training_signal()` — which raises
+  `SIGRTMIN+5` (`kRuntimeQuickTrainingSignal`) at the child, following the
+  four existing runtime signals, with **no** restart / argv / handoff file —
+  and then **dismisses the OSD itself** (`menustate = MENU_NONE1`; Watch
+  Replays gets dismissal free from its restart, this one must do it
+  explicitly). Game side: `main.c -> on_shutdown_signal` sets a flag drained
+  by `handle_signal_requests` -> `QuickTraining_Request()`, and
+  `QuickTraining_Tick()` runs from `game_step_0` before the pad latch (the
+  `NetplayNav_Tick` slot, so it owns the pads while a sequence runs). The
+  `--direct-p2p-handoff` restart path is deliberately NOT used (§7) — this is
+  a live in-process jump.
+
+**Boundary of what is verified.** Host only: the chain, the phase machine, the
+edge cases, the wipe sequencing, and the persistence round-trip are all
+host-verified (Debug, `SDL_VIDEODRIVER=dummy`), and both host Debug and host
+Release compile clean. **The OSD row, the wrapper interception + dismissal,
+and the SIGRTMIN+5 delivery are compile-/patch-verified only** — the menu.sv
+row, the wrapper C++, and the signal path cannot be exercised without the
+MiSTer hardware, and the ARM build + device deploy were out of scope for this
+lane. The patch was confirmed to apply cleanly against the pinned upstream
+`menu.cpp` (`3380931329b8...`). A device run is still needed to confirm
+end-to-end OSD behaviour.
 
 ## Appendix A — reproducing the measurements
 

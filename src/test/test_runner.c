@@ -6,6 +6,7 @@
 #include "main.h"
 #include "port/config/config.h"
 #include "port/sdl/sdl_app.h"
+#include "quick_training.h"
 #include "sf33rd/AcrSDK/common/pad.h"
 #include "sf33rd/Source/Game/debug/debug_config.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
@@ -1640,6 +1641,14 @@ void TestRunner_Prologue() {
         return;
     }
 
+    /* --test-quick-training: the Quick Training harness owns the session;
+     * QuickTraining_Tick (called from game_step_0 after this prologue)
+     * schedules its own requests and injects its own inputs. The zeroed
+     * p*sw_buff above is exactly the deterministic pad state it wants. */
+    if (QuickTraining_TestActive()) {
+        return;
+    }
+
     /* Step B3 EXPERIMENT: raw fcade-stream playback replaces the whole
      * phase machine — the stream is the only input source. */
     if (fcade_mode_active()) {
@@ -1846,6 +1855,11 @@ void TestRunner_Prologue() {
 void TestRunner_Epilogue() {
     /* SPIKE: the scene-jump prototype needs none of the pins below. */
     if (SceneJumpSpike_Active()) {
+        return;
+    }
+
+    /* --test-quick-training: same — the harness lives in quick_training.c. */
+    if (QuickTraining_TestActive()) {
         return;
     }
 

@@ -90,6 +90,18 @@ extern char g_replay_play_path[512];
 void replay_shuffle_handoff(void);
 extern int g_replay_shuffle_armed;
 
+/*
+ * Quick Training ("Quick Training", OSD status bit T[15]). Unlike the two
+ * handoffs above there is NO restart and NO argv payload: the game keeps
+ * running and this just raises SIGRTMIN+5 (kRuntimeQuickTrainingSignal) at
+ * the child, whose handler (src/main.c -> on_shutdown_signal ->
+ * handle_signal_requests) hands the request to the in-process jump driver
+ * (src/quick_training.c). The menu side must dismiss the OSD itself
+ * (menustate = MENU_NONE1) — nothing restarts to do it for us. No-op when
+ * no child is running.
+ */
+void quick_training_signal(void);
+
 #ifdef __cplusplus
 }
 #endif

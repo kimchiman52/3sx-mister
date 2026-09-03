@@ -9,6 +9,7 @@
 #include "netplay/netplay.h"
 #include "netplay/netplay_nav.h"
 #include "port/sdl/sdl_app.h"
+#include "quick_training.h"
 #include "sf33rd/AcrSDK/common/mlPAD.h"
 #include "sf33rd/AcrSDK/ps2/flps2debug.h"
 #include "sf33rd/AcrSDK/ps2/flps2etc.h"
@@ -101,6 +102,8 @@ Configuration configuration = {
             .delay_gameplay_inputs_until_active = false,
             .stage = -1,
             .instant_jump = false,
+            .quick_training_frame = -1,
+            .quick_training_again_frame = -1,
             .rbd_capture_path = NULL,
             .rbd_symmap_path = NULL,
             .rbd_frames = 0,
@@ -143,6 +146,7 @@ static volatile sig_atomic_t fps_toggle_requested = 0;
 static volatile sig_atomic_t arm_clock_cycle_requested = 0;
 static volatile sig_atomic_t game_mode_cycle_requested = 0;
 static volatile sig_atomic_t hold_to_pause_cycle_requested = 0;
+static volatile sig_atomic_t quick_training_requested = 0;
 
 static u8* mppMalloc(u32 size) {
     return flAllocMemory(size);
@@ -194,6 +198,13 @@ static void on_shutdown_signal(int signo) {
         hold_to_pause_cycle_requested = 1;
         return;
     }
+
+    /* OSD "Quick Training" row (menu.sv T[15]) -> thirdsarm_wrapper.cpp
+     * quick_training_signal(). Live in-process jump; no restart. */
+    if (signo == SIGRTMIN + 5) {
+        quick_training_requested = 1;
+        return;
+    }
 #endif
 
 #if !defined(_WIN32)
@@ -226,6 +237,7 @@ static void install_shutdown_signal_handlers() {
     sigaction(SIGRTMIN + 2, &action, NULL);
     sigaction(SIGRTMIN + 3, &action, NULL);
     sigaction(SIGRTMIN + 4, &action, NULL);
+    sigaction(SIGRTMIN + 5, &action, NULL);
 #endif
 #endif
 }
@@ -243,6 +255,7 @@ static void restore_shutdown_signal_handlers() {
     signal(SIGRTMIN + 2, SIG_DFL);
     signal(SIGRTMIN + 3, SIG_DFL);
     signal(SIGRTMIN + 4, SIG_DFL);
+    signal(SIGRTMIN + 5, SIG_DFL);
 #endif
 }
 
@@ -890,6 +903,15 @@ static void game_step_0() {
     StatcheckRunner_Prologue();
 #endif
 
+    /* Quick Training (OSD T[15] -> SIGRTMIN+5 -> QuickTraining_Request):
+     * drives the wipe-out / teardown / scene-jump / wipe-in sequence.
+     * Runs BEFORE the p*sw_buff latch below because it owns the pads
+     * while a sequence is active (suppresses real presses and injects
+     * its own — the same slot contract as NetplayNav_Tick underneath).
+     * Mutually exclusive with nav/replay/shuffle by its request gating
+     * (src/quick_training.c -> qt_refusal). No-op when idle. */
+    QuickTraining_Tick();
+
     /* Drive cold-launch menu navigation for netplay BEFORE p1sw_buff is
      * latched. The nav state machine may inject SWK_START on this tick;
      * if it does the rising-edge comparison ~p*sw_1 & p*sw_0 & SWK_START
@@ -1122,6 +1144,10 @@ static void handle_signal_requests() {
         hold_to_pause_cycle_requested = 0;
         SDLApp_CycleHoldToPause();
     }
+    if (quick_training_requested != 0) {
+        quick_training_requested = 0;
+        QuickTraining_Request();
+    }
 }
 
 static int loop() {
@@ -1138,6 +1164,7 @@ static int loop() {
     fps_toggle_requested = 0;
     arm_clock_cycle_requested = 0;
     game_mode_cycle_requested = 0;
+    quick_training_requested = 0;
 
     while (is_running && shutdown_signal == 0) {
         switch (phase) {

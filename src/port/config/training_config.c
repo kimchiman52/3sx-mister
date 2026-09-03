@@ -1,4 +1,5 @@
 #include "port/config/training_config.h"
+#include "constants.h"
 #include "port/paths.h"
 #include "structs.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
@@ -226,6 +227,43 @@ void TrainingConfig_Save(void) {
         return;
     }
     fclose(f);
+}
+
+bool TrainingConfig_GetLastUsed(s8 chars_out[2], s8 arts_out[2]) {
+    const char* pref_path = Paths_GetPrefPath();
+    if (pref_path == NULL) {
+        return false;
+    }
+
+    char path[512];
+    SDL_snprintf(path, sizeof(path), "%straining", pref_path);
+
+    FILE* f = fopen(path, "rb");
+    if (f == NULL) {
+        return false;
+    }
+
+    TrainingConfigFile file;
+    if (!read_training_config(f, &file)) {
+        fclose(f);
+        return false;
+    }
+    fclose(f);
+
+    /* Per-slot validation, mirroring TrainingConfig_RestoreCharSelect's
+     * clamps: out-of-range stored values leave the caller's defaults in
+     * place. my_char is stored unvalidated (u8 straight off My_char[]),
+     * so the range check here is load-bearing. */
+    for (int i = 0; i < 2; i++) {
+        if (file.my_char[i] < NUM_CHARS) {
+            chars_out[i] = (s8)file.my_char[i];
+        }
+        if (file.super_arts[i] >= 0 && file.super_arts[i] < 3) {
+            arts_out[i] = file.super_arts[i];
+        }
+    }
+
+    return true;
 }
 
 void TrainingConfig_RestoreCharSelect(void) {

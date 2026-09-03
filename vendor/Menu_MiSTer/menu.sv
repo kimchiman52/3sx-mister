@@ -277,6 +277,22 @@ assign LED_POWER[0]= FB ? led[2] : act_cnt2[26] ? act_cnt2[25:18] > act_cnt2[7:0
 `include "build_id.v" 
 localparam CONF_STR = {
 	"MENU;UART31250,MIDI;",
+	// Top row by the maintainer's explicit choice: the fastest way into a
+	// game sits first. Selecting it signals the RUNNING game to jump
+	// straight into a live training match with the last-used characters
+	// and settings — no restart, no menus: the HPS menu intercepts the
+	// OSD select directly (main-mister-full-menu.patch, bit==15 ->
+	// quick_training_signal() = SIGRTMIN+5 to the child) and then
+	// dismisses the OSD itself; the bit's value is never read by RTL or
+	// wrapper. Bit 15 was the retired "SA Quality" row's bit (removed
+	// with the other SA-quality rows), so stale 3S-ARM.CFG files may
+	// carry it set — safe for a T row for exactly the [31] reasons above,
+	// but do NOT reuse [15] for an O-value field without the [30]-style
+	// seed-after-CFG defense. NOT [2-9]: despite looking free in this
+	// string, upstream MENU-core handling owns [0], [3:1] and [4], and
+	// this file itself reads [4] (PAL), [5] (FB), [8:6] (led) and [9]
+	// (NATIVE_VID).
+	"T[15],Quick Training;",
 	"T[29],Play Online;",
 	// Top-level by design: watching replays is a primary activity, so it
 	// sits with Play Online rather than inside a page.
