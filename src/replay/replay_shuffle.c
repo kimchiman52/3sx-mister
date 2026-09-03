@@ -66,6 +66,7 @@
 
 #include "replay/replay_browser_scan.h"
 #include "replay/replay_player.h"
+#include "replay/replay_wipe.h"
 
 #include "main.h"
 #include "netplay/netplay.h"
@@ -118,6 +119,12 @@
  * existing meaning (leave the viewer) and is handled by the player itself. */
 #define RS_SKIP_BTN SWK_NORTH
 #define RS_SKIP_HOLD_FRAMES 60
+
+/* Live frames of diagonal wipe-out run at the tail of the skip hold, so a
+ * skipped replay leaves the screen the same way a finished one does. Matches
+ * replay_player.c's REPLAY_EXIT_WIPE_FRAMES (the engine's own 8-step
+ * WipeOut cadence). */
+#define RS_SKIP_WIPE_FRAMES 8
 
 /* The skip hint is a hard on/off, exactly like replay_overlay.c's
  * draw_exit_hint: visible for the first RS_HINT_INTRO_FRAMES of each replay,
@@ -706,6 +713,21 @@ static bool rs_handle_skip(void) {
     } else {
         s_skip_hold = 0;
         return false;
+    }
+
+    /* Cover the cut. The skip jumps straight to ReplayPlayer_LoadAndStart,
+     * which raises the viewer's black cover in the same frame — so without
+     * this a battle in progress would hard-cut to black. The hold threshold
+     * is a fixed frame count, so its last few frames are a deterministic tell
+     * exactly like the round-end countdown: start the diagonal wipe-out
+     * RS_SKIP_WIPE_FRAMES frames before the jump and the cut lands under a
+     * finished cover.
+     *
+     * RS_PLAYING only. A skip during RS_TRANSITION is already running on held
+     * frames — black, with the "NEXT REPLAY..." card on it — so there is
+     * nothing to wipe over and the cover is raised by the relaunch anyway. */
+    if (s_state == RS_PLAYING && s_skip_hold == RS_SKIP_HOLD_FRAMES - RS_SKIP_WIPE_FRAMES) {
+        ReplayWipe_BeginExit(RS_SKIP_WIPE_FRAMES, "skip gesture about to fire");
     }
 
     if (s_skip_hold < RS_SKIP_HOLD_FRAMES) {

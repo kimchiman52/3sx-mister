@@ -41,6 +41,7 @@
 #include "sf33rd/Source/Game/ui/sc_sub.h"
 #include "replay/replay_player.h"
 #include "replay/replay_shuffle.h"
+#include "replay/replay_wipe.h"
 #include "structs.h"
 #include "test/ldreq_timing_trace.h"
 #include "test/rollback_determinism.h"
@@ -921,6 +922,14 @@ static void game_step_0() {
      * without --play-replay. */
     const bool replay_frame_hold = ReplayPlayer_IsStallingThisFrame();
 
+    /* Advance the replay viewer's private screen cover (the 76-band diagonal
+     * wipe that hides the title/menu/character-select walk between replays).
+     * Here, not in a draw branch: it must see whether the frame is HELD, and
+     * it must run BEFORE njUserMain so its character-select reveal is decided
+     * against the S_No the previous frame left — which is the frame the
+     * engine's own WipeIn(0) fully covers. Inert without a loaded replay. */
+    ReplayWipe_Tick(!replay_frame_hold);
+
     if (!replay_frame_hold && ((Play_Mode != 3 && Play_Mode != 1) || (Game_pause != 0x81))) {
         p1sw_1 = p1sw_0;
         p2sw_1 = p2sw_0;
@@ -996,6 +1005,11 @@ static void game_step_0() {
         ReplayOverlay_Draw();
         /* Shuffle-viewer chrome (skip hint). Inert without --watch-replays. */
         ReplayShuffle_Draw();
+        /* The viewer's private cover, LAST and in front of everything (z =
+         * 0.0f, just ahead of PrioBase[0]). Live frames only: a held frame is
+         * already black and still has to show its "REPLAY COMPLETE" /
+         * "NEXT REPLAY..." card, which an opaque cover would hide. */
+        ReplayWipe_Draw();
         njdp2d_draw();
         seqsAfterProcess();
         step0_phase_end(STEP0_PHASE_SEQS);

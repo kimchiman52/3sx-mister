@@ -25,6 +25,8 @@
 
 #include "replay/replay_player.h"
 
+#include "replay/replay_wipe.h"
+
 #include "main.h"
 #include "netplay/netplay.h"
 #include "port/config/config.h"
@@ -550,6 +552,20 @@ static void reset_runtime_state(void) {
     terminal_linger = 0;
     terminal_exit_requested = false;
     postmatch_frames = 0;
+
+    /* Raise the viewer's private black cover over the walk this reset arms.
+     * The screen is ALREADY black when a chained replay gets here — the
+     * previous replay's exit wipe ran before its freeze, and every frame
+     * since has been held (main.c's replay_frame_hold branch skips
+     * njUserMain, so the canvas is cleared to opaque black and only the
+     * overlay text is drawn on it) — so raising a solid cover is seamless,
+     * with no second wipe-out to sit through. It comes down again in
+     * ReplayPlayer_Tick, at the character-select reveal point.
+     *
+     * On the --play-replay boot path this covers the boot walk for the same
+     * reason and by the same rule; the cover writes njdp2d_w and nothing
+     * else, so neither path's checksums can see it. */
+    ReplayWipe_Cover("replay armed - hiding the title/menu/character-select walk");
 }
 
 /* True while the player is holding the whole engine frame (see s_stall_frame).
@@ -803,6 +819,7 @@ bool ReplayPlayer_Init(const char* path_3sr) {
 
 void ReplayPlayer_Destroy(void) {
     s_stall_frame = false;
+    ReplayWipe_Reset();
 
     SDL_free(replay.inputs);
     SDL_free(replay.checksums);
@@ -1063,6 +1080,74 @@ static bool game_ended(void) {
  * condition. Anything derived from LIVE Scene_Cut can, which is why the
  * skip must come from the recording and nowhere else. */
 
+/* ---------------------------------------------------------------------- */
+/* Exit wipe — arming the private cover BEFORE the freeze                 */
+/* ---------------------------------------------------------------------- */
+
+/* Live frames the diagonal wipe-out gets. 8 is the engine's own cadence
+ * (sc_sub.c -> WipeOut runs WipeLimit 0..7), and it is the largest window
+ * every freeze path below can guarantee. */
+#define REPLAY_EXIT_WIPE_FRAMES 8
+
+/* Arm the wipe-out when the freeze is a known, fixed number of frames away.
+ *
+ * WHY IT HAS TO BE PREDICTED RATHER THAN REACTED TO. Once finish() sets
+ * s_stall_frame the frame is HELD: main.c skips njUserMain, and
+ * SoftwareRenderer_RenderFrame -> render_band -> clear_band fills opaque
+ * black and then draws only the quads submitted this frame (arrsetlen(quads,
+ * 0) at the end of the frame). Nothing is retained, so from the freeze
+ * onwards there is no scene left to wipe over. The wipe has to be running
+ * already.
+ *
+ * The three tells, all read BEFORE njUserMain runs this frame:
+ *
+ *  1. Ordinary round end. manage.c -> Game_Manage_7_3() runs at
+ *     C_No[0]==6 && C_No[1]==3 and, with Perfect_Flag == 0, does
+ *     `if (--C_Timer) return;` before `C_No[0]++`. C_Timer was set to 50 or
+ *     90 by Game_Manage_7_2(). So observing C_Timer == T here means the
+ *     C_No[0] bump lands T-1 frames later and PHASE_POSTMATCH sees
+ *     C_No[0] > 6 exactly T frames later: T live frames remain.
+ *
+ *  2. Perfect round end. Game_Manage_7_3 with Perfect_Flag instead runs
+ *     7_4 (C_Timer = 10) -> 7_5 (waits on !request_message, unbounded) ->
+ *     7_6 (C_Timer = 6, and `if (Scene_Cut) C_Timer = 1`). The only fixed
+ *     countdown on that path is 7_6's SIX frames, not eight — so the Perfect
+ *     wipe runs the same 8 steps in 6 frames (replay_wipe.c -> rw_step)
+ *     rather than being cut off half-drawn. Scene_Cut cannot shorten it here
+ *     because PHASE_POSTMATCH holds both pads neutral.
+ *
+ *  3. Neither tell fired. PHASE_POSTMATCH's own cap
+ *     (REPLAY_POSTMATCH_MAX_FRAMES) and PHASE_GAME's inputs-exhausted end
+ *     are both exact frame counts we already hold, so they arm the wipe the
+ *     same way.
+ *
+ * Whichever tell is closest wins. Arming is idempotent — ReplayWipe_BeginExit
+ * ignores a call once a wipe or cover is up — so this may be called every
+ * tick. */
+static void arm_exit_wipe(int frames_left, const char* why) {
+    if (frames_left < 1 || frames_left > REPLAY_EXIT_WIPE_FRAMES) {
+        return;
+    }
+
+    ReplayWipe_BeginExit(frames_left, why);
+}
+
+/* The round-end tells above, evaluated for the current PHASE_POSTMATCH tick.
+ * postmatch_frames has already been incremented for this tick. */
+static void arm_exit_wipe_postmatch(void) {
+    if (ReplayWipe_IsActive()) {
+        return;
+    }
+
+    if (C_No[0] == 6 && C_No[1] == 3 && Perfect_Flag == 0) {
+        arm_exit_wipe(C_Timer, "round-end countdown (Game_Manage_7_3)");
+    } else if (C_No[0] == 6 && C_No[1] == 6) {
+        arm_exit_wipe(C_Timer, "perfect round-end countdown (Game_Manage_7_6)");
+    }
+
+    arm_exit_wipe(REPLAY_POSTMATCH_MAX_FRAMES - postmatch_frames, "post-match window cap about to expire");
+}
+
 static void finish(const char* reason) {
     phase = PHASE_DONE;
     status = REPLAY_PLAYER_COMPLETE;
@@ -1166,6 +1251,7 @@ void ReplayPlayer_Tick(void) {
     if (Netplay_GetSessionState() != NETPLAY_SESSION_IDLE) {
         phase = PHASE_DONE;
         status = REPLAY_PLAYER_ABORTED;
+        ReplayWipe_Reset();
         SDL_Log("replay: netplay session active — aborting replay playback (pads released)");
         return;
     }
@@ -1189,6 +1275,7 @@ void ReplayPlayer_Tick(void) {
                 SDL_zeroa(input_buffers);
                 p1sw_buff = 0;
                 p2sw_buff = 0;
+                ReplayWipe_Reset();
                 Soft_Reset_Sub();
                 SDL_Log("replay: user held START %d frames at play_index %u — aborting playback, "
                         "returning to title (pads released)",
@@ -1200,6 +1287,23 @@ void ReplayPlayer_Tick(void) {
         }
     } else {
         exit_hold_frames = 0;
+    }
+
+    /* REVEAL POINT. sel_pl.c -> Sel_PL_Cont_2nd() (S_No[0]==1) runs
+     * Switch_Screen(1) + Switch_Screen_Init(1) and bumps S_No[0] to 2;
+     * Sel_PL_Cont_3rd() (S_No[0]==2) then runs Switch_Screen_Revival(0) =
+     * WipeIn(0), whose WipeLimit==0 frame covers the screen completely. This
+     * hook runs BEFORE njUserMain, so the first tick that observes
+     * S_No[0] >= 2 is the very frame that wipe-in draws — drop our cover
+     * here and the engine's own wipe-in takes over with no seam and no
+     * viewer-side wipe-in code at all.
+     *
+     * Gated on the phase machine having left the menu so a stray G_No[1]/
+     * S_No[0] pairing earlier in the walk cannot uncover it. S_No[0] is
+     * monotonic within character select (Sel_PL_Cont_3rd bumps it to 3 once
+     * the wipe-in finishes), so >= 2 is the right test. */
+    if (phase >= PHASE_CHARACTER_SELECT_TRANSITION && G_No[1] == 1 && S_No[0] >= 2) {
+        ReplayWipe_Reveal("character select reached (G_No[1]==1, S_No[0]>=2)");
     }
 
     SDL_zeroa(input_buffers);
@@ -1330,11 +1434,30 @@ void ReplayPlayer_Tick(void) {
              * comment). finish() still runs, just later and unchanged. */
             phase = PHASE_POSTMATCH;
             postmatch_frames = 0;
+
+            /* A recording that stops within a few frames of the KO can have
+             * armed the inputs-exhausted wipe below just before this fired.
+             * The round-end tail is exactly what d28b6a2f added this window
+             * to SHOW, so drop the cover rather than play the KO and win pose
+             * underneath it; arm_exit_wipe_postmatch() raises it again at the
+             * real freeze. */
+            if (ReplayWipe_IsActive()) {
+                SDL_Log("replay: the match ended inside the exit wipe's window — dropping the cover so the "
+                        "round-end tail plays visible");
+                ReplayWipe_Reset();
+            }
             /* Neutral pads this frame (input_buffers were zeroed above) and
              * the engine ticks normally; the window is counted from the next
              * tick, in case PHASE_POSTMATCH below. */
             break;
         }
+
+        /* Tell 3: the recording's own length. play_index only advances in
+         * PHASE_GAME (Epilogue), so the remaining word count IS the number of
+         * live frames left before finish("inputs-exhausted") freezes us.
+         * Checked after game_ended() so the last frames of a match that ends
+         * on a KO arm the round-end tells instead, not this one. */
+        arm_exit_wipe((int)(replay.frame_count - play_index), "recorded inputs about to run out");
 
         pure_words[0] = replay.inputs[play_index][0];
         pure_words[1] = replay.inputs[play_index][1];
@@ -1354,6 +1477,8 @@ void ReplayPlayer_Tick(void) {
          * pose we are letting run. The KO and win pose are engine-driven, not
          * input-driven, so neutral is all they need. */
         postmatch_frames += 1;
+        arm_exit_wipe_postmatch();
+
         if (C_No[0] > 6 || postmatch_frames >= REPLAY_POSTMATCH_MAX_FRAMES) {
             SDL_Log("replay: round-end tail played for %d frame(s) (C_No[0]=%u, cap %d) — freezing now",
                     postmatch_frames, C_No[0], REPLAY_POSTMATCH_MAX_FRAMES);
