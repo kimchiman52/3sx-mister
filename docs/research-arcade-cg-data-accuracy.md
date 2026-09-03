@@ -4044,7 +4044,17 @@ will fail there. For every other stage in the corpus the sequence matched to
 frame 60 in 37/37 replays (previous pass) — there is no evidence of a third
 affected stage, but see §23.11.
 
-### 23.10 The fix — proposed, not applied
+### 23.10 The fix — APPLIED 2026-09-03
+
+**Status: implemented and green.** `effect/effc74.c` (`effect_C74_init/move`,
+id 87) and `effect/effc08.c` (`effect_C08_init/move`, id 88) carry the §23.6
+state machines; `bg190.c -> bg1902_init00` and `bg030.c -> bg0301_init00` spawn
+them at the arcade positions. The 44-replay corpus went **44/44 with zero
+`Random_ix16-only divergence` at checkpoint 2 on stages 3 and 19**, on the first
+run, with no constant tuned. `7092` — which had been passing by luck at +0 — now
+matches at frame 60, which is what confirms the table-driven re-roll cadence
+rather than only the spawn-frame draw. Exactly seven logs changed, all Remy or
+Yun stages. The text below is the original proposal, kept as written.
 
 **What is *not* the fix.** Adding a bare `random_16();` to `bg1902_init00`
 (precedent: `ta0_init00`'s `// Calling this function is necessary for
