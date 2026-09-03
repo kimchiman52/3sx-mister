@@ -1,0 +1,704 @@
+diff --git a/src/burner/sdl/burner_sdl.h b/src/burner/sdl/burner_sdl.h
+index 7f233f8..7e062fe 100644
+--- a/src/burner/sdl/burner_sdl.h
++++ b/src/burner/sdl/burner_sdl.h
+@@ -39,6 +39,10 @@ bool ReplayHasStatePath();
+ bool ReplayHasInputsPath();
+ void ReplaySetDumpRamPath(const char* path);
+ bool ReplayHasDumpRamPath();
++void ReplaySetTrack3srPath(const char* path);
++bool ReplayHasTrack3srPath();
++void ReplaySetReplayFollow(bool enabled);
++void ReplaySetReplayFollowIdleMs(unsigned int ms);
+ 
+ extern int   nAppVirtualFps;
+ extern bool  bRunPause;
+diff --git a/src/burner/sdl/main.cpp b/src/burner/sdl/main.cpp
+index b261130..fa6e036 100644
+--- a/src/burner/sdl/main.cpp
++++ b/src/burner/sdl/main.cpp
+@@ -135,6 +135,26 @@ int parseSwitches(int argc, char* argv[])
+ 			}
+ 			ReplaySetDumpRamPath(argv[i + 1]);
+ 		}
++		if (strcmp(argv[i] + 1, "track-3sr") == 0)
++		{
++			if ((i + 1) >= argc) {
++				printf("Missing value for -track-3sr\n");
++				return 1;
++			}
++			ReplaySetTrack3srPath(argv[i + 1]);
++		}
++		if (strcmp(argv[i] + 1, "replay-follow") == 0)
++		{
++			ReplaySetReplayFollow(true);
++		}
++		if (strcmp(argv[i] + 1, "replay-follow-idle-ms") == 0)
++		{
++			if ((i + 1) >= argc) {
++				printf("Missing value for -replay-follow-idle-ms\n");
++				return 1;
++			}
++			ReplaySetReplayFollowIdleMs((unsigned int)strtoul(argv[i + 1], NULL, 10));
++		}
+ 	}
+ 	return 0;
+ }
+@@ -334,7 +354,9 @@ int main(int argc, char* argv[])
+ 			if (strcmp(argv[i] + 1, "cd") == 0 ||
+ 				strcmp(argv[i] + 1, "replay-state") == 0 ||
+ 				strcmp(argv[i] + 1, "replay-inputs") == 0 ||
+-				strcmp(argv[i] + 1, "dump-ram-path") == 0) {
++				strcmp(argv[i] + 1, "dump-ram-path") == 0 ||
++				strcmp(argv[i] + 1, "track-3sr") == 0 ||
++				strcmp(argv[i] + 1, "replay-follow-idle-ms") == 0) {
+ 				i++;
+ 			}
+ 			continue;
+@@ -358,7 +380,7 @@ int main(int argc, char* argv[])
+ 
+ 	if (romname == NULL)
+ 	{
+-		printf("Usage: %s [-cd] [-joy] [-menu] [-headless] [-novsync] [-integerscale] [-fullscreen] [-dat] [-autosave] [-nearest] [-linear] [-best] [-replay-state <path>] [-replay-inputs <path>] [-dump-ram-path <dir>] <romname>\n", argv[0]);
++		printf("Usage: %s [-cd] [-joy] [-menu] [-headless] [-novsync] [-integerscale] [-fullscreen] [-dat] [-autosave] [-nearest] [-linear] [-best] [-replay-state <path>] [-replay-inputs <path>] [-dump-ram-path <dir>] [-track-3sr <dir>] [-replay-follow] [-replay-follow-idle-ms <ms>] <romname>\n", argv[0]);
+ 		printf("Note the -menu switch does not require a romname\n");
+ 		printf("e.g.: %s mslug\n", argv[0]);
+ 		printf("e.g.: %s -menu -joy\n", argv[0]);
+diff --git a/src/burner/sdl/run.cpp b/src/burner/sdl/run.cpp
+index fdc1287..6dde46d 100644
+--- a/src/burner/sdl/run.cpp
++++ b/src/burner/sdl/run.cpp
+@@ -10,6 +10,7 @@
+ #include <sys/time.h>
+ #include <sys/stat.h>
+ #include <errno.h>
++#include <unistd.h>
+ #include <vector>
+ 
+ static unsigned int nDoFPS = 0;
+@@ -77,6 +78,91 @@ static DumpPcTriggerState gDumpPcTrigger = { false, 0x06094d98 };
+ static const INT32 kDumpGameStateOffset = 0x15438;
+ static const UINT16 kDumpInGameState = 2;
+ 
++// --- -track-3sr live tracker state -----------------------------------------
++//
++// Emits, per in-session game, the exact bytes make_3sr.py `generate` would
++// produce from a full RAM-dump `.scrd` archive of the same session -- but
++// incrementally, from the same normalized in-process RAM view the dump path
++// already builds, without writing any per-frame `.ram` files.
++//
++// Fixed CPS3 arcade RAM offsets, mirrored from
++// tools/fcade-replays/make_3sr.py:59-72 (3sx-mister repo), which itself
++// mirrors src/arcade/arcade_constants.h. All reads below are big-endian
++// against the byte-reversal-normalized RAM view (same view the .ram dumps
++// contain, so every field read here is bit-identical to what make_3sr.py
++// reads back out of a dump).
++static const size_t kTrackGameTimerOffset     = 0x1136C;
++static const size_t kTrackMyCharOffset        = 0x11387;
++static const size_t kTrackSuperArtsOffset     = 0x1138B;
++static const size_t kTrackNewChallengerOffset = 0x113DA;
++static const size_t kTrackGNoOffset           = 0x15436;
++static const size_t kTrackCNoOffset           = 0x154A6;
++static const size_t kTrackRandomIx16Offset    = 0x155E8;
++static const size_t kTrackRandomIx32Offset    = 0x155EA;
++static const size_t kTrackPlayerColorOffset   = 0x15683;
++static const size_t kTrackWorkXyzOffset       = 0x64;
++static const size_t kTrackPlwOffset           = 0x68C6C;
++static const size_t kTrackPlwSize             = 0x498;
++static const size_t kTrackP1Sw0Offset         = 0x6AA8C;
++static const size_t kTrackP2Sw0Offset         = 0x6AA90;
++static const UINT16 kTrackChecksumInterval    = 60;   // make_3sr.py DEFAULT_CHECKSUM_INTERVAL
++static const UINT8  kTrackCharAkuma           = 14;   // CHAR_AKUMA (src/constants.h)
++static const UINT16 kTrack3srVersion          = 1;
++static const UINT16 kTrack3srHeaderSize       = 28;
++
++// The 13-field checksum window, in make_3sr.py CHECKSUM_FIELDS order
++// (docs/3sr-format.md section 4.2). All 13 canonicalize identically as
++// BE-u16-read -> LE-u16-write (the s16 fields keep their bit pattern).
++static const size_t kTrackChecksumOffsets[13] = {
++	kTrackCNoOffset + 0,                                            // C_No[0]
++	kTrackCNoOffset + 2,                                            // C_No[1]
++	kTrackCNoOffset + 4,                                            // C_No[2]
++	kTrackCNoOffset + 6,                                            // C_No[3]
++	kTrackGameTimerOffset,                                          // Game_timer
++	kTrackRandomIx16Offset,                                         // Random_ix16
++	kTrackRandomIx32Offset,                                         // Random_ix32
++	kTrackPlwOffset + 0 * kTrackPlwSize + kTrackWorkXyzOffset,      // P1_pos_x
++	kTrackPlwOffset + 0 * kTrackPlwSize + kTrackWorkXyzOffset + 4,  // P1_pos_y
++	kTrackPlwOffset + 1 * kTrackPlwSize + kTrackWorkXyzOffset,      // P2_pos_x
++	kTrackPlwOffset + 1 * kTrackPlwSize + kTrackWorkXyzOffset + 4,  // P2_pos_y
++	kTrackP1Sw0Offset,                                              // P1SW_0
++	kTrackP2Sw0Offset,                                              // P2SW_0
++};
++
++struct Track3srChecksumEntry {
++	UINT32 frame;
++	UINT32 hash;
++};
++
++struct Track3srGameResult {
++	UINT32 gameIndex;
++	bool signatureFound;
++	UINT32 frameCount;
++	UINT32 checksumCount;
++	UINT64 recordsConsumedAtSignature;
++	char endReason[16];
++};
++
++static char gTrack3srPath[MAX_PATH] = { 0 };
++static UINT32 gTrackGameIndex = 0;
++static bool gTrackWasInGame = false;
++static bool gTrackSignatureFound = false;
++static FILE* gTrackGameFile = NULL;
++// Incremental-checksum SIDE file (<out-dir>/game_<N>.cks): every checksum
++// entry is ALSO appended here (8 B LE {frame, hash}) the moment it is
++// computed, so a live relay (fcade-proxy `watchpoll`) can stream resync
++// checkpoints to a viewer DURING the game. Purely additive side channel:
++// the `.3sr` bytes (table appended only at finalize) are unchanged.
++static FILE* gTrackCksFile = NULL;
++static UINT32 gTrackFrameCount = 0;
++static UINT64 gTrackRecordsConsumedAtSignature = 0;
++static std::vector<Track3srChecksumEntry> gTrackChecksums;
++static std::vector<Track3srGameResult> gTrackResults;
++
++// --- -replay-follow (tail-follow a growing inputs file) --------------------
++static bool gReplayFollow = false;
++static unsigned int gReplayFollowIdleTimeoutMs = 60000;
++
+ void ReplaySetStatePath(const char* path)
+ {
+ 	snprintf(gReplayStatePath, MAX_PATH, "%s", path ? path : "");
+@@ -107,6 +193,26 @@ bool ReplayHasDumpRamPath()
+ 	return gDumpRamPath[0] != '\0';
+ }
+ 
++void ReplaySetTrack3srPath(const char* path)
++{
++	snprintf(gTrack3srPath, MAX_PATH, "%s", path ? path : "");
++}
++
++bool ReplayHasTrack3srPath()
++{
++	return gTrack3srPath[0] != '\0';
++}
++
++void ReplaySetReplayFollow(bool enabled)
++{
++	gReplayFollow = enabled;
++}
++
++void ReplaySetReplayFollowIdleMs(unsigned int ms)
++{
++	gReplayFollowIdleTimeoutMs = ms;
++}
++
+ static bool ReplayEnsureDirectoryExists(const char* path)
+ {
+ 	if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+@@ -143,40 +249,285 @@ static bool ReplayIsEnabled()
+ 	return gReplayEnabled;
+ }
+ 
+-static bool ReplayDumpCps3MainRam()
++// =========================== -track-3sr tracker ===========================
++
++static void Track3srPutU16Le(UINT8* out, UINT16 value)
+ {
+-	if (!ReplayHasDumpRamPath()) {
+-		return true;
++	out[0] = (UINT8)(value & 0xFF);
++	out[1] = (UINT8)((value >> 8) & 0xFF);
++}
++
++static void Track3srPutU32Le(UINT8* out, UINT32 value)
++{
++	out[0] = (UINT8)(value & 0xFF);
++	out[1] = (UINT8)((value >> 8) & 0xFF);
++	out[2] = (UINT8)((value >> 16) & 0xFF);
++	out[3] = (UINT8)((value >> 24) & 0xFF);
++}
++
++// src/sf33rd/utils/djb2_hash.h (3sx-mister), verbatim: the ADDITIVE djb2
++// variant (hash = hash*33 + byte, u32 wraparound) -- matches make_3sr.py's
++// djb2() and docs/3sr-format.md section 4.3.
++static UINT32 Track3srDjb2(const UINT8* data, size_t len)
++{
++	UINT32 hash = 5381;
++	for (size_t i = 0; i < len; i++) {
++		hash = hash * 33 + data[i];
+ 	}
++	return hash;
++}
+ 
+-	if (!ReplayEnsureDirectoryExists(gDumpRamPath)) {
+-		printf("Failed to create dump directory: %s\n", gDumpRamPath);
++// make_3sr.py compute_checksum(): 13 fields, each read BE u16 from the
++// normalized RAM view, re-encoded as 2 bytes LE, concatenated in fixed
++// order (26 bytes), then djb2-hashed.
++static UINT32 Track3srComputeChecksum(const UINT8* ram, size_t ramSize)
++{
++	UINT8 buf[26];
++	for (int i = 0; i < 13; i++) {
++		const UINT16 value = ReplayReadBigEndianU16(ram, ramSize, kTrackChecksumOffsets[i]);
++		Track3srPutU16Le(&buf[i * 2], value);
++	}
++	return Track3srDjb2(buf, sizeof(buf));
++}
++
++// CHAR_ARCADE_TO_3SX (src/constants.h:63, 3sx-mister): arcade ids above
++// CHAR_AKUMA (14) shift down by one (removes the arcade-only Shin Akuma slot).
++static UINT8 Track3srCharArcadeTo3sx(UINT8 c)
++{
++	return (c > kTrackCharAkuma) ? (UINT8)(c - 1) : c;
++}
++
++static void Track3srWriteManifest(bool complete)
++{
++	char path[MAX_PATH];
++	snprintf(path, MAX_PATH, "%s/track3sr_manifest.json", gTrack3srPath);
++
++	FILE* fp = fopen(path, "wb");
++	if (fp == NULL) {
++		printf("track-3sr: failed to write manifest: %s\n", path);
++		return;
++	}
++
++	fprintf(fp, "{\n  \"complete\": %s,\n  \"games\": [", complete ? "true" : "false");
++	for (size_t i = 0; i < gTrackResults.size(); i++) {
++		const Track3srGameResult& r = gTrackResults[i];
++		fprintf(fp, "%s\n    {\"game_index\": %u, ", i ? "," : "", r.gameIndex);
++		if (r.signatureFound) {
++			fprintf(fp, "\"file\": \"game_%u.3sr\", \"signature_found\": true, ", r.gameIndex);
++			// stream_records_consumed_at_signature: the runner's own count of
++			// 10-byte -13 input records consumed when the game-start signature
++			// frame was observed (the record applied on the signature frame is
++			// index consumed-1). This replaces B1's offline cross-correlation.
++			fprintf(fp, "\"stream_records_consumed_at_signature\": %llu, ",
++				(unsigned long long)r.recordsConsumedAtSignature);
++		} else {
++			fprintf(fp, "\"signature_found\": false, ");
++		}
++		fprintf(fp, "\"frame_count\": %u, \"checksum_count\": %u, \"end_reason\": \"%s\"}",
++			r.frameCount, r.checksumCount, r.endReason);
++	}
++	fprintf(fp, "\n  ]\n}\n");
++	fclose(fp);
++}
++
++// Opens <out-dir>/game_<N>.3sr and writes the 28-byte v1 header
++// (docs/3sr-format.md section 1) with the setup block read from the
++// game-start signature frame (make_3sr.py:202-230). frame_count and
++// checksum_count are 0 placeholders, patched in Track3srFinalizeGame.
++static bool Track3srOpenGameFile(const UINT8* ram, size_t ramSize)
++{
++	if (!ReplayEnsureDirectoryExists(gTrack3srPath)) {
++		printf("track-3sr: failed to create output directory: %s\n", gTrack3srPath);
+ 		return false;
+ 	}
+ 
+-	UINT8* ram = cps3GetMainRam();
+-	const INT32 ramSize = cps3GetMainRamSize();
+-	if (ram == NULL || ramSize != 0x80000) {
+-		printf("Failed to access CPS3 Main RAM for dump\n");
++	char path[MAX_PATH];
++	snprintf(path, MAX_PATH, "%s/game_%u.3sr", gTrack3srPath, gTrackGameIndex);
++	gTrackGameFile = fopen(path, "wb");
++	if (gTrackGameFile == NULL) {
++		printf("track-3sr: failed to open output file: %s\n", path);
+ 		return false;
+ 	}
+ 
+-	std::vector<UINT8> rawRam((size_t)ramSize);
+-	memcpy(rawRam.data(), ram, (size_t)ramSize);
++	UINT8 header[28];
++	memset(header, 0, sizeof(header));
++	memcpy(&header[0], "3SR1", 4);
++	Track3srPutU16Le(&header[4], kTrack3srVersion);
++	Track3srPutU16Le(&header[6], kTrack3srHeaderSize);
++	header[8] = Track3srCharArcadeTo3sx(ram[kTrackMyCharOffset]);          // characters[0]
++	header[9] = Track3srCharArcadeTo3sx(ram[kTrackMyCharOffset + 1]);      // characters[1]
++	header[10] = ram[kTrackSuperArtsOffset];                               // supers[0]
++	header[11] = ram[kTrackSuperArtsOffset + 1];                           // supers[1]
++	header[12] = ram[kTrackPlayerColorOffset];                             // colors[0]
++	header[13] = ram[kTrackPlayerColorOffset + 1];                         // colors[1]
++	header[14] = ram[kTrackNewChallengerOffset];                           // new_challenger
++	header[15] = 0;                                                        // pad
++	Track3srPutU16Le(&header[16], ReplayReadBigEndianU16(ram, ramSize, kTrackRandomIx16Offset));
++	Track3srPutU16Le(&header[18], ReplayReadBigEndianU16(ram, ramSize, kTrackRandomIx32Offset));
++	Track3srPutU32Le(&header[20], 0);                                      // frame_count (patched)
++	Track3srPutU16Le(&header[24], kTrackChecksumInterval);
++	Track3srPutU16Le(&header[26], 0);                                      // checksum_count (patched)
++
++	if (fwrite(header, 1, sizeof(header), gTrackGameFile) != sizeof(header)) {
++		printf("track-3sr: failed to write header: %s\n", path);
++		fclose(gTrackGameFile);
++		gTrackGameFile = NULL;
++		return false;
++	}
+ 
+-	// CPS3 SH-2 memory uses big-endian byte addressing mapped onto host 32-bit lanes.
+-	// Normalize dumps by reversing bytes within each 32-bit word.
+-	for (size_t i = 0; i + 3 < rawRam.size(); i += 4) {
+-		UINT8 b0 = rawRam[i + 0];
+-		UINT8 b1 = rawRam[i + 1];
+-		rawRam[i + 0] = rawRam[i + 3];
+-		rawRam[i + 1] = rawRam[i + 2];
+-		rawRam[i + 2] = b1;
+-		rawRam[i + 3] = b0;
++	// Incremental-checksum side file (see gTrackCksFile). Best-effort: a
++	// failure here only degrades LIVE viewers to the pre-side-channel
++	// behavior (no mid-game resyncs); the .3sr itself is unaffected.
++	snprintf(path, MAX_PATH, "%s/game_%u.cks", gTrack3srPath, gTrackGameIndex);
++	gTrackCksFile = fopen(path, "wb");
++	if (gTrackCksFile == NULL) {
++		printf("track-3sr: warning: failed to open checksum side file: %s\n", path);
+ 	}
+ 
+-	const bool isInGame =
+-		ReplayReadBigEndianU16(rawRam.data(), rawRam.size(), (size_t)kDumpGameStateOffset) == kDumpInGameState;
++	return true;
++}
++
++// Appends the checksum table, patches frame_count/checksum_count into the
++// header, records the manifest row and resets per-game state. Called on the
++// in-game -> not-in-game transition and at end of session.
++static void Track3srFinalizeGame(const char* endReason)
++{
++	Track3srGameResult result;
++	memset(&result, 0, sizeof(result));
++	result.gameIndex = gTrackGameIndex;
++	result.signatureFound = gTrackSignatureFound;
++	result.frameCount = gTrackFrameCount;
++	result.checksumCount = (UINT32)gTrackChecksums.size();
++	result.recordsConsumedAtSignature = gTrackRecordsConsumedAtSignature;
++	snprintf(result.endReason, sizeof(result.endReason), "%s", endReason);
++	gTrackResults.push_back(result);
++
++	if (gTrackGameFile != NULL) {
++		for (size_t i = 0; i < gTrackChecksums.size(); i++) {
++			UINT8 entry[8];
++			Track3srPutU32Le(&entry[0], gTrackChecksums[i].frame);
++			Track3srPutU32Le(&entry[4], gTrackChecksums[i].hash);
++			fwrite(entry, 1, sizeof(entry), gTrackGameFile);
++		}
++
++		UINT8 patch[4];
++		Track3srPutU32Le(patch, gTrackFrameCount);
++		fseek(gTrackGameFile, 20, SEEK_SET);   // frame_count (offset 0x14)
++		fwrite(patch, 1, 4, gTrackGameFile);
++		Track3srPutU16Le(patch, (UINT16)gTrackChecksums.size());
++		fseek(gTrackGameFile, 26, SEEK_SET);   // checksum_count (offset 0x1A)
++		fwrite(patch, 1, 2, gTrackGameFile);
++		fclose(gTrackGameFile);
++		gTrackGameFile = NULL;
++
++		printf("track-3sr: game_%u finalized (%s): frame_count=%u checksum_count=%u records_at_signature=%llu\n",
++			gTrackGameIndex, endReason, gTrackFrameCount, (UINT32)gTrackChecksums.size(),
++			(unsigned long long)gTrackRecordsConsumedAtSignature);
++	} else {
++		printf("track-3sr: game_%u ended (%s) with no game-start signature -- no .3sr written\n",
++			gTrackGameIndex, endReason);
++	}
++
++	// The side file stays on disk (the relay may still be draining its tail);
++	// it lives in the tracker's scratch dir, which the proxy sweeps later.
++	if (gTrackCksFile != NULL) {
++		fclose(gTrackCksFile);
++		gTrackCksFile = NULL;
++	}
++
++	gTrackSignatureFound = false;
++	gTrackFrameCount = 0;
++	gTrackRecordsConsumedAtSignature = 0;
++	gTrackChecksums.clear();
++	Track3srWriteManifest(false);
++}
++
++// Per PC-trigger frame, fed the same normalized RAM view + in-game gate the
++// .ram dump path uses. Mirrors make_3sr.py extract_scrd_game():
++//   - before the signature: scan for G_No[1]==2 && G_No[2]==0 && G_No[3]==0
++//     (the signature frame itself contributes NO input words);
++//   - after it: append the frame's {P1SW_0, P2SW_0} pair, sampling the
++//     13-field checksum when local_index % interval == 0.
++// Game segmentation (in-game -> not-in-game increments the game index) is
++// the same rule ReplayDumpCps3MainRam uses for game_N/ dump directories.
++static bool Track3srOnFrame(const UINT8* ram, size_t ramSize, bool isInGame)
++{
++	if (gTrackWasInGame && !isInGame) {
++		Track3srFinalizeGame("boundary");
++		gTrackGameIndex++;
++	}
++	gTrackWasInGame = isInGame;
++
++	if (!isInGame) {
++		return true;
++	}
++
++	if (!gTrackSignatureFound) {
++		const UINT16 gNo1 = ReplayReadBigEndianU16(ram, ramSize, kTrackGNoOffset + 2);
++		const UINT16 gNo2 = ReplayReadBigEndianU16(ram, ramSize, kTrackGNoOffset + 4);
++		const UINT16 gNo3 = ReplayReadBigEndianU16(ram, ramSize, kTrackGNoOffset + 6);
++		if (gNo1 == 2 && gNo2 == 0 && gNo3 == 0) {
++			if (!Track3srOpenGameFile(ram, ramSize)) {
++				return false;
++			}
++			gTrackSignatureFound = true;
++			gTrackRecordsConsumedAtSignature = (UINT64)(gReplayInputOffset / 10);
++		}
++		return true;
++	}
++
++	UINT8 words[4];
++	Track3srPutU16Le(&words[0], ReplayReadBigEndianU16(ram, ramSize, kTrackP1Sw0Offset));
++	Track3srPutU16Le(&words[2], ReplayReadBigEndianU16(ram, ramSize, kTrackP2Sw0Offset));
++	if (fwrite(words, 1, sizeof(words), gTrackGameFile) != sizeof(words)) {
++		printf("track-3sr: failed to append input words for game_%u\n", gTrackGameIndex);
++		return false;
++	}
++
++	if (kTrackChecksumInterval != 0 && (gTrackFrameCount % kTrackChecksumInterval) == 0) {
++		Track3srChecksumEntry entry;
++		entry.frame = gTrackFrameCount;
++		entry.hash = Track3srComputeChecksum(ram, ramSize);
++		gTrackChecksums.push_back(entry);
++
++		// Mirror the entry into the append-only side file NOW (same 8-byte
++		// LE encoding the .3sr table gets at finalize), flushed per entry
++		// (8 B/second of gameplay) so the watchpoll relay sees it promptly.
++		if (gTrackCksFile != NULL) {
++			UINT8 sideEntry[8];
++			Track3srPutU32Le(&sideEntry[0], entry.frame);
++			Track3srPutU32Le(&sideEntry[4], entry.hash);
++			if (fwrite(sideEntry, 1, sizeof(sideEntry), gTrackCksFile) != sizeof(sideEntry)) {
++				printf("track-3sr: warning: checksum side file write failed for game_%u\n", gTrackGameIndex);
++				fclose(gTrackCksFile);
++				gTrackCksFile = NULL;
++			} else {
++				fflush(gTrackCksFile);
++			}
++		}
++	}
++	gTrackFrameCount++;
++
++	return true;
++}
++
++static void Track3srSessionEnd()
++{
++	if (!ReplayHasTrack3srPath()) {
++		return;
++	}
++	if (gTrackWasInGame || gTrackGameFile != NULL) {
++		Track3srFinalizeGame("session-end");
++	}
++	Track3srWriteManifest(true);
++}
++
++static bool ReplayDumpCps3MainRam(const UINT8* rawRam, size_t ramSize, bool isInGame)
++{
++	if (!ReplayEnsureDirectoryExists(gDumpRamPath)) {
++		printf("Failed to create dump directory: %s\n", gDumpRamPath);
++		return false;
++	}
+ 
+ 	if (gDumpWasInGame && !isInGame) {
+ 		gDumpGameIndex++;
+@@ -204,7 +555,7 @@ static bool ReplayDumpCps3MainRam()
+ 		return false;
+ 	}
+ 
+-	const bool ok = fwrite(rawRam.data(), 1, rawRam.size(), fp) == rawRam.size();
++	const bool ok = fwrite(rawRam, 1, ramSize, fp) == ramSize;
+ 	fclose(fp);
+ 
+ 	if (!ok) {
+@@ -216,10 +567,60 @@ static bool ReplayDumpCps3MainRam()
+ 	return true;
+ }
+ 
++// Per PC-trigger frame: build the byte-reversal-normalized CPS3 main RAM
++// view ONCE and feed it to both consumers -- the .ram dump writer
++// (-dump-ram-path) and the incremental .3sr tracker (-track-3sr). Both see
++// the identical bytes and the identical in-game gate, so the tracker's
++// output is bit-equivalent to what make_3sr.py reads back out of dumps.
++static bool ReplayOnPcTrigger()
++{
++	if (!ReplayHasDumpRamPath() && !ReplayHasTrack3srPath()) {
++		return true;
++	}
++
++	UINT8* ram = cps3GetMainRam();
++	const INT32 ramSize = cps3GetMainRamSize();
++	if (ram == NULL || ramSize != 0x80000) {
++		printf("Failed to access CPS3 Main RAM for dump\n");
++		return false;
++	}
++
++	std::vector<UINT8> rawRam((size_t)ramSize);
++	memcpy(rawRam.data(), ram, (size_t)ramSize);
++
++	// CPS3 SH-2 memory uses big-endian byte addressing mapped onto host 32-bit lanes.
++	// Normalize dumps by reversing bytes within each 32-bit word.
++	for (size_t i = 0; i + 3 < rawRam.size(); i += 4) {
++		UINT8 b0 = rawRam[i + 0];
++		UINT8 b1 = rawRam[i + 1];
++		rawRam[i + 0] = rawRam[i + 3];
++		rawRam[i + 1] = rawRam[i + 2];
++		rawRam[i + 2] = b1;
++		rawRam[i + 3] = b0;
++	}
++
++	const bool isInGame =
++		ReplayReadBigEndianU16(rawRam.data(), rawRam.size(), (size_t)kDumpGameStateOffset) == kDumpInGameState;
++
++	if (ReplayHasTrack3srPath()) {
++		if (!Track3srOnFrame(rawRam.data(), rawRam.size(), isInGame)) {
++			return false;
++		}
++	}
++
++	if (ReplayHasDumpRamPath()) {
++		if (!ReplayDumpCps3MainRam(rawRam.data(), rawRam.size(), isInGame)) {
++			return false;
++		}
++	}
++
++	return true;
++}
++
+ static void ReplayExecHook(UINT32 currentPc, UINT32 branchTargetPc, UINT32 delaySlotPc)
+ {
+ 	if (gDumpPcTrigger.enabled && currentPc == gDumpPcTrigger.targetPc) {
+-		if (!ReplayDumpCps3MainRam()) {
++		if (!ReplayOnPcTrigger()) {
+ 			bRunPause = 1;
+ 		}
+ 	}
+@@ -376,6 +777,73 @@ static void ReplayBuildBindings()
+ 	}
+ }
+ 
++// -replay-follow: the inputs file may still be growing (fed from a live
++// GGPO stream). Instead of treating EOF as end-of-replay, poll the file for
++// appended bytes, blocking until at least one full 10-byte record is
++// available at gReplayInputOffset. Returns false when the stream is over:
++// either a `<inputs>.done` sentinel file exists (and a final re-read found
++// no further full record), or no growth was observed for the idle timeout.
++// Only complete 10-byte records are ever consumed; a partial tail simply
++// waits for the rest of its bytes.
++static bool ReplayFollowWaitForData()
++{
++	char donePath[MAX_PATH + 8];
++	snprintf(donePath, sizeof(donePath), "%s.done", gReplayInputsPath);
++
++	unsigned int idleMs = 0;
++	bool doneSeen = false;
++
++	for (;;) {
++		// Pull any bytes appended since the last read.
++		FILE* fp = fopen(gReplayInputsPath, "rb");
++		if (fp != NULL) {
++			if (fseek(fp, 0, SEEK_END) == 0) {
++				const long size = ftell(fp);
++				if (size > 0 && (size_t)size > gReplayInputData.size()) {
++					const size_t oldSize = gReplayInputData.size();
++					const size_t extra = (size_t)size - oldSize;
++					if (fseek(fp, (long)oldSize, SEEK_SET) == 0) {
++						gReplayInputData.resize(oldSize + extra);
++						const size_t got = fread(&gReplayInputData[oldSize], 1, extra, fp);
++						gReplayInputData.resize(oldSize + got);
++						if (got > 0) {
++							idleMs = 0;
++						}
++					}
++				}
++			}
++			fclose(fp);
++		}
++
++		if ((gReplayInputOffset + 10) <= gReplayInputData.size()) {
++			return true;
++		}
++
++		if (doneSeen) {
++			// The sentinel was already visible and the re-read above found no
++			// further full record: the stream is complete.
++			return false;
++		}
++
++		struct stat st;
++		if (stat(donePath, &st) == 0) {
++			// Sentinel present. Loop once more so a chunk appended between our
++			// read and the sentinel check cannot be lost, then finish.
++			doneSeen = true;
++			continue;
++		}
++
++		if (idleMs >= gReplayFollowIdleTimeoutMs) {
++			printf("replay-follow: no input growth for %u ms -- treating stream as finished\n",
++				gReplayFollowIdleTimeoutMs);
++			return false;
++		}
++
++		usleep(50 * 1000);
++		idleMs += 50;
++	}
++}
++
+ static void ReplayApplyFrameInputs()
+ {
+ 	if (gReplayFinished) {
+@@ -384,8 +852,10 @@ static void ReplayApplyFrameInputs()
+ 
+ 	UINT16 masks[2] = { 0, 0 };
+ 	if ((gReplayInputOffset + 10) > gReplayInputData.size()) {
+-		gReplayFinished = true;
+-		return;
++		if (!gReplayFollow || !ReplayFollowWaitForData()) {
++			gReplayFinished = true;
++			return;
++		}
+ 	}
+ 
+ 	const UINT8* frame = &gReplayInputData[gReplayInputOffset];
+@@ -425,7 +895,9 @@ static bool ReplayInit()
+ 		printf("Failed to read replay inputs blob: %s\n", gReplayInputsPath);
+ 		return false;
+ 	}
+-	if ((gReplayInputData.size() % 10) != 0) {
++	if (!gReplayFollow && (gReplayInputData.size() % 10) != 0) {
++		// In -replay-follow mode a partial trailing record is expected while
++		// the file is still growing; only complete records are consumed.
+ 		printf("Replay inputs blob size must be a multiple of 10 bytes, got %zu\n", gReplayInputData.size());
+ 		return false;
+ 	}
+@@ -750,11 +1222,20 @@ int RunInit()
+ 		return 1;
+ 	}
+ 	gDumpPcTrigger.enabled =
+-		ReplayHasDumpRamPath() &&
++		(ReplayHasDumpRamPath() || ReplayHasTrack3srPath()) &&
+ 		((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_CAPCOM_CPS3);
+ 	gDumpGameIndex = 0;
+ 	gDumpFrameIndex = 0;
+ 	gDumpWasInGame = false;
++	gTrackGameIndex = 0;
++	gTrackWasInGame = false;
++	gTrackSignatureFound = false;
++	gTrackGameFile = NULL;
++	gTrackCksFile = NULL;
++	gTrackFrameCount = 0;
++	gTrackRecordsConsumedAtSignature = 0;
++	gTrackChecksums.clear();
++	gTrackResults.clear();
+ 	Sh2SetExecHandler(ReplayExecHook);
+ 	if (!ReplayIsEnabled()) {
+ 		StatedAuto(0);
+@@ -766,6 +1247,7 @@ int RunExit()
+ {
+ 	nNormalLast = 0;
+ 	Sh2SetExecHandler(NULL);
++	Track3srSessionEnd();
+ 	if (!ReplayIsEnabled()) {
+ 		StatedAuto(1);
+ 	}

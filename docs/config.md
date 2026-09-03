@@ -44,8 +44,9 @@ With this setting on, these stage decorations are disabled to prevent overlappin
 
 ### `balance`
 
-Arcade (CPS3) vs PS2 balance **auto-selects at boot** — there is no OSD
-toggle. Values:
+Which balance the game *prefers*. The outcome is still decided at boot:
+asking for arcade on a machine with no verifiable CPS3 ROM boots PS2 anyway,
+with the reason logged. Values:
 
 - `auto` (default): arcade balance is used when a CPS3 ROM source passes
   content verification AND the full 20-character adaptation succeeds;
@@ -53,8 +54,25 @@ toggle. Values:
   to `<pref>/balance.status` (line 1: `Arcade (CPS3)` / `PS2`; line 2: the
   reason). Adaptation is all-or-nothing: a single character failing means the
   whole session is PS2, never a per-character mix.
-- `ps2`: force PS2 balance even with a valid ROM (config-file-only knob for
-  players who own the ROM but prefer PS2 balance).
+- `arcade`: an exact synonym for `auto`, and the value the MiSTer OSD writes.
+  It exists so the config file reads the way the OSD row is labelled. Same
+  ROM-verify-then-fall-back-to-PS2 behaviour, no stricter: use
+  `--test-balance arcade` (below) if you want a hard failure instead.
+- `ps2`: force PS2 balance even with a valid ROM (for players who own the ROM
+  but prefer PS2 balance).
+
+Anything else logs `Unknown balance override '<value>' (expected 'auto',
+'arcade' or 'ps2'); treating as auto` and behaves as `auto`.
+
+On MiSTer this key is what the OSD **Game -> Balance** toggle writes
+(`Arcade` -> `balance = arcade`, `PS2` -> `balance = ps2`;
+`vendor/Menu_MiSTer/menu.sv` status bit `[48]`, polled by
+`write_runtime_balance_default()` in
+`vendor/Main_MiSTer/thirdsarm_wrapper.cpp`). Balance is read once at game
+boot, so an OSD change applies on the **next game launch**. The toggle is a
+request and is never greyed out on a ROM-less machine — the read-only
+` Balance:` status row directly beneath it reports what the game actually
+resolved.
 
 No ROM ships with 3S-ARM and none is looked for anywhere in the program's own
 install directory. ROM discovery tries, in order: the `THIRDSARM_CPS3_ZIP`
@@ -95,14 +113,17 @@ Notes:
   `vendor/Main_MiSTer/thirdsarm_wrapper.cpp` is a line-preserving
   copy-through: it rewrites only the single line whose trimmed key
   `strcasecmp`-matches its own target and emits every other line verbatim
-  via `fputs(line, out)`. The 15 targeted keys (`scale-mode`, `arm-clock`,
-  `game-mode`, `hold-to-pause`, `language`, `bgm-type`,
+  via `fputs(line, out)`. The 16 targeted keys (`scale-mode`, `arm-clock`,
+  `game-mode`, `hold-to-pause`, `language`, `bgm-type`, `balance`,
   `aspect-ratio`, `h-position`, `v-position-v2`, `v-position`,
-  `vertical-crop`, `crop-offset`, `scale`, `h-size`, `show-fps`) do not
-  include `balance`, and no writer regenerates the file from a template.
-  (`arcade-balance` was on that list until the Arcade Balance OSD row was
-  replaced by the read-only Balance status row; the wrapper no longer
-  writes that key at all.)
+  `vertical-crop`, `crop-offset`, `scale`, `h-size`, `show-fps`) now DO
+  include `balance` — the OSD toggle owns that key, so a hand-added
+  `balance = ps2` line survives every *other* writer but is replaced (in
+  place, comments and all other lines intact) the next time someone moves
+  the OSD Balance row. No writer regenerates the file from a template.
+  `balance` is deliberately absent from the OSD's **Reset to Default**, so
+  a reset does not stomp a `ps2` preference. (`arcade-balance`, the
+  pre-`balance` key, is no longer written or read by anything.)
 - Netplay arms only in verified-arcade state and the MIST handshake carries a
   digest of the adapted data, so peers always simulate identical balance.
 - The test runner picks its balance EXPLICITLY, via `--test-balance ps2|arcade`
@@ -126,7 +147,7 @@ menu's BGM Type setting (`sys_w.bgm_type`, `BGM_ARRANGED`/`BGM_ORIGINAL` in
 
 On MiSTer this is exposed as the **BGM Type** option in the OSD menu (status
 bit `[14]`). The wrapper writes the toggle into this config key, so it
-persists across launches; like Arcade Balance it applies on the **next game
+persists across launches; like Balance and Overclock it applies on the **next game
 launch** (use OSD → Restart), because the boot-time override
 (`BgmType_ApplyBootOverride()`) only runs once, right after the settings save
 file finishes loading.
@@ -204,6 +225,98 @@ Defaults:
 Notes:
 - On MiSTer fbdev output, the overlay is drawn at the bottom-center of the active picture area so it stays away from overscan-prone corners.
 - The overlay is opt-in and uses a lightweight cached label update path instead of perf capture telemetry.
+
+### `replays-root`
+
+Directory holding the cached `.3sr` replay set. Both a flat layout and one
+level of subdirectories are supported. Each `<name>.3sr` may have a
+`<name>.meta.json` sidecar (player names + date) used for display labels; a
+missing or corrupt sidecar falls back to the filename.
+
+Defaults:
+- MiSTer builds: `/media/fat/games/3s-arm/replays`
+- Miyoo Mini Plus builds: `/mnt/SDCARD/Roms/PORTS/Games/3s-arm/replays`
+- Other builds: `./replays` (relative to the working directory)
+
+Notes:
+- Formerly `replay-browser-root`. It was renamed when the in-game pad-driven
+  replay browser was removed; the directory itself and its layout are
+  unchanged, so an existing replay root needs no migration — only the key
+  name in `config.txt` changes.
+- The HPS wrapper reads this key out of the same on-device config file
+  (`RpReplaysRootLoadFrom()` in `vendor/Main_MiSTer/replay_proxy.c`): its
+  `replay_sync` module is what fetches the weekly-best set into this
+  directory. It holds no hardcoded copy of the path — the retired OSD
+  browser's `REPLAY_LOCAL_ROOT` literal went away with the browser — only a
+  fallback for the case where the config file has never been written.
+- Also read by the `replays-max-mb` eviction sweep below.
+- The HPS wrapper writes one bookkeeping file of its own into this
+  directory: `manifest.json`, listing the quarkids of the current
+  weekly-best set plus the `fetched_at` ms-epoch stamp of the fetch that
+  produced it. It is not a replay and the viewer's scan ignores it.
+  Operator use: `cat <replays-root>/manifest.json` on the device answers
+  "did today's refresh run, and what did it pull?" without reading a log —
+  a `fetched_at` older than the most recent 09:00 UTC is exactly what makes
+  the wrapper start another refresh. `complete: false` means the set is
+  partial (a search page or some fetches failed); the viewer plays what
+  landed regardless.
+
+### `replays-max-mb`
+
+Caps the total size, in megabytes, of raw Fightcade-fetch stream payloads
+(`frames.bin`, `inputs`, `savestate`, `summary.json` — the bulky per-replay
+files a fetch writes alongside its tiny `.3sr` + `.meta.json`) kept under
+`replays-root`. When the cap is exceeded, the oldest fetch directories
+(LRU by mtime) have their raw files evicted first, down to the cap or until
+every fetch directory has been swept.
+
+Defaults:
+- `200`
+
+Notes:
+- `0` disables eviction entirely (delete-only): raw files accumulate
+  unbounded until removed manually.
+- Eviction NEVER touches `.3sr` or `.meta.json` — only the four raw
+  basenames above, and only ones that pass path validation (realpath under
+  `replays-root`, and not a symlink — a symlinked entry is refused
+  outright, never followed). A fetch directory is only removed once it is
+  completely empty (its `.3sr`/`.meta.json`, if present, keep it around).
+- A per-directory "last used" timestamp is the max mtime among its present
+  raw files; directories are evicted oldest-timestamp-first.
+- The in-game caller that used to trigger this sweep was the pad-driven
+  replay browser, now removed. The storage module
+  (`src/replay/replay_storage.c`) is retained and unchanged; the replacement
+  shuffle viewer takes over as its caller.
+
+### `replay-proxy-host` / `replay-proxy-port`
+
+Host and TCP port of the VPS `fcade-proxy` (`tools/fcade-proxy`) used to search
+Fightcade for replays. The proxy terminates Cloudflare/TLS on the server; the
+device speaks only a plain length-framed JSON protocol, so no TLS or cookie
+ever lives on-device.
+
+Defaults:
+- `replay-proxy-host`: `""` (empty — **remote browsing disabled**; the device
+  is local-only)
+- `replay-proxy-port`: `3479` (the proxy's default port)
+
+Notes:
+- **The game does not read these keys.** The consumer is the HPS wrapper's
+  `replay_sync` module, which parses them out of the on-device config file
+  (`RpConfigLoadFrom()` in `vendor/Main_MiSTer/replay_proxy.c`) to decide
+  whether the daily weekly-best refresh may run at all — an empty host means
+  no refresh, and the device plays only what is already cached. The game's
+  only role is that its config defaults table is what seeds the file, so the
+  two rows must stay in `src/port/config/config.c` even though nothing under
+  `src/` reads them.
+- Both the in-game REMOTE browse tab and the OSD replay menu that once used
+  these keys are gone; nothing on the device browses Fightcade interactively
+  any more. The only remaining consumer is the unattended daily refresh.
+- Nothing raw is downloaded. The refresh asks the proxy for **already
+  converted** blobs (`get3sr`) and writes exactly two files per game,
+  `<replays-root>/<quarkid>/game_N.3sr` and its `game_N.meta.json` sidecar,
+  both playable as-is. Conversion happens off-device on the VPS
+  (`tools/fcade-replays/`) — on-device conversion remains a NO-GO.
 
 ### `video-driver-order`
 

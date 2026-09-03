@@ -153,9 +153,18 @@ void ArcadeBalance_Init() {
             break;
         }
 
-        if (override != NULL && SDL_strcasecmp(override, "auto") != 0) {
+        /* "arcade" is a synonym for "auto": both mean "prefer arcade", and
+         * both still fall back to PS2 (with the reason logged) on a device
+         * with no verifiable CPS3 romset. The synonym exists so the config
+         * file the MiSTer wrapper writes for the OSD Balance row
+         * ("P1O[48],Balance,Arcade,PS2;" in vendor/Menu_MiSTer/menu.sv)
+         * reads the way that row is labelled. "auto" stays accepted --
+         * existing configs carry it. */
+        if (override != NULL && SDL_strcasecmp(override, "auto") != 0 &&
+            SDL_strcasecmp(override, "arcade") != 0) {
             SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-                        "Unknown balance override '%s' (expected 'auto' or 'ps2'); treating as auto",
+                        "Unknown balance override '%s' (expected 'auto', 'arcade' or 'ps2'); "
+                        "treating as auto",
                         override);
         }
 

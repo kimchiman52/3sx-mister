@@ -466,24 +466,46 @@ The wrapper-core path must coexist with those tools until the new path is proven
 
 ## Balance Status Line (as built)
 
-Arcade-vs-PS2 balance auto-selects at game boot (see `docs/config.md`
-"balance") and the old **Arcade Balance** OSD toggle is gone. What
-replaced it:
+Balance is **two rows**, at the top of the OSD **Game** page: a toggle
+that states the player's preference, and a read-only line reporting what
+the game actually resolved. They are separate because the request can
+lose — a machine with no verifiable CPS3 ROM boots PS2 no matter what
+the toggle says (see `docs/config.md` "balance").
 
-- `vendor/Menu_MiSTer/menu.sv` CONF_STR: `"O[30],Arcade Balance,Off,On;"`
-  and its bit-30 ordering comment were deleted; the first row is now the
-  read-only text row `"-,Balance:;"`. Status bit `[30]` is retired and
-  unused.
-- `vendor/Main_MiSTer/thirdsarm_wrapper.cpp`: the `[30]` poll/seed/reset
-  syncs and `read_runtime_arcade_balance_default()` /
-  `runtime_arcade_balance_config_value()` /
-  `write_runtime_arcade_balance_default()` were deleted along with
-  `g_wrapper_arcade_balance` and `enum RuntimeArcadeBalanceMenu`. The
-  wrapper no longer writes the `arcade-balance` config key at all (the
-  game stopped reading it when `balance` replaced it in
-  `src/port/config/config.c`).
+- `vendor/Menu_MiSTer/menu.sv` CONF_STR, Game page, in this order:
+  `"P1O[48],Balance,Arcade,PS2;"` then `"P1-,Balance:;"`, both above
+  `"P1O[13],Game Mode,Console,Arcade;"`. `wire [47:0] status` was
+  widened to `[48:0]` to cover the new bit.
+- **Status bit `[30]` stays retired and unused.** It backed the old
+  `"O[30],Arcade Balance,Off,On;"` row *and* was V-Position's middle bit
+  before v20260416, so live `3S-ARM.CFG` files can carry it set. The new
+  toggle deliberately took a brand-new bit, `[48]`, instead: every reuse
+  candidate is contaminated (`[30]` as above, `[15]`/`[18:16]` are the
+  retired SA-quality rows, `[31]` is Watch Replays, `[47]` is Language).
+- `vendor/Main_MiSTer/thirdsarm_wrapper.cpp`: `enum RuntimeBalanceMenu`
+  (`kBalanceArcade = 0`, `kBalancePs2 = 1`, CONF_STR index order),
+  `g_wrapper_balance`, and `read_runtime_balance_default()` /
+  `runtime_balance_config_value()` / `write_runtime_balance_default()`,
+  modelled line-for-line on the `bgm-type` trio. The key written is
+  `balance` (`arcade` / `ps2`); `auto` on read is treated as arcade,
+  since it means the same thing, and so is anything unrecognised —
+  matching the game's own fallback. `[48]` is wired at three sites: the
+  status-poll loop, the seed after the `3S-ARM.CFG` load, and the
+  re-seed after a runtime restart. The poll and the restart re-seed both
+  **re-read the on-disk value first**, because the game process can
+  rewrite `config` behind the wrapper's back.
+- **No child signal, and no ROM lockout.** Balance is read once at game
+  boot (`ArcadeBalance_Init()`, `src/arcade/arcade_balance.c`), so like
+  Overclock and BGM Type an OSD change applies on the next game launch.
+  The row is not greyed out when no ROM is present: doing that would
+  need either the wrapper overwriting the player's stored preference
+  with `ps2` (silently losing their choice the day they install the
+  romset) or new `status_menumask` plumbing driven from RTL, which
+  cannot see the HPS filesystem. The status row underneath is the
+  answer instead. `balance` is also left out of **Reset to Default** for
+  the same reason.
 - `thirdsarm_balance_status_line()` (declared in `thirdsarm_wrapper.h`)
-  renders the row. It reads line 1 of
+  renders the status row. It reads line 1 of
   `/media/fat/games/3s-arm/balance.status` and formats
   ` Balance: Arcade (CPS3)` / ` Balance: PS2`, or ` Balance: (unknown)`
   when the file is missing or empty (the game has not booted since
@@ -494,8 +516,11 @@ replaced it:
 - `tools/mister-wrapper/main-mister-full-menu.patch` carries the
   substitution: in the `p[0] == '-'` text-row branch of
   `MENU_GENERIC_MAIN1`, a row whose text is exactly `Balance:` is
-  replaced with the formatted status. Unsubstituted it degrades to a
-  bare ` Balance:` label.
+  replaced with the formatted status. The `P1` page prefix is stripped
+  before that branch runs, so `"P1-,Balance:;"` matches the same way the
+  old top-level `"-,Balance:;"` did — but the label must stay
+  byte-identical. Unsubstituted the row degrades to a bare ` Balance:`
+  label.
 
 What the game provides:
 

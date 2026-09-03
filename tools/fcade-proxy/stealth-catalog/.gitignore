@@ -1,0 +1,18 @@
+# Never commit the venv, the Chrome binary, browser profiles, or generated
+# catalogs from this dir. The runner + requirements + README are the only
+# tracked artifacts here.
+venv/
+venv*/
+__pycache__/
+chrome*/
+*.app/
+profile*/
+*.json
+!package.json
+# Daily-runner (S4) runtime artifacts, in case an install root is ever pointed
+# inside the repo (default is ~/Library/Application Support, OUTSIDE the repo).
+# NOTE: the tracked plist TEMPLATE dev.sambae.fcade-catalog.plist stays tracked;
+# a rendered copy only ever lands in the install root outside the repo.
+logs/
+state/
+config.sh

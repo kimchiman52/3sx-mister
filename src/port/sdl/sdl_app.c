@@ -2688,6 +2688,14 @@ void SDLApp_ForceConsoleGameMode(void) {
     game_mode_arcade = false;
 }
 
+#if defined(DEBUG)
+void SDLApp_ForceArcadeGameMode(void) {
+    /* Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): session-only
+     * override, same contract as SDLApp_ForceConsoleGameMode above. */
+    game_mode_arcade = true;
+}
+#endif
+
 static void init_hold_to_pause(void) {
     const char* raw_value = Config_GetString(CFG_KEY_HOLD_TO_PAUSE);
     if (raw_value != NULL && SDL_strcasecmp(raw_value, "on") == 0) {
@@ -3408,6 +3416,30 @@ static void update_metrics(Uint64 sleep_time) {
 }
 
 void SDLApp_EndFrame() {
+#if defined(STATCHECK)
+    /* A3b (docs/plan-fcade-replay-browser.md §4.3): uncapped headless
+     * stepping for statcheck runs. `--headless` is parsed in every build but
+     * consumed only here, only under STATCHECK — non-STATCHECK builds keep
+     * the flag exactly as inert as before. Skips window presentation and the
+     * frame-pacing wait below entirely (the fork-shaped equivalent of
+     * upstream sdl_headless_app.c:59-72's render-free while(true) loop), so
+     * frames step as fast as the engine can tick. Two calls are kept:
+     * - ADX_ProcessTracks(): drains the sound decode queue. It is bounded by
+     *   SDL_GetAudioStreamQueued (src/port/sound/adx.c:136), so uncapped
+     *   stepping cannot balloon it; keeping it avoids starving any
+     *   engine-visible track state.
+     * - SoftwareRenderer_RenderFrame(): the giblet quad queue is an stb_ds
+     *   array drained only by this call (software_renderer.c:1836
+     *   arrsetlen(quads, 0)); skipping it would grow the queue without bound
+     *   over a multi-thousand-frame replay. Rasterizing 384x224 is cheap
+     *   relative to the engine tick. */
+    if (configuration.headless) {
+        ADX_ProcessTracks();
+        SoftwareRenderer_RenderFrame();
+        return;
+    }
+#endif
+
 #if ENABLE_PERF_TELEMETRY
     const Uint64 render_start_ns = SDL_GetTicksNS();
     const Uint64 update_ns = render_start_ns > perf_update_start_ns ? (render_start_ns - perf_update_start_ns) : 0;

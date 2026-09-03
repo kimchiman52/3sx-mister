@@ -7,6 +7,10 @@ byte-passed namespace, found from a player bug report)
 · **2026-09-02** (sixth pass — §22: **`cg_zoom` and `cg_effect`/`cg_eftype`
 value-level diff** — both clean, no item-Q-class defect; the rest of the
 byte-pass list swept as negative results)
+· **2026-09-03** (seventh pass — §23: **`Random_ix16` stage-init divergence**
+— CPS3 spawns two stage effects (ids 74 and 8) on Club Metro and Hong Kong
+that the port never does; named from the arcade disassembly, reproduced
+exactly on 4/4 affected replays; fix proposed, not applied)
 **Repo:** `/Users/sb/Developer/3sx-mister`
 **Branch examined:** `upstream-engine-fixes`; second pass verified in the
 worktree `/Users/sb/Developer/3sx-mister-arcade`, branch `fix/arcade-cg-mapping`
@@ -45,6 +49,12 @@ command and its observed output, or a named primary source. Things that were
   **clean**: no camera-zoom-level divergence exists anywhere in the 20
   characters, and the effect namespace is shared (no item-Q-class error). Do
   not re-diff them raw; §22.3's grid caveat explains why a raw diff lies.
+- **Chasing a replay that desyncs at the first checkpoint, or wondering why
+  intros/AI/dizzy on Remy's and Yun's stages never match arcade?** §23 —
+  `Random_ix16` walks a different path from frame 1 on those two stages
+  because CPS3 spawns two stage effects the port has no code for. The
+  statcheck oracle has always hidden this (it overwrites `Random_ix16` every
+  frame). Read §23.10 before adding a bare `random_16()` anywhere.
 - **Worried the parse itself is truncating data?** §19.
 - **Worried about hitboxes / throw ranges / attack properties?** §15 — the other
   13 sections (the ones a CG audit cannot see). This is upstream issue **#325**.
@@ -3675,3 +3685,458 @@ signature; the stream compare is the reliable oracle.**
   traced for which bits it reads, not exercised; the Yun/Yang `0x4000`
   three-cell differences were classified by mechanism, and their on-screen
   visibility was not confirmed on device.
+
+---
+
+## 23. `Random_ix16` stage-init divergence — CPS3 spawns two stage effects the port never does (seventh pass, 2026-09-03)
+
+**Citation style for this section.** As in §21/§22: this document is not in
+`tools/doc-citations/baselines.txt`; everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line. Port code was read
+in the worktree `/Users/sb/Developer/3sx-mister-wt-descope`, branch
+`feat/replay-descope` @ `2ab572e1`. CPS3 ground truth is the **SH-2 program
+of the `sfiii3nr1` romset itself** (§23.4 says how it was obtained); CPS3 code
+is cited by its ROM virtual address (`CPS3 0x0611E0EE`), which is stable for
+that romset and is the only durable anchor a stripped binary has. Everything
+marked **measured** was run; everything marked **inferred** was not, and says
+what it rests on.
+
+**Headline.** The port consumes `random_16()` differently from the arcade on
+exactly two stages — **Club Metro (`bg190`, Remy's) and the Shopping District
+(`bg030`, Yun's)** — because the CPS3 stage initialisers for those two stages
+spawn one extra stage effect each (**effect id 74** on Club Metro, **effect id
+8** on Hong Kong) whose move routines call the arcade `random_16`. The port's
+`bg1902_init00` / `bg0301_init00` do not spawn them, and *cannot*: in the
+PS2-derived engine, ids 8 and 74 dispatch entirely different effects
+(§23.8). Everything downstream of `Random_ix16` on those stages — both
+players' intro variants, effect picks, the AI pattern picks in `plpat09.c`, the
+dizzy duration lookup in `plpdm.c` — sees an index the arcade never had, on
+every round played there, in every mode. The mechanism was named from the
+arcade disassembly (§23.5–§23.6) and then **reproduced exactly** for all four
+affected replays that have traces: a frame-level model of the two arcade
+effects predicts the archive's `Random_ix16` at frame 60 to the value, and
+Remy's intro X position to the pixel, in 4/4 cases (§23.7). The fix is
+bounded and is proposed, not applied (§23.10).
+
+### 23.1 Why this pass happened
+
+The replay viewer (`src/replay/replay_player.c`) plays FBNeo-recorded `.3sr`
+files and compares 13 live engine fields against per-checkpoint djb2 hashes
+that were computed **from real CPS3 main RAM** (format: `docs/3sr-format.md`
+§4). After the viewer's own desync fixes (`2ab572e1`), the previous pass
+reported **42 of 44 real replays clean**. Two fail — both at **frame 60, the
+first battle checkpoint**, both with **P2 = Remy** on Remy's stage:
+
+| replay | players (chars) | header `ix16` | live @f60 | archive @f60 (hash-solved) | live P2 X | archive P2 X |
+|---|---|---|---|---|---|---|
+| `1784868362963-5027` | Ken (11) / Remy (19) | `0x1A` | `0x1D` | **`0x1F`** (+2) | 552 | **577** (+25) |
+| `1784868387508-5268` | Makoto (16) / Remy (19) | `0x16` | `0x19` | **`0x1A`** (+1) | 577 | **552** (−25) |
+
+The 44-replay tally (42/2) and the "only Remy's and Yun's stages drift by
+checkpoint 2" observation are the previous pass's; this pass re-parsed the 16
+replays whose run logs survive in its scratchpad and found the same partition
+(the 4 replays on stages 19 and 3 drift; the 12 on seven other stages do not). The hash solves in
+the table were **re-derived here** (§23.3), not copied.
+
+### 23.2 Two facts about the measurement chain that this section depends on
+
+**(a) The publish gate has never been able to see this class of defect.**
+`src/test/statcheck_compare.c` (and `src/test/test_runner_compare.c`,
+identically) does not *assert* `Random_ix16` — it **overwrites** it from the
+archive every frame:
+
+> `// This is dirty, but syncing Random_ix16 every frame helps avoid animation-related desyncs`
+> `Random_ix16 = random_ix16_cps3;`
+
+`Random_ix32` is asserted (`assert_equals(Random_ix32, random_ix32_cps3)`), and
+the corpus passes it at ~93% (previous pass's figure), so the animation cell-walk that consumes
+`random_32` is faithful. But any port-vs-arcade difference in *how many times*
+`random_16()` is called has been silently repaired every frame by the oracle
+for as long as the oracle has existed. The replay viewer is the first tool
+that runs the engine against arcade truth **without** that sync — which is why
+a defect that is present in every Club Metro round ever played on the port
+surfaced only now, as a replay bug.
+
+**(b) The viewer's `Random_ix16` recovery is exact, so the drift numbers are
+data.** `replay_player.c` -> `recover_random_ix16` sweeps the 16-bit field
+ascending and accepts the first hash match. Its own comment calls this
+"best-effort" and says "the low bits of the applied value may differ" — that
+is too pessimistic. The 13 fields are hashed as 26 little-endian bytes with
+`djb2_hash.h`'s `h = h*33 + byte`; `Random_ix16` occupies bytes 10–11, so two
+candidates collide iff `33^14 * (33*Δlo + Δhi) ≡ 0 (mod 2^32)`; `33^14` is odd
+hence invertible, so `33*Δlo + Δhi = 0` exactly, i.e. `Δhi = −33*Δlo` with
+`|Δlo| ≤ 7`. Colliders of a value `v` are therefore exactly `v − 8447*k`.
+**Measured** (a full 65,536-candidate sweep against both failing checkpoints):
+colliders at `[26, 8473, 16920, …]` and `[31, 8478, 16925, …]`, spacing 8447
+throughout. Because the true index is `≤ 0x3F` (`random_16` masks with `&=
+0x3F`; CPS3's does the same, §23.4) the smallest collider *is* the archive
+value, and the ascending sweep's first match is exact. (The stale comment
+lives in `replay_player.c`, which this pass was not permitted to edit.)
+
+### 23.3 The port side: what the failing checkpoint actually says (measured)
+
+Solving each failing checkpoint over `Random_ix16 ∈ [0, 63]` × `P2 X ± 400`
+against the archive hash gives **exactly one** solution each, and solving over
+`P1 X` instead gives none — so the archive differs from the live engine in
+precisely two fields, `Random_ix16` and P2's X, and in nothing else:
+
+- 5268: live `(ix16=0x19, P2X=577)` — archive `(0x1A, 552)`;
+- 5027: live `(ix16=0x1D, P2X=552)` — archive `(0x1F, 577)`.
+
+25 px is Remy's intro. `animation/appear.c` -> `Appear_34000` (Remy:
+`appear_data[45].rno == 34`) does `work = random_16(); work &= 7;` and, for
+`work ∈ {0, 2, 6, 7}`, places P2 at `bg_w.bgw[1].pos_x_work + 0x71` (113);
+otherwise the table's `hx = 88` stands. `pos_x_work` on Club Metro is `0x1D0`
+(`stage/bg190.c` -> `bg1901_init00`/`bg1902_init00`): 464 + 113 = **577**,
+464 + 88 = **552**. So "P2 X off by 25" is "Remy drew a different `work`", and
+the only way that happens with identical inputs is a different `Random_ix16`
+when `Appear_34000` runs.
+
+The live trace for 5268 (`scratchpad/trace-1784868387508-5268.log`,
+per-frame `random_16` counters with call sites) shows the port's whole
+`Random_ix16` history up to the checkpoint: **f=0: 1 call (`ta0_init00`); f=1:
+0 calls; f=2: 2 calls (`Appear_34000`, `Appear_01000`); f=3..60: 0 calls.**
+With `random_tbl_16` (`engine/pls02.c`) that is: header `0x16` → f0 `0x17` →
+Remy draws index `0x18` → `tbl[24] = 0` → `work = 0` → 577 (live, correct).
+One extra call anywhere in f0..f2 before Remy's draw shifts Remy to `0x19` →
+`tbl[25] = 3` → 552 — the archive's value. For 5027 the same arithmetic gives
+live `0x1C → tbl[28] = 1 → 552` and, with one extra call, `0x1D → tbl[29] = 7
+→ 577` — again the archive's. In both replays, therefore, **CPS3 consumed
+exactly one `random_16` more than the port between frame 0 and Remy's intro
+draw** (and, in 5027, one more between f=2 and f=60). That is the entire
+defect; everything after this is finding the consumer.
+
+### 23.4 CPS3 ground truth: the pipeline worked, and here is the RNG (measured)
+
+Upstream carries a decrypt-and-split pipeline: `crowded-street/3sx` @
+`12eaa105` ("Add cps3 decryption and splitter to dump asm") adds
+`tools/combine-and-decrypt.py`, `config/cps3/sfiii3n.yaml` and a
+`tools/saturn-splitter` submodule. The local `/Users/sb/Developer/3sx`
+checkout is on `flatpak-workflow2` and does **not** contain those files; they
+were recovered with `git show 12eaa105:<path>`. The splitter (Rust) was not
+needed: the decrypt script is pure Python (the `cps3_mask` XOR with keys
+`0xA55432B4`/`0x0C129981` — the same `KEY_1` the port's own
+`src/arcade/cps3_decrypt.c` uses), takes the four `sfiii3-simm1.[0-3]` files
+from `~/Library/Application Support/CrowdedStreet/3S-ARM/roms/sfiii3nr1.zip`,
+and produces an 8 MB big-endian image in 3 s. Its first words are an SH-2
+vector table (`PC=0x06000EA0, SP=0x02008F94`), and disassembly used capstone
+5.0.7 in `CS_MODE_SH2 | CS_MODE_BIG_ENDIAN` (scripts in the pass's scratchpad:
+`cps3/sh2.py`, `callers.py`, `fn.py`, `spawn.py`, `sim.py`).
+
+Locating the RNG needed no symbols. `random_tbl_16` (the 64 `s16` values in
+`pls02.c`) occurs exactly once in the image, at **`0x065EB434`**;
+`random_tbl_32_ex` once, at `0x065EB4B4`. The CPS3 address of `Random_ix16` is
+**`0x020155E8`** — which is `RANDOM_IX_16_OFFSET 0x155E8` from
+`src/arcade/arcade_constants.h` plus the CPS3 work-RAM base, an independent
+cross-check of the statcheck offsets. The one literal pool holding *both* that
+address and the table's address belongs to:
+
+```
+CPS3 0x0611E0EE  random_16:
+  mov.l  [0x020155E8],r4      ; &Random_ix16
+  mov.l  [0x065EB434],r1      ; random_tbl_16
+  mov.w  @r4,r3 ; add #1,r3 ; mov.w r3,@r4
+  mov.w  @r4,r0 ; and #63,r0 ; mov.w r0,@r4
+  shll r0 ; rts ; mov.w @(r0,r1),r0
+```
+
+i.e. `Random_ix16++; Random_ix16 &= 0x3F; return random_tbl_16[Random_ix16];`.
+The port's `Debug_w[0x3B] == -32` reset (`pls02.c` -> `random_16`) has no
+arcade counterpart; it is inert unless that debug word is set. The three
+siblings at `0x0611E0D6` (`&0x7F`, `Random_ix32` at `0x020155EA`), `0x0611E106`
+(`&0x1F`) and `0x0611E11E` (`&0x0F`) are `random_32` and the `_ex` variants.
+
+A whole-image scan for `jsr @rN` preceded by `mov.l lit,rN` (plus `bsr`)
+finds **157 call sites** of `0x0611E0EE`; the port has **114** `random_16()`
+sites across 49 files (`grep`, this tree). The gap is expected — CPS3 has
+effects the PS2 re-authoring dropped — and this section names the two that
+matter for stage init.
+
+### 23.5 The stage-init comparison: two CPS3 initialisers, each with one extra spawn (measured)
+
+CPS3 functions were identified from *data they reference*, not guessed:
+
+- `effl4_data_tbl` (`effect/effl4.c`, 24 `s16`) occurs once, at `0x061CB034`;
+  its single referrer is **`CPS3 0x06113626`**, a 6-iteration loop that pulls
+  from effect class 3 and stores `id = 214` — `effect_L4_init` (`214` is
+  "L4": `effl4.c` sets `ewk->wu.id = 214`). Its only caller is
+  **`CPS3 0x060BEBD4`**, which sets `pos_x_work = 0x1D0`, then calls, in order:
+  `0x06087024(0xDD60, 1)`, `0x060DD486` (id 5), `0x060DD612` (id 6),
+  **`0x060F1652` (id 74)**, **`0x060E3A00(8)` and `0x060E3A00(9)` (id 14)**,
+  `0x06113626` (L4), `0x060EB982(6)` (id 44), and tail-jumps to `0x060E10AE(3)`
+  (id 12). That is `stage/bg190.c` -> `bg1902_init00` — `effect_05_init();
+  effect_06_init(); effect_L4_init(); effect_44_init(6); effect_12_init(3);`
+  — **plus four calls the port does not make.**
+- `eff71_time_tbl` (`effect/eff71.c`, `{2,8,12,9,4,6,50,3}`) occurs once, at
+  `0x061BF684`, referenced from the CPS3 `effect_71_move` (`0x060F0DA8`,
+  structurally identical to the port's: `obr_no_disp_check`, then
+  `EXE_flag`/`Game_pause`/`EXE_obroll` gates, `random_16() & 7` into the time
+  table). `effect_71_init` is `0x060F0E6E`; its only caller is
+  **`CPS3 0x060BC678`**, which sets `pos_x_work = 0x200` and calls
+  `0x06087024(?, 1)`, id 5, id 6, **`0x060DDC5E` (id 8)**, id 71, and
+  tail-jumps to id 212 (`effect_L2_init`; "L2" = 212). That is
+  `stage/bg030.c` -> `bg0301_init00` — `effect_05_init(); effect_06_init();
+  effect_71_init(); effect_L2_init();` — **plus two calls the port does not
+  make.**
+
+The effect ids were read from each init's `mov.w r0,@(8,r4)` store (offset 8
+is `id`; offset 6 is `work_id = 16`, exactly as in the port's `WORK`). The
+id → move-routine table was found from `effect_L4_move` (`0x061135B4`, the
+function immediately preceding `_init`): its only referrer is
+`0x061B8B94 = 0x061B883C + 214*4`, so **`0x061B883C` is CPS3's
+`effmovejptbl`**, and it agrees with the port's `effect/effxx.c` ->
+`effmovejptbl` at every id checked that both engines share (5, 6, 12, 44, 71,
+212, 214). At **[8] and [74] it does not** (§23.8).
+
+Static reachability of `0x0611E0EE` from each spawned routine (BFS over the
+resolved call graph, depth 5):
+
+| spawned by CPS3 | id | `_init` reaches `random_16`? | move routine reaches `random_16`? | in port's stage init? |
+|---|---|---|---|---|
+| both stages | 5, 6 | 6: only via `char_move` (`0x06089848` → `0x0608BD6A`, the cell-walk) | same | yes |
+| both stages | `0x06087024(const, 1)` | no (depth 6) | — | **no** (unidentified; every CPS3 stage init calls it) |
+| bg190 | **74** | no | **yes — directly, `0x060F1522`, in routine 0** | **no** |
+| bg190 | 14 (×2) | no | only via `char_move` | **no** |
+| bg030 | **8** | no | **yes — directly, `0x060DD95A`, in routine 1** | **no** |
+| bg030 | 71 | no | yes (`0x060F0E3C`, = port's) | yes |
+
+The `char_move` path (`CPS3 0x0608BF0C`, a `random_16` inside the cell
+walker) is the same path the port has (`engine/charset.c` has three
+`random_16()` sites) and fires only on scripts that use the random-cell
+opcode; the frame-exact reproduction in §23.7 shows it contributed nothing in
+the first 60 frames on either stage.
+
+### 23.6 The two consumers, read out (measured from the disassembly)
+
+**CPS3 effect 74** — spawned only by Club Metro's `bg1902_init00`
+(`0x060BEC22` is its sole call site in the image). `0x060F1652` pulls from
+class 4, stores `id = 74`, allocates two palette handles (`0x061377F0(1)` /
+`0x061376C6`). The move routine `0x060F1384`:
+
+- **routine 0** (the spawn frame): `routine++`; `0x060F15E4` (a 3×16 block
+  copy into the palette buffer via `0x060BAC3C`); then **`0x060F1516`:
+  `random_16()`, `type = r & 3`**, `counter = 0`, `loops = ptr_b[type]`,
+  `timer = rec[0].t`, `repeat = entry.repeat`; then a palette-request write
+  (`0x0612E340(1, ptr)`).
+- **routine 1** (every frame while `EXE_flag == 0 && Game_pause == 0`; the
+  addresses `0x0200EECC` / `0x0201136E` are those globals — proved by the
+  CPS3 `effect_71_move` reading them in the exact order the port's reads
+  `EXE_flag`, `Game_pause`, `EXE_obroll`): `timer--`; on expiry `counter++`;
+  if `counter < repeat` → `timer = rec[counter].t`; else `counter = 0`,
+  `loops--`; if `loops > 0` → `timer = rec[0].t`; **else → `0x060F1516`
+  again (a new `random_16`)**.
+- The table at `0x061BF8BC` (four 12-byte entries `{rec*, loop_tbl*, repeat}`)
+  and its records give the cadence per drawn type:
+
+| type (`r & 3`) | records (timer each) | loops (`ptr_b[type]`) | frames until the next `random_16` |
+|---|---|---|---|
+| 0 | 5 × 2 | 8 | 80 |
+| 1 | 2 × 1 | 2 | 4 |
+| 2 | 2 × 1 | 1 | 2 |
+| 3 | 5 × 2 | 1 | 10 |
+
+So effect 74 consumes **exactly one index on the spawn frame** and then
+re-rolls at a data-driven cadence between 2 and 80 frames.
+
+**CPS3 effect 8** — spawned only by Hong Kong's `bg0301_init00` (`0x060BC6C6`
+is its sole call site in the image). `0x060DDC5E` pulls from class 4, `id = 8`,
+two palette handles. Move routine `0x060DD888`:
+
+- **routine 0** (spawn frame): `count = 0`, `x98 = 0`, `timer =
+  tblA[type].t` (= 1; `tblA` at `0x061BA9C4`, six-byte records), a palette
+  block copy (`0x060DDBF0`) and a palette request (`0x0612E2FE`). No RNG.
+- **routine 1** (`EXE_flag == 0 && Game_pause == 0`): `timer--`; on expiry
+  `count = (count + 1) & 7`; **if `count == 0` → `random_16()`**, `v =
+  vt[r]` with `vt = {0,0,0,1,0,0,2,0,0,1,0,0,3,0,0,0}` at `0x061BAA0C`; if `v
+  != 0` → `x98 = v`, routine 2, `timer = tblB[type].t` (= 1; `tblB` at
+  `0x061BA9F4`); else `timer = tblA[type].t` (= 1). Non-zero counts reload
+  `timer = tblB[type].t` (= 1).
+- **routine 2**: `timer--`; on expiry `count = (count + 1) & 3`; when it
+  wraps, `x98--`; back to routine 1 (`count` is 0 there) when `x98` reaches 0.
+
+With both timers 1, effect 8 consumes **one index every 8 frames** while in
+routine 1, and pauses `4 × v` frames whenever a draw lands on a non-zero `vt`
+entry.
+
+**Spawn-frame timing.** Both stage initialisers run from `TATE00` ->
+`ta0_init01` (`stage/tate00.c`), i.e. on the second `TATE00` call — frame 1
+of the round (`game.c` -> `Game2_0` calls `TATE00()` once at round init, which
+is the trace's f=0 `ta0_init00` call; `Game2_1` calls `TATE00()` before
+`Basic_Sub_Ex()`). `effect/effect.c` -> `pull_effect_work` sets
+`tadr->timing = exec_tm[index]` at pull time, and `move_effect_work` increments
+`exec_tm[index]` *before* comparing, so an effect pulled inside `TATE00` is
+moved by `system/sys_sub.c` -> `Basic_Sub_Ex` -> `move_effect_work(4)` **in
+the same frame** — its routine 0 runs on frame 1. That is the port's
+mechanism; that CPS3 orders the frame the same way is **inferred** from the
+port being a decompilation of the same game loop, and is then confirmed by
+§23.7 (a one-frame slip would break 7092's reproduction).
+
+### 23.7 Reproduction: the model predicts every affected archive value exactly (measured)
+
+`scratchpad/cps3/sim.py` steps `Random_ix16` frame by frame from each
+replay's header value through the port's own consumers (as the live traces
+show them: `ta0_init00` at f=0; the two `Appear_*` draws at f=2, Remy's first;
+`effect_71_move` on Hong Kong, modelled from `eff71.c`) and then adds the CPS3
+effect from §23.6 for that stage. Effects are stepped in spawn order inside
+class 4, after `Player_control`'s intro draws. The port half of the model is
+validated against the traces first; then the CPS3 half is compared with the
+hash-recovered archive value:
+
+| replay | stage | port model @f60 | trace live @f60 | CPS3 model @f60 | archive @f60 | Remy X: port / CPS3 model | Remy X: live / archive |
+|---|---|---|---|---|---|---|---|
+| 5268 | bg190 | `0x19` | `0x19` ✓ | **`0x1A`** | `0x1A` ✓ | 577 / 552 | 577 / 552 ✓ |
+| 5027 | bg190 | `0x1D` | `0x1D` ✓ | **`0x1F`** | `0x1F` ✓ | 552 / 577 | 552 / 577 ✓ |
+| 7092 (Urien/Remy) | bg190 | `0x21` | `0x21` ✓ | **`0x2A`** | `0x2A` ✓ | 552 / 552 | 552 / 552 ✓ (passes: same `& 7` class) |
+| 6292 (p1=7 / Yun) | bg030 | `0x23` | `0x23` ✓ | **`0x28`** | `0x28` ✓ | — | — |
+
+The 7092 row is the sharp one: effect 74 draws type 1 on frame 1, then
+re-rolls at frames 5, 7, 17, 21, 31, 33, 37 and 39 (types 2, 3, 1, 3, 2, 1,
+2, 0 — each duration read from the table) and finally lands on type 0, whose
+80-frame span outlasts the checkpoint: **nine** extra indices, `0x21 → 0x2A`,
+which is precisely what the archive holds. On Hong Kong the model also
+reproduces the port's own `effect_71` draw frames from the trace (2, 11, 15,
+25, 30, 37, 42, 49 — each `eff71_time_tbl[w] + 1` apart) before adding effect
+8's every-8th-frame draws (9, 17, 25, 33, 41, 53 — the 49 slot is displaced by
+a 4-frame routine-2 pause after the f=41 draw hit `vt = 1`). Four replays,
+four different extra-call counts (1, 2, 9, 5), all exact. That is the
+strongest form of evidence available short of instrumenting the arcade: the
+consumer, its trigger frame, and its cadence are all pinned by data that had
+no way of fitting by accident.
+
+### 23.8 Why the port cannot simply "spawn effect 74 and 8" (measured)
+
+In the PS2-derived engine those ids are taken. `effect/eff74.c` ->
+`effect_74_move` is a **select-screen** effect (it reads `Menu_Suicide`,
+`Menu_Cursor_Y`, `Order`, `Order_Timer`, has `EFF74_WAIT`/`EFF74_SUDDENLY`
+states, and there is **no `effect_74_init` anywhere in the tree**).
+`effect/eff08.c` -> `effect_08_init(s8 sc_num, s8 x, s8 y, u16 atr, s16
+color_type)` is the round-message effect `engine/manage.c` spawns
+(`effect_08_init(7, 0, 1, 15, 0)` etc.). The CPS3 `effmovejptbl` at
+`0x061B883C` dispatches id 8 to `0x060DD888` and id 74 to `0x060F1384`, both
+stage palette animations — so the PS2 re-authoring **re-used those two ids**
+for different effects and dropped the arcade stage effects (both are
+palette-cycling: they write palette pointers into a request table at
+`0x0206A17C` via `0x0612E340`/`0x0612E2FE`; what they look like on a real
+board was not determined — a Club Metro light show and a Hong Kong neon
+flicker are the obvious readings, and are **inferred**). This is a genuine
+engine-content gap, not a missing call: the port has *no code* for either
+effect. It also means §22.5's "the effect namespace is shared" holds only for
+the character-data-dispatched `effinitjptbl` indices it examined; the
+stage-spawned move table disagrees at (at least) two ids.
+
+### 23.9 What this means for play, not just replays
+
+`Random_ix16` is one global sequence. On Club Metro and Hong Kong the port's
+sequence is a *different walk* of the same table from frame 1 of **every
+round** (`bg_routine` restarts per round; `Game2_0` -> `TATE00` ->
+`ta0_init00`/`ta0_init01`), in **every mode**, under both balance settings.
+Consumers that then diverge from what the arcade would have done with the
+same inputs include: both players' intro variants (`Appear_34000` and every
+other `Appear_*` that draws — the 25 px Remy shift is just the visible one),
+every effect that picks with `random_16` (`effect/*.c`, 73 sites), CPU
+pattern selection (`engine/plpat09.c`), and the dizzy-duration lookup
+(`engine/plpdm.c` -> `kizetsu_timer_table`). The **distribution** of outcomes
+is unchanged — the table is the same — so no player is advantaged and
+port-vs-port netplay is unaffected; what is lost is *sequence fidelity to the
+arcade*: an arcade-recorded match cannot be reproduced on these two stages,
+and any future arcade-truth oracle that does not dirty-sync `Random_ix16`
+will fail there. For every other stage in the corpus the sequence matched to
+frame 60 in 37/37 replays (previous pass) — there is no evidence of a third
+affected stage, but see §23.11.
+
+### 23.10 The fix — proposed, not applied
+
+**What is *not* the fix.** Adding a bare `random_16();` to `bg1902_init00`
+(precedent: `ta0_init00`'s `// Calling this function is necessary for
+Random_ix16 to be in sync with the arcade version`) would make 5268 pass and
+5027 fail, because effect 74 keeps drawing at its table cadence (§23.6);
+5027 needs the second draw at frame 5 and 7092 needs nine. A single call is
+wrong, and a wrong fix would silently shift every other consumer on that
+stage for the whole round. Do not do it.
+
+**The fix.** Give the port the two arcade effects' **RNG behaviour**, as
+effect works spawned where CPS3 spawns them, with the visual part optional:
+
+1. New modules (suggested `effect/effc74.c` -> `effect_C74_init/move` and
+   `effect/effc08.c` -> `effect_C08_init/move`, "C" for CPS3; any free id in
+   `effmovejptbl` — the port table has 229 entries and `effect_dummy_move`
+   slots — since 8 and 74 are taken). Each is a `WORK_Other` pulled from
+   class 4 (`pull_effect_work(4)`, as the arcade does) with `disp_flag = 0`,
+   carrying the state machine of §23.6 verbatim: for C74 `type, counter,
+   loops, timer` plus the four-entry table above; for C08 `count, x98,
+   timer, routine`. Gate both on `!EXE_flag && !Game_pause` exactly as the
+   arcade routines do. Their only side effect is `random_16()`.
+2. `stage/bg190.c` -> `bg1902_init00`: spawn C74 **between `effect_06_init()`
+   and `effect_L4_init()`** (arcade order: 5, 6, 74, 14, 14, L4, 44, 12).
+   `stage/bg030.c` -> `bg0301_init00`: spawn C08 **between `effect_06_init()`
+   and `effect_71_init()`** (arcade order: 5, 6, 8, 71, L2). Order matters
+   within class 4 — §23.7's Hong Kong row is exact only with 8 ahead of 71.
+3. Acceptance is already built: run the viewer over the 44-replay corpus with
+   `Random_ix16` recovery logging on; the expected result is **44/44 with zero
+   "Random_ix16-only divergence" lines at checkpoint 2 on stages 3 and 19**.
+   `sim.py` predicts the exact archive values, so a mismatch is a bug in the
+   port of the state machine, not in the theory.
+4. Rollback safety: effect works live in `frw[]`, which `netplay/game_state.c`
+   saves and restores (`SDL_copya(es->frw, frw)`), so the stubs' state is
+   rolled back with everything else. Both peers run the same code, so the
+   netplay digest bump is the usual one for an engine change and nothing
+   more.
+5. Rendering the actual palette effects is a separate, larger job (the CPS3
+   routines drive palette hardware through `0x0612E340`/`0x0612E4E0` with
+   tables at `0x061BF6E4`/`0x061BA8C4`/`0x064DCBD4`/`0x064C93D4`); the RNG
+   stubs make the engine arcade-faithful without it.
+
+**Confidence.** High on the mechanism (the consumer is named from the arcade
+binary, the trigger is its documented spawn site, and the cadence reproduces
+four independent archive values exactly, one of them nine draws deep). Medium
+on completeness — this pass diffed the three stage initialisers it had reason
+to open (`bg190`, `bg030`, and the one at `0x060BCC68` that spawns id 14 twice
+plus id 22 and 44(4), i.e. `bg180`), not all twenty. A full initialiser diff
+is the natural next experiment (§23.11).
+
+### 23.11 Not verified — stated so nothing is mistaken for a finding
+
+- **CPS3's `TATE00`/`ta0_init00` were not located.** The CPS3 `ta_move_tbl`
+  (22 `BGxxx` pointers with `[1] == [11]`) is at `0x06614C94`, but no literal
+  in the image references it, so its dispatcher uses an addressing pattern
+  the scan does not follow. Consequently the arcade code that upstream's bare
+  `random_16()` in `ta0_init00` stands in for is **still unidentified**. What
+  *is* measured is that CPS3 consumes exactly one index before frame 1's
+  spawns on all four replays (every §23.7 row requires it), so the stand-in
+  is count-correct.
+- **`0x06087024(const, 1)`**, called by every CPS3 stage initialiser (71
+  call sites in the image), was not identified. It has no path to
+  `random_16` to depth 6; it reads tables at `0x0200EBBC`/`0x0200E3BC` and
+  calls into the `0x0613xxxx` system region — a CG/palette loader is the
+  obvious reading, and is inferred.
+- **CPS3 effect 14 (×2 on Club Metro, ×2 on `bg180`)** reaches `random_16`
+  only through `char_move`'s random-cell opcode. §23.7 shows it drew nothing
+  in the first 60 frames; whether its script ever does later was not checked.
+  The port's `effect_14_init(id, x, y, atr)` (`effect/eff14.c`) is, like 8
+  and 74, a different effect.
+- **The gate flags** (`EXE_flag`, `Game_pause`, `EXE_obroll`) were assumed
+  zero for frames 1–60 in the model. The port traces support it (the
+  `effect_71` cadence is table-exact), and a wrong assumption would have
+  broken the 7092 and 6292 rows; but a round that opens with a pause or a
+  hit-stop before frame 60 was not modelled.
+- **What effects 74 and 8 look like** on hardware (§23.8) is inferred from
+  their palette-request writes, not observed. MAME/FBNeo with a watchpoint on
+  `0x020155E8` would settle both this and the previous two bullets in one
+  session; no emulator with a debugger is installed on this machine (`mame`
+  not found), so it was not done.
+- **The 42/44 and 37/37 figures** are the previous pass's; this pass
+  re-parsed 16 of the 44 run logs (12 replays on seven other stages clean,
+  the 4 on stages 3 and 19 drifting) and independently re-solved the two failing checkpoints.
+- **Character ids.** Remy = 19 and Yun = 3 are read from the replays'
+  headers cross-checked against the stage each loaded (`bg_index_tbl[19]` /
+  `[3]`) and against this tree's Q = 17 (`screen/sel_pl.c` ->
+  `Setup_Battle_Country`'s comment) and Ken = 11 / Makoto = 16 / Urien = 13
+  from the replays' player names; no enum naming the characters was found in
+  the tree.
+- **Only three of twenty stage initialisers were diffed against CPS3.** The
+  corpus shows no drift on the other stages it covers by frame 60, but a
+  CPS3-only spawn whose first draw comes later than frame 60, or on a stage
+  the corpus lacks, would not have been seen. The next experiment is
+  mechanical: walk the CPS3 `ta_move_tbl` (its entries are known even though
+  its referrer is not), decode each `bgXX0N_init00`'s spawn list with
+  `spawn.py`, and diff against `stage/bg*.c`.

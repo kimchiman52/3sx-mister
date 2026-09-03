@@ -65,6 +65,20 @@ typedef struct ConfigEntry {
  * display. Mirrors CFG_KEY_BALANCE's "auto" sentinel below. */
 #define DEFAULT_LANGUAGE "auto"
 
+/* Root of the cached `.3sr` replay set (CFG_KEY_REPLAYS_ROOT). The common-case
+ * literal per platform. See docs/config.md.
+ *
+ * The HPS wrapper reads the key from the config file this table seeds
+ * (RpReplaysRootLoadFrom(), vendor/Main_MiSTer/replay_proxy.c) rather than
+ * carrying its own copy of the path, so there is nothing to keep in step. */
+#if defined(PORT_MISTER)
+#define DEFAULT_REPLAYS_ROOT "/media/fat/games/3s-arm/replays"
+#elif defined(PORT_MIYOO_MINI_PLUS)
+#define DEFAULT_REPLAYS_ROOT "/mnt/SDCARD/Roms/PORTS/Games/3s-arm/replays"
+#else
+#define DEFAULT_REPLAYS_ROOT "./replays"
+#endif
+
 static const ConfigEntry default_entries[] = {
     { .key = CFG_KEY_FULLSCREEN, .type = CFG_BOOL, .value.b = true },
     { .key = CFG_KEY_WINDOW_WIDTH, .type = CFG_INT, .value.i = DEFAULT_WINDOW_WIDTH },
@@ -80,6 +94,19 @@ static const ConfigEntry default_entries[] = {
     { .key = CFG_KEY_ARM_CLOCK, .type = CFG_STRING, .value.s = DEFAULT_ARM_CLOCK },
     { .key = CFG_KEY_GAME_MODE, .type = CFG_STRING, .value.s = DEFAULT_GAME_MODE },
     { .key = CFG_KEY_HOLD_TO_PAUSE, .type = CFG_STRING, .value.s = DEFAULT_HOLD_TO_PAUSE },
+    { .key = CFG_KEY_REPLAYS_ROOT, .type = CFG_STRING, .value.s = DEFAULT_REPLAYS_ROOT },
+    { .key = CFG_KEY_REPLAYS_MAX_MB, .type = CFG_INT, .value.i = 200 },
+    /* Remote replay browse. Empty host = remote disabled (a no-config boot
+     * stays local-only). Default port is the fcade-proxy's default
+     * (tools/fcade-proxy README).
+     *
+     * These two rows are load-bearing even though nothing under src/ reads
+     * them: write_defaults() below seeds the on-device config file from this
+     * table, and the HPS wrapper's RpConfigLoadFrom()
+     * (vendor/Main_MiSTer/replay_proxy.c) parses that file for exactly these
+     * two literal key names. Do not delete them as "unused". */
+    { .key = CFG_KEY_REPLAY_PROXY_HOST, .type = CFG_STRING, .value.s = "" },
+    { .key = CFG_KEY_REPLAY_PROXY_PORT, .type = CFG_INT, .value.i = 3479 },
     { .key = CFG_KEY_SHOW_FPS, .type = CFG_STRING, .value.s = "off" },
     { .key = CFG_KEY_VIDEO_DRIVER_ORDER, .type = CFG_STRING, .value.s = DEFAULT_VIDEO_DRIVER_ORDER },
     { .key = CFG_KEY_RENDER_DRIVER_ORDER, .type = CFG_STRING, .value.s = DEFAULT_RENDER_DRIVER_ORDER },

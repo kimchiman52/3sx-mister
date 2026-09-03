@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent TEMPLATE for the Mac-worker half of the pre-convert fleet
+  (tools/fcade-replays/auto-convert/preconvert-worker.sh --
+  docs/plan-preconvert-fleet.md §2 Q2, Stage S5).
+
+  Unlike dev.sambae.fcade-convert (the daily, once-a-day incremental batch
+  this REPLACES -- see README.md "Migration from the daily batch agent"),
+  this ticks every ~10 minutes and asks the VPS's own pre-convert queue what
+  it would like converted right now, via an expiring lease. Fully headless
+  (same reasoning as the daily batch: -headless runner, dummy-SDL statcheck)
+  and a per-user agent (its runtime lives under the user's install root; the
+  push rides the user's ~/.ssh key; the FCADE_WORK_TOKEN secret lives in
+  install-root/secrets.sh, sourced by the script itself, NEVER in this
+  plist).
+
+  The __PLACEHOLDER__ tokens are filled with resolved absolute paths by
+  setup.sh, which writes the final plist to
+  install-root/dev.sambae.fcade-preconvert-worker.plist.
+  Install/load it with `launchctl bootstrap gui/$UID` (see README.md).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.sambae.fcade-preconvert-worker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__PRECONVERT_WORKER_SH__</string>
+    </array>
+
+    <!-- Do NOT run at load; only on the interval below. A tick that finds
+         the queue empty (or the Mac freshly rebooted mid-schedule) is a
+         cheap no-op, so there is no reason to fire one immediately on
+         load/login. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Every 10 minutes. A sleeping/offline Mac simply misses ticks (its
+         leases lapse server-side after 45 min and the VPS scheduler picks
+         the quark back up on its own -- docs/plan-preconvert-fleet.md §Q2,
+         §Q8 "Mac offline a week"). launchd's StartInterval fires relative to
+         the last time the job was scheduled/ran, catching up at most once on
+         wake, not in a backlog burst. -->
+    <key>StartInterval</key>
+    <integer>600</integer>
+
+    <!-- Both streams append to the worker's own log (separate from the
+         daily batch's daily.log, since the two now run on very different
+         cadences and interleaving them would be confusing); the script also
+         redirects its own output there, so the file is a single source of
+         truth. -->
+    <key>StandardOutPath</key>
+    <string>__PRECONVERT_WORKER_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__PRECONVERT_WORKER_LOG__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- preconvert-worker.sh derives everything else (and reads the
+             optional non-secret config.sh + the required-for-real-runs
+             secret secrets.sh) from this install root. Same install root as
+             dev.sambae.fcade-convert -- the two share the local .3sr
+             out-dir as their "already converted" source of truth. -->
+        <key>FCADE_CONVERT_HOME</key>
+        <string>__INSTALL_ROOT__</string>
+        <!-- A minimal PATH so /usr/bin tools (ssh, rsync, osascript, date)
+             and the Homebrew python resolve under launchd's stripped
+             environment. -->
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- A tick is CPU-heavy but bounded (<=3 quarks), not a resident daemon. -->
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Guard against an instant respawn loop on a crashing tick, without
+         blocking the next real 600s interval (mirrors dev.sambae.fcade-
+         convert's ThrottleInterval posture, scaled down for the much
+         shorter schedule). The lockfile inside the script is the REAL
+         overlap guard; this is just launchd hygiene. -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+</dict>
+</plist>

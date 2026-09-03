@@ -39,10 +39,17 @@
 #include "sf33rd/Source/Game/ui/frame_data_overlay.h"
 #include "sf33rd/Source/Game/ui/frame_trace.h"
 #include "sf33rd/Source/Game/ui/sc_sub.h"
+#include "replay/replay_player.h"
+#include "replay/replay_shuffle.h"
+#include "replay/replay_wipe.h"
 #include "structs.h"
 #include "test/ldreq_timing_trace.h"
 #include "test/rollback_determinism.h"
 #include "test/test_runner.h"
+
+#if defined(STATCHECK)
+#include "test/statcheck_runner.h"
+#endif
 
 #if defined(DEBUG)
 #include "sf33rd/Source/Game/debug/debug_config.h"
@@ -105,6 +112,23 @@ Configuration configuration = {
             .ldreq_slot_trace_path = NULL,
             .ldreq_barrier_force = false,
             .afs_inject_latency_ms = 0,
+            .fcade_inputs_path = NULL,
+            .fcade_offset = 0,
+            .fcade_anchor = 0,
+            .fcade_p1_start_frame = -1,
+            .fcade_p2_start_frame = -1,
+            .fcade_max_frames = 0,
+            .fcade_game_offset = -1,
+            .fcade_p1_char = -1,
+            .fcade_p2_char = -1,
+            .fcade_p1_arts = -1,
+            .fcade_p2_arts = -1,
+            .fcade_p1_color = -1,
+            .fcade_p2_color = -1,
+            .fcade_new_challenger = -1,
+            .fcade_seed_ix16 = -1,
+            .fcade_seed_ix32 = -1,
+            .fcade_seed_at_reanchor = false,
         },
 };
 
@@ -486,13 +510,82 @@ static void initialize_game() {
         exit(0);
     }
 
+#if defined(STATCHECK)
+    /* Review round-1 finding P-1 (docs/plan-fcade-replay-browser.md): pin
+     * the oracle's ambient config dependencies (game-mode, arcade-balance,
+     * default button mapping) so the harness verdict is hermetic against
+     * the user's on-disk config. Placed before ArcadeBalance_Init() so the
+     * arcade-balance pin is in place before that call reads it.
+     *
+     * NOTE (upstream reconcile): this used to sit AFTER set_netplay_params()
+     * to keep netplay-nav config forcing from racing it. set_netplay_params
+     * now runs LAST (see the ordering comment below), so the pins moved
+     * ahead of it. Safe: set_netplay_params touches only DirectP2P/Netplay
+     * params and nav arming, while the pins touch only CFG_ARCADE_BALANCE,
+     * the game-mode flag and save_w[].Pad_Infor — disjoint sets. */
+    StatcheckRunner_PinConfig();
+#endif
+
+#if defined(DEBUG)
+    /* Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): raw -13
+     * stream playback needs the same ambient-config pinning idea as the
+     * statcheck harness, but for the ARCADE flow: game-mode=arcade (the
+     * Fightcade session ran the arcade program flow, not the console
+     * menus) and arcade-balance=true (the session was captured against
+     * sfiii3nr1's data tables). Session-only; placed before
+     * ArcadeBalance_Init() below so the pin is visible to it. Inert
+     * unless --test-enable + --test-fcade-inputs are both set. */
+    if (configuration.test.enabled && configuration.test.fcade_inputs_path != NULL) {
+        TestRunner_PinFcadeConfig();
+    }
+#endif
+
+    /* Step C1 (docs/plan-fcade-replay-browser.md): same pin, same slot, for
+     * .3sr playback — arcade-balance=true + game-mode=console are the
+     * A3b-proven co-necessities for archived Fightcade sessions to
+     * reproduce. Session-only; never writes the on-disk config. Placed
+     * before ArcadeBalance_Init() so the arcade-balance pin is visible to
+     * it. (A STATCHECK build rejects --play-replay in args.c, so this and
+     * the statcheck pin can never both be live.) */
+    if (ReplayPlayer_IsActive()) {
+        ReplayPlayer_PinConfig();
+        /* Adopt the caller-supplied row metadata (player names + Fightcade
+         * ranks + date) passed alongside --play-replay, so the HUD name
+         * labels and the bottom status line are populated from the first
+         * frame even when the .3sr has no .meta.json sidecar beside it. All
+         * fields optional; a sidecar that does turn up corroborates rather
+         * than clobbers these. (The flags still spell "--live-replay-*" —
+         * historical naming from the retired live-stream path, kept as-is.) */
+        long long date_ms = 0;
+        if (configuration.replay.live_date_ms != NULL) {
+            date_ms = SDL_strtoll(configuration.replay.live_date_ms, NULL, 10);
+        }
+        ReplayPlayer_SetLiveMeta(configuration.replay.live_p1_name, configuration.replay.live_p1_rank,
+                                 configuration.replay.live_p2_name, configuration.replay.live_p2_rank, date_ms);
+    } else if (ReplayShuffle_IsEnabled()) {
+        /* LOAD-BEARING. The shuffle viewer plays every replay through
+         * ReplayPlayer_LoadAndStart, which deliberately does NOT re-pin the
+         * config — the pin is a whole-session obligation the owning module
+         * inherits (it used to be the browser's). Miss this and every replay
+         * runs with the wrong balance, game mode and button mapping, which
+         * presents as a desync rather than as a missing call. Applied here,
+         * before ArcadeBalance_Init(), so the arcade-balance pin is visible to
+         * it. (Mutually exclusive with the --play-replay branch above:
+         * args.c rejects the combination.) */
+        SDL_Log("replay-shuffle: enabled — applying the whole-session config pin "
+                "(console + arcade-balance + identity buttons)");
+        ReplayPlayer_PinConfig();
+    }
+
     /* Ordering matters:
      *   AFS_Init          — the boot-time arcade adaptation reads each
      *                       character's PS2 char-data tail from the AFS;
      *   ArcadeBalance_Init— resolves arcade-vs-PS2 for the whole process
      *                       (ROM discovery + full 20-character adaptation);
      *   set_netplay_params— netplay arming consults the resolved balance
-     *                       state (netplay requires verified arcade). */
+     *                       state (netplay requires verified arcade).
+     * The replay/statcheck config pins above run before all three, exactly
+     * as they did pre-reconcile, so ArcadeBalance_Init still observes them. */
     AFS_Init(Resources_GetAFSPath());
     ArcadeBalance_Init();
     set_netplay_params();
@@ -500,6 +593,8 @@ static void initialize_game() {
 }
 
 static void cleanup() {
+    ReplayShuffle_Destroy();
+    ReplayPlayer_Destroy();
     AFS_Finish();
     SDLApp_Quit();
 }
@@ -784,6 +879,16 @@ static void game_step_0() {
     configure_slow_timer();
 #endif
 
+#if defined(STATCHECK)
+    /* A3b: statcheck replay injection. Runs after keyConvert() (so it
+     * replaces whatever the real pads wrote to p*sw_buff this frame) and
+     * before the p1sw_buff -> p1sw_0 latch below — the same slot the DEBUG
+     * TestRunner_Prologue occupies. DEBUG and STATCHECK cannot be
+     * co-compiled (CMake hard-errors on Debug + THREESX_STATCHECK), so the
+     * two hooks can never both run. */
+    StatcheckRunner_Prologue();
+#endif
+
     /* Drive cold-launch menu navigation for netplay BEFORE p1sw_buff is
      * latched. The nav state machine may inject SWK_START on this tick;
      * if it does the rising-edge comparison ~p*sw_1 & p*sw_0 & SWK_START
@@ -791,7 +896,41 @@ static void game_step_0() {
      * to be present in p*sw_0 (the "current" snapshot). */
     NetplayNav_Tick();
 
-    if ((Play_Mode != 3 && Play_Mode != 1) || (Game_pause != 0x81)) {
+    /* Step C1 (docs/plan-fcade-replay-browser.md): .3sr replay playback.
+     * Must run BEFORE the latch below so the injected SWK-layout words land
+     * in p*sw_0 this frame; placed after NetplayNav_Tick so a (mutually
+     * exclusive — args.c + runtime session guard) replay session owns the
+     * final word on the buffers. Inert without --play-replay. */
+    /* The weekly-best shuffle viewer. Runs BEFORE ReplayPlayer_Tick, not
+     * after it where ReplayBrowser_Tick used to sit: its hold-to-skip gesture
+     * has to read the REAL pads keyConvert() wrote this frame, and
+     * ReplayPlayer_Tick overwrites p1sw_buff/p2sw_buff with the injected
+     * words (and zeroes them once terminal). Unlike the browser it does not
+     * consume the pads — the player overwrites them a few lines later anyway.
+     * Inert without --watch-replays. */
+    ReplayShuffle_Tick();
+
+    ReplayPlayer_Tick();
+
+    /* When the replay player is holding the frame, skip the input latch and
+     * the engine tick below, keeping p*sw_0/p*sw_1 and all engine state
+     * exactly as the last injected tick left them. Rendering still runs (the
+     * netplay-stall precedent: game_step_1's Scrn_Renew etc. run on frames
+     * whose engine tick was skipped). The player holds every frame once
+     * playback reaches a terminal state, which is what stops the game's
+     * post-match flow free-running into the qix effect trap. Always false
+     * without --play-replay. */
+    const bool replay_frame_hold = ReplayPlayer_IsStallingThisFrame();
+
+    /* Advance the replay viewer's private screen cover (the 76-band diagonal
+     * wipe that hides the title/menu/character-select walk between replays).
+     * Here, not in a draw branch: it must see whether the frame is HELD, and
+     * it must run BEFORE njUserMain so its character-select reveal is decided
+     * against the S_No the previous frame left — which is the frame the
+     * engine's own WipeIn(0) fully covers. Inert without a loaded replay. */
+    ReplayWipe_Tick(!replay_frame_hold);
+
+    if (!replay_frame_hold && ((Play_Mode != 3 && Play_Mode != 1) || (Game_pause != 0x81))) {
         p1sw_1 = p1sw_0;
         p2sw_1 = p2sw_0;
         p3sw_1 = p3sw_0;
@@ -828,10 +967,49 @@ static void game_step_0() {
          * frame; renewal itself runs on a side thread. */
         DirectP2P_Tick();
         step0_phase_end(STEP0_PHASE_NETPLAY);
+    } else if (replay_frame_hold) {
+        /* Engine tick held. Draw the replay overlay and flush the 2D buffer,
+         * mirroring the netplay-stall branch above. Skipping njUserMain here
+         * means the frame carries NO game geometry: SoftwareRenderer_RenderFrame
+         * clears the canvas to opaque black every frame and draws only the
+         * quads submitted since the last one, so a held frame is black plus
+         * whatever these two Draw calls put on it. That is the intended
+         * "freeze + message" card, not a retained freeze-frame — see
+         * replay_player.c's s_stall_frame comment.
+         *
+         * The three phase_end calls are not decoration: step0_phase_end()
+         * accumulates (now - mark) into a phase and advances the mark, so a
+         * branch that closes nothing donates its whole elapsed time to
+         * whichever phase closes next. Upstream instruments every other
+         * branch of this chain; matching it here keeps the telemetry
+         * flavor's per-phase breakdown honest on held frames. ENGINE and
+         * NETPLAY close at ~0 because neither runs. */
+        step0_phase_end(STEP0_PHASE_ENGINE);
+        ReplayOverlay_Draw();
+        /* MUST be here as well as in the normal branch below: every
+         * inter-replay transition happens on HELD frames, so anything the
+         * shuffle viewer wants on screen between replays is only ever drawn
+         * from this branch. */
+        ReplayShuffle_Draw();
+        njdp2d_draw();
+        step0_phase_end(STEP0_PHASE_SEQS);
+        step0_phase_end(STEP0_PHASE_NETPLAY);
     } else {
         njUserMain();
         step0_phase_end(STEP0_PHASE_ENGINE);
         seqsBeforeProcess();
+        /* Step C2 (docs/plan-fcade-replay-browser.md): draw the .3sr replay
+         * viewer overlay (status line / hold-START-to-exit hint / terminal
+         * message) into the 2D sprite list before njdp2d_draw() flushes it.
+         * Read-only over the player state — inert without --play-replay. */
+        ReplayOverlay_Draw();
+        /* Shuffle-viewer chrome (skip hint). Inert without --watch-replays. */
+        ReplayShuffle_Draw();
+        /* The viewer's private cover, LAST and in front of everything (z =
+         * 0.0f, just ahead of PrioBase[0]). Live frames only: a held frame is
+         * already black and still has to show its "REPLAY COMPLETE" /
+         * "NEXT REPLAY..." card, which an opaque cover would hide. */
+        ReplayWipe_Draw();
         njdp2d_draw();
         seqsAfterProcess();
         step0_phase_end(STEP0_PHASE_SEQS);
@@ -879,6 +1057,25 @@ static void game_step_0() {
 }
 
 static void game_step_1() {
+#if defined(STATCHECK)
+    /* A3b: compare engine state against the archived frame. Placed at the
+     * TOP of game_step_1 — not beside the DEBUG epilogue at the bottom —
+     * because upstream runs TestRunner_Epilogue between Main_StepFrame and
+     * Main_FinishFrame (upstream sdl_headless_app.c:59-72), i.e. after
+     * njUserMain but before Interrupt_Timer/Scrn_Renew/Irl_Family/Irl_Scrn/
+     * BGM_Server mutate more state. The archived CPS3 dumps were taken at
+     * that same boundary; comparing after Scrn_Renew would misalign the
+     * oracle. */
+    StatcheckRunner_Epilogue();
+#endif
+
+    /* Step C1: sample the .3sr divergence checksums at the same boundary
+     * the statcheck oracle compares at (see the STATCHECK comment above —
+     * the SCRD frames the .3sr checksums derive from were captured after
+     * njUserMain and before Interrupt_Timer/Scrn_Renew). Inert without
+     * --play-replay. */
+    ReplayPlayer_Epilogue();
+
     Interrupt_Timer += 1;
     Record_Timer += 1;
 
@@ -1297,6 +1494,38 @@ int main(int argc, const char* argv[]) {
         configuration.test_connect_observability ||
         configuration.test_gs_coverage || configuration.test_rendezvous_wire) {
         SDL_SetAssertionHandler(test_harness_assert_handler, NULL);
+    }
+
+    /* Stash the shuffle viewer's CLI state before any tick (the slot
+     * ReplayBrowser_Configure used to occupy). The `replays-root` config key
+     * is read later, after Config_Init in SDLApp_FullInit. */
+    ReplayShuffle_Configure(configuration.replay.watch_replays, configuration.replay.watch_replays_root);
+
+#if defined(STATCHECK)
+    /* Stage A3b of docs/plan-fcade-replay-browser.md — statcheck harness
+     * init (replaces A3a's parse-and-exit smoke). Open + parse the SCRD
+     * archive up front so an invalid archive dies cleanly before any game
+     * init; the runner then drives the whole session from the
+     * StatcheckRunner_Prologue/Epilogue hooks in game_step_0/game_step_1
+     * and exits with the verdict (0 = full-game RAM match, 1 = first
+     * mismatch). SDL IO does not require SDL_Init, so this runs safely
+     * pre-init. */
+    if (!StatcheckRunner_Init(configuration.statcheck.ram_archive_path)) {
+        SDL_Log("statcheck: failed to open/parse RAM archive '%s'",
+                configuration.statcheck.ram_archive_path);
+        return 1;
+    }
+#endif
+
+    /* Step C1 (docs/plan-fcade-replay-browser.md): load + validate the .3sr
+     * up front so a corrupt file dies cleanly before any game init. File IO
+     * only — safe pre-SDL_Init (same rationale as the statcheck init
+     * above). */
+    if (configuration.replay.play_replay_path != NULL) {
+        if (!ReplayPlayer_Init(configuration.replay.play_replay_path)) {
+            SDL_Log("replay: failed to load '%s'", configuration.replay.play_replay_path);
+            return 1;
+        }
     }
 
     if (configuration.test_mist_handshake) {

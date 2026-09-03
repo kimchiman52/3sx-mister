@@ -141,6 +141,44 @@
  * mid-session is safe (although not exposed via the in-game UI). */
 #define CFG_KEY_NETPLAY_SPARSE_EFFECT_SAVE_ENABLED "netplay-sparse-effect-save-enabled"
 
+/* Root directory of the cached `.3sr` replay set (flat + one level of
+ * subdirs). Formerly `replay-browser-root`, renamed when the pad-driven
+ * in-game browser was cut; the shuffle viewer that replaces it enumerates
+ * the same directory. The default lives in config.c (DEFAULT_REPLAYS_ROOT).
+ *
+ * The HPS wrapper reads this key too, out of the same on-device config file
+ * (RpReplaysRootLoadFrom() in vendor/Main_MiSTer/replay_proxy.c), because
+ * replay_sync.c is what fills the directory the viewer plays from. It no
+ * longer carries a hardcoded copy of the path: the retired OSD browser's
+ * REPLAY_LOCAL_ROOT literal, which had to be kept in step with this default
+ * by hand, was deleted with it. The wrapper's only fallback is
+ * RP_DEFAULT_REPLAYS_ROOT, used when this file has never been written. */
+#define CFG_KEY_REPLAYS_ROOT "replays-root"
+
+/* Replay storage lifecycle (docs/plan-fcade-replay-browser.md Step F4/Step 3).
+ * REPLAYS_MAX_MB caps the total size, in megabytes, of raw Fightcade-fetch
+ * stream payloads (frames.bin/inputs/savestate/summary.json — see
+ * src/replay/replay_storage.h) kept under the replays root. When the
+ * cap is exceeded, the oldest (LRU by mtime) fetch directories have their raw
+ * files evicted first; `.3sr` and `.meta.json` are never touched by
+ * eviction. 0 disables eviction entirely (delete-only). Default 200 MB. */
+#define CFG_KEY_REPLAYS_MAX_MB "replays-max-mb"
+
+/* Remote replay browse over the VPS fcade-proxy (tools/fcade-proxy), spoken
+ * as plain TCP. REPLAY_PROXY_HOST is the proxy host/IP; "" (the default)
+ * leaves remote browsing DISABLED so a no-config boot is local-only.
+ * REPLAY_PROXY_PORT is the proxy's TCP port (proxy default 3479).
+ *
+ * DO NOT DELETE THESE AS "UNUSED". Nothing under src/ reads either key —
+ * the consumer is the HPS OSD wrapper, not the game. config.c's
+ * write_defaults() seeds the on-device config file from default_entries[],
+ * and vendor/Main_MiSTer/replay_proxy.c -> RpConfigLoadFrom() parses that
+ * same file looking for exactly the two literal key names below. Dropping
+ * either row silently breaks the wrapper's proxy configuration with no
+ * game-side symptom. See docs/config.md. */
+#define CFG_KEY_REPLAY_PROXY_HOST "replay-proxy-host"
+#define CFG_KEY_REPLAY_PROXY_PORT "replay-proxy-port"
+
 /// Initialize config system
 void Config_Init();
 

@@ -33,6 +33,7 @@
 #include "audio.h"
 #include "osd.h"
 #include "menu.h"
+#include "replay_sync.h"
 #include "support/arcade/mra_loader.h"
 #include "thirdsarm_core_context.h"
 #include "user_io.h"
@@ -49,6 +50,24 @@ static MisterJoyShm *g_joy_shm = nullptr;
 // (menu.cpp) and this TU see the same symbol. Defined here at namespace
 // scope (NOT inside the anonymous namespace) so it matches the header.
 extern "C" int g_direct_p2p_handoff_armed = 0;
+
+// Replay launch-by-path handoff. The OSD stores the absolute path of a `.3sr`
+// in g_replay_play_path and sets g_replay_play_armed; the child-fork block then
+// injects `--play-replay <path>` into the relaunched game's argv (the game flag
+// already exists — src/args.c). Like direct-P2P it needs NO on-disk handoff
+// file — argv is the payload channel. Both symbols have C linkage
+// (declared in thirdsarm_wrapper.h) so the menu patch (menu.cpp) and this TU
+// share them; defined at namespace scope to match. No OSD page calls the arming
+// helper at present — the shuffle viewer re-points at it in a later step.
+extern "C" int g_replay_play_armed = 0;
+extern "C" char g_replay_play_path[512] = {0};
+
+// Weekly-best shuffle viewer arm flag ("Watch Replays", OSD status bit
+// T[31]). Same channel as the two above, with no payload at all: the
+// child-fork block injects a bare `--watch-replays` and the game enumerates
+// the cached set itself. C linkage + namespace scope for the same reason
+// (the menu patch and this TU must see one symbol).
+extern "C" int g_replay_shuffle_armed = 0;
 
 namespace {
 
@@ -116,6 +135,20 @@ enum RuntimeBgmTypeMenu
 	kBgmTypeMenuCount
 };
 
+// CONF_STR "P1O[48],Balance,Arcade,PS2;" index order. This mirrors the OSD
+// row's REQUEST, not the game's resolved outcome: index 0 writes
+// `balance = arcade` and index 1 writes `balance = ps2`, and
+// ArcadeBalance_Init() (src/arcade/arcade_balance.c) still falls back to PS2
+// when no CPS3 romset verifies. The read-only " Balance:" status row right
+// below the toggle reports what actually happened -- see
+// thirdsarm_balance_status_line().
+enum RuntimeBalanceMenu
+{
+	kBalanceArcade = 0,
+	kBalancePs2,
+	kBalanceMenuCount
+};
+
 // CONF_STR "O[47],Language,English,Japanese;" index order.
 enum RuntimeLanguageMenu
 {
@@ -150,6 +183,7 @@ int g_wrapper_arm_clock_active = kArmClockStock;
 int g_wrapper_game_mode = kGameModeConsole;
 int g_wrapper_hold_to_pause = kHoldToPauseOff;
 int g_wrapper_bgm_type = kBgmTypeArranged;
+int g_wrapper_balance = kBalanceArcade;
 int g_wrapper_language = kLanguageEnglish;
 int g_wrapper_aspect_ratio = kAspectRatio4x3;
 int g_wrapper_h_position = 0;
@@ -960,18 +994,23 @@ bool write_runtime_hold_to_pause_default(int mode)
 
 // --- Balance status row (read-only) ------------------------------------
 //
-// Arcade-vs-PS2 balance is no longer an OSD toggle. The game auto-selects
-// it at boot -- arcade when a CPS3 ROM passes content verification AND the
-// full 20-character adaptation succeeds, PS2 otherwise (docs/config.md
+// The OUTCOME half of the two-row Balance pair on the OSD Game page. The
+// REQUEST half is the "P1O[48],Balance,Arcade,PS2;" toggle right above it,
+// backed by read/write_runtime_balance_default() further down; this row
+// reports what the game actually did with that request. The game resolves
+// balance at boot -- arcade when a CPS3 ROM passes content verification AND
+// the full 20-character adaptation succeeds, PS2 otherwise (docs/config.md
 // "balance"; src/arcade/arcade_balance.c) -- and writes the outcome to
 // <kRuntimeHome>/balance.status: line 1 is the status text ("Arcade (CPS3)"
-// or "PS2"), line 2 is the reason when PS2. Status bit [30] and the
-// write/read_runtime_arcade_balance_default() pair that used to back the
-// toggle were deleted with this row: the game stopped reading the
-// `arcade-balance` config key entirely, so the toggle had become a placebo
-// (docs/mister-wrapper.md "Balance Status Line").
+// or "PS2"), line 2 is the reason when PS2.
 //
-// menu.cpp renders the CONF_STR "-,Balance:;" text row through this helper
+// Status bit [30] is NOT the toggle's bit and must stay retired: it backed
+// the old "O[30],Arcade Balance,Off,On;" row (a placebo once the game
+// stopped reading `arcade-balance`) and was V-Position's middle bit before
+// v20260416, so live 3S-ARM.CFG files can carry it set. The new toggle took
+// a brand-new [48] instead (docs/mister-wrapper.md "Balance Status Line").
+//
+// menu.cpp renders the CONF_STR "P1-,Balance:;" text row through this helper
 // (tools/mister-wrapper/main-mister-full-menu.patch). Only line 1 is shown:
 // the OSD row is 32 columns and the longest line-2 reason ("CPS3 ROM not
 // found or failed content verification") is 48, so the reason stays an
@@ -1108,6 +1147,97 @@ bool write_runtime_bgm_type_default(int mode)
 	if (!wrote_value)
 	{
 		fprintf(out, "\nbgm-type = %s\n", runtime_bgm_type_config_value(mode));
+	}
+
+	if (fclose(out) != 0) return false;
+	if (rename(temp_path, path) != 0)
+	{
+		remove(temp_path);
+		return false;
+	}
+
+	return true;
+}
+
+// Arcade-vs-PS2 balance, backing the CONF_STR "P1O[48],Balance,Arcade,PS2;"
+// row on the Game page. The key is `balance` in the game config
+// (docs/config.md "balance"); the game accepts "arcade", "auto" (its
+// historical spelling of the same thing) and "ps2".
+int read_runtime_balance_default()
+{
+	char value[64] = {};
+	if (!read_runtime_config_value("balance", value, sizeof(value))) return kBalanceArcade;
+
+	if (!strcasecmp(value, "ps2")) return kBalancePs2;
+	// "auto" and "arcade" are the same request, and anything unrecognised
+	// falls to arcade here for the same reason the game itself treats an
+	// unknown override as auto: prefer arcade, let boot decide.
+	return kBalanceArcade;
+}
+
+static const char *runtime_balance_config_value(int mode)
+{
+	switch (mode)
+	{
+	case kBalancePs2: return "ps2";
+	default: return "arcade";
+	}
+}
+
+bool write_runtime_balance_default(int mode)
+{
+	char path[PATH_MAX] = {};
+	char temp_path[PATH_MAX] = {};
+	snprintf(path, sizeof(path), "%s/config", kRuntimeHome);
+	snprintf(temp_path, sizeof(temp_path), "%s/config.tmp", kRuntimeHome);
+
+	FILE *in = fopen(path, "r");
+	FILE *out = fopen(temp_path, "w");
+	if (!out)
+	{
+		if (in) fclose(in);
+		return false;
+	}
+
+	bool wrote_value = false;
+	char line[256] = {};
+	if (in)
+	{
+		while (fgets(line, sizeof(line), in))
+		{
+			char inspect[256] = {};
+			snprintf(inspect, sizeof(inspect), "%s", line);
+
+			char *cursor = inspect;
+			while (*cursor && isspace((unsigned char)*cursor)) cursor++;
+			if (*cursor == '#')
+			{
+				fputs(line, out);
+				continue;
+			}
+
+			char *equals = strchr(cursor, '=');
+			if (equals)
+			{
+				*equals = 0;
+				trim_in_place(cursor);
+				if (!strcasecmp(cursor, "balance"))
+				{
+					fprintf(out, "balance = %s\n", runtime_balance_config_value(mode));
+					wrote_value = true;
+					continue;
+				}
+			}
+
+			fputs(line, out);
+		}
+
+		fclose(in);
+	}
+
+	if (!wrote_value)
+	{
+		fprintf(out, "\nbalance = %s\n", runtime_balance_config_value(mode));
 	}
 
 	if (fclose(out) != 0) return false;
@@ -1982,6 +2112,7 @@ void poll_status_changes(pid_t child)
 	static uint32_t prev_game_mode = 0xFFFFFFFF;
 	static uint32_t prev_hold_to_pause = 0xFFFFFFFF;
 	static uint32_t prev_bgm_type = 0xFFFFFFFF;
+	static uint32_t prev_balance = 0xFFFFFFFF;
 	static uint32_t prev_language = 0xFFFFFFFF;
 	static uint32_t prev_aspect_ratio = 0xFFFFFFFF;
 	static uint32_t prev_h_position = 0xFFFFFFFF;
@@ -2055,6 +2186,35 @@ void poll_status_changes(pid_t child)
 			// Options change *does* apply immediately, via the existing
 			// checkAdxFileLoaded()/adx_NowOnMemoryType reload on menu
 			// exit -- that path is unrelated to this OSD write.)
+		}
+	}
+
+	uint32_t balance = user_io_status_get("[48]");
+	if (balance != prev_balance) {
+		prev_balance = balance;
+		int target = (int)balance;
+		// Same disk refresh as bgm_type above. The game process rewrites
+		// `config` itself for other keys, and a config hand-edited between
+		// launches is expected here (docs/config.md "balance"), so the
+		// on-disk value -- not this process's mirror -- is what the OSD
+		// change has to be compared against.
+		g_wrapper_balance = read_runtime_balance_default();
+		if (target != g_wrapper_balance) {
+			write_runtime_balance_default(target);
+			g_wrapper_balance = target;
+			// No child signal: like Overclock and BGM Type, balance is
+			// resolved once at game boot (ArcadeBalance_Init(),
+			// src/arcade/arcade_balance.c) -- the new value takes effect
+			// on the NEXT game launch, not live mid-session.
+			//
+			// Deliberately no ROM-presence lockout either: this row is a
+			// request, and asking for Arcade with no verifiable CPS3
+			// romset still boots PS2 with the reason logged. Locking the
+			// row would mean overwriting the player's stored preference
+			// with `ps2` (losing their choice the day they install the
+			// romset) or new status_menumask plumbing from RTL, which
+			// cannot see the HPS filesystem. The " Balance:" status row
+			// beneath the toggle reports the real outcome instead.
 		}
 	}
 
@@ -2182,6 +2342,13 @@ void poll_status_changes(pid_t child)
 		user_io_status_set("[13]", 0);    // Game Mode = Console
 		user_io_status_set("[24]", 0);    // Hold to Pause = Off
 		user_io_status_set("[14]", 0);    // BGM Type = Arranged
+		// Balance ([48]) is deliberately NOT reset. It is the one row whose
+		// right answer depends on the player's hardware (do they own a
+		// verifiable CPS3 romset?) rather than on taste, and a hand-added
+		// `balance = ps2` in `config` is a documented, supported override
+		// (docs/config.md "balance"). Stomping it back to `arcade` here
+		// would silently discard that. Leaving it also keeps the OSD row
+		// and the on-disk key in agreement, since nothing rewrote either.
 		// Language = English. Deliberately English and not the `auto`
 		// sentinel: the OSD row can only render English/Japanese, so
 		// resetting to "auto" would leave the row asserting English while
@@ -2515,6 +2682,16 @@ int wait_for_child(pid_t child, bool service_ui)
 		}
 
 		poll_status_changes(child);
+		// Weekly-best replay set refresh. Non-blocking and internally
+		// rate-limited: it decides on its own whether anything is due, and
+		// drains replay_proxy's async search/get3sr slots across successive
+		// iterations of this loop. Nothing here is on the video path.
+		//
+		// Only reached when service_ui is true. In `forced` mode waitpid()
+		// blocks above and this whole block is skipped, so no refresh happens
+		// on a forced/probe launch -- that is fine: the refresh is a daily
+		// background chore, not a launch prerequisite.
+		ReplaySyncTick();
 		HandleUI();
 		OsdUpdate();
 
@@ -2764,6 +2941,46 @@ extern "C" void direct_p2p_handoff_join(const char *code)
 	direct_p2p_arm_and_restart();
 }
 
+// Replay launch-by-path handoff. Called with the absolute path of a `.3sr`:
+// store the path in the file-scope buffer, arm the flag, request a restart and
+// SIGTERM the child so it exits promptly. The relaunch injects
+// `--play-replay <path>` into the game argv. No handoff file — argv carries
+// the payload. Currently has no caller; the shuffle viewer picks it back up in
+// a later step.
+extern "C" void replay_play_handoff(const char *path_3sr)
+{
+	if (!path_3sr || !*path_3sr)
+	{
+		fprintf(stderr, "[replay_play_handoff] null/empty path; ignored\n");
+		return;
+	}
+	size_t n = strlen(path_3sr);
+	if (n >= sizeof(g_replay_play_path))
+	{
+		fprintf(stderr, "[replay_play_handoff] path too long (%zu); ignored\n", n);
+		return;
+	}
+	memcpy(g_replay_play_path, path_3sr, n);
+	g_replay_play_path[n] = '\0';
+	g_replay_play_armed = 1;
+	g_wrapper_restart_requested = 1;
+	pid_t pid = (pid_t)g_child_pid;
+	if (pid > 0) kill(pid, SIGTERM);
+}
+
+// Weekly-best shuffle viewer handoff. Same shape as replay_play_handoff
+// above with nothing to validate and nothing to store: arm the flag, request
+// a restart, and SIGTERM the child so it exits promptly. The relaunch
+// injects `--watch-replays` into the game argv; the game scans the replays
+// root, shuffles it and plays it back to back forever.
+extern "C" void replay_shuffle_handoff(void)
+{
+	g_replay_shuffle_armed = 1;
+	g_wrapper_restart_requested = 1;
+	pid_t pid = (pid_t)g_child_pid;
+	if (pid > 0) kill(pid, SIGTERM);
+}
+
 int thirdsarm_wrapper_run(int argc, char *argv[])
 {
 	const bool forced = force_requested();
@@ -2774,6 +2991,7 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 	g_wrapper_game_mode = read_runtime_game_mode_default();
 	g_wrapper_hold_to_pause = read_runtime_hold_to_pause_default();
 	g_wrapper_bgm_type = read_runtime_bgm_type_default();
+	g_wrapper_balance = read_runtime_balance_default();
 	g_wrapper_language = read_runtime_language_default();
 	g_wrapper_aspect_ratio = read_runtime_aspect_ratio_default();
 	g_wrapper_h_position = read_runtime_h_position_default();
@@ -2841,6 +3059,12 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 		// is the ONLY defense -- it must stay after user_io_init's CFG load
 		// and before the first poll_status_changes.
 		user_io_status_set("[14]", (uint32_t)g_wrapper_bgm_type);
+		// [48] is brand new -- it has never appeared in any CONF_STR or in
+		// any user_io_status_* call in this tree, so no 3S-ARM.CFG can carry
+		// it set. Seeded here anyway, in the same block and the same order,
+		// because the game config is authoritative for every wrapper-owned
+		// option regardless of what the CFG held.
+		user_io_status_set("[48]", (uint32_t)g_wrapper_balance);
 		// [47] has no such history -- it has never appeared in any CONF_STR
 		// or in any user_io_status_* call in this tree, so no 3S-ARM.CFG can
 		// carry it set. It is seeded here anyway, in the same block and the
@@ -3038,6 +3262,26 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 				child_argv.push_back(const_cast<char *>("--direct-p2p-handoff"));
 				child_argv.push_back(const_cast<char *>(kDirectP2PHandoffPath));
 			}
+			// Stage S2 (docs/plan-osd-replay-browser.md): if the OSD LOCAL page
+			// armed a replay launch, inject `--play-replay <path>` so the game
+			// boots straight into that .3sr (src/args.c already registers the
+			// flag). g_replay_play_path is the child's COW copy; the parent
+			// clears g_replay_play_armed post-fork so a later relaunch does not
+			// re-inject it.
+			if (g_replay_play_armed)
+			{
+				child_argv.push_back(const_cast<char *>("--play-replay"));
+				child_argv.push_back(g_replay_play_path);
+			}
+			// "Watch Replays" (T[31]) -> the weekly-best shuffle viewer. A bare
+			// flag is the whole payload; the game resolves the replays root from
+			// its own config. Mutually exclusive with --play-replay in src/args.c,
+			// and the two arm flags are never both set (each handoff restarts the
+			// child, and the parent clears both post-fork).
+			if (g_replay_shuffle_armed)
+			{
+				child_argv.push_back(const_cast<char *>("--watch-replays"));
+			}
 			child_argv.push_back(nullptr);
 
 			execve(kRuntimeBinary, child_argv.data(), environ);
@@ -3058,12 +3302,32 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 		// cycle would re-inject the flag even if the user navigated the OSD
 		// back out of Direct-P2P.
 		g_direct_p2p_handoff_armed = 0;
+		// Stage S2: same PARENT-side consume for the LOCAL replay-launch flag.
+		// Snapshot the arm state + path so the launch log below can record them.
+		const bool replay_play_was_armed = (g_replay_play_armed != 0);
+		char replay_play_path_snapshot[512];
+		memcpy(replay_play_path_snapshot, g_replay_play_path, sizeof(replay_play_path_snapshot));
+		g_replay_play_armed = 0;
+		// Same PARENT-side consume for the shuffle-viewer flag, so a later
+		// relaunch (e.g. an ordinary restart from the OSD) does not silently
+		// boot back into the viewer.
+		const bool replay_shuffle_was_armed = (g_replay_shuffle_armed != 0);
+		g_replay_shuffle_armed = 0;
 
 		int exec_errno = 0;
 		ssize_t exec_read = read(err_pipe[0], &exec_errno, sizeof(exec_errno));
 		close(err_pipe[0]);
 
 		write_log_line(wrapper_log, "child_pid=%d", child);
+		if (replay_play_was_armed)
+		{
+			write_log_line(wrapper_log, "replay_play_arm=1");
+			write_log_line(wrapper_log, "replay_play_path=%s", replay_play_path_snapshot);
+		}
+		if (replay_shuffle_was_armed)
+		{
+			write_log_line(wrapper_log, "replay_shuffle_arm=1");
+		}
 		write_log_line(wrapper_log, "runtime=%s", kRuntimeBinary);
 		write_log_line(wrapper_log, "THIRDSARM_HOME=%s", kRuntimeHome);
 		write_log_line(wrapper_log, "LD_LIBRARY_PATH=%s", getenv("LD_LIBRARY_PATH") ? getenv("LD_LIBRARY_PATH") : "");
@@ -3179,6 +3443,14 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 			// than this process's last-known-at-launch mirror.
 			g_wrapper_bgm_type = read_runtime_bgm_type_default();
 			user_io_status_set("[14]", (uint32_t)g_wrapper_bgm_type);
+			// Same re-read for balance: the run that just ended may have
+			// materialized or changed `balance` in `config` behind this
+			// wrapper's back, and a config hand-edited between launches is
+			// an expected flow (docs/config.md "balance"), so reseed the
+			// OSD from the CURRENT on-disk value rather than this process's
+			// last-known-at-launch mirror.
+			g_wrapper_balance = read_runtime_balance_default();
+			user_io_status_set("[48]", (uint32_t)g_wrapper_balance);
 			// Same for language: the in-game Screen Adjust row calls
 			// Language_PersistToConfig() from the game process, and on the
 			// very first boot Language_ApplyBootOverride() also materializes

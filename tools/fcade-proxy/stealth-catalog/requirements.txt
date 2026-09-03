@@ -1,0 +1,20 @@
+# Stealth-catalog runner dependencies.
+#
+# VERIFIED WORKING COMBO (S0 spike + S1/S2, 2026-07):
+#   Python 3.14.6
+#   nodriver 0.50.3   (drives real Chrome over CDP; no Playwright layer)
+#   Google Chrome for Testing 151.0.7922.47  (or any real system Chrome)
+#
+# REQUIRES Python >= 3.10 (nodriver uses PEP-604 `str | pathlib.Path` union
+# syntax). macOS's system python3 is 3.9 and will NOT work; setup.sh probes for
+# a 3.10+ interpreter (or set FCADE_PYTHON_BIN).
+#
+# Notes:
+#  - nodriver does NOT auto-download Chrome. setup.sh downloads the pinned
+#    Chrome-for-Testing; or point the runner at a system Chrome (--chrome).
+#  - nodriver 0.50.3's cdp/network.py contains a RAW latin-1 '±' (0xB1) byte
+#    with no PEP-263 encoding declaration, so `import nodriver` fails with
+#    "SyntaxError: Non-UTF-8 code starting with '\xb1'". setup.sh AUTO-PATCHES
+#    this by re-encoding any non-UTF-8 file in the installed package from
+#    latin-1 to UTF-8 (idempotent). If you install by hand, do the same.
+nodriver==0.50.3

@@ -1,0 +1,19 @@
+{
+  "name": "fcade-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "3SX VPS-side proxy for the Fightcade searchquarks API (TLS/Cloudflare termination + length-framed JSON over plain TCP to the device).",
+  "main": "fcade-proxy.js",
+  "bin": {
+    "fcade-proxy": "fcade-proxy.js"
+  },
+  "scripts": {
+    "start": "node fcade-proxy.js",
+    "test": "node __test_protocol.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "license": "AGPL-3.0-or-later"
+}

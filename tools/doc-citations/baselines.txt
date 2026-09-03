@@ -126,10 +126,15 @@
 # plan-netplay-track-a.md) have since moved into docs/archive/, which is no
 # longer scanned at all -- docs/archive/ is in SKIP_SCAN_DIRS, proven by
 # check_archive_is_not_scanned() in test_doc_citations.py. So those citations
-# are not merely un-ceilinged now, they are invisible. The two that remain in
-# the live corpus (research-desync-deep-investigation.md, which
-# rollback-determinism-harness.md still cites as its §A source, and
-# plan-fcade-replay-browser.md) are still scanned and still un-ceilinged.
+# are not merely un-ceilinged now, they are invisible.
+#
+# UPDATE 2026-09-02: plan-fcade-replay-browser.md has now moved there too, with
+# the rest of the replay lineage's plan documents, as part of the replay
+# descope -- the feature they planned was deleted, so they are historical
+# records rather than live pointers. That leaves exactly ONE of the five in the
+# live corpus: research-desync-deep-investigation.md, which
+# rollback-determinism-harness.md still cites as its §A source. It is still
+# scanned and still un-ceilinged.
 # A NEW document placed in docs/ and not listed above is likewise not covered;
 # that is the cost of the drop and it is recorded here rather than hidden.
 
