@@ -138,7 +138,11 @@
  * record is gone after two more launches. Bounded: once the file passes
  * RS_DIAG_MAX_BYTES it is restarted from scratch with a rotation note. */
 #define RS_DIAG_BASENAME "shuffle-diagnostics.log"
-#define RS_DIAG_MAX_BYTES 32768
+/* 256 KiB. Was 32 KiB when only divergences were recorded -- perhaps a dozen
+ * lines a week. Now every replay writes an outcome line (~150 B), so an
+ * unattended box doing ~500 replays/day would rotate through 32 KiB twice a
+ * day and silently zero the clean-run count this file exists to provide. */
+#define RS_DIAG_MAX_BYTES 262144
 
 /* ---------------------------------------------------------------------- */
 /* State                                                                  */
@@ -182,6 +186,13 @@ static int s_transition_frames = 0;
 static int s_replay_frames = 0; /* frames since the current replay was started */
 static int s_skip_hold = 0;
 static bool s_hud_logged = false; /* per-replay "names are on screen" evidence line */
+
+/* Session outcome tallies. Written into the rotation note so a rotation does
+ * not throw away the totals -- the point of the file is the DENOMINATOR (how
+ * many played cleanly), and that is exactly what discarding old lines loses. */
+static unsigned s_n_complete = 0;
+static unsigned s_n_desync = 0;
+static unsigned s_n_aborted = 0;
 
 static Uint64 s_rng_state = 0;
 
@@ -554,7 +565,14 @@ static void rs_now_string(char* out, size_t out_sz) {
  * replay was ever in play), and the positive fact that anything reaching
  * DESYNCED is proven NOT to be Random_ix16 drift — recover_random_ix16
  * brute-forces that single field and resyncs whenever it reconciles. */
-static void rs_record_desync(const RbEntry* e) {
+/* Record one replay outcome. `st` is the player's terminal status.
+ *
+ * A divergence-only log cannot answer the question it is usually asked: a
+ * quiet file looks identical whether 400 replays played cleanly or the box
+ * sat at a menu all night. Recording COMPLETE and ABORTED alongside DESYNCED
+ * makes the denominator explicit. The `diverged` line is byte-for-byte what
+ * it always was, so anything already grepping this file keeps working. */
+static void rs_record_outcome(const RbEntry* e, ReplayPlayerStatus st) {
     char path[RB_PATH_MAX];
     rs_diag_path(path, sizeof(path));
 
@@ -575,22 +593,40 @@ static void rs_record_desync(const RbEntry* e) {
     char stamp[40];
     rs_now_string(stamp, sizeof(stamp));
 
+    char rot[176];
+    rot[0] = '\0';
+    if (rotated) {
+        SDL_snprintf(rot, sizeof(rot),
+                     "--- log restarted (size cap reached); session so far: %u complete, %u diverged, %u skipped ---\n",
+                     s_n_complete, s_n_desync, s_n_aborted);
+    }
+
     char line[1024];
-    const int n = SDL_snprintf(line, sizeof(line),
-                               "%s%s diverged frame=%u replay='%s' path='%s' p1='%s' p2='%s' date='%s' "
-                               "(not Random_ix16 drift: recover_random_ix16 resyncs that field; the .3sr stores one "
-                               "djb2 per checkpoint, so the diverging field is not recoverable)\n",
-                               rotated ? "--- log restarted (size cap reached) ---\n" : "", stamp,
-                               ReplayPlayer_GetDesyncFrame(), e->label, e->path, e->p1[0] ? e->p1 : "(unknown)",
-                               e->p2[0] ? e->p2 : "(unknown)", e->date[0] ? e->date : "(unknown)");
+    int n;
+    if (st == REPLAY_PLAYER_DESYNCED) {
+        n = SDL_snprintf(line, sizeof(line),
+                         "%s%s diverged frame=%u replay='%s' path='%s' p1='%s' p2='%s' date='%s' "
+                         "(not Random_ix16 drift: recover_random_ix16 resyncs that field; the .3sr stores one "
+                         "djb2 per checkpoint, so the diverging field is not recoverable)\n",
+                         rot, stamp, ReplayPlayer_GetDesyncFrame(), e->label, e->path,
+                         e->p1[0] ? e->p1 : "(unknown)", e->p2[0] ? e->p2 : "(unknown)",
+                         e->date[0] ? e->date : "(unknown)");
+    } else {
+        n = SDL_snprintf(line, sizeof(line), "%s%s %s frames=%d replay='%s' p1='%s' p2='%s' date='%s'\n", rot, stamp,
+                         (st == REPLAY_PLAYER_COMPLETE) ? "completed" : "skipped", s_replay_frames, e->label,
+                         e->p1[0] ? e->p1 : "(unknown)", e->p2[0] ? e->p2 : "(unknown)",
+                         e->date[0] ? e->date : "(unknown)");
+    }
 
     if (n > 0) {
         SDL_WriteIO(io, line, (size_t)n);
     }
     SDL_CloseIO(io);
 
-    SDL_Log("replay-shuffle: divergence recorded to '%s' — replay='%s' frame=%u", path, e->label,
-            ReplayPlayer_GetDesyncFrame());
+    if (st == REPLAY_PLAYER_DESYNCED) {
+        SDL_Log("replay-shuffle: divergence recorded to '%s' — replay='%s' frame=%u", path, e->label,
+                ReplayPlayer_GetDesyncFrame());
+    }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -809,10 +845,21 @@ void ReplayShuffle_Tick(void) {
             break;
         }
 
-        if (st == REPLAY_PLAYER_DESYNCED && s_current >= 0 && s_current < s_count) {
+        if (st == REPLAY_PLAYER_COMPLETE) {
+            s_n_complete++;
+        } else if (st == REPLAY_PLAYER_DESYNCED) {
+            s_n_desync++;
+        } else if (st == REPLAY_PLAYER_ABORTED) {
+            s_n_aborted++;
+        }
+
+        if (s_current >= 0 && s_current < s_count &&
+            (st == REPLAY_PLAYER_COMPLETE || st == REPLAY_PLAYER_DESYNCED || st == REPLAY_PLAYER_ABORTED)) {
             /* Decision: record and auto-advance. This runs unattended; it
-             * must never stop and never wait for input. */
-            rs_record_desync(&s_entries[s_current]);
+             * must never stop and never wait for input. INACTIVE is deliberately
+             * not recorded -- it means the player was torn down underneath us,
+             * which is not an outcome for this replay. */
+            rs_record_outcome(&s_entries[s_current], st);
         }
 
         SDL_Log("replay-shuffle: replay #%u finished (status=%d) — holding the message %d frames, then advancing",
