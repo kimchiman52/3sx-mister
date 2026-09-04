@@ -85,6 +85,23 @@ OUT_DIR="${FCADE_CONVERT_OUT:-$INSTALL_ROOT/3sr-out}"
 VPS_TARGET="${FCADE_VPS_TARGET:-hetzner-3s-arm:/opt/fcade-proxy}"
 # statcheck per-game gate timeout handed to publish_3sr.py.
 STATCHECK_TIMEOUT="${FCADE_STATCHECK_TIMEOUT:-30}"
+# Scratch volume for the runner's raw per-frame RAM dumps.
+#
+# The runner writes the WHOLE CPS3 work RAM every frame -- 524,288 B/frame.
+# publish_3sr.py compresses and deletes each game_N/ the moment the runner
+# crosses that game's boundary, which is what keeps this bounded, but the
+# in-flight peak is still large: a 10-game / ~100k-frame session measured
+# 26 GB on 2026-09-04. TMPDIR was never set here, so that peak landed on the
+# boot volume, which had 37 GB free at the time -- one long session away from
+# ENOSPC. An ENOSPC mid-convert surfaces as `publish_error` via
+# classify_failure_reason(), indistinguishable from a real push failure, so it
+# would be miscounted rather than noticed.
+#
+# Guarded: if the external volume is not mounted (it is removable), fall back
+# to the system default rather than pointing TMPDIR at a path that does not
+# exist -- python's tempfile would fail every conversion outright.
+SCRATCH_DIR="${FCADE_SCRATCH_DIR:-/Volumes/KimchDrive/3sarm-convert-tmp}"
+
 # FBNeo runner timeout handed to publish_3sr.py, seconds.
 #
 # MUST match the VPS lane (fcade-proxy.js CONVERT_RUNNER_TIMEOUT_MS = 30 min).
@@ -146,6 +163,17 @@ fi
 
 ts()  { date '+%Y-%m-%dT%H:%M:%S%z'; }
 log() { printf '%s [preconvert-worker] %s\n' "$(ts)" "$*"; }
+
+# Point the runner's raw-dump scratch at SCRATCH_DIR (see its comment above).
+# Placed AFTER log() exists: the fallback branch needs it, and that branch is
+# the one that only ever runs when the volume is missing -- i.e. the path least
+# likely to be exercised before it matters.
+if mkdir -p "$SCRATCH_DIR" 2>/dev/null && [ -w "$SCRATCH_DIR" ]; then
+  export TMPDIR="$SCRATCH_DIR"
+else
+  log "WARNING: scratch '$SCRATCH_DIR' unavailable -- using default TMPDIR (${TMPDIR:-/tmp});"
+  log "         a long session peaks ~26 GB there and an ENOSPC is reported as publish_error."
+fi
 
 notify() {
   local msg="$1"
