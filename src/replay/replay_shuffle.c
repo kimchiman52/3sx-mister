@@ -190,6 +190,15 @@ static bool s_hud_logged = false; /* per-replay "names are on screen" evidence l
 /* Session outcome tallies. Written into the rotation note so a rotation does
  * not throw away the totals -- the point of the file is the DENOMINATOR (how
  * many played cleanly), and that is exactly what discarding old lines loses. */
+/* Modify-time of the replay root's manifest.json as of the last rs_scan().
+ * The WRAPPER process (vendor/Main_MiSTer/replay_sync.c, rs_manifest_write)
+ * rewrites that file at the end of every fetch cycle, so its mtime changing is
+ * exactly the signal that new replays landed underneath us. 0 = not yet
+ * known, which is also what a missing/unreadable manifest reports -- both mean
+ * "no rescan trigger", never "rescan now". */
+static Sint64 s_manifest_mtime = 0;
+static Sint64 rs_manifest_mtime(void); /* defined below, next to rs_diag_path */
+
 static unsigned s_n_complete = 0;
 static unsigned s_n_desync = 0;
 static unsigned s_n_aborted = 0;
@@ -529,12 +538,28 @@ static void rs_scan(void) {
     SDL_Log("replay-shuffle: scan of '%s' found %d entr(ies), %d playable (%d awaiting conversion, skipped)", root,
             found, s_count, found - s_count);
 
+    /* Record the manifest this scan reflects, AFTER the scan: if the wrapper
+     * rewrites it mid-scan we want the next tick to rescan, not to record a
+     * newer mtime than the entries we actually read. */
+    s_manifest_mtime = rs_manifest_mtime();
+
     rs_group();
 }
 
 /* ---------------------------------------------------------------------- */
 /* Divergence diagnostics (append-only, bounded)                          */
 /* ---------------------------------------------------------------------- */
+
+/* mtime of <root>/manifest.json, or 0 when it cannot be read. */
+static Sint64 rs_manifest_mtime(void) {
+    char path[RB_PATH_MAX];
+    SDL_snprintf(path, sizeof(path), "%s/manifest.json", ReplayShuffle_GetRoot());
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(path, &info)) {
+        return 0;
+    }
+    return (Sint64)info.modify_time;
+}
 
 static void rs_diag_path(char* out, size_t out_sz) {
     const char* root = ReplayShuffle_GetRoot();
@@ -884,6 +909,42 @@ void ReplayShuffle_Tick(void) {
 
         s_transition_frames += 1;
         if (s_transition_frames >= RS_TRANSITION_FRAMES) {
+            /* Pick up replays that landed after boot.
+             *
+             * rs_scan() used to run exactly once, from RS_WAIT_BOOT, and never
+             * again -- so the daily fetch (ReplaySyncTick in the wrapper) could
+             * put 500 new replays on the card and this viewer would keep looping
+             * whatever it saw at boot until someone restarted the core. Measured
+             * 2026-09-04: a 24-hour session scanned 13 entries, then played 734
+             * replays -- 56 passes over those same 13 -- while 507 sat unread.
+             *
+             * Rescanning HERE, and only here, is what makes it safe: the player
+             * is terminal, no .3sr is loaded, and s_current is about to be
+             * reassigned by rs_start_next(), so rebuilding s_entries/s_order
+             * cannot invalidate anything in use. Doing it mid-replay could not
+             * be made safe that cheaply.
+             *
+             * Gated on the manifest mtime rather than a timer or a dirent count:
+             * the wrapper rewrites manifest.json once per completed fetch cycle,
+             * so it changes exactly when the set does -- and a partially-written
+             * set does not trigger a scan, because the manifest is renamed into
+             * place last. */
+            const Sint64 mtime = rs_manifest_mtime();
+            if (mtime != 0 && mtime != s_manifest_mtime) {
+                SDL_Log("replay-shuffle: manifest changed (%lld -> %lld) -- rescanning", (long long)s_manifest_mtime,
+                        (long long)mtime);
+                const int before = s_count;
+                rs_scan();
+                if (s_count <= 0) {
+                    /* Never let a rescan strand a working set. Only reachable if
+                     * the replays root was emptied underneath us. */
+                    SDL_Log("replay-shuffle: rescan found nothing playable (was %d) -- idling", before);
+                    s_state = RS_EMPTY;
+                    break;
+                }
+                SDL_Log("replay-shuffle: rescan %d -> %d playable; reshuffling", before, s_count);
+                rs_shuffle();
+            }
             rs_start_next();
         }
         break;
