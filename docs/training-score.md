@@ -26,9 +26,23 @@ training and needed no change:
   `super_arts_finish_check()` -> `combo_window_push()` -> `SCORE_PLUS()`. That
   chain demonstrably runs in training: it also drives the combo counter and
   calls `training_disp_data_set()`.
-- **The call site already ran.** `game.c` -> `Game2_1()` calls `Score_Sub()`
+- **The call sites already ran.** `game.c` -> `Game2_1()` calls `Score_Sub()`
   inside the same `Disp_Cockpit` block that draws the vital/SA/stun gauges and
-  names, which are visible in training.
+  names, which are visible in training. Correction 2026-09-05: that is not the
+  only one. `grep -rn "Score_Sub" src/` finds three call sites, and the other
+  two are both in `engine/cmb_win.c`: one in `combo_window_push()`, on the
+  `cmb_stock[PL] == stock_capacity` overflow branch immediately after its
+  `SCORE_PLUS()`, and one in `combo_window_trans()`, on the queued-points
+  advance guarded by `(end_flag[PL] & 3) == 3`. (An earlier revision of this
+  correction named `combo_control()` and `combo_window_check()`. Neither is
+  right — `combo_control()` contains no `Score_Sub()` call, and
+  `grep -rn "combo_window_check" src/` returns nothing tree-wide.) Both sit
+  under
+  `if ((!ArcadeBalance_IsEnabled() && Mode_Type == MODE_VERSUS) ||
+  plw[PLS].wu.wu_operator)`. Under training that gate is satisfied by
+  `wu_operator` alone, so **all three are live in training now**, where before
+  the guard was dropped all three returned immediately. The dropped guard did
+  not enable one draw, it enabled three.
 - **The font was already resident.** `score8x16_put` -> `scfont_sqput`
   (`ui/sc_sub.c`) is the same atlas path the combo "PTS" digits use, and those
   already draw in training. No CG or texture work.

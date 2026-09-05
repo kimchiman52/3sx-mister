@@ -6,6 +6,8 @@
 #include "sf33rd/Source/Game/engine/workuser.h"
 
 #if defined(DEBUG)
+#include "main.h" /* configuration */
+#include "quick_training.h"
 #include "test/input_script.h"
 #endif
 
@@ -125,6 +127,46 @@ static bool read_training_config(FILE* f, TrainingConfigFile* out) {
     return false;
 }
 
+/* Open <pref>/training, parse it (V1 migrated forward) and apply the
+ * max_values clamp. Shared by TrainingConfig_Load() and, under DEBUG, by
+ * TrainingConfig_ReadDiskContents(), so the harness compares against exactly
+ * the bytes a load would install rather than against a second reader that can
+ * drift from this one. Returns false when there is no readable config. */
+static bool read_clamped_training_config(TrainingConfigFile* out) {
+    const char* pref_path = Paths_GetPrefPath();
+    if (pref_path == NULL) {
+        return false;
+    }
+
+    char path[512];
+    SDL_snprintf(path, sizeof(path), "%straining", pref_path);
+
+    FILE* f = fopen(path, "rb");
+    if (f == NULL) {
+        return false;
+    }
+
+    if (!read_training_config(f, out)) {
+        fclose(f);
+        return false;
+    }
+    fclose(f);
+
+    // Bounds-check loaded values; clamp anything out of range to 0
+    for (int id = 0; id < SDL_arraysize(out->contents); id++) {
+        for (int type = 0; type < SDL_arraysize(out->contents[id]); type++) {
+            for (int slot = 0; slot < SDL_arraysize(out->contents[id][type]); slot++) {
+                if (out->contents[id][type][slot] < 0 ||
+                    out->contents[id][type][slot] > max_values[id][type][slot]) {
+                    out->contents[id][type][slot] = 0;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 bool TrainingConfig_Load(void) {
 #if defined(DEBUG)
     /* Frame-data test harness: the caller (Default_Training_Data(0),
@@ -149,36 +191,9 @@ bool TrainingConfig_Load(void) {
     }
 #endif
 
-    const char* pref_path = Paths_GetPrefPath();
-    if (pref_path == NULL) {
-        return false;
-    }
-
-    char path[512];
-    SDL_snprintf(path, sizeof(path), "%straining", pref_path);
-
-    FILE* f = fopen(path, "rb");
-    if (f == NULL) {
-        return false;
-    }
-
     TrainingConfigFile file;
-    if (!read_training_config(f, &file)) {
-        fclose(f);
+    if (!read_clamped_training_config(&file)) {
         return false;
-    }
-    fclose(f);
-
-    // Bounds-check loaded values; clamp anything out of range to 0
-    for (int id = 0; id < SDL_arraysize(file.contents); id++) {
-        for (int type = 0; type < SDL_arraysize(file.contents[id]); type++) {
-            for (int slot = 0; slot < SDL_arraysize(file.contents[id][type]); slot++) {
-                if (file.contents[id][type][slot] < 0 ||
-                    file.contents[id][type][slot] > max_values[id][type][slot]) {
-                    file.contents[id][type][slot] = 0;
-                }
-            }
-        }
     }
 
     memcpy(Training[0].contents, file.contents, sizeof(file.contents));
@@ -186,6 +201,59 @@ bool TrainingConfig_Load(void) {
 
     return true;
 }
+
+#if defined(DEBUG)
+bool TrainingConfig_ReadDiskContents(s8 out[2][2][7]) {
+    TrainingConfigFile file;
+
+    if (!read_clamped_training_config(&file)) {
+        return false;
+    }
+
+    memcpy(out, file.contents, sizeof(file.contents));
+    return true;
+}
+#endif
+
+#if defined(DEBUG)
+/* True when a DEBUG test session owns the selection, and so must not persist
+ * anything over the maintainer's real config.
+ *
+ * WHY IT IS A CLASS AND NOT A LIST OF FLAGS. Every `--test-enable` session
+ * dictates its own characters, super arts, stage and training slots -- from
+ * the command line, from a scene preset, or from a spike's hardcoded
+ * fallbacks -- and any of them that reaches the training pause menu hits
+ * menu.c -> Setup_NTr_Data(), whose FIRST statement is TrainingConfig_Save().
+ * That save writes contents out of Training[2] and cursor/arts/char straight
+ * out of the live Cursor_X/Cursor_Y/Super_Arts/My_char globals, i.e. out of
+ * the harness's own selection. Measured 2026-09-05 against a seeded home:
+ * `--test-instant-jump` turned super_arts `01 02` into `00 00` and my_char
+ * `0b 00` into `03 02`; `--test-enable --test-scene-preset
+ * training-yun-ryu-ryu-stage` turned cursor `00 00 00 00` into
+ * `06 05 01 02` and arts into `02 00`. This destroyed a maintainer's real
+ * training file.
+ *
+ * A per-harness opt-in was rejected for the reason the netplay-harness gate
+ * discovery exists: it makes safety something the NEXT harness author has to
+ * remember, and the discovery rule (an OPT_BOOLEAN whose help says it runs
+ * and exits) structurally cannot see a session-owning flag like
+ * --test-instant-jump or --test-quick-training. The default is now safe and
+ * the exception is named here.
+ *
+ * THE ONE EXCEPTION is Quick Training. Its whole contract is that the SHIPPED
+ * sequence -- which does legitimately save, because on device that is how a
+ * setting persists -- leaves the file byte-identical. Suppressing the save
+ * for it would make both halves of that assertion (the in-process compare and
+ * the gate's cmp) pass on an empty write, which is the identity trap the rest
+ * of this harness was rewritten to avoid. */
+static bool test_session_owns_training_config(void) {
+    if (QuickTraining_TestActive()) {
+        return false;
+    }
+
+    return configuration.test.enabled;
+}
+#endif
 
 void TrainingConfig_Save(void) {
 #if defined(DEBUG)
@@ -195,6 +263,10 @@ void TrainingConfig_Save(void) {
      * its pokes (e.g. the G directive's guard/stance slots) into the
      * user's real on-disk training config. */
     if (InputScript_IsLoaded()) {
+        return;
+    }
+
+    if (test_session_owns_training_config()) {
         return;
     }
 #endif

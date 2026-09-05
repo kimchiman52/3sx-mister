@@ -65,6 +65,14 @@ exports:
 All three measure through `SSGetDrawSizePro`, never through their own
 arithmetic, so they cannot disagree with what `SSPutStrProP` draws.
 
+`SSWrapStrPro`'s contract is asserted by `--test-ui-text-units`
+(`src/test/test_ui_text.c`), which the gate runner discovers automatically.
+It exists because the wrap had no test at all and could not acquire one by
+accident: measured 2026-09-05, making it return 0 lines broke **nothing** in
+the tree. Neither consumer can see that — `SSPutStrProWrapP` draws zero lines,
+i.e. silently nothing, and `dp2p_overlay_log_layout` only logs — so the only
+symptom was a blank region on a netplay refusal screen.
+
 The refusal overlay logs its layout once per distinct status
 (`direct_p2p_overlay.c` -> `dp2p_overlay_log_layout`), so the wrap can be
 checked from a log without seeing the screen. On a host with a discoverable

@@ -30,12 +30,14 @@
 #include "scene_jump.h"
 #include "sf33rd/AcrSDK/common/pad.h"
 #include "sf33rd/Source/Game/effect/effect.h"
+#include "sf33rd/Source/Game/engine/cmb_win.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
 #include "sf33rd/Source/Game/io/gd3rd.h"
 #include "sf33rd/Source/Game/sound/sound3rd.h"
 #include "sf33rd/Source/Game/stage/bg.h"
 #include "sf33rd/Source/Game/system/sys_sub.h"
+#include "sf33rd/Source/Game/system/sysdir.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
 #include "structs.h"
 
@@ -77,7 +79,27 @@ static Uint32 qt_completions; /* finished sequences (read by the DEBUG test driv
  * never the counter. So hold the request until Exec_Wipe clears rather than
  * starting on top of it. Deferring beats refusing: the row is the first thing
  * in the OSD, and a press that silently did nothing would read as a bug.
- * Bounded so a wedged transition drops the request instead of arming forever. */
+ * Bounded so a wedged transition cannot hold the request forever -- but the
+ * bound EXPIRES INTO A START, not into a drop. The wrapper has already closed
+ * the OSD by the time the game sees the signal, so discarding the request
+ * leaves the user with a menu that shut and a game that did nothing: the exact
+ * outcome the deferral exists to avoid, just four seconds later and with the
+ * evidence only in the log.
+ *
+ * What IS measured about starting over the transition: it is recoverable.
+ * Switch_Screen_Init rewrites every field it stomps (Forbid_Break, Gap_Timer,
+ * Stop_SG, Escape_SS, WipeLimit via WipeInit), and the sequence normalizes
+ * Forbid_Break/Stop_SG at QT_WIPE_IN -- as does qt_fail() on any watchdog.
+ * The deadline is also measured UNREACHABLE on every path exercised so far:
+ * 15 runs, N in {20..240}, PASS-frame minus N exactly 302 every time.
+ *
+ * NOT measured, and recorded here as UNPROVEN rather than as the reason: that
+ * "a transition still holding Exec_Wipe after QT_DEFER_MAX_FRAMES is itself
+ * broken". The engine's own wipes are tens of frames, but the training-pause
+ * exit in menu.c case 2 sits under `if (Check_Pad_in_Pause(task_ptr) == 0)`
+ * and was not chased to a conclusion, so a legitimate long hold has not been
+ * ruled out. The deadline is a choice between two bad outcomes on a path
+ * nothing has yet reached, not a claim about the engine. */
 #define QT_DEFER_MAX_FRAMES 240
 
 #define QT_TIMEOUT_GOTO_TITLE 1200
@@ -87,6 +109,8 @@ static Uint32 qt_completions; /* finished sequences (read by the DEBUG test driv
 #if defined(DEBUG)
 static void qt_test_tick(void);
 static void qt_test_fail(const char* what);
+static bool qt_test_verify_engine_state(void);
+static bool qt_test_select_reset_tick(void);
 #endif
 
 void QuickTraining_Request(void) {
@@ -225,10 +249,10 @@ void QuickTraining_Tick(void) {
             return;
         }
 
-        SDL_Log("quick-training: request dropped - engine wipe still active after %u frames", qt_defer_frames);
-        qt_request = false;
-        qt_defer_frames = 0;
-        return;
+        /* Deadline reached. Fall through and start on top of the stuck
+         * transition rather than dropping the press -- see the comment on
+         * QT_DEFER_MAX_FRAMES for why a drop is the worse of the two. */
+        SDL_Log("quick-training: engine wipe still active after %u frames - starting over it", qt_defer_frames);
     }
 
     if (qt_request) {
@@ -405,7 +429,60 @@ static Uint32 qtt_frame;        /* prologue frames since launch */
 static Uint32 qtt_expected;     /* requests scheduled so far */
 static Uint32 qtt_verify_start; /* qtt_frame when verification began */
 static bool qtt_verifying;
+static bool qtt_engine_verified;
 static bool qtt_done;
+
+/* The on-disk training contents as they were BEFORE the first request fired.
+ * Snapshotted rather than re-read at the end, because the failure this exists
+ * to catch destroys the thing a late read would compare against: a run that
+ * never loads the config still SAVES it (menu.c -> Setup_NTr_Data opens with
+ * TrainingConfig_Save), so the file ends up zeroed, the live globals are
+ * zeroed, and a compare-at-the-end agrees with itself. Measured 2026-09-05 --
+ * that exact check passed against a deliberately broken build. */
+static s8 qtt_disk_contents[2][2][7];
+static bool qtt_have_disk;
+
+/* Same snapshot discipline for the last-used characters/arts, and for the same
+ * measured reason: TrainingConfig_Save() writes my_char/super_arts straight
+ * out of the LIVE My_char[]/Super_Arts[], so a run that used the wrong
+ * characters persists them and a late read agrees with the wrong answer.
+ * Measured 2026-09-05: deleting TrainingConfig_GetLastUsed() from qt_begin()
+ * left a compare-at-the-end check green with chars=3/2 against a file that
+ * had said 11/0 when the run started. */
+static s8 qtt_disk_chars[2];
+static s8 qtt_disk_arts[2];
+static bool qtt_have_disk_chars;
+
+/* Second verification stage: the training-mode SELECT reset (menu.c ->
+ * Tr_Reset_Check / Tr_Reset_Apply, docs/training-select-reset.md). Nothing
+ * else in the tree exercises it -- `grep -rl "Tr_Reset\|select-reset" tools
+ * src/test` found nothing before this -- so its FIRST ATTACK preservation, the
+ * one thing in Tr_Reset_Apply that is a deliberate deviation from
+ * combo_cont_init()'s round-start semantics, was unverified.
+ *
+ * It rides on the Quick Training harness rather than getting a flag of its own
+ * because this harness has already done the expensive part: it is sitting in a
+ * live, unpaused, Play_Mode == PLAY_MODE_NORMAL training round with
+ * plw[0].wu.operator set, which is exactly Tr_Reset_Check's precondition set.
+ * A flag would also have to be remembered by whatever runs the gate; a stage
+ * cannot be forgotten. */
+typedef enum QttSelReset {
+    QTT_SR_ARM = 0,  /* plant the FIRST ATTACK sentinel; no press yet */
+    QTT_SR_PRESS,    /* one frame of SELECT -- Tr_Reset_Read_Input wants an EDGE */
+    QTT_SR_AWAIT,    /* watch for the teardown; inject nothing (a second edge re-fires) */
+    QTT_SR_RECOVER,  /* teardown seen and asserted; wait for the round to hand control back */
+    QTT_SR_DONE,
+} QttSelReset;
+
+static QttSelReset qtt_sr_phase;
+static Uint32 qtt_sr_started;
+static s8 qtt_sr_first_attack;
+
+/* Any non-zero value combo_cont_init() would clear; 3 is the both-players
+ * value cmb_win.c itself writes. */
+#define QTT_SR_FIRST_ATTACK_SENTINEL 3
+
+#define QTT_SR_TIMEOUT 240
 
 static void qt_test_fail(const char* what) {
     if (!QuickTraining_TestActive()) {
@@ -419,9 +496,352 @@ static void qt_test_fail(const char* what) {
     exit(7);
 }
 
+/* Bits that MUST be set on both players' spmv_ng_flag once a training match
+ * is live, and are all zero when the engine DIP tables were never built.
+ *
+ * Chosen so effe3.c -> effect_E3_move() cannot reach them, which is what lets
+ * the DUMMY be held to the same mask as the player. The set it can reach was
+ * ENUMERATED, not assumed to be a range -- the earlier "every write is inside
+ * bits 4..11" was wrong, because DIP_AIR_GUARD_DISABLED is 1 << 5 and would
+ * have been inside it. Every bit-level write effect_E3_move() makes to
+ * spmv_ng_flag (`&0xFFFFFFEF`, `|0xC0`, `|0x80`, `&0xFFFFFFBF`, `|0x40`,
+ * `&0xFFFFFF7F`, `&0xFFFFF0FF`, and the named DIP_GUARD_DISABLED /
+ * DIP_AUTO_GUARD_DISABLED / DIP_AUTO_PARRY_DISABLED / `~(DIP_UNKNOWN_8 |
+ * DIP_UNKNOWN_9 | DIP_AIR_PARRY_DISABLED | DIP_ANTI_AIR_PARRY_DISABLED)`
+ * writes) lands in bits {4, 6, 7, 8, 9, 10, 11}. Bit 5 is never written.
+ * Its one whole-word write, `mwk->spmv_ng_flag = ewk->master_ng_flag`, only
+ * reinstates the snapshot effect_E3_init() took from the same field.
+ * Corroborated live: plw[1] came back 0B2CE070 in one run and 0B2CE0F0 in
+ * another -- bit 7 moving, the required bits not.
+ *
+ * That is the whole point -- the defect these catch showed up only on the
+ * dummy, as apparently random parrying, because pls00.c -> process_damage()
+ * nests, under its opening `if (wk->wu.routine_no[3] == 0)`, an
+ * `if (!(wk->spmv_ng_flag & DIP_SEMI_AUTO_PARRY_DISABLED))` that rewrites
+ * routine_no[2] 4->31 / 5->32 / 6->33 / 7->34, turning each ground/air guard
+ * state into a parry.
+ *
+ * Measured (Debug, --test-quick-training=60, seeded scratch home):
+ *   jump path BEFORE the fix  plw0 00000000/000D0000  plw1 000000C0/000D0200
+ *   jump path AFTER  the fix  plw0 0B2CE8E0/03FF002E  plw1 0B2CE070/03FF002E
+ *   stock character select    plw0 0B2CE8E0/03FF002E  plw1 0B2CE070/03FF002E
+ * i.e. the jump path now lands byte-identical to the shipping path. */
+#define QT_DIP1_REQUIRED                                                                                               \
+    ((u32)(DIP_AIR_GUARD_DISABLED | DIP_ABSOLUTE_GUARD_DISABLED | DIP_SEMI_AUTO_PARRY_DISABLED |                       \
+           DIP_AIR_KNOCKDOWNS_DISABLED))
+
+/* Same idea on flag2. These five are the cancels the pre-fix jump path left
+ * switched ON -- special-to-special, all-normals-cancellable, SA-to-SA, and
+ * both chain-combo bits, i.e. bits 1, 2, 3, 20 and 21. Enumerated the same
+ * way, and for the same reason: "bits 16..19, the S.A.GAUGE group" was also
+ * wrong. effect_E3_move()'s flag2 writes (`&0xFFFBFFFF`, `|0x90000`,
+ * `&0xFFF7FFFF`, `|0x50000`, `&0xFFFEFFFF`, `|0xC0000 |
+ * DIP2_SA_GAUGE_NO_DEPLETE`, `|0xD0000`, and the QUICK STAND pair
+ * `|DIP2_QUICK_STAND_DISABLED` / `&~DIP2_QUICK_STAND_DISABLED`) touch bits
+ * {9, 16, 18, 19, 26}, plus the same whole-word master_ng_flag2 restore.
+ * None of 1/2/3/20/21, so these are dummy-safe too. */
+#define QT_DIP2_REQUIRED                                                                                               \
+    ((u32)(DIP2_SPECIAL_TO_SPECIAL_CANCEL_DISABLED | DIP2_ALL_NORMALS_CANCELLABLE_DISABLED |                           \
+           DIP2_SA_TO_SA_CANCEL_DISABLED | DIP2_GROUND_CHAIN_COMBO_DISABLED | DIP2_AIR_CHAIN_COMBO_DISABLED))
+
+/* Everything a liveness check cannot see. Returns false (after reporting)
+ * when the match is live but running the wrong engine or the wrong settings.
+ *
+ * Three independent claims, because each is falsifiable on its own:
+ *   1. the engine DIP tables were built BEFORE the round boot copied them
+ *      into plw[] (scene_jump.c -> SceneJump_EnterBattleScene -> init_omop);
+ *   2. the persisted training settings were LOADED and are still what is on
+ *      disk (scene_jump.c's Default_Training_Data(0)); and
+ *   3. the characters and super arts came off that same file rather than from
+ *      qt_begin()'s hardcoded fallbacks (TrainingConfig_GetLastUsed).
+ *
+ * THE LIMIT OF CLAIM 1, stated precisely because the mask reads like a parity
+ * check and is not one. It pins a CONFIGURATION. Every bit in QT_DIP1/2_
+ * REQUIRED is conditional inside sysdir.c -> get_system_direction_parameter()
+ * on a `system_dir[N].contents[p][i] == 0` test (air guard `[7][0]`, air
+ * knockdowns `[7][2]`, absolute guard `[1][1]`; DIP2 ground/air chain `[8][0]`
+ * / `[8][1]`, all-normals `[8][2]`, special-to-special `[8][5]`, SA-to-SA
+ * `[9][1]`), or -- for DIP_SEMI_AUTO_PARRY_DISABLED -- on
+ * `omop_guard_type[extra_option.contents[0][3]]`, whose index-2 entry does not
+ * contain that bit at all. Both `system_dir[1]` and `save_w[]` are PERSISTED
+ * (savesub.c -> serialize_sysdir / serialize_settings), so a home whose SYSTEM
+ * DIRECTION or EXTRA OPTION settings differ from Dir_Default_Data fails this
+ * spuriously. Two things it therefore does NOT catch: init_omop() running with
+ * the wrong inputs (it branches on Mode_Type, Demo_Flag, Present_Mode and
+ * Direction_Working[] to pick which system_dir/save_w slot to read, and a
+ * wrong-slot read that happens to agree with the defaults still passes); and
+ * omop_spmv_ng_table[] itself, which is never asserted here -- the harness
+ * reads plw[], so the claim in docs §10.6 that the early init_omop() "defuses
+ * effect_E3_move()'s write-back" is reasoning, not something under test. */
+static bool qt_test_verify_engine_state(void) {
+    s8 want_chars[2];
+    s8 want_arts[2];
+    int i;
+
+    for (i = 0; i < 2; i++) {
+        const u32 dip1 = (u32)plw[i].spmv_ng_flag;
+        const u32 dip2 = (u32)plw[i].spmv_ng_flag2;
+
+        if ((dip1 & QT_DIP1_REQUIRED) != QT_DIP1_REQUIRED) {
+            SDL_Log("QUICK-TRAINING TEST: plw[%d].spmv_ng_flag = %08X, missing %08X - init_omop() did not run "
+                    "before set_base_data() copied the DIP table",
+                    i,
+                    (unsigned)dip1,
+                    (unsigned)(QT_DIP1_REQUIRED & ~dip1));
+            qt_test_fail("engine DIP table (spmv_ng_flag) not seeded");
+            return false;
+        }
+
+        if ((dip2 & QT_DIP2_REQUIRED) != QT_DIP2_REQUIRED) {
+            SDL_Log("QUICK-TRAINING TEST: plw[%d].spmv_ng_flag2 = %08X, missing %08X - cancels/chain combos are "
+                    "enabled; this is not the shipping engine configuration",
+                    i,
+                    (unsigned)dip2,
+                    (unsigned)(QT_DIP2_REQUIRED & ~dip2));
+            qt_test_fail("engine DIP table (spmv_ng_flag2) not seeded");
+            return false;
+        }
+    }
+
+    if (qtt_have_disk) {
+        s8 now[2][2][7];
+
+        /* (a) THE FILE IS INTACT. The data-loss half: nothing in the sequence
+         * may write over the user's settings. */
+        if (!TrainingConfig_ReadDiskContents(now)) {
+            qt_test_fail("the persisted training config is gone or unreadable after the run");
+            return false;
+        }
+
+        if (SDL_memcmp(now, qtt_disk_contents, sizeof(now)) != 0) {
+            SDL_Log("QUICK-TRAINING TEST: on-disk training contents changed - was "
+                    "action=%d guard=%d quick-stand=%d stun=%d, now %d/%d/%d/%d",
+                    qtt_disk_contents[0][0][0],
+                    qtt_disk_contents[0][0][1],
+                    qtt_disk_contents[0][0][2],
+                    qtt_disk_contents[0][0][3],
+                    now[0][0][0],
+                    now[0][0][1],
+                    now[0][0][2],
+                    now[0][0][3]);
+            qt_test_fail("the run rewrote the persisted training config");
+            return false;
+        }
+
+        /* (b) THE SETTINGS ARE LIVE. The other half: they must actually have
+         * been loaded into the match, not merely left undamaged on disk. */
+        if (SDL_memcmp(Training[0].contents, qtt_disk_contents, sizeof(now)) != 0) {
+            SDL_Log("QUICK-TRAINING TEST: live Training[0] contents are "
+                    "action=%d guard=%d quick-stand=%d stun=%d, the stored config says %d/%d/%d/%d",
+                    Training[0].contents[0][0][0],
+                    Training[0].contents[0][0][1],
+                    Training[0].contents[0][0][2],
+                    Training[0].contents[0][0][3],
+                    qtt_disk_contents[0][0][0],
+                    qtt_disk_contents[0][0][1],
+                    qtt_disk_contents[0][0][2],
+                    qtt_disk_contents[0][0][3]);
+            qt_test_fail("training settings were not loaded from the persisted config");
+            return false;
+        }
+    }
+
+    if (qtt_have_disk_chars) {
+        /* Pre-filled with qt_begin()'s own fallbacks, exactly as the snapshot
+         * at frame 0 was, so the two are comparable. */
+        want_chars[0] = CHAR_YUN;
+        want_chars[1] = CHAR_RYU;
+        want_arts[0] = 0;
+        want_arts[1] = 0;
+        (void)TrainingConfig_GetLastUsed(want_chars, want_arts);
+
+        for (i = 0; i < 2; i++) {
+            /* (a) the file's characters/arts are still what they were. */
+            if (want_chars[i] != qtt_disk_chars[i] || want_arts[i] != qtt_disk_arts[i]) {
+                SDL_Log("QUICK-TRAINING TEST: stored character/art for player %d changed - was char=%d art=%d, "
+                        "now char=%d art=%d",
+                        i,
+                        qtt_disk_chars[i],
+                        qtt_disk_arts[i],
+                        want_chars[i],
+                        want_arts[i]);
+                qt_test_fail("the run rewrote the persisted character/art selection");
+                return false;
+            }
+
+            /* (b) the match is actually using them. */
+            if (My_char[i] != qtt_disk_chars[i] || Super_Arts[i] != qtt_disk_arts[i]) {
+                SDL_Log("QUICK-TRAINING TEST: player %d is char=%d art=%d, the config said char=%d art=%d when "
+                        "the run started",
+                        i,
+                        My_char[i],
+                        Super_Arts[i],
+                        qtt_disk_chars[i],
+                        qtt_disk_arts[i]);
+                qt_test_fail("match did not use the last-used characters/arts");
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+/* Drives the SELECT-reset stage one frame at a time. Returns true only when
+ * the stage has completed successfully; every other return is "not yet" (or a
+ * qt_test_fail() that has already exited).
+ *
+ * What it proves, and why each half is needed:
+ *   - the reset FIRED. The marker is the Suicide[0] PULSE, not a routine_no
+ *     change. `plw[].wu.routine_no[0] != 4 on either player` was the first
+ *     marker and is unsound: it is the exact negation of test_runner.c's
+ *     gameplay_input_active(), i.e. "somebody is not in control", which a
+ *     hit, a knockdown or a CPU-controlled dummy produces just as well --
+ *     and this harness runs against whatever training config is on disk, so
+ *     a stored ACTION=CPU would let the first exchange stand in for the
+ *     teardown. Tr_Reset_Apply writes `Suicide[0] = 1` and
+ *     Tr_Reset_Finish_Teardown clears it on the very next frame, so in a
+ *     live round it is a one-frame pulse with exactly one producer. ARM
+ *     asserts it is 0 before the press so the pulse cannot be a leftover.
+ *     Without a positive marker "first_attack was preserved" is satisfied by
+ *     a reset that never happened at all.
+ *   - FIRST ATTACK SURVIVED. Tr_Reset_Apply saves and restores it around
+ *     combo_cont_init(), which zeroes it (cmb_win.c). That restore is the
+ *     deviation from round-start semantics -- a SELECT reset repositions the
+ *     players inside a running round, so re-arming the banner would fire it
+ *     again on the next hit, every reset.
+ *   - the round RECOVERED. The reset re-enters the appear sequence at
+ *     pcon_rno[1] = 2 and hands input back shortly after -- measured 2 frames
+ *     from the Suicide[0] pulse; a teardown that never comes back out is a
+ *     wedge, not a reset. */
+static bool qt_test_select_reset_tick(void) {
+    switch (qtt_sr_phase) {
+    case QTT_SR_ARM:
+        /* The marker must be clean before the press, or the pulse this stage
+         * waits for could be somebody else's. */
+        if (Suicide[0] != 0) {
+            SDL_Log("QUICK-TRAINING TEST: Suicide[0] = %d before the SELECT press - the reset marker is "
+                    "already set, so the teardown watch below would be meaningless",
+                    Suicide[0]);
+            qt_test_fail("SELECT-reset stage armed on a dirty Suicide[0]");
+            return false;
+        }
+
+        qtt_sr_first_attack = first_attack;
+        first_attack = QTT_SR_FIRST_ATTACK_SENTINEL;
+        qtt_sr_phase = QTT_SR_PRESS;
+        qtt_sr_started = qtt_frame;
+        return false;
+
+    case QTT_SR_PRESS:
+        /* Exactly one frame. Tr_Reset_Read_Input takes `~PLsw[i][1] & PLsw[i][0]`
+         * on SWK_BACK, and main.c latches PLsw from p*sw_buff AFTER this
+         * prologue, so one write here is one edge. Holding it would also be
+         * harmless (an edge is an edge) but a second edge later would fire a
+         * second reset, which is why QTT_SR_AWAIT injects nothing. */
+        p1sw_buff |= SWK_BACK;
+        qtt_sr_phase = QTT_SR_AWAIT;
+        qtt_sr_started = qtt_frame;
+        return false;
+
+    case QTT_SR_AWAIT:
+        if (Suicide[0] != 0) {
+            if (first_attack != QTT_SR_FIRST_ATTACK_SENTINEL) {
+                SDL_Log("QUICK-TRAINING TEST: first_attack = %d after the SELECT reset, expected %d - "
+                        "Tr_Reset_Apply's combo_cont_init() cleared it and the save/restore did not put it back",
+                        first_attack,
+                        QTT_SR_FIRST_ATTACK_SENTINEL);
+                qt_test_fail("SELECT reset did not preserve FIRST ATTACK");
+                return false;
+            }
+
+            qtt_sr_phase = QTT_SR_RECOVER;
+            qtt_sr_started = qtt_frame;
+            return false;
+        }
+
+        if (qtt_frame - qtt_sr_started > QTT_SR_TIMEOUT) {
+            SDL_Log("QUICK-TRAINING TEST: no Suicide[0] pulse %u frames after SELECT (Play_Mode=%d "
+                    "Allow_a_battle_f=%d Game_pause=%d Extra_Break=%d operator=%d/%d routine_no=%d/%d)",
+                    QTT_SR_TIMEOUT,
+                    Play_Mode,
+                    Allow_a_battle_f,
+                    Game_pause,
+                    Extra_Break,
+                    plw[0].wu.operator,
+                    plw[1].wu.operator,
+                    plw[0].wu.routine_no[0],
+                    plw[1].wu.routine_no[0]);
+            qt_test_fail("SELECT reset never fired");
+            return false;
+        }
+
+        return false;
+
+    case QTT_SR_RECOVER:
+        if (plw[0].wu.routine_no[0] == 4 && plw[1].wu.routine_no[0] == 4) {
+            if (first_attack != QTT_SR_FIRST_ATTACK_SENTINEL) {
+                SDL_Log("QUICK-TRAINING TEST: first_attack = %d once the round recovered, expected %d",
+                        first_attack,
+                        QTT_SR_FIRST_ATTACK_SENTINEL);
+                qt_test_fail("SELECT reset did not preserve FIRST ATTACK");
+                return false;
+            }
+
+            SDL_Log("QUICK-TRAINING TEST: SELECT reset fired and recovered in %u frames, FIRST ATTACK preserved (%d)",
+                    qtt_frame - qtt_sr_started,
+                    first_attack);
+            first_attack = qtt_sr_first_attack;
+            qtt_sr_phase = QTT_SR_DONE;
+            return true;
+        }
+
+        if (qtt_frame - qtt_sr_started > QTT_SR_TIMEOUT) {
+            SDL_Log("QUICK-TRAINING TEST: players stuck at routine_no %d/%d %u frames after the SELECT reset",
+                    plw[0].wu.routine_no[0],
+                    plw[1].wu.routine_no[0],
+                    QTT_SR_TIMEOUT);
+            qt_test_fail("SELECT reset never handed control back");
+            return false;
+        }
+
+        return false;
+
+    case QTT_SR_DONE:
+    default:
+        return true;
+    }
+}
+
 static void qt_test_tick(void) {
     if (!QuickTraining_TestActive() || qtt_done) {
         return;
+    }
+
+    if (qtt_frame == 0) {
+        /* Before anything can touch it. */
+        qtt_have_disk = TrainingConfig_ReadDiskContents(qtt_disk_contents);
+
+        qtt_disk_chars[0] = CHAR_YUN;
+        qtt_disk_chars[1] = CHAR_RYU;
+        qtt_disk_arts[0] = 0;
+        qtt_disk_arts[1] = 0;
+        qtt_have_disk_chars = TrainingConfig_GetLastUsed(qtt_disk_chars, qtt_disk_arts);
+
+        /* Both snapshots can come up empty, and they fail independently:
+         * ReadDiskContents needs a parseable file, GetLastUsed needs the same
+         * file but validates my_char/super_arts separately. Say so for each,
+         * and say it again on the PASS line -- a PASS that quietly ran three
+         * of seven assertions is the shape this whole stage exists to stop. */
+        if (!qtt_have_disk) {
+            SDL_Log("QUICK-TRAINING TEST: no readable training contents in this home - the "
+                    "settings-loaded and settings-preserved assertions are SKIPPED for this run");
+        }
+
+        if (!qtt_have_disk_chars) {
+            SDL_Log("QUICK-TRAINING TEST: no readable last-used characters/arts in this home - the "
+                    "chars-loaded and chars-preserved assertions are SKIPPED for this run");
+        }
     }
 
     qtt_frame += 1;
@@ -449,22 +869,61 @@ static void qt_test_tick(void) {
 
         /* The spike's liveness bar: both players in the in-control routine
          * state, held for a window. */
-        if (plw[0].wu.routine_no[0] == 4 && plw[1].wu.routine_no[0] == 4 && qtt_frame - qtt_verify_start >= 180) {
+        if (!qtt_engine_verified) {
+            if (plw[0].wu.routine_no[0] == 4 && plw[1].wu.routine_no[0] == 4 && qtt_frame - qtt_verify_start >= 180) {
+                if (!qt_test_verify_engine_state()) {
+                    return;
+                }
+
+                qtt_engine_verified = true;
+            } else if (qtt_frame - qtt_verify_start > 900) {
+                qt_test_fail("players never reached control state (routine_no)");
+            }
+
+            return;
+        }
+
+        /* Second stage, in the live round the first one built. Driven OUTSIDE
+         * the liveness gate above on purpose: Tr_Reset_Apply zeroes
+         * routine_no[0..7], so a stage nested inside "both players are at
+         * routine_no 4" would stop being ticked across the teardown -- which
+         * is exactly the window in which its Suicide[0] marker appears. */
+        if (!qt_test_select_reset_tick()) {
+            return;
+        }
+
+        {
+            /* The PASS line names what it did NOT check. A green line that
+             * silently excludes four of seven assertions is the same defect
+             * class as not running them. */
+            const char* skipped = "none";
+
+            if (!qtt_have_disk && !qtt_have_disk_chars) {
+                skipped = "settings-loaded, settings-preserved, chars-loaded, chars-preserved";
+            } else if (!qtt_have_disk) {
+                skipped = "settings-loaded, settings-preserved";
+            } else if (!qtt_have_disk_chars) {
+                skipped = "chars-loaded, chars-preserved";
+            }
+
             SDL_Log("QUICK-TRAINING TEST PASS: %u sequence(s) verified at frame %u (Mode_Type=%d chars=%d/%d "
-                    "stage=%d)",
+                    "arts=%d/%d stage=%d dip=%08X/%08X %08X/%08X) skipped-assertions=[%s]",
                     qt_completions,
                     qtt_frame,
                     (int)Mode_Type,
                     My_char[0],
                     My_char[1],
-                    bg_w.stage);
+                    Super_Arts[0],
+                    Super_Arts[1],
+                    bg_w.stage,
+                    (unsigned)plw[0].spmv_ng_flag,
+                    (unsigned)plw[0].spmv_ng_flag2,
+                    (unsigned)plw[1].spmv_ng_flag,
+                    (unsigned)plw[1].spmv_ng_flag2,
+                    skipped);
             qtt_done = true;
             SDLApp_Exit();
             return;
-        }
-
-        if (qtt_frame - qtt_verify_start > 900) {
-            qt_test_fail("players never reached control state (routine_no)");
         }
     }
 

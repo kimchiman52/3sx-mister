@@ -213,6 +213,67 @@ static void on_shutdown_signal(int signo) {
     shutdown_signal = signo;
 }
 
+/* The MiSTer RUNTIME signals only -- SIGUSR1 (FPS overlay) and SIGRTMIN+2..+5
+ * (ARM clock, game mode, hold-to-pause, Quick Training). Split out of
+ * install_shutdown_signal_handlers() and installed at the TOP of loop(),
+ * before the phase machine, because that function did not install anything
+ * until MAIN_PHASE_INIT had already got past ConsoleMode_Enter().
+ *
+ * WHAT THAT WINDOW IS NOT: an earlier version of this comment blamed
+ * "Resources_Check()'s SHA256 sweep of every resource file", and that is
+ * wrong twice. CMakeLists.txt defines CHECKSUM as
+ * `$<AND:$<CONFIG:Release>,$<NOT:$<OR:$<BOOL:${PORT_MISTER}>,...>>>`, so
+ * PORT_MISTER EXCLUDES it -- on the MiSTer build Resources_Check() is a
+ * file_exists() and `return true`. And where CHECKSUM is on it hashes exactly
+ * one file, Resources_GetAFSPath(), not every resource. What the window
+ * really is: everything main() runs before loop(), then ConsoleMode_Enter();
+ * and if the resources are absent, the whole of MAIN_PHASE_COPYING_RESOURCES,
+ * which blocks in a modal dialog for as long as the user leaves it open.
+ *
+ * The default action for a real-time signal is TERMINATE the process -- they
+ * have no default-ignore disposition the way SIGCHLD/SIGURG/SIGWINCH do
+ * (POSIX.1-2017 XSH 2.4.3; Linux signal(7) "Real-time signals ... The default
+ * action for an unhandled real-time signal is to terminate"). So an OSD press
+ * inside that boot window did not do nothing, it KILLED THE GAME, and the
+ * wrapper's quick_training_signal() sends unconditionally on `g_child_pid > 0`
+ * -- which is true from the instant fork() returns.
+ *
+ * The shutdown set (SIGINT/SIGHUP/SIGTERM) deliberately stays where it was.
+ * Those already default to terminate, so there is no window to close, and
+ * catching them earlier would make them WORSE: MAIN_PHASE_COPYING_RESOURCES
+ * can block inside a modal dialog (src/port/resources.c ->
+ * Resources_RunResourceCopyingFlow), where a handler that only sets a flag
+ * cannot end the process but the default action can.
+ *
+ * CANNOT BE CONFIRMED ON THE HOST: `#ifdef SIGRTMIN` is false on macOS, so
+ * everything below the SIGUSR1 line compiles only for Linux/MiSTer. */
+static void install_runtime_signal_handlers() {
+#if !defined(_WIN32)
+    struct sigaction action;
+    SDL_zero(action);
+    action.sa_handler = on_shutdown_signal;
+    sigemptyset(&action.sa_mask);
+    /* SA_RESTART, unlike the shutdown set. These handlers are now live from
+     * the first line of loop(), which puts them across Resources_Check()'s
+     * SDL_ReadIO loop -- and that loop breaks on `bytes_read <= 0`, so an
+     * EINTR would silently truncate the hash and fail the check. Unreachable
+     * on MiSTer (PORT_MISTER excludes CHECKSUM, see above) but live on a Linux
+     * desktop Release build, and restarting is what an OSD toggle should do
+     * anyway: it has no business ending anyone's blocking read. The shutdown
+     * set deliberately does NOT restart -- there the interruption is the point,
+     * it is how a blocked syscall gets to notice shutdown_signal. */
+    action.sa_flags = SA_RESTART;
+
+    sigaction(SIGUSR1, &action, NULL);
+#ifdef SIGRTMIN
+    sigaction(SIGRTMIN + 2, &action, NULL);
+    sigaction(SIGRTMIN + 3, &action, NULL);
+    sigaction(SIGRTMIN + 4, &action, NULL);
+    sigaction(SIGRTMIN + 5, &action, NULL);
+#endif
+#endif
+}
+
 static void install_shutdown_signal_handlers() {
 #if defined(_WIN32)
     /* MinGW has signal() and SIGINT/SIGTERM, but no sigaction, SIGHUP or
@@ -232,13 +293,7 @@ static void install_shutdown_signal_handlers() {
     sigaction(SIGINT, &action, NULL);
     sigaction(SIGHUP, &action, NULL);
     sigaction(SIGTERM, &action, NULL);
-    sigaction(SIGUSR1, &action, NULL);
-#ifdef SIGRTMIN
-    sigaction(SIGRTMIN + 2, &action, NULL);
-    sigaction(SIGRTMIN + 3, &action, NULL);
-    sigaction(SIGRTMIN + 4, &action, NULL);
-    sigaction(SIGRTMIN + 5, &action, NULL);
-#endif
+    /* The runtime signals are installed earlier, in loop(). */
 #endif
 }
 
@@ -248,14 +303,29 @@ static void restore_shutdown_signal_handlers() {
 #ifdef SIGHUP
     signal(SIGHUP, SIG_DFL);
 #endif
+    /* The RUNTIME signals go back to IGNORED, not DEFAULT -- SIG_DFL for
+     * SIGUSR1 and for SIGRTMIN+n is TERMINATE, and this runs in the teardown
+     * window, before `if (console_mode_entered) ConsoleMode_Exit();` has put
+     * the MiSTer VT back from KD_GRAPHICS. An OSD press between the two would
+     * kill the process with the console unrestored, i.e. reopen exactly the
+     * hole the wrapper's pre-execve SIG_IGN closes.
+     *
+     * That window is new: this restore used to be reached only if
+     * MAIN_PHASE_INIT had completed (shutdown_handlers_installed), and now
+     * every early exit passes through it, because runtime_handlers_installed
+     * is set unconditionally at the top of loop().
+     *
+     * SIG_IGN is also the disposition the wrapper handed us, so this returns
+     * the process to the state it started in rather than to a more dangerous
+     * one. */
 #ifdef SIGUSR1
-    signal(SIGUSR1, SIG_DFL);
+    signal(SIGUSR1, SIG_IGN);
 #endif
 #ifdef SIGRTMIN
-    signal(SIGRTMIN + 2, SIG_DFL);
-    signal(SIGRTMIN + 3, SIG_DFL);
-    signal(SIGRTMIN + 4, SIG_DFL);
-    signal(SIGRTMIN + 5, SIG_DFL);
+    signal(SIGRTMIN + 2, SIG_IGN);
+    signal(SIGRTMIN + 3, SIG_IGN);
+    signal(SIGRTMIN + 4, SIG_IGN);
+    signal(SIGRTMIN + 5, SIG_IGN);
 #endif
 }
 
@@ -1154,6 +1224,7 @@ static int loop() {
     bool is_running = true;
     bool console_mode_entered = false;
     bool shutdown_handlers_installed = false;
+    bool runtime_handlers_installed = false;
 #if ENABLE_PERF_TELEMETRY
     bool perf_capture_started = false;
     int perf_wait_warmup_remaining = configuration.perf.gameplay_warmup_frames;
@@ -1164,7 +1235,15 @@ static int loop() {
     fps_toggle_requested = 0;
     arm_clock_cycle_requested = 0;
     game_mode_cycle_requested = 0;
+    hold_to_pause_cycle_requested = 0;
     quick_training_requested = 0;
+
+    /* Before the phase machine, not inside it -- an unhandled SIGRTMIN+n
+     * terminates. See install_runtime_signal_handlers(). The flag resets
+     * above come first so a signal that lands between the two is kept, not
+     * zeroed; handle_signal_requests() drains it once the game is up. */
+    install_runtime_signal_handlers();
+    runtime_handlers_installed = true;
 
     while (is_running && shutdown_signal == 0) {
         switch (phase) {
@@ -1384,7 +1463,7 @@ static int loop() {
 
     cleanup();
 
-    if (shutdown_handlers_installed) {
+    if (shutdown_handlers_installed || runtime_handlers_installed) {
         restore_shutdown_signal_handlers();
     }
     if (console_mode_entered) {
@@ -1486,6 +1565,12 @@ int CgSe_Test_Remap(void);
  * src/arcade/cps3_first_light.c, not netplay, so the TU is always
  * compiled and gates its own body on ENABLE_NETPLAY_TESTS. */
 int Cps3Chardma_Test_Decode(void);
+
+/* Forward-decl of the proportional-font word-wrap unit harness
+ * (src/test/test_ui_text.c). Outside the ENABLE_NETPLAY block on purpose --
+ * it exercises src/sf33rd/Source/Game/ui/sc_sub.c, not netplay, so the TU is
+ * always compiled and gates its own body on ENABLE_NETPLAY_TESTS. */
+int UiText_Test_Units(void);
 
 /* Test harnesses run unattended (scripts, CI). SDL's DEFAULT assertion
  * handler shows an interactive Retry/Break/Abort/Ignore prompt in Debug
@@ -1721,6 +1806,10 @@ int main(int argc, const char* argv[]) {
 
     if (configuration.test_cps3_chardma) {
         return Cps3Chardma_Test_Decode();
+    }
+
+    if (configuration.test_ui_text_units) {
+        return UiText_Test_Units();
     }
 
     return loop();

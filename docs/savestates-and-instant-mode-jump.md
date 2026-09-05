@@ -79,7 +79,9 @@ No findings overlap between them.
 | SJ-22 | **The chain is SHIPPED** — promoted out of the spike into `src/scene_jump.c`, driving the OSD "Quick Training" feature | §10 | Design realized |
 | SJ-23 | Quick Training reaches the same live match from ANY offline scene, not just the title — via the shipped soft-reset teardown | §10.2 | Edge cases closed |
 | SJ-24 | Wrapping the jump in the diagonal wipe (type 1) is sequential with the `No_Trans` cover, never overlapping | §10.3 | Wipe/cover are mutually exclusive |
-| SJ-25 | Quick Training reads/writes the SAME persisted training file with no drift; the OSD trigger is a live SIGRTMIN+5, no restart | §10.4 | No new persistence; live channel |
+| SJ-25 | Quick Training reads/writes the SAME persisted training file; the OSD trigger is a live SIGRTMIN+5, no restart. **The original "no drift" half was WRONG** — see §10.4 | §10.4 | No new persistence; live channel |
+| SJ-27 | The chain omitted TWO character-select steps: the training-config load and `init_omop()`. The match ran on zeroed settings, zeroed engine DIP tables, and flushed the zeros back over the user's file | §10.6 | A jump must replicate the exit's ENGINE work, not just its scene work |
+| SJ-28 | The training-config save is a whole-HARNESS-CLASS hazard, not a Quick Training one: every `--test-enable` session that reaches `Setup_NTr_Data()` persists its own selection over the user's file | §10.7 | Suppressed in `TrainingConfig_Save()` for test sessions |
 | SJ-26 | `WipeLimit` is SHARED with the engine's own transitions, and `WipeOut` increments it OUTSIDE its `!No_Trans` guard — a cover hides the drawing, never the counter | §10.5 | Quick Training must defer, not start, on an in-flight wipe |
 
 ## Revision log
@@ -92,6 +94,8 @@ No findings overlap between them.
 | 2026-08-30 | **Citation audit at `ad480322`.** All 116 `path:line` citations resolved; 10 of 67 checked symbol/range pairs had drifted, §4 systematically. Conclusion then: grep the symbol, don't trust the line. |
 | 2026-09-02 | **Moved into the repo** (this file) and re-validated at `762b5052`. Load-bearing citations converted to durable `file -> symbol` anchors — the fix for the drift problem the audit found; the old `path:line` audit table is superseded by the conversion and removed. New findings SJ-15..SJ-21 from the `--test-instant-jump` prototype (built this revision, same commit): §9 open questions #1 and #2 settled. Stale facts fixed: `EXPECTED_GAME_STATE_SIZE` moved to `game_state.h` (17772 @ `762b5052`); `netplay_nav.c` is 494 lines; `Netplay_TickMatchmaking` no longer exists; `--headless` now has consumers. |
 | 2026-09-02 | **Quick Training SHIPPED** (this lane, on `a8250882`). The SJ-06 chain promoted from the spike into `src/scene_jump.c`; the OSD feature in `src/quick_training.c`; OSD row + wrapper + signal wired. New findings SJ-22..SJ-25, new §10. The spike now calls the shared chain, so `--test-instant-jump` still proves it (PASS, same numbers: drain=24, jump->live=62). |
+| 2026-09-05 | **Fix pass on the review of the above** (same day): P1 — `docs/training-score.md`'s new correction named two functions that do not exist (real sites are `combo_window_push()` / `combo_window_trans()`); `--test-instant-jump` was rewriting the user's training file, now closed at the harness (§10.7, SJ-28). P2 — the teardown restore put the runtime signals back to `SIG_DFL` (terminate) before `ConsoleMode_Exit()`, now `SIG_IGN`; the "SHA256 sweep" justification for the boot window was false (`PORT_MISTER` excludes `CHECKSUM`), `SA_RESTART` added; the DIP masks' "bits 4..11" / "bits 16..19" rationales were false and are now enumerated; the DIP assertion pins a *configuration* and says so; the SELECT-reset stage covers one of four presets and now keys off `Suicide[0]` rather than `routine_no != 4`; a PASS now names its skipped assertions. |
+| 2026-09-05 | **Engine defects found by review and fixed** (§10.6, SJ-27): the chain skipped character select's training-config load AND its `init_omop()`, so the match ran on zeroed settings and zeroed engine DIP tables — and then wrote the zeros over the user's config. Measured before/after, both players now land byte-identical to the stock select path. Corrections to this document in the same pass: SJ-25's "byte-identical" claim was true only against an already-zero config (§10.4); the §10.4 RTL bit list omitted `status[28:25]` and `status[46:43]`; §10.5's deferral bound expired into a silent drop and now expires into a start. `SIGRTMIN+5` made non-fatal in the boot and version-skew windows (§10.4, device-unverifiable). |
 
 ---
 
@@ -760,7 +764,7 @@ Non-`CONF_STR` screens (Button Check, Direct-P2P) are added via
 | Training settings + char-select persistence | **Built** (`training_config.c`) |
 | OSD -> game signal channel | **Built** (4 signals; add a 5th) |
 | **The chain function (§4)** | **SHIPPED** — `src/scene_jump.c`, driving OSD Quick Training (§10, SJ-22); spike calls it and still PASSES. Device test + netplay variant remain |
-| **Quick Training feature (§10)** | **SHIPPED** — `src/quick_training.c` + OSD row + wrapper signal; host-verified, device run pending (SJ-22..SJ-25) |
+| **Quick Training feature (§10)** | **SHIPPED** — `src/quick_training.c` + OSD row + wrapper signal; host-verified, device run pending (SJ-22..SJ-27). Two engine defects found by review 2026-09-05 and fixed; see §10.6 |
 | **Audio suppression on restore (§3.2)** | **TO BUILD** |
 | Promote test-runner driver out of `#if DEBUG` | **TO BUILD** (optional; chain is cleaner) |
 | Save-state slot UI / hotkeys | **TO BUILD** |
@@ -906,14 +910,28 @@ is unchanged (17772) and the rollback-determinism harness did not need to run.
   `"TRN1"`, `my_char[2]`/`super_arts[2]`) that
   `TrainingConfig_RestoreCharSelect` reads, with the same per-slot range
   clamps. Defaults when the file is missing: Yun vs Ryu, first super art.
-  Verified on host that a run reads the stored characters, uses them, and
-  leaves the file byte-identical — no drift across either the fresh-title or
-  the mid-match-teardown path.
+
+  **The "leaves the file byte-identical" claim below this line was wrong, and
+  the way it was wrong is worth keeping.** It was true only because the config
+  the run was verified against already had an all-zero `contents` block: the
+  chain never loaded the settings, so the zeros it then SAVED back matched what
+  was there and the file really did come back byte-identical. Against a config
+  with anything in it the same run destroyed it — measured 2026-09-05, ACTION/
+  GUARD/QUICK-STAND/STUN `02 05 01 02` -> `00 00 00 00` after one Quick
+  Training. §10.6 has the mechanism. A round-trip test whose input is the
+  identity element tests nothing, and this is what that costs.
 - **Trigger: a live signal, no restart** (SJ-12). The OSD row is
   `"T[15],Quick Training;"` at the top of `vendor/Menu_MiSTer/menu.sv`
   `CONF_STR` (bit 15 verified free: RTL reads only `[4] [5] [8:6] [9] [12]
-  [32] [36:33] [38:37] [42:39]`, the wrapper reads none of 15; `cfg[15]` is a
-  different wire, the native-video menumask). The wrapper intercepts the OSD
+  [28:25] [32] [36:33] [38:37] [42:39] [46:43]`, the wrapper reads none of 15;
+  `cfg[15]` is a different wire, the native-video menumask). The two ranges in
+  bold-free type here — `status[28:25]` and `status[46:43]`, the `h_offset` /
+  `v_offset` inputs to the video instance — were MISSING from this list as
+  originally written. Neither contains bit 15, so the conclusion stands, but
+  the list was not the whole set: `grep -n 'status\[' vendor/Menu_MiSTer/menu.sv`
+  is, and it returns 12 lines — eleven reads plus one comment (`// "Full"
+  (status[12]=1) sends ARX=0/ARY=0 ...`) — against the nine originally
+  listed. The wrapper intercepts the OSD
   select in `tools/mister-wrapper/main-mister-full-menu.patch`
   (`bit == 15 && p[0] == 'T'`), calls the new
   `thirdsarm_wrapper.cpp -> quick_training_signal()` — which raises
@@ -927,11 +945,71 @@ is unchanged (17772) and the rollback-determinism harness did not need to run.
   `NetplayNav_Tick` slot, so it owns the pads while a sequence runs). The
   `--direct-p2p-handoff` restart path is deliberately NOT used (§7) — this is
   a live in-process jump.
+- **The signal had to be made non-fatal (2026-09-05).** The default action for
+  `SIGRTMIN+n` is **terminate** — real-time signals have no default-ignore
+  disposition (POSIX.1-2017 XSH 2.4.3; `signal(7)`). `quick_training_signal()`
+  sends on `g_child_pid > 0` alone, which is true from the instant `fork()`
+  returns, so an OSD press could kill the runtime in two windows: **boot**,
+  because the game installed its handlers only inside `MAIN_PHASE_INIT`, past
+  `ConsoleMode_Enter()`; and **version skew**, a new RBF + new wrapper driving an older `MiSTer_3S-ARM` game binary
+  with no handler for the signal at all. Two changes, because neither covers
+  the other:
+  - the wrapper sets `SIG_IGN` on all five runtime signals in the CHILD before
+    `execve()`. `SIG_IGN` is the one disposition `execve()` preserves, so the
+    ignore survives into the game and the game's own `sigaction()` overrides it
+    the moment it installs a handler. This is the only half that can help an
+    old game binary. The shutdown signals are deliberately excluded —
+    `SIGTERM` is how the handoff paths ask the child to exit.
+  - the game splits `install_runtime_signal_handlers()` (SIGUSR1 +
+    `SIGRTMIN+2..+5`) out of `install_shutdown_signal_handlers()` and installs
+    it at the TOP of `loop()`, before the phase machine. The shutdown set stays
+    where it is on purpose: those already default to terminate, so there is no
+    window to close, and catching them earlier would be worse —
+    `MAIN_PHASE_COPYING_RESOURCES` can block in a modal dialog that a
+    flag-setting handler cannot end but the default action can.
+
+  - the restore on the way out (`restore_shutdown_signal_handlers`) puts the
+    five runtime signals back to **`SIG_IGN`, not `SIG_DFL`**. `SIG_DFL` for
+    these is *terminate*, and that restore runs before
+    `if (console_mode_entered) ConsoleMode_Exit()` has taken the MiSTer VT out
+    of `KD_GRAPHICS` — so an OSD press in between would have killed the process
+    with the console unrestored, reopening the same hole. The window is new:
+    the restore used to be reached only when `MAIN_PHASE_INIT` completed, and
+    `runtime_handlers_installed` is now set unconditionally at the top of
+    `loop()`, so every early exit passes through it. The shutdown signals still
+    restore to `SIG_DFL`.
+
+  **What the boot window is NOT.** An earlier revision of this section, and of
+  the comment on `install_runtime_signal_handlers()`, blamed
+  "`Resources_Check()`'s SHA256 sweep of every resource file". That is wrong
+  twice. `CMakeLists.txt` gates `CHECKSUM` on
+  `$<AND:$<CONFIG:Release>,$<NOT:$<OR:$<BOOL:${PORT_MISTER}>,...>>>`, so
+  **`PORT_MISTER` excludes it** — on the MiSTer build `Resources_Check()` is a
+  `file_exists()` and `return true`. And where `CHECKSUM` *is* on it hashes
+  exactly one file, `Resources_GetAFSPath()`, not every resource. The window is
+  real; the reason was invented. What it actually contains is everything
+  `main()` runs before `loop()`, then `ConsoleMode_Enter()` — and, when the
+  resources are absent, the whole of `MAIN_PHASE_COPYING_RESOURCES`, which
+  blocks in a modal dialog indefinitely.
+
+  A corollary of installing these earlier: the handlers are now live across
+  `Resources_Check()`'s `SDL_ReadIO` loop, which breaks on `bytes_read <= 0`,
+  so an `EINTR` would silently truncate the hash. Unreachable on MiSTer for the
+  `CHECKSUM` reason above, but live on a Linux desktop Release build, so
+  `install_runtime_signal_handlers()` sets `SA_RESTART`. The shutdown set
+  deliberately does not — there the interruption is how a blocked syscall gets
+  to notice `shutdown_signal`.
+
+  **Neither half is confirmable on the host**: `#ifdef SIGRTMIN` is false on
+  macOS, so the whole `SIGRTMIN` block compiles only for Linux/MiSTer, and the
+  wrapper is ARM-only. Host builds prove it compiles and changes nothing there;
+  a device run is what would prove the delivery.
 
 **Boundary of what is verified.** Host only: the chain, the phase machine, the
 edge cases, the wipe sequencing, and the persistence round-trip are all
 host-verified (Debug, `SDL_VIDEODRIVER=dummy`), and both host Debug and host
-Release compile clean. **The OSD row, the wrapper interception + dismissal,
+Release compile clean. Read "the persistence round-trip" with §10.6: as
+originally run it proved less than it looked like it proved. **The OSD row, the wrapper interception + dismissal,
 and the SIGRTMIN+5 delivery are compile-/patch-verified only** — the menu.sv
 row, the wrapper C++, and the signal path cannot be exercised without the
 MiSTer hardware, and the ARM build + device deploy were out of scope for this
@@ -969,9 +1047,31 @@ transition being silently retimed.
 
 **Fix: defer, don't refuse.** `QuickTraining_Tick` now holds the request while
 `Exec_Wipe != 0` rather than consuming it, bounded by `QT_DEFER_MAX_FRAMES`
-(240) so a wedged transition drops the request instead of arming forever.
-Refusing was rejected: the row is the first entry in the OSD, and a press that
-silently did nothing would read as a bug.
+(240). Refusing was rejected: the row is the first entry in the OSD, and a
+press that silently did nothing would read as a bug.
+
+**Correction, 2026-09-05: the bound must expire into a START, not a drop.** As
+first written the deadline set `qt_request = false` with only an `SDL_Log` —
+which reproduces the very outcome the deferral exists to avoid, four seconds
+later and with the evidence only in a log file the player cannot see. The
+wrapper has already closed the OSD by the time the game sees the signal, so a
+drop *is* "the menu shut and nothing happened". Starting over the transition
+is measurably recoverable — `Switch_Screen_Init` rewrites every field it
+stomps, and the sequence normalizes `Forbid_Break`/`Stop_SG` at `QT_WIPE_IN`
+(as does `qt_fail()`). So the deadline now falls through and starts the jump.
+
+The deadline is also **measured unreachable** on every path exercised so far:
+15 runs, N ∈ {20..240}, PASS-frame minus N exactly 302 every time. It converts
+a hypothetical silent drop into a hypothetical visible jump; the residual is a
+retimed transition.
+
+**Unproven, and recorded as such:** that "a transition still holding
+`Exec_Wipe` after 240 frames is broken on its own account". The engine's own
+wipes are tens of frames, but the training-pause exit in `menu.c` case 2 sits
+under `if (Check_Pad_in_Pause(task_ptr) == 0)` and was not chased to a
+conclusion, so a legitimate long hold has not been ruled out. The deadline is a
+choice between two bad outcomes on a path nothing has reached, not a claim
+about the engine.
 
 **Also recorded, because it is easy to assume otherwise: there is no
 checkerboard wipe.** `WipeOut` offers exactly two shapes — type 0 is a
@@ -981,6 +1081,147 @@ non-zero type is a 76-band diagonal (`for (i = -224; i < 384; i += 8)`, with
 **type 1, the diagonal**, confirmed by the maintainer on a live host run
 2026-09-02. The `hnc_wipe*` table is the "Here Comes A New Challenger"
 banner, not a screen wipe.
+
+### 10.6 [SJ-27] The chain skipped the character-select EXIT's engine work
+
+Found by review 2026-09-05 from a maintainer report of "the dummy parries at
+random", and measured before and after. **`SceneJump_ExecuteTrainingChain()`
+replicated character select's SCENE work and omitted two of its ENGINE steps.**
+Both were needed; fixing either alone leaves a visible bug.
+
+**(1) The training config was never loaded — and was then destroyed.** The
+chain set `mpp_w.initTrainingData = true`, but the only consumer of that flag
+is `menu.c` -> `Default_Training_Data(0)`, whose only caller is `sel_pl.c` ->
+`Switch_Work` case 1 — character select, which the jump skips. So nothing
+called `TrainingConfig_Load()`. The match then ran on a zeroed `Training[]`,
+and the training-menu dismissal the chain drives reaches `menu.c` ->
+`Setup_NTr_Data()`, whose **first statement is `TrainingConfig_Save()`** — which
+flushed those zeros over the user's file. Measured on a seeded scratch home:
+
+```
+seeded  contents[0][0][0..3] = 02 05 01 02   (ACTION=JUMP, GUARD=RANDOM
+                                              PARRYING, QUICK STAND=ON,
+                                              STUN=NO GAIN)
+after one --test-quick-training=60 run:   00 00 00 00
+```
+
+Fixed by calling `Default_Training_Data(0)` in the chain, in character
+select's own position (after `Present_Mode = 4`, which its body reads).
+
+**(2) `init_omop()` never ran early enough, so the engine DIP tables were
+zero.** This is what made the dummy appear to parry. `pls00.c` ->
+`process_damage()` opens with `if (wk->wu.routine_no[3] == 0)` and nests inside
+it an `if (!(wk->spmv_ng_flag & DIP_SEMI_AUTO_PARRY_DISABLED))` that rewrites
+`routine_no[2]` **4->31, 5->32, 6->33, 7->34** — 4/5/6 are the ground-guard
+states `hitcheck.c` -> `defense_ground_cps3()` selects and 7 the air-guard
+state, 31-35 the parry states — so with that bit clear every guard became a
+parry, and `set_guard_status()` suppressed the guard spark on top.
+
+The bit is set by `sysdir.c` -> `init_omop()` and reaches the players through
+`plcnt.c` -> `set_base_data()`, which copies `omop_spmv_ng_table[]` into
+`plw[].spmv_ng_flag`. The stock path calls `init_omop()` at `sel_pl.c` ->
+`Exit_6th`, **before** the round boots. The jump path never did.
+`menu.c` -> `Normal_Training`'s `init_omop()` does run on the jump path, but a
+scene too late: `set_base_data()` had already copied the zero table, and
+`effe3.c` -> `effect_E3_move()`'s tail
+(`omop_spmv_ng_table[id] = mwk->spmv_ng_flag`) then wrote those stale flags
+back over the freshly-correct table — measured `omop0` going `0x0B2CE8E0` ->
+`0x00000000`. `effe3.c` repairs only bits 6/7 and only for the dummy, which is
+why the dummy read `0xC0` and the player `0x00000000`.
+
+**The blast radius was wider than the dummy.** Measured `plw[0]`:
+
+| | `spmv_ng_flag` | `spmv_ng_flag2` |
+| --- | --- | --- |
+| jump path, before | `0x00000000` | `0x000D0000` |
+| jump path, after | `0x0B2CE8E0` | `0x03FF002E` |
+| stock character select | `0x0B2CE8E0` | `0x03FF002E` |
+
+i.e. the match had no air-guard, auto-guard, auto-parry, anti-air-parry,
+absolute-guard, chip-damage, wall-jump, air-jump, air-recovery or
+air-knockdown restrictions, and special-to-special cancel, all-normals-
+cancellable, SA-to-SA cancel and chain combos were all **enabled**. Quick
+Training was not running the shipping engine. The dummy lands the same way
+(`0x0B2CE070`/`0x03FF002E` on both paths with the same config), the difference
+being `effect_E3_move`'s guard-setting writes, which were enumerated rather
+than taken as a range: its bit-level `spmv_ng_flag` writes land in bits
+{4, 6, 7, 8, 9, 10, 11} and its `spmv_ng_flag2` writes in {9, 16, 18, 19, 26},
+plus one whole-word restore of the `master_ng_flag`/`master_ng_flag2` snapshot
+`effect_E3_init()` took from the same fields.
+
+**Fix: `init_omop()` in `SceneJump_EnterBattleScene()`**, which is the
+`Exit_6th` slot exactly — loads drained, scene about to flip — and therefore
+ahead of `setup_base_and_other_data()` / `set_base_data()`. That also defuses
+`effect_E3_move`'s write-back without touching it: with the table correct
+before the copy, the value written back is the correct one plus the training
+settings, which is what it is on the stock path. **This last part is reasoning,
+not something under test** — the harness reads `plw[]`, and
+`omop_spmv_ng_table[]` itself is never asserted.
+
+**What the harness now holds**, so neither can regress silently
+(`--test-quick-training`, `src/quick_training.c`):
+
+- both players' `spmv_ng_flag`/`flag2` carry the bits `effect_E3_move`
+  provably cannot reach (DIP1 bits 5/13/24/25, DIP2 bits 1/2/3/20/21), all of
+  which were zero before the fix. **What that pins is a CONFIGURATION, not a
+  parity.** Every one of those bits is conditional inside `sysdir.c` ->
+  `get_system_direction_parameter()` on a `system_dir[N].contents[p][i] == 0`
+  test, or — for `DIP_SEMI_AUTO_PARRY_DISABLED` — on
+  `omop_guard_type[extra_option.contents[0][3]]`, whose index-2 entry does not
+  carry that bit at all. Both `system_dir[1]` and `save_w[]` are persisted
+  (`savesub.c` -> `serialize_sysdir` / `serialize_settings`), so a home whose
+  SYSTEM DIRECTION or EXTRA OPTION settings differ from `Dir_Default_Data`
+  fails this spuriously; and a defect that runs `init_omop()` with the wrong
+  inputs (it branches on `Mode_Type`, `Demo_Flag`, `Present_Mode` and
+  `Direction_Working[]` to choose the slot) still passes whenever the wrong
+  slot happens to agree with the defaults;
+- the live `Training[0].contents` equals a SNAPSHOT of the on-disk block taken
+  at frame 0, and the file still equals that snapshot at the end. Both halves
+  are needed and the snapshot is load-bearing: comparing the live globals to a
+  *fresh* read at the end passes on the broken build, because the broken build
+  saved its zeros and the two zeroed things then agree. Measured — that is
+  exactly how the first attempt at this assertion went green on a deliberately
+  broken tree;
+- `My_char`/`Super_Arts` equal the snapshot too, for the same reason
+  (`TrainingConfig_Save` writes them out of the live globals).
+
+**`--test-instant-jump` is unchanged**, before and after, to the frame:
+`jump@43 entered@67 live@105 verified@285 — drain=24, jump->live=62`. The spike
+asserts liveness and frame accounting, neither of which this fix moves; it was
+verifying a non-shipping engine configuration and reporting PASS, which is the
+gap §10.6's assertions close.
+
+### 10.7 [SJ-28] The harness class that eats the maintainer's training file
+
+The `Setup_NTr_Data()` write in §10.6 is not Quick Training's alone. **Every**
+`--test-enable` session that reaches the training pause menu hits it, and every
+one of them dictates its own characters, arts, stage and training slots — so
+the save writes the *harness's* selection over the user's. Quick Training is
+the exception only because it takes its selection off the same file it is
+about to write back. Measured 2026-09-05 against seeded hermetic homes:
+
+```
+--test-instant-jump                     super_arts 01 02 -> 00 00
+                                        my_char    0b 00 -> 03 02
+--test-enable --test-scene-preset training-yun-ryu-ryu-stage
+                                        cursor  00 00 00 00 -> 06 05 01 02
+                                        arts             .. -> 02 00
+```
+
+This is pre-existing and it destroyed a real config. **Fixed at the harness**,
+not by asking callers to remember an env var: `TrainingConfig_Save()` refuses
+the write under `#if defined(DEBUG)` for any test session that owns the
+selection (`training_config.c` -> `test_session_owns_training_config()`),
+which is `configuration.test.enabled` minus Quick Training. A per-flag opt-in
+was rejected for the reason the gate's harness discovery exists — it makes
+safety something the next harness author has to remember, and the discovery
+rule (an `OPT_BOOLEAN` whose help says it runs and exits) structurally cannot
+see a session-owning flag like `--test-instant-jump`. Quick Training stays
+exempt because suppressing its save would make both halves of its
+byte-identity assertion pass on an empty write.
+
+The spike now runs inside the `quick-training` gate for the same seeded-home
+config diff, which is the only runner it can have.
 
 ## Appendix A — reproducing the measurements
 

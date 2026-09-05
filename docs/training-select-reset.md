@@ -456,6 +456,35 @@ simulation change on the shared arcade/netplay path for a training-only feature.
   that one call. `combo_cont_init` itself is untouched, so every other caller
   keeps the round-start behaviour. Maintainer request, 2026-09-03.
 
+  **The centre preset's FIRST ATTACK preservation** has been held by a test
+  since 2026-09-05, and nothing held it before that — a tree-wide
+  `grep -rl "Tr_Reset\|select-reset" tools src/test` returned nothing. The
+  assertion rides on the Quick Training harness (`--test-quick-training`,
+  `src/quick_training.c` -> `qt_test_select_reset_tick`), which is already
+  sitting in a live unpaused `PLAY_MODE_NORMAL` round — exactly
+  `Tr_Reset_Check`'s precondition set. It plants a sentinel in `first_attack`,
+  injects one SELECT edge, waits for the `Suicide[0]` pulse (the positive
+  marker that the reset actually fired, without which "preserved" is satisfied
+  by a reset that never happened; `Tr_Reset_Apply` sets it and
+  `Tr_Reset_Finish_Teardown` clears it on the next frame, so in a live round it
+  has exactly one producer), and checks the sentinel both then and once the
+  round hands control back. Deleting the restore line fails it.
+
+  **Scope, stated because the name of the section oversells it.** It covers
+  one of the four presets. `Tr_Reset_Read_Input` latches a location or a swap
+  only when a direction is held, and the harness injects a bare `SWK_BACK`;
+  `Tr_Reset_Location` is a zero-init file-static, i.e. `TR_LOC_CENTRE`, so
+  `Tr_Reset_Position_Pending = !(TR_LOC_CENTRE && !Swapped)` is false and
+  `Tr_Reset_Position_Override` — the corner/swap camera and separation work
+  that most of this document is about — never runs. What DOES run for the
+  centre preset is all of `Tr_Reset_Apply`, including the `Suicide[0]` pulse,
+  `erase_extra_plef_work`, `combo_cont_init` with the FIRST ATTACK
+  save/restore, `pcon_rno[1] = 2`, and the
+  `bg_w.old_chase_flag = bg_w.chase_flag = 0` clear. It is
+  `Tr_Reset_Position_Override`'s own second `chase_flag` clear, on the corner
+  branch, that is untested. Corner, swap and the corner-swap combination have
+  no test at all.
+
 - **Velocity, acceleration and sub-pixel position are zeroed.** `player_mv_0000`
   never touches `wu.mvxy`, so a reset mid-dash would otherwise carry the
   momentum straight back out of the start position — the same defect

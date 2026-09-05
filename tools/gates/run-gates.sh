@@ -59,6 +59,7 @@ GATES=(
     "shipped-config-build|build the SHIPPED config (ENABLE_NETPLAY=ON, NETPLAY_TEST_HOOKS=OFF) -- #76"
     "nptest-build|build the hooks-ON test config the harnesses need"
     "netplay-harnesses|run every --test-* harness with true exit codes"
+    "quick-training|the OSD Quick Training sequence (first jump, mid-match re-jump) and the instant-jump spike, each against a SEEDED training config"
     "rendezvous-protocol|node tools/rendezvous-server/__test_protocol.js"
     "key-rate-budget|server per-key cap vs the CLIENT cadences it is derived from -- #123"
     "reclaim-window|slot-reclaim staleness vs the CLIENT cadences it is derived from -- #130"
@@ -115,6 +116,33 @@ np_rc=$?
     grep -E "error:" "${out_dir}/build-nptest.log" | head -15
 }
 echo
+
+# ---------------------------------------------------------------------------
+# The resources/ directory every hermetic home below needs a link to.
+#
+# THIRDSARM_HOME relocates resources/, and a run that reaches the resource flow
+# without one does not fail, it HANGS: src/port/resources.c ->
+# Resources_RunResourceCopyingFlow() blocks in a modal dialog that
+# SDL_VIDEODRIVER=dummy makes invisible (docs/building.md, "Running a host
+# build outside your normal home directory").
+#
+# The discovered harnesses below all exit before that flow today, which is why
+# their homes went without a link and nothing hung. That is a property of the
+# current sixteen, not of the rule that creates their homes -- one harness that
+# gets as far as the resource check turns this gate from red into a wedged run.
+# Link it for everyone; a missing resources/ is only fatal to the gate that
+# actually needs it (Quick Training, below).
+# ---------------------------------------------------------------------------
+qt_res=""
+for qt_cand in \
+    "${HOME}/Library/Application Support/CrowdedStreet/3S-ARM/resources" \
+    "${XDG_DATA_HOME:-${HOME}/.local/share}/CrowdedStreet/3S-ARM/resources"; do
+    [ -d "${qt_cand}" ] && { qt_res="${qt_cand}"; break; }
+done
+
+link_resources() {  # link_resources <home>
+    [ -n "${qt_res}" ] && ln -sfn "${qt_res}" "$1/resources"
+}
 
 # ---------------------------------------------------------------------------
 # 3. Harnesses. Discovered from src/args.c rather than hardcoded, so a new
@@ -197,6 +225,7 @@ DISCOVER
             # too, not just concurrent harnesses within one run.
             h_home="${out_dir}/home/$$-${h}"
             mkdir -p "${h_home}"
+            link_resources "${h_home}"
             THIRDSARM_HOME="${h_home}" "./${BIN}" "--${h}" > "${out_dir}/${h}.log" 2>&1
             rc=$?
             note=""
@@ -211,6 +240,139 @@ DISCOVER
         [ "${h_failed}" -eq 0 ] && record netplay-harnesses GREEN \
                                 || record netplay-harnesses RED
     fi
+fi
+echo
+
+# ---------------------------------------------------------------------------
+# 3b. Quick Training -- the OSD T[15] sequence, both fires, plus the spike.
+#
+# NOT part of the harness discovery above, and it cannot be: --test-quick-training
+# is an OPT_INTEGER (it takes the prologue frame to fire at) and it needs
+# --test-enable, so the "OPT_BOOLEAN whose help says it runs and exits" rule
+# structurally cannot see it. That is how it came to have no routine runner at
+# all -- and specifically why --test-quick-training-again had none: measured
+# 2026-09-05, `qt_needs_teardown() { return false; }` leaves the single-fire
+# run PASSING and is caught ONLY by the second fire, which tears a live match
+# down and re-jumps.
+#
+# THE HOME IS SEEDED, AND THE SEED IS ITSELF AN ASSERTION. Two of the things
+# this run must prove are properties of the persisted training config: that the
+# match uses the stored characters/arts, and -- the one that cost the
+# maintainer their settings -- that the run leaves the file alone. Both are
+# vacuous against an absent or all-zero config, which is exactly how the
+# original verification missed the bug. So the gate writes a config with
+# non-zero contents and non-default characters, then diffs the file afterwards.
+#
+# `resources/` must be reachable inside the hermetic home or the child HANGS
+# rather than fails -- see link_resources() above. These runs are the ones that
+# actually get that far, so a missing resources/ is an ERROR here rather than
+# something to discover as a wedged process.
+# ---------------------------------------------------------------------------
+echo "=== quick training ==="
+if [ "${np_rc}" -ne 0 ] || [ -z "${BIN}" ]; then
+    record quick-training ERROR
+    echo "  no test binary; the Quick Training sequence cannot run"
+elif [ -z "${qt_res}" ]; then
+    record quick-training ERROR
+    echo "  no resources/ directory to link into the hermetic home; a run that reaches"
+    echo "  gameplay would BLOCK on the resource-copying dialog rather than fail"
+else
+    qt_failed=0
+
+    # Deadline-bounded: a wedged child must fail this gate, not hang the run.
+    # macOS ships no timeout(1), hence the poll. 300 s is ~15x the ~20 s the
+    # two-fire run takes on host.
+    qt_run() {  # qt_run <label> <log> <args...>
+        local label="$1"; shift
+        local log="$1"; shift
+        local home="${out_dir}/home/$$-qt-${label}"
+        local waited=0
+        local pid
+        local rc
+
+        rm -rf "${home}"
+        mkdir -p "${home}"
+        link_resources "${home}"
+        python3 - "${home}/training" <<'SEED'
+import struct, sys
+# TrainingConfigFile (src/port/config/training_config.c): magic "TRN1", v2,
+# contents[2][2][7], cursor_x[2], cursor_y[2], super_arts[2], my_char[2].
+# contents[0][0][0..3] = ACTION=JUMP, GUARD=RANDOM PARRYING, QUICK STAND=ON,
+# STUN=NO GAIN -- all inside max_values, so none is clamped away on load.
+c = [0] * 28
+c[0], c[1], c[2], c[3] = 2, 5, 1, 2
+blob = struct.pack("<II", 0x54524E31, 2) + struct.pack("28b", *c) \
+     + struct.pack("2b", 0, 0) + struct.pack("2b", 0, 0) \
+     + struct.pack("2b", 1, 2) + struct.pack("2B", 11, 0)
+assert len(blob) == 44
+open(sys.argv[1], "wb").write(blob)
+SEED
+        cp "${home}/training" "${home}/training.seeded"
+
+        THIRDSARM_HOME="${home}" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            "./${BIN}" "$@" > "${log}" 2>&1 &
+        pid=$!
+
+        while kill -0 "${pid}" 2>/dev/null; do
+            if [ "${waited}" -ge 300 ]; then
+                kill -9 "${pid}" 2>/dev/null
+                wait "${pid}" 2>/dev/null
+                printf '    %-34s TIMEOUT after %ss\n' "${label}" "${waited}"
+                qt_failed=1
+                return
+            fi
+            sleep 1
+            waited=$((waited + 1))
+        done
+        wait "${pid}"; rc=$?
+
+        printf '    %-34s exit=%-3s (%ss)\n' "${label}" "${rc}" "${waited}"
+        [ "${rc}" -ne 0 ] && qt_failed=1
+
+        # The data-loss assertion. menu.c -> Setup_NTr_Data() opens with
+        # TrainingConfig_Save(), so a run that never LOADED the config flushes
+        # zeros over it; that is the defect, and this is the direct proof.
+        if ! cmp -s "${home}/training.seeded" "${home}/training"; then
+            echo "    RED: ${label} rewrote the persisted training config" >&2
+            echo "         seeded: $(od -An -tx1 "${home}/training.seeded" | tr -d ' \n')" >&2
+            echo "         after:  $(od -An -tx1 "${home}/training" | tr -d ' \n')" >&2
+            qt_failed=1
+        fi
+    }
+
+    qt_run first-jump "${out_dir}/quick-training-1.log" \
+        --test-enable --test-quick-training=60
+    if ! grep -q "QUICK-TRAINING TEST PASS: 1 sequence(s)" "${out_dir}/quick-training-1.log"; then
+        echo "    RED: no single-sequence PASS line (log: ${out_dir}/quick-training-1.log)" >&2
+        qt_failed=1
+    fi
+
+    qt_run rejump-after-teardown "${out_dir}/quick-training-2.log" \
+        --test-enable --test-quick-training=60 --test-quick-training-again=700
+    if ! grep -q "QUICK-TRAINING TEST PASS: 2 sequence(s)" "${out_dir}/quick-training-2.log"; then
+        echo "    RED: no two-sequence PASS line; the mid-match teardown + re-jump did not complete" >&2
+        echo "         (log: ${out_dir}/quick-training-2.log)" >&2
+        qt_failed=1
+    fi
+
+    # The SPIKE, run here for the config-diff above and nothing else.
+    #
+    # --test-instant-jump drives the same shared chain and reaches the same
+    # menu.c -> Setup_NTr_Data(), but it picks its own characters and arts, so
+    # its save wrote the HARNESS's selection over the maintainer's file --
+    # measured 2026-09-05 on a seeded home: super_arts 01 02 -> 00 00, my_char
+    # 0b 00 -> 03 02. Fixed at the harness (training_config.c ->
+    # test_session_owns_training_config), and this is what holds the fix: it is
+    # the only session-owning flag the discovery rule at the top of this file
+    # structurally cannot see, so without a line here it has no runner at all.
+    qt_run instant-jump-spike "${out_dir}/quick-training-3.log" \
+        --test-enable --test-instant-jump
+    if ! grep -q "SCENE-JUMP PASS:" "${out_dir}/quick-training-3.log"; then
+        echo "    RED: no SCENE-JUMP PASS line (log: ${out_dir}/quick-training-3.log)" >&2
+        qt_failed=1
+    fi
+
+    [ "${qt_failed}" -eq 0 ] && record quick-training GREEN || record quick-training RED
 fi
 echo
 

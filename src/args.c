@@ -516,6 +516,13 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                     NULL,
                     0,
                     0),
+        OPT_BOOLEAN(0,
+                    "test-ui-text-units",
+                    &configuration->test_ui_text_units,
+                    "Run the proportional-font word-wrap unit harness (sc_sub.c -> SSWrapStrPro) and exit. Requires -DENABLE_NETPLAY_TESTS.",
+                    NULL,
+                    0,
+                    0),
 #if ENABLE_PERF_TELEMETRY
         OPT_GROUP("Performance"),
         OPT_INTEGER(0,
@@ -764,9 +771,13 @@ void read_args(int argc, const char* argv[], Configuration* configuration) {
                     &configuration->test.quick_training_frame,
                     "Quick Training harness (src/quick_training.c): fire the OSD feature's request at this "
                     "prologue frame — the SIGRTMIN+5 path minus the signal — exercising the full shipped "
-                    "sequence (diagonal wipe-out, teardown to title if needed, scene-jump chain, wipe-in), "
-                    "then verify liveness, print QUICK-TRAINING TEST PASS/FAIL and terminate. Characters/"
-                    "arts come from the persisted training config exactly as on device. Requires a #if "
+                    "sequence (diagonal wipe-out, teardown to title if needed, scene-jump chain, wipe-in). "
+                    "Then verify, in order: liveness; that the engine DIP tables reached plw[] (init_omop "
+                    "ran before the round boot); that the persisted training settings are live AND that the "
+                    "file still holds what it held at frame 0; and that the in-round SELECT reset fires and "
+                    "preserves FIRST ATTACK. Prints QUICK-TRAINING TEST PASS/FAIL and terminates. Seed the "
+                    "run's THIRDSARM_HOME with a non-zero training config or the settings assertions are "
+                    "skipped. Characters/arts come from that config exactly as on device. Requires a #if "
                     "DEBUG build and --test-enable.",
                     NULL,
                     0,

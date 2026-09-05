@@ -24,6 +24,7 @@
 #include "sf33rd/Source/Game/game.h"
 #include "sf33rd/Source/Game/io/gd3rd.h"
 #include "sf33rd/Source/Game/io/pulpul.h"
+#include "sf33rd/Source/Game/menu/menu.h"
 #include "sf33rd/Source/Game/opening/op_sub.h"
 #include "sf33rd/Source/Game/opening/opening.h"
 #include "sf33rd/Source/Game/rendering/color3rd.h"
@@ -34,6 +35,7 @@
 #include "sf33rd/Source/Game/sound/sound3rd.h"
 #include "sf33rd/Source/Game/stage/bg.h"
 #include "sf33rd/Source/Game/system/sys_sub.h"
+#include "sf33rd/Source/Game/system/sysdir.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
 #include "structs.h"
 
@@ -95,6 +97,23 @@ s16 SceneJump_ExecuteTrainingChain(const SceneJumpTrainingParams* params) {
     Training_ID = 0;
     New_Challenger = 1;
     TrainingConfig_RestoreCharSelect();
+
+    /* The CONSUMER of the initTrainingData flag set two lines above, and the
+     * only thing that ever loads the persisted training settings: character
+     * select's own `Default_Training_Data(0)` (sel_pl.c -> Switch_Work case 1,
+     * next to `Training_Auto_Start = 1`), whose menu.c body early-outs unless
+     * the flag is set, zero-fills Training[0]/[2], then overlays the on-disk
+     * config via TrainingConfig_Load().
+     *
+     * Skipping it did not merely lose the settings, it DESTROYED them: the
+     * training-menu dismissal this chain drives reaches menu.c ->
+     * Setup_NTr_Data(), whose first statement is TrainingConfig_Save(), which
+     * flushes Training[2] -- zeroed, because nothing had loaded it -- straight
+     * over the user's file. Measured on a seeded scratch home: `02 05 01 02`
+     * came back `00 00 00 00` after one Quick Training run, and the match ran
+     * on those zeros. Present_Mode must already be 4 (set above): the body
+     * reads save_w->Damage_Level/Difficulty into save_w[Present_Mode]. */
+    Default_Training_Data(0);
 
     /* Step 8 — Setup_VS_Mode (menu.c) minus its `task_ptr->r_no[0] = 5`:
      * that write parks Menu_Task in Suspend_Menu, which only matters while
@@ -220,6 +239,44 @@ bool SceneJump_TrainingLoadsDrained(s16 stage) {
  * clear_hit_queue, bg_work_clear, win_lose_work_clear, player_face_init,
  * G_Timer=10) and asserts the drained queue (step 10). */
 void SceneJump_EnterBattleScene(void) {
+    /* The character-select exit's LAST act, and the one the chain used to
+     * omit: sel_pl.c -> Exit_6th calls init_omop() once the player and stage
+     * loads have drained and immediately before the scene flips to the battle.
+     * This is that slot exactly -- the caller only reaches here through
+     * SceneJump_TrainingLoadsDrained().
+     *
+     * It has to be HERE, ahead of the flip, and not later. init_omop()
+     * (sysdir.c) is what builds omop_spmv_ng_table[]/table2[] out of
+     * system_dir/extra_option, and plcnt.c -> set_base_data() -- reached from
+     * setup_base_and_other_data() during Game02's round boot -- seeds
+     * plw[].spmv_ng_flag/flag2 by copying that table. Without this call the
+     * table was still all-zero at that copy, so both players entered the match
+     * with every engine DIP restriction cleared. Measured on the jump path
+     * before the fix: plw[0].spmv_ng_flag 0x00000000 against 0x0B2CE8E0 on the
+     * stock path, and spmv_ng_flag2 0x000D0000 against 0x03FF002E -- i.e. no
+     * air-guard / auto-guard / auto-parry / anti-air-parry / absolute-guard /
+     * chip-damage / wall-jump / air-jump / air-recovery / air-knockdown
+     * restrictions, and special-to-special cancel, all-normals-cancellable,
+     * SA-to-SA cancel and chain combos all switched ON. The dummy's visible
+     * symptom was random parrying: pls00.c -> process_damage() opens with
+     * `if (wk->wu.routine_no[3] == 0)` and nests inside it an
+     * `if (!(wk->spmv_ng_flag & DIP_SEMI_AUTO_PARRY_DISABLED))` that rewrites
+     * routine_no[2] 4->31 / 5->32 / 6->33 / 7->34, turning each of the guard
+     * states hitcheck.c -> defense_ground_cps3() picks into a parry.
+     *
+     * menu.c -> Normal_Training's own init_omop() runs on this path too, but a
+     * scene later: set_base_data() has already copied the zero table by then,
+     * and effe3.c -> effect_E3_move()'s tail
+     * (`omop_spmv_ng_table[id] = mwk->spmv_ng_flag`) writes those stale player
+     * flags back over the freshly-correct table -- measured omop0 going
+     * 0x0B2CE8E0 -> 0x00000000. With the table correct before the copy, that
+     * write-back carries the correct value plus the training settings, which
+     * is what it does on the stock path; nothing else is needed to defuse it.
+     *
+     * Reads My_char[], Mode_Type, Demo_Flag and Present_Mode, all written by
+     * SceneJump_ExecuteTrainingChain() before the drain wait began. */
+    init_omop();
+
     G_No[1] = 2;
     G_No[2] = 0;
     G_No[3] = 0;

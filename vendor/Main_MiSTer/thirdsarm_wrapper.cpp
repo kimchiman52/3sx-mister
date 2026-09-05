@@ -3239,6 +3239,39 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 			close(err_pipe[0]);
 			prctl(PR_SET_PDEATHSIG, SIGTERM);
 
+			// The five runtime signals (SIGUSR1 + SIGRTMIN+2..+5) start life
+			// IGNORED in the child, and stay ignored across the execve() below.
+			//
+			// Why this is here and not left to the game: the default action
+			// for SIGUSR1 and for a real-time signal is TERMINATE (POSIX.1-2017 XSH 2.4.3;
+			// signal(7) "the default action for an unhandled real-time signal
+			// is to terminate the receiving process"). Every sender above
+			// gates only on `g_child_pid > 0`, which is true from the instant
+			// fork() returns, so an OSD press could kill the runtime outright
+			// in two windows: BOOT, before the game's own
+			// install_runtime_signal_handlers() runs, and VERSION SKEW, where
+			// a new RBF + new wrapper drive an older MiSTer_3S-ARM game binary
+			// that has no handler for the signal at all -- SIGRTMIN+5 (Quick
+			// Training) being the newest and so the likeliest to be sent at a
+			// binary that predates it.
+			//
+			// execve() resets CAUGHT signals to SIG_DFL but explicitly
+			// preserves SIG_IGN ("signals set to be ignored by the calling
+			// process image shall be set to be ignored by the new process
+			// image"), which is what makes this the right side of the fork to
+			// do it on: the ignore survives into the game, and the game's own
+			// sigaction() then overrides it the moment it installs a handler.
+			// A press in either window is dropped instead of fatal.
+			//
+			// Deliberately NOT the shutdown signals: SIGTERM is how the
+			// handoff paths above ask the child to exit, and ignoring it would
+			// wedge every restart.
+			signal(kRuntimeFpsToggleSignal, SIG_IGN);
+			signal(kRuntimeArmClockCycleSignal, SIG_IGN);
+			signal(kRuntimeGameModeCycleSignal, SIG_IGN);
+			signal(kRuntimeHoldToPauseCycleSignal, SIG_IGN);
+			signal(kRuntimeQuickTrainingSignal, SIG_IGN);
+
 			// Reset CPU affinity so the game isn't pinned to the wrapper's
 			// core. On restart, the parent is already pinned to CPU 0 and
 			// fork() inherits that affinity.

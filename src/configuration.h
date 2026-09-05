@@ -451,6 +451,13 @@ typedef struct Configuration {
      * no ROM file, no session, no SDL window -- the compressed bytes and
      * golden decode are embedded in the test file. */
     bool test_cps3_chardma;
+    /* When true, main() runs the proportional-font word-wrap unit harness
+     * (src/test/test_ui_text.c) and exits. Honors --test-ui-text-units.
+     * Parsed unconditionally; the real body is gated on ENABLE_NETPLAY_TESTS
+     * only -- it drives sc_sub.c's pure SSWrapStrPro/SSGetDrawSizePro pair
+     * and touches no netplay code. Pure in-process: no ROM, no session, no
+     * SDL window, no engine global. */
+    bool test_ui_text_units;
 } Configuration;
 
 #endif

@@ -54,7 +54,12 @@ bool SceneJump_TrainingLoadsDrained(s16 stage);
 
 /* Flip the parked scene into the battle scene (Game02/Game2_0, which runs
  * the SJ-06 step-11 block itself and asserts the drained queue). Call once,
- * after SceneJump_TrainingLoadsDrained() reports true. */
+ * after SceneJump_TrainingLoadsDrained() reports true.
+ *
+ * Also runs init_omop() first -- the character-select exit's last act
+ * (sel_pl.c -> Exit_6th), in the same "loads drained, about to flip" slot,
+ * and the thing that makes the engine DIP tables non-zero before the round
+ * boot copies them into plw[]. See the call site for the measurement. */
 void SceneJump_EnterBattleScene(void);
 
 /* Per-frame while waiting for the match to go live: injects the presses
