@@ -528,6 +528,23 @@ void Statcheck_CompareValues(SDL_IOStream* io, Uint64 frame) {
 void Statcheck_SyncValues(SDL_IOStream* io) {
     Random_ix16 = read_s16(io, RANDOM_IX_16_OFFSET);
     Random_ix32 = read_s16(io, RANDOM_IX_32_OFFSET);
+
+    /* players_timer is a free-running u16 (`players_timer++; players_timer &=
+     * 0x7FFF` in plcnt.c / plcnt2.c / plcnt3.c) that the archive inherits from
+     * a whole session, while a statcheck run starts a synthetic match with it
+     * at 0. It is a live input to a spawn gate -- effg6.c -> effect_G6_move:
+     *     `if (ewk->wu.now_koc & (players_timer + ewk->wu.blink_timing))`
+     * -- whose mask is 0..7, so an unimported value puts every effect_G9 spawn
+     * (and the two random_16() draws in effect_G9_move's case 0) on the wrong
+     * frame. Seeding it once is enough: both engines then increment it on the
+     * same frames.
+     *
+     * Offset from the arcade SH-2 program of sfiii3nr1: the gate at
+     * CPS3 0x061085A0 loads &players_timer = 0x020157CE, and the three
+     * increment sites (0x0611678C, 0x06118882, 0x06119266 -- one per
+     * Player_control / Player_control_bonus / Player_control_bonus2) each do
+     * `+1` then `& 0x7FFF` on that same address. */
+    players_timer = read_u16(io, PLAYERS_TIMER_OFFSET);
 }
 
 #endif
