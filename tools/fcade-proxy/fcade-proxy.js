@@ -110,7 +110,9 @@ const DEFAULT_3SR_DIR = path.join(__dirname, '3sr');
 const MAX_3SR_FILE_BYTES = Number(process.env.FCADE_PROXY_MAX_3SR_BYTES) || 1024 * 1024; // 1 MiB
 const MAX_META_FILE_BYTES = Number(process.env.FCADE_PROXY_MAX_META_BYTES) || 64 * 1024; // 64 KiB
 const MAX_3SR_GAMES_PER_QUARK = 64; // generous cap on game_N per quark directory
-const HEADER_MIN_3SR_BYTES = 28; // v1 .3sr header size (docs/3sr-format.md §1)
+// Smallest legal .3sr header (v1's 28; a v2 header is 32) — a floor for the
+// "is this file even a header" size check, not a parse width.
+const HEADER_MIN_3SR_BYTES = 28; // docs/3sr-format.md §1
 
 // The device rejects any response frame whose payload exceeds this (its
 // PROXY_MAX_FRAME_LEN, src/replay/proxy_client.c:46) — and rejects the WHOLE
@@ -412,7 +414,14 @@ const DISK_FLOOR_BYTES = Math.max(0, Number(process.env.FCADE_DISK_FLOOR_BYTES) 
 //      `game_N.3sr` (verified by cmp/sha256 — see __test_watchpoll.js).
 // The one cost vs (a) is one poll-interval of extra latency; at the wire's
 // ~6x-real-time production rate the buffer only ever grows, so this is noise.
-const WATCH_HEADER_BYTES = 28; // v1 .3sr header (docs/3sr-format.md §1); the only in-place-mutated region
+// This is the MUTATED region, not the header length. Track3srFinalizeGame
+// patches only frame_count (offset 20) and checksum_count (offset 26), both
+// inside the first 28 bytes, in v1 and v2 alike. A v2 header is 32 bytes;
+// its extra 4 (players_timer + reserved, docs/3sr-format.md §1) are written
+// once at file creation and never touched again, so they stream correctly as
+// the first body bytes and the reconstruction stays byte-identical. Do NOT
+// "fix" this to header_size.
+const WATCH_HEADER_BYTES = 28;
 // Raw bytes per body chunk. 48 KiB raw -> exactly 64 KiB base64 (well under the
 // device's 256 KiB PROXY_MAX_FRAME_LEN cap, proxy_client.c:46), leaving ample
 // room for the JSON envelope + the tiny header_b64 field.

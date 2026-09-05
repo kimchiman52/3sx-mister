@@ -10,7 +10,13 @@ PROVENANCE:
     NEW_CHALLENGER/PLAYER_COLOR offsets, CHAR_ARCADE_TO_3SX).
   - RNG sync source (Random_ix16/32 from the game-start frame, i.e. frame
     `start_index - 1` in scrd_game.c's own indexing) mirrors
-    src/test/statcheck_runner.c:341-346 (PHASE_GAME_TRANSITION).
+    src/test/statcheck_runner.c's PHASE_GAME_TRANSITION.
+  - players_timer (v2 headers only) comes from that SAME frame, and for the
+    same reason: it is the third value src/test/statcheck_compare.c ->
+    Statcheck_SyncValues seeds there. Without it every effect_G9_init()
+    spawn (two random_16() draws apiece) lands on the wrong frame -- see
+    src/sf33rd/Source/Game/effect/effg6.c -> effect_G6_move, whose gate reads
+    `now_koc & (players_timer + blink_timing)`.
   - Input words are P1SW_0/P2SW_0 verbatim (arcade-RAM layout), matching
     tools/fcade-replays/decode_inputs.py's cross-check reads and
     arcade_constants.h:27-28.
@@ -40,7 +46,7 @@ import argparse
 import json
 import struct
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Optional
 
@@ -65,6 +71,12 @@ C_NO_OFFSET = 0x154A6
 RANDOM_IX_16_OFFSET = 0x155E8
 RANDOM_IX_32_OFFSET = 0x155EA
 PLAYER_COLOR_OFFSET = 0x15683
+# players_timer (CPS3 0x020157CE) -- src/arcade/arcade_constants.h
+# PLAYERS_TIMER_OFFSET. Established by disassembly, not by a value scan: see
+# src/test/statcheck_compare.c -> Statcheck_SyncValues for the four-referrer
+# argument (the effect_G6_move gate plus the three `+1; & 0x7FFF` increment
+# sites matching plcnt.c / plcnt2.c / plcnt3.c).
+PLAYERS_TIMER_OFFSET = 0x157CE
 WORK_XYZ_OFFSET = 0x64
 PLW_OFFSET = 0x68C6C
 PLW_SIZE = 0x498
@@ -84,16 +96,35 @@ def char_arcade_to_3sx(c: int) -> int:
 
 # --- format constants (docs/3sr-format.md §1) -----------------------------
 
+# The magic is the FAMILY marker and does NOT change across versions: the
+# `version` u16 at 0x04 is what discriminates. Changing the magic instead
+# would make every magic-gated consumer reject v2 outright -- notably
+# fcade-proxy.js `read3srGameData` ("game_N.3sr has a bad magic (not '3SR1')"),
+# which would stop the VPS serving newly converted replays until it was
+# redeployed. See docs/3sr-format.md section 1.1.
 MAGIC = b"3SR1"
-VERSION = 1
-HEADER_SIZE = 28
+VERSION_V1 = 1
+VERSION_V2 = 2
+HEADER_SIZE_V1 = 28
+HEADER_SIZE_V2 = 32
+# Header size by version -- the ONLY place the mapping is written down here,
+# and the set of versions parse_3sr accepts. `generate` always writes v2
+# (encode_3sr picks the version from the data); v1 stays readable forever.
+HEADER_SIZE_BY_VERSION = {VERSION_V1: HEADER_SIZE_V1, VERSION_V2: HEADER_SIZE_V2}
 DEFAULT_CHECKSUM_INTERVAL = 60
 
+# v1 header, byte-for-byte; a v2 header is this followed by _HEADER_V2_EXT.
 _HEADER_STRUCT = struct.Struct("<4sHHBBBBBBBBHHIHH")
+# v2 extension at 0x1C: players_timer u16, then a reserved u16 that MUST be 0.
+# The reserved pair is not padding-for-padding's-sake: it keeps header_size a
+# multiple of 4, so the {u32 frame, u32 djb2} checksum table stays 4-aligned
+# relative to the file start exactly as it was in v1.
+_HEADER_V2_EXT = struct.Struct("<HH")
 _INPUT_WORD_STRUCT = struct.Struct("<HH")
 _CHECKSUM_ENTRY_STRUCT = struct.Struct("<II")
 
-assert _HEADER_STRUCT.size == HEADER_SIZE, _HEADER_STRUCT.size
+assert _HEADER_STRUCT.size == HEADER_SIZE_V1, _HEADER_STRUCT.size
+assert _HEADER_STRUCT.size + _HEADER_V2_EXT.size == HEADER_SIZE_V2
 
 # --- checksum window (docs/3sr-format.md §4.2), fixed order --------------
 # (name, offset, kind) -- kind is "u16" or "s16" (archive-native BE width).
@@ -162,6 +193,11 @@ class SetupBlock:
     new_challenger: int
     random_ix16: int  # canonicalized to u16 (see docs/3sr-format.md §2)
     random_ix32: int
+    # v2 only. `None` means "this file is v1 and does not carry the field" --
+    # NOT "the value was zero". A consumer must leave its own players_timer
+    # alone when this is None; writing 0 would be a different behaviour from
+    # what every v1 file has always produced.
+    players_timer: Optional[int] = None
 
 
 @dataclass
@@ -216,6 +252,12 @@ def extract_scrd_game(path: Path, checksum_interval: int = DEFAULT_CHECKSUM_INTE
                 colors = frame[PLAYER_COLOR_OFFSET:PLAYER_COLOR_OFFSET + 2]
                 (random_ix16,) = struct.unpack_from(">h", frame, RANDOM_IX_16_OFFSET)
                 (random_ix32,) = struct.unpack_from(">h", frame, RANDOM_IX_32_OFFSET)
+                # Same frame S as the RNG pair, on purpose: this is the frame
+                # src/test/statcheck_compare.c -> Statcheck_SyncValues is handed
+                # (statcheck_runner.c PHASE_GAME_TRANSITION passes
+                # `comparison_index - 1`), and seeding players_timer once from it
+                # is what took that harness's G9 drift to zero.
+                (players_timer,) = struct.unpack_from(">H", frame, PLAYERS_TIMER_OFFSET)
 
                 setup = SetupBlock(
                     characters=(char_arcade_to_3sx(characters[0]), char_arcade_to_3sx(characters[1])),
@@ -224,6 +266,7 @@ def extract_scrd_game(path: Path, checksum_interval: int = DEFAULT_CHECKSUM_INTE
                     new_challenger=new_challenger,
                     random_ix16=random_ix16 & 0xFFFF,
                     random_ix32=random_ix32 & 0xFFFF,
+                    players_timer=players_timer,
                 )
                 game_start_index = i
 
@@ -260,15 +303,22 @@ def extract_scrd_game(path: Path, checksum_interval: int = DEFAULT_CHECKSUM_INTE
 
 
 def encode_3sr(game: ScrdGameData, checksum_interval: int) -> bytes:
+    """Version is chosen by the DATA, not by a flag: a setup block carrying a
+    players_timer encodes as v2, one without it (i.e. re-encoding a parsed v1
+    file) encodes as v1. That is what keeps `verify`'s byte-for-byte
+    round-trip meaningful for the ~22k v1 files already in the wild."""
     setup = game.setup
     frame_count = len(game.p1_words)
     assert len(game.p2_words) == frame_count
     checksum_count = len(game.checksum_table)
 
+    version = VERSION_V2 if setup.players_timer is not None else VERSION_V1
+    header_size = HEADER_SIZE_BY_VERSION[version]
+
     header = _HEADER_STRUCT.pack(
         MAGIC,
-        VERSION,
-        HEADER_SIZE,
+        version,
+        header_size,
         setup.characters[0],
         setup.characters[1],
         setup.supers[0],
@@ -283,6 +333,11 @@ def encode_3sr(game: ScrdGameData, checksum_interval: int) -> bytes:
         checksum_interval,
         checksum_count,
     )
+
+    if version == VERSION_V2:
+        header += _HEADER_V2_EXT.pack(setup.players_timer, 0)
+
+    assert len(header) == header_size, (len(header), header_size)
 
     input_words = bytearray(frame_count * _INPUT_WORD_STRUCT.size)
     for i in range(frame_count):
@@ -321,10 +376,14 @@ def parse_3sr(data: bytes) -> Parsed3sr:
         raise FormatError(f"bad magic: expected {MAGIC!r}, got {magic!r}")
 
     (version, header_size) = struct.unpack_from("<HH", data, 4)
-    if version != VERSION:
-        raise FormatError(f"unsupported version {version} (this tool only knows version {VERSION})")
-    if header_size != HEADER_SIZE:
-        raise FormatError(f"unexpected header_size {header_size} for version {version} (expected {HEADER_SIZE})")
+    if version not in HEADER_SIZE_BY_VERSION:
+        known = ", ".join(str(v) for v in sorted(HEADER_SIZE_BY_VERSION))
+        raise FormatError(f"unsupported version {version} (this tool knows versions {known})")
+    expected_header_size = HEADER_SIZE_BY_VERSION[version]
+    if header_size != expected_header_size:
+        raise FormatError(
+            f"unexpected header_size {header_size} for version {version} (expected {expected_header_size})"
+        )
     if len(data) < header_size:
         raise FormatError(f".3sr file ({len(data)} bytes) shorter than its own header_size ({header_size})")
 
@@ -349,6 +408,12 @@ def parse_3sr(data: bytes) -> Parsed3sr:
 
     if pad != 0:
         raise FormatError(f"reserved pad byte at offset 0x0F is {pad}, expected 0")
+
+    players_timer: Optional[int] = None
+    if version >= VERSION_V2:
+        (players_timer, reserved) = _HEADER_V2_EXT.unpack_from(data, HEADER_SIZE_V1)
+        if reserved != 0:
+            raise FormatError(f"reserved u16 at offset 0x1E is {reserved}, expected 0")
     if checksum_interval == 0 and checksum_count != 0:
         raise FormatError(f"checksum_interval==0 but checksum_count=={checksum_count} (must be 0)")
 
@@ -390,6 +455,7 @@ def parse_3sr(data: bytes) -> Parsed3sr:
         new_challenger=new_challenger,
         random_ix16=random_ix16,
         random_ix32=random_ix32,
+        players_timer=players_timer,
     )
 
     return Parsed3sr(
@@ -596,6 +662,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
         f"characters={parsed.setup.characters} supers={parsed.setup.supers} "
         f"colors={parsed.setup.colors} new_challenger={parsed.setup.new_challenger} "
         f"random_ix16={parsed.setup.random_ix16} random_ix32={parsed.setup.random_ix32} "
+        f"players_timer={'absent (v1)' if parsed.setup.players_timer is None else parsed.setup.players_timer} "
         f"round-trip=OK",
         file=sys.stderr,
     )
@@ -611,8 +678,15 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
     mismatches: list[str] = []
 
-    if rederived.setup != parsed.setup:
-        mismatches.append(f"setup block differs: .3sr={parsed.setup} scrd-rederived={rederived.setup}")
+    # A re-derivation always carries players_timer (the writer is v2), so a v1
+    # file under test can never match on that field. Compare it out rather than
+    # reporting every pre-v2 file as corrupt.
+    rederived_setup = rederived.setup
+    if parsed.setup.players_timer is None:
+        rederived_setup = replace(rederived_setup, players_timer=None)
+
+    if rederived_setup != parsed.setup:
+        mismatches.append(f"setup block differs: .3sr={parsed.setup} scrd-rederived={rederived_setup}")
 
     if len(rederived.p1_words) != parsed.frame_count:
         mismatches.append(

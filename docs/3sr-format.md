@@ -1,23 +1,27 @@
-# 3SR format (v1) — device-facing replay format
+# 3SR format (v1 and v2) — device-facing replay format
 
 Plan: `docs/plan-fcade-replay-browser.md` §4.2, Step B2. One `.3sr` file
 represents one *game* (a Fightcade replay's `quark.json.num_matches` may be
 > 1; each game gets its own `.3sr`). All integers are **little-endian**.
-Magic is versioned (`3SR1`) so a future incompatible layout can ship as
-`3SR2` without breaking existing files.
 
 Every field in this format is exactly the set upstream statcheck seeds
 before `PHASE_GAME` (plan §4.1) — no stage index, no derived state. Stage
 selection flows from `new_challenger` + the seeded RNG, the same way the
-original engine does it (plan B2 "What NOT to do").
+original engine does it (plan B2 "What NOT to do"). **v2 exists because
+that set grew by one**: `Statcheck_SyncValues` seeds `players_timer` as
+well, and a `.3sr` that does not carry it cannot reproduce the recording's
+`effect_G9_init()` spawn phase (§1.1).
 
 ## 1. Byte layout
 
+Two versions exist. They share the first 28 bytes byte-for-byte; v2 appends
+four.
+
 ```
 offset  size  field
-0x00    4     magic               = "3SR1" (ASCII, no NUL terminator)
-0x04    2     version             u16, = 1
-0x06    2     header_size         u16, = 28 for version 1
+0x00    4     magic               = "3SR1" (ASCII, no NUL terminator) — SAME in every version
+0x04    2     version             u16, = 1 or 2
+0x06    2     header_size         u16, = 28 for version 1, 32 for version 2
 0x08    1     characters[0]       u8   -- P1 3SX character id (post CHAR_ARCADE_TO_3SX)
 0x09    1     characters[1]       u8   -- P2 3SX character id
 0x0A    1     supers[0]           u8   -- P1 Super_Arts index (0/1/2), no conversion
@@ -31,10 +35,18 @@ offset  size  field
 0x14    4     frame_count         u32  -- number of {p1,p2} input words that follow
 0x18    2     checksum_interval   u16  -- 0 = no checksum table; else sampling period (in-game frames)
 0x1A    2     checksum_count      u16  -- number of checksum table entries
-------  ----  header ends here (header_size = 0x1C = 28 bytes for v1)
-0x1C    frame_count * 4   input word table: frame_count * {u16 p1, u16 p2}, ARCADE-RAM layout (§3)
-...     checksum_count * 8   checksum table: checksum_count * {u32 frame, u32 djb2} (§4)
+------  ----  a VERSION 1 header ends here (header_size = 0x1C = 28 bytes)
+0x1C    2     players_timer       u16  -- v2 ONLY. See §2 (free-running spawn-gate timer)
+0x1E    2     reserved            u16  -- v2 ONLY. MUST be 0
+------  ----  a VERSION 2 header ends here (header_size = 0x20 = 32 bytes)
+<header_size>       frame_count * 4      input word table: frame_count * {u16 p1, u16 p2}, ARCADE-RAM layout (§3)
+...                 checksum_count * 8   checksum table: checksum_count * {u32 frame, u32 djb2} (§4)
 ```
+
+The `reserved` u16 at `0x1E` is not filler for its own sake: it keeps
+`header_size` a multiple of 4, so the `{u32 frame, u32 djb2}` checksum table
+starts on a 4-byte boundary relative to the file start exactly as it did in
+v1.
 
 The checksum table is **not** length-prefixed with its own offset field —
 its position is always computable as:
@@ -52,6 +64,43 @@ If `checksum_interval == 0`, `checksum_count` MUST be 0 and no checksum
 bytes follow the input word table (the file simply ends after the input
 words).
 
+### 1.1 Why a version bump, and why the magic did NOT change
+
+The v1 header has exactly one spare byte (`pad` at `0x0F`) and
+`players_timer` is a `u16`, so it cannot be carried without changing
+`header_size` — and `header_size` is the offset of the input word table, so
+any change to it is a layout change. Hence a new version.
+
+**The magic stays `3SR1` in every version.** An earlier revision of this
+document said a future layout would ship as `3SR2`; that is superseded. The
+magic is the format FAMILY marker and `version` is what discriminates, for
+one concrete reason: `fcade-proxy.js` gates servability on the magic
+(`read3srGameData` → "game_N.3sr has a bad magic (not '3SR1')"), as do its
+catalog and work-lease paths. Changing the magic would make the VPS refuse
+to serve every newly converted replay until it was redeployed, while
+changing only the version field costs nothing there.
+
+### 1.2 Compatibility, in both directions
+
+| reader | v1 file | v2 file |
+|--------|---------|---------|
+| pre-v2 viewer (`version != 1`) | plays | **refuses cleanly** — `ReplayPlayer_Init` rejects it at the version check ("unsupported version") and returns false; it never reaches a misparse |
+| v2-aware viewer | **plays, `players_timer` treated as ABSENT** | plays, `players_timer` seeded |
+
+"Absent" is not "zero". A v2-aware reader that meets a v1 file must leave
+the engine's own `players_timer` alone rather than force it to 0 — that is
+what makes v1 playback bit-identical to what it was before v2 existed, which
+matters because tens of thousands of v1 files already exist — 507 on the
+device and ~21,677 on the VPS at the time v2 was designed, plus 1,047 in the
+Mac converter's own `3sr-out`. They are not
+invalidated and are not re-converted on account of v2; they simply keep the
+`effect_G9_init()` spawn-phase offset described in
+`docs/research-arcade-balance-desyncs.md` §E2a, which surfaces as
+`recover_random_ix16()` repairs at checkpoints rather than as a desync.
+
+`replay_player.c` -> `ReplayPlayer_Init` holds both halves of this: the
+version/`header_size` table, and `ReplayFile.has_players_timer`.
+
 ## 2. Setup block field sources (mirrors `src/test/scrd_game.c`)
 
 All setup fields are read from the single SCRD archive frame that matches
@@ -68,6 +117,7 @@ index `S` (0-based, into the SCRD archive's own frame table — NOT the
 | `colors[0..1]`     | `PLAYER_COLOR_OFFSET` (0x15683), 2 bytes | u8×2  | no conversion (scrd_game.c:58-59) |
 | `random_ix16`      | `RANDOM_IX_16_OFFSET` (0x155E8)          | s16 BE in archive | see canonicalization below |
 | `random_ix32`      | `RANDOM_IX_32_OFFSET` (0x155EA)          | s16 BE in archive | see canonicalization below |
+| `players_timer`    | `PLAYERS_TIMER_OFFSET` (0x157CE)         | u16 BE in archive | **v2 only** — see below |
 
 **`RANDOM_IX_16`/`RANDOM_IX_32` are both 16-bit fields, despite the "32"
 in the name.** Verified at `src/sf33rd/Source/Game/engine/workuser.h:612-613`
@@ -82,7 +132,34 @@ unsigned — no value is lost since the consumer re-derives the signed
 value with a cast, and the format is not required to distinguish
 signed/unsigned storage for a fixed-width field).
 
-**RNG sync frame:** `random_ix16`/`random_ix32` are read from the *same*
+**`players_timer` (v2 only).** A free-running `u16` — `players_timer++;
+players_timer &= 0x7FFF` in `plcnt.c`, `plcnt2.c` and `plcnt3.c` (one site
+per `Player_control` / `Player_control_bonus` / `Player_control_bonus2`).
+A recording inherits it from a whole arcade session; a synthetic replay
+start has it at 0. It is a live input to a spawn gate —
+`src/sf33rd/Source/Game/effect/effg6.c` -> `effect_G6_move`:
+
+```c
+if (ewk->wu.now_koc & (players_timer + ewk->wu.blink_timing)) { break; }
+```
+
+— whose mask is 0..7, so a wrong value puts every `effect_G9_init()` spawn
+(`effg6.c`, the line after the gate), and therefore the two `random_16()`
+draws in `effect_G9_move`'s `case 0:`, on the wrong frame. Seeding it **once** at the sync frame is sufficient: both
+engines then increment it on the same frames. This is exactly what
+`src/test/statcheck_compare.c` -> `Statcheck_SyncValues` does for the
+statcheck oracle; v2 carries the same value to the viewer.
+
+The archive offset `0x157CE` (CPS3 `0x020157CE`) was established by
+**disassembly, not by a value scan** — a scan for "a `u16` incrementing by 1
+every frame" prunes it, because it stalls under `Game_pause || EXE_flag`.
+`effg6_data` occurs once in the decrypted image; its only literal referrer is
+inside CPS3's `effect_G6_move`; and `0x020157CE` has exactly four referrers —
+the gate plus three `+1; & 0x7FFF` increment sites matching the port's three
+`plcnt*.c` files. The full argument is in `statcheck_compare.c` ->
+`Statcheck_SyncValues` and in `docs/research-arcade-balance-desyncs.md` §E2a.
+
+**RNG sync frame:** `random_ix16`/`random_ix32`/`players_timer` are read from the *same*
 archive frame `S` where the game-start signature matched — this is
 deliberate, not a shortcut. `ScrdGame_Init` sets `game->start_index = S + 1`
 (`scrd_game.c:62`), and `StatcheckRunner_Init` sets
@@ -93,6 +170,8 @@ comparison_index - 1)` — i.e. frame `S` again — and calls
 `Statcheck_SyncValues` on it. So "frame `start_index - 1`" in the plan and
 in this doc is the exact same frame as the game-start signature frame;
 there is only one frame read for the whole setup block, not two.
+`players_timer` is read from that same frame, for the same reason: it is
+the frame `Statcheck_SyncValues` is handed.
 
 **Character id conversion** (`CHAR_ARCADE_TO_3SX`, `src/constants.h:63`):
 
@@ -240,10 +319,10 @@ from §4.3.
 
 ## 5. Sizes
 
-A 2-minute game at 60 fps is ≈ 7,200 frames: `28 + 7200*4 + 120*8 = 29788`
+A 2-minute game at 60 fps is ≈ 7,200 frames: `32 + 7200*4 + 120*8 = 29792`
 bytes ≈ 29 KB (checksum table with the default 60-frame interval adds
-only ~1 KB). This matches the plan's "≈ 7,200 frames ≈ 29 KB" estimate
-(plan §4.2).
+only ~1 KB; the v2 header adds 4 bytes over v1's `28 + … = 29788`). This
+matches the plan's "≈ 7,200 frames ≈ 29 KB" estimate (plan §4.2).
 
 ## 6. What this format deliberately excludes
 
@@ -251,6 +330,10 @@ only ~1 KB). This matches the plan's "≈ 7,200 frames ≈ 29 KB" estimate
   seeded RNG exactly as the original engine derives it — adding a stage
   override is a Stage C playback *option*, not format truth (plan B2
   "What NOT to do").
+- **No per-frame `players_timer`.** It is seeded once, at the sync frame,
+  and both engines then increment it in lockstep — the same argument
+  `Statcheck_SyncValues` makes. Sampling it per frame would be a second,
+  redundant clock.
 - **No savestate / full RAM snapshot.** `.3sr` is SCRD-derived compact
   input+setup data only; it is not a substitute for the SCRD archive it
   was extracted from, and cannot alone reproduce byte-exact engine RAM —

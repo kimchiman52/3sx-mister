@@ -65,7 +65,7 @@ index b261130..fa6e036 100644
  		printf("e.g.: %s mslug\n", argv[0]);
  		printf("e.g.: %s -menu -joy\n", argv[0]);
 diff --git a/src/burner/sdl/run.cpp b/src/burner/sdl/run.cpp
-index fdc1287..6dde46d 100644
+index fdc1287..f230d4d 100644
 --- a/src/burner/sdl/run.cpp
 +++ b/src/burner/sdl/run.cpp
 @@ -10,6 +10,7 @@
@@ -76,7 +76,7 @@ index fdc1287..6dde46d 100644
  #include <vector>
  
  static unsigned int nDoFPS = 0;
-@@ -77,6 +78,91 @@ static DumpPcTriggerState gDumpPcTrigger = { false, 0x06094d98 };
+@@ -77,6 +78,101 @@ static DumpPcTriggerState gDumpPcTrigger = { false, 0x06094d98 };
  static const INT32 kDumpGameStateOffset = 0x15438;
  static const UINT16 kDumpInGameState = 2;
  
@@ -102,6 +102,12 @@ index fdc1287..6dde46d 100644
 +static const size_t kTrackRandomIx16Offset    = 0x155E8;
 +static const size_t kTrackRandomIx32Offset    = 0x155EA;
 +static const size_t kTrackPlayerColorOffset   = 0x15683;
++// players_timer (CPS3 0x020157CE). Established by disassembly, not by a value
++// scan: the effect_G6_move spawn gate plus three `+1; & 0x7FFF` increment sites
++// are its only referrers in the decrypted image. See make_3sr.py
++// PLAYERS_TIMER_OFFSET and 3sx-mister src/test/statcheck_compare.c ->
++// Statcheck_SyncValues.
++static const size_t kTrackPlayersTimerOffset  = 0x157CE;
 +static const size_t kTrackWorkXyzOffset       = 0x64;
 +static const size_t kTrackPlwOffset           = 0x68C6C;
 +static const size_t kTrackPlwSize             = 0x498;
@@ -109,8 +115,12 @@ index fdc1287..6dde46d 100644
 +static const size_t kTrackP2Sw0Offset         = 0x6AA90;
 +static const UINT16 kTrackChecksumInterval    = 60;   // make_3sr.py DEFAULT_CHECKSUM_INTERVAL
 +static const UINT8  kTrackCharAkuma           = 14;   // CHAR_AKUMA (src/constants.h)
-+static const UINT16 kTrack3srVersion          = 1;
-+static const UINT16 kTrack3srHeaderSize       = 28;
++// v2 carries players_timer at 0x1C (docs/3sr-format.md section 1). The magic
++// stays "3SR1" -- it is the format FAMILY marker, and `version` is what
++// discriminates; changing it would make every magic-gated consumer (notably
++// fcade-proxy.js read3srGameData) reject freshly tracked games outright.
++static const UINT16 kTrack3srVersion          = 2;
++static const UINT16 kTrack3srHeaderSize       = 32;
 +
 +// The 13-field checksum window, in make_3sr.py CHECKSUM_FIELDS order
 +// (docs/3sr-format.md section 4.2). All 13 canonicalize identically as
@@ -168,7 +178,7 @@ index fdc1287..6dde46d 100644
  void ReplaySetStatePath(const char* path)
  {
  	snprintf(gReplayStatePath, MAX_PATH, "%s", path ? path : "");
-@@ -107,6 +193,26 @@ bool ReplayHasDumpRamPath()
+@@ -107,6 +203,26 @@ bool ReplayHasDumpRamPath()
  	return gDumpRamPath[0] != '\0';
  }
  
@@ -195,7 +205,7 @@ index fdc1287..6dde46d 100644
  static bool ReplayEnsureDirectoryExists(const char* path)
  {
  	if (mkdir(path, 0755) != 0 && errno != EEXIST) {
-@@ -143,40 +249,285 @@ static bool ReplayIsEnabled()
+@@ -143,40 +259,291 @@ static bool ReplayIsEnabled()
  	return gReplayEnabled;
  }
  
@@ -310,7 +320,7 @@ index fdc1287..6dde46d 100644
  
 -	std::vector<UINT8> rawRam((size_t)ramSize);
 -	memcpy(rawRam.data(), ram, (size_t)ramSize);
-+	UINT8 header[28];
++	UINT8 header[32];   // kTrack3srHeaderSize
 +	memset(header, 0, sizeof(header));
 +	memcpy(&header[0], "3SR1", 4);
 +	Track3srPutU16Le(&header[4], kTrack3srVersion);
@@ -328,6 +338,12 @@ index fdc1287..6dde46d 100644
 +	Track3srPutU32Le(&header[20], 0);                                      // frame_count (patched)
 +	Track3srPutU16Le(&header[24], kTrackChecksumInterval);
 +	Track3srPutU16Le(&header[26], 0);                                      // checksum_count (patched)
++	// v2 extension. Same RAM frame as the Random_ix16/32 pair above, on
++	// purpose: that is the frame 3sx-mister's Statcheck_SyncValues is handed,
++	// and seeding players_timer once from it is what took the statcheck
++	// harness's effect_G9 spawn-phase drift to zero.
++	Track3srPutU16Le(&header[28], ReplayReadBigEndianU16(ram, ramSize, kTrackPlayersTimerOffset));
++	Track3srPutU16Le(&header[30], 0);                                      // reserved, MUST be 0
 +
 +	if (fwrite(header, 1, sizeof(header), gTrackGameFile) != sizeof(header)) {
 +		printf("track-3sr: failed to write header: %s\n", path);
@@ -503,7 +519,7 @@ index fdc1287..6dde46d 100644
  
  	if (gDumpWasInGame && !isInGame) {
  		gDumpGameIndex++;
-@@ -204,7 +555,7 @@ static bool ReplayDumpCps3MainRam()
+@@ -204,7 +571,7 @@ static bool ReplayDumpCps3MainRam()
  		return false;
  	}
  
@@ -512,7 +528,7 @@ index fdc1287..6dde46d 100644
  	fclose(fp);
  
  	if (!ok) {
-@@ -216,10 +567,60 @@ static bool ReplayDumpCps3MainRam()
+@@ -216,10 +583,60 @@ static bool ReplayDumpCps3MainRam()
  	return true;
  }
  
@@ -574,7 +590,7 @@ index fdc1287..6dde46d 100644
  			bRunPause = 1;
  		}
  	}
-@@ -376,6 +777,73 @@ static void ReplayBuildBindings()
+@@ -376,6 +793,73 @@ static void ReplayBuildBindings()
  	}
  }
  
@@ -648,7 +664,7 @@ index fdc1287..6dde46d 100644
  static void ReplayApplyFrameInputs()
  {
  	if (gReplayFinished) {
-@@ -384,8 +852,10 @@ static void ReplayApplyFrameInputs()
+@@ -384,8 +868,10 @@ static void ReplayApplyFrameInputs()
  
  	UINT16 masks[2] = { 0, 0 };
  	if ((gReplayInputOffset + 10) > gReplayInputData.size()) {
@@ -661,7 +677,7 @@ index fdc1287..6dde46d 100644
  	}
  
  	const UINT8* frame = &gReplayInputData[gReplayInputOffset];
-@@ -425,7 +895,9 @@ static bool ReplayInit()
+@@ -425,7 +911,9 @@ static bool ReplayInit()
  		printf("Failed to read replay inputs blob: %s\n", gReplayInputsPath);
  		return false;
  	}
@@ -672,7 +688,7 @@ index fdc1287..6dde46d 100644
  		printf("Replay inputs blob size must be a multiple of 10 bytes, got %zu\n", gReplayInputData.size());
  		return false;
  	}
-@@ -750,11 +1222,20 @@ int RunInit()
+@@ -750,11 +1238,20 @@ int RunInit()
  		return 1;
  	}
  	gDumpPcTrigger.enabled =
@@ -694,7 +710,7 @@ index fdc1287..6dde46d 100644
  	Sh2SetExecHandler(ReplayExecHook);
  	if (!ReplayIsEnabled()) {
  		StatedAuto(0);
-@@ -766,6 +1247,7 @@ int RunExit()
+@@ -766,6 +1263,7 @@ int RunExit()
  {
  	nNormalLast = 0;
  	Sh2SetExecHandler(NULL);

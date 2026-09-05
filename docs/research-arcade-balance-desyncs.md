@@ -15,13 +15,18 @@ constant in `pow_data.c`, its values are correct, and the defect is an `if`.
 Filing engine behaviour into a data-fidelity document reproduces that blind
 spot. Keep them separate.
 
-**Status (2026-09-05).** Fixed: **E2a** in the statcheck oracle (`f63507b7`) and
-**D2** on the viewer (`c6a75572`, confirmed on hardware). Open: **E1** has an
-external patch, not merged, blocked on a netplay question; **E2a is still live
-for the shipped viewer** because the `.3sr` header carries no `players_timer`;
-**E2b** and **E3** have no patch and E2b is unidentified; **H1–H3** are
-unfixed, so a broad statcheck sweep would still produce false positives.
-Nothing here has had a Fable review yet.
+**Status (2026-09-05).** Fixed: **E2a** in the statcheck oracle (`f63507b7`)
+and now in the shipped viewer too (`.3sr` v2 carries `players_timer`); **D2**
+on the viewer (`c6a75572`, confirmed on hardware). Open: **E1** has an
+external patch, not merged, blocked on a netplay question; **E2b** and **E3**
+have no patch and E2b is unidentified; **H1-H3** are unfixed, so a broad
+statcheck sweep would still produce false positives. Nothing here has had a
+Fable review yet.
+
+**E2a's viewer half is untested on hardware.** The v2 fix was measured on the
+host build only (below); nothing has been deployed to the MiSTer, and the
+existing corpus (507 device files, ~21,677 VPS files) is v1 and keeps the old
+behaviour until re-converted.
 
 ---
 
@@ -214,13 +219,31 @@ moves `Random_ix16`, which the oracle overwrites every frame, so it can never
 make statcheck FAIL. Its whole cost is downstream: the device viewer's
 `recover_random_ix16()` recoveries (288 in 13 replays).
 
-**STILL OPEN for the viewer.** The `.3sr` v1 header (`docs/3sr-format.md` §1,
-`header_size = 28`) carries `random_ix16` and `random_ix32` but NOT
-`players_timer`, and nothing in `src/replay/` references it. So the shipped
-viewer still starts every replay with `players_timer = 0` and still has the full
-phase offset — `f63507b7` fixes the statcheck oracle only. Closing it needs a
-header field; there is one reserved `pad` byte at `0x0F`, so it needs a v2 or a
-repurposed pair.
+**CLOSED for the viewer too — `.3sr` v2.** The v1 header (`header_size = 28`)
+carried `random_ix16`/`random_ix32` but not `players_timer`, so the viewer
+started every replay with whatever the engine had (0) and kept the full phase
+offset. v2 (`header_size = 32`) appends `players_timer` at `0x1C`;
+`ReplayPlayer_Init` reads it and `ReplayPlayer_Tick`'s `PHASE_GAME_TRANSITION`
+seeds it at the same point it seeds the RNG pair — the point
+`Statcheck_SyncValues` syncs at. See `docs/3sr-format.md` §1.1/§1.2 for the
+version-vs-magic decision and for what a v1 file does now (nothing changes:
+`players_timer` is treated as ABSENT, not as 0).
+
+**Measured on the host build, A/B on the same archive.** Two `.3sr` files were
+built from one SCRD differing ONLY in the v2 header bytes (identical input word
+table and checksum table, verified byte-for-byte), then played through
+`--play-replay --headless`:
+
+| archive | frames played | checkpoints | v1 twin `r16_resyncs` | v2 twin `r16_resyncs` |
+|---------|---------------|-------------|------------------------|------------------------|
+| `sfiii3nr1-1676027217605-8232.7/game_2` | 12,124 | 202/202 | **31** | **0** |
+| `sfiii3nr1-1675032176612-9791.7/game_0` |  3,507 |   58/58 | **13** | **0** |
+
+Both twins of each pair reached `REPLAY COMPLETE … reason=game-ended` with the
+same frame count and the same `checksums=N/N`, so the counts are over identical
+checkpoint sets. The
+divergences were ±2 on `Random_ix16` — the two `random_16()` draws per
+`effect_G9_move` `case 0:`, exactly the predicted signature.
 
 ### E2b — a `random_32` consumer the port never executes (OPEN)
 
@@ -397,7 +420,7 @@ mismatch, not for gaps).
 |----|------|-------|
 | E1a | `pow_pow.c` ignores `Round_Level` in VS | external patch + seed netplay to **3** (not 0) — netplay question ANSWERED from archives |
 | E1b | port never updates `Round_Level` in VS while the arcade ramps it down | OPEN, no patch; E1a alone is insufficient |
-| E2a | `effect_G9` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer still affected** — `.3sr` header carries no `players_timer` |
+| E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device, and existing v1 files keep the old behaviour |
 | E2b | a `random_32` consumer the port never runs | OPEN, unidentified; this is the one that fails statcheck |
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
 | H1 | `ScrdGame_Init` post-KO false positive | require `Game_timer` reset |
@@ -406,7 +429,7 @@ mismatch, not for gaps).
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 
-**For a reviewer:** E2 is the highest-value target — it is on-device
+**For a reviewer:** E2b is now the highest-value target — it is on-device
 detectable, reproduces deterministically, and RNG divergence compounds. E1 is
 the best understood but needs the netplay decision first. H1–H3 should land
 before any broad statcheck sweep, or the sweep's output cannot be trusted.

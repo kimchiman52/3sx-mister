@@ -48,9 +48,16 @@
 /* Loaded replay data                                                     */
 /* ---------------------------------------------------------------------- */
 
+/* The magic is the format FAMILY marker and is identical in every version —
+ * `version` at 0x04 is what discriminates (docs/3sr-format.md §1.1). */
 #define REPLAY_3SR_MAGIC "3SR1"
-#define REPLAY_3SR_VERSION 1
-#define REPLAY_3SR_HEADER_SIZE 28
+#define REPLAY_3SR_VERSION_V1 1
+#define REPLAY_3SR_VERSION_V2 2
+#define REPLAY_3SR_HEADER_SIZE_V1 28
+/* v2 appends players_timer (u16 @0x1C) + a reserved u16 @0x1E that MUST be 0
+ * (docs/3sr-format.md §1). The reserved half keeps header_size a multiple of
+ * 4 so the {u32,u32} checksum table stays 4-aligned, as it was in v1. */
+#define REPLAY_3SR_HEADER_SIZE_V2 32
 /* All bits an arcade-RAM-layout input word may carry: 0-3 directions,
  * 4-6 punches, 7-9 kicks, 12 start (docs/3sr-format.md §3). */
 #define ARCADE_WORD_MASK 0x13FFu
@@ -67,6 +74,14 @@ typedef struct ReplayFile {
     Uint8 new_challenger;
     Uint16 random_ix16; /* bit pattern of the archived s16 (format §2) */
     Uint16 random_ix32;
+    /* v2 only. `has_players_timer == false` means the file is v1 and simply
+     * does not carry the field — NOT that the value was zero. A v1 file plays
+     * exactly as it always did: the engine's own players_timer is left alone,
+     * so v1 playback is unchanged from pre-v2 builds and none of the .3sr
+     * files already written is invalidated. */
+    Uint16 players_timer;
+    bool has_players_timer;
+    Uint16 version; /* 1 or 2 — kept for the load log line */
     Uint32 frame_count;
     Uint16 checksum_interval;
     Uint16 checksum_count;
@@ -638,7 +653,7 @@ bool ReplayPlayer_Init(const char* path_3sr) {
     bool ok = false;
 
     do {
-        if (size < REPLAY_3SR_HEADER_SIZE) {
+        if (size < REPLAY_3SR_HEADER_SIZE_V1) {
             load_error(path_3sr, "file shorter than the v1 header (28 bytes)");
             break;
         }
@@ -650,18 +665,34 @@ bool ReplayPlayer_Init(const char* path_3sr) {
 
         const Uint16 version = rd_u16le(data + 0x04);
         const Uint16 header_size = rd_u16le(data + 0x06);
+        Uint16 want_header_size = 0;
+        bool version_ok = true;
 
-        if (version != REPLAY_3SR_VERSION) {
-            load_error(path_3sr, "unsupported version (want 1)");
+        if (version == REPLAY_3SR_VERSION_V1) {
+            want_header_size = REPLAY_3SR_HEADER_SIZE_V1;
+        } else if (version == REPLAY_3SR_VERSION_V2) {
+            want_header_size = REPLAY_3SR_HEADER_SIZE_V2;
+        } else {
+            version_ok = false;
+        }
+
+        if (!version_ok) {
+            load_error(path_3sr, "unsupported version (want 1 or 2)");
             break;
         }
 
-        if (header_size != REPLAY_3SR_HEADER_SIZE) {
-            load_error(path_3sr, "bad header_size (want 28 for v1)");
+        if (header_size != want_header_size) {
+            load_error(path_3sr, "header_size does not match the declared version (28 for v1, 32 for v2)");
+            break;
+        }
+
+        if ((Uint64)size < (Uint64)header_size) {
+            load_error(path_3sr, "file shorter than its own header_size");
             break;
         }
 
         SDL_zero(replay);
+        replay.version = version;
         replay.characters[0] = data[0x08];
         replay.characters[1] = data[0x09];
         replay.supers[0] = data[0x0A];
@@ -680,6 +711,16 @@ bool ReplayPlayer_Init(const char* path_3sr) {
             break;
         }
 
+        if (version >= REPLAY_3SR_VERSION_V2) {
+            if (rd_u16le(data + 0x1E) != 0) {
+                load_error(path_3sr, "reserved u16 at 0x1E is nonzero");
+                break;
+            }
+
+            replay.players_timer = rd_u16le(data + 0x1C);
+            replay.has_players_timer = true;
+        }
+
         /* Setup sanity: the ranges the phase machine's cursor/color tables
          * can actually express (character_to_cursor[20], color_to_keys[13],
          * Super_Arts 0-2). Format §2 stores post-conversion 3SX ids. */
@@ -696,7 +737,7 @@ bool ReplayPlayer_Init(const char* path_3sr) {
 
         /* Format §1: total size must be exact; §4.1: count formula. */
         const Uint64 expected =
-            (Uint64)REPLAY_3SR_HEADER_SIZE + (Uint64)replay.frame_count * 4 + (Uint64)replay.checksum_count * 8;
+            (Uint64)header_size + (Uint64)replay.frame_count * 4 + (Uint64)replay.checksum_count * 8;
 
         if ((Uint64)size != expected) {
             load_error(path_3sr, "size != header + frame_count*4 + checksum_count*8 (corrupt/truncated)");
@@ -728,7 +769,7 @@ bool ReplayPlayer_Init(const char* path_3sr) {
          * out-of-mask source bits: they would not survive the SWK round-trip
          * the checksum recomputation depends on, so a file carrying them
          * could never verify. */
-        const Uint8* words = data + REPLAY_3SR_HEADER_SIZE;
+        const Uint8* words = data + header_size;
         bool words_ok = true;
 
         for (Uint32 f = 0; f < replay.frame_count; f++) {
@@ -799,8 +840,23 @@ bool ReplayPlayer_Init(const char* path_3sr) {
 
     loaded = true;
     status = REPLAY_PLAYER_NAVIGATING;
+
+    /* A v1 file plays with whatever players_timer the engine already had,
+     * which is the phase offset docs/research-arcade-balance-desyncs.md §E2a
+     * measures: it surfaces as recover_random_ix16() repairs at checkpoints,
+     * never as a hard desync. Log which case this file is so a device log
+     * says whether a run was testing the fix or not. */
+    char players_timer_text[24];
+
+    if (replay.has_players_timer) {
+        SDL_snprintf(players_timer_text, sizeof(players_timer_text), "%04x", replay.players_timer);
+    } else {
+        SDL_snprintf(players_timer_text, sizeof(players_timer_text), "absent");
+    }
+
     SDL_Log("replay: loaded '%s' — p1 char=%u sa=%u color=%u, p2 char=%u sa=%u color=%u, "
-            "new_challenger=%u, rng ix16=%04x ix32=%04x, frames=%u, checksums=%u every %u frames",
+            "new_challenger=%u, rng ix16=%04x ix32=%04x, players_timer=%s (v%u), frames=%u, "
+            "checksums=%u every %u frames",
             path_3sr,
             replay.characters[0],
             replay.supers[0],
@@ -811,6 +867,8 @@ bool ReplayPlayer_Init(const char* path_3sr) {
             replay.new_challenger,
             replay.random_ix16,
             replay.random_ix32,
+            players_timer_text,
+            replay.version,
             replay.frame_count,
             replay.checksum_count,
             replay.checksum_interval);
@@ -1409,6 +1467,25 @@ void ReplayPlayer_Tick(void) {
          * known frame-1-desync trap (plan A3b "If it fails"). */
         Random_ix16 = (s16)replay.random_ix16;
         Random_ix32 = (s16)replay.random_ix32;
+
+        /* players_timer is the third value Statcheck_SyncValues seeds at this
+         * same point (src/test/statcheck_compare.c). It is a free-running u16
+         * (`players_timer++; players_timer &= 0x7FFF` in plcnt.c / plcnt2.c /
+         * plcnt3.c) that the recording inherited from a whole arcade session,
+         * while a synthetic replay start has it at 0. It feeds a spawn gate —
+         * src/sf33rd/Source/Game/effect/effg6.c -> effect_G6_move:
+         *     `if (ewk->wu.now_koc & (players_timer + ewk->wu.blink_timing))`
+         * — whose mask is 0..7, so a wrong value puts every effect_G9 spawn
+         * (and the two random_16() draws in effect_G9_move's `case 0:`) on the
+         * wrong frame. Seeding it once is enough: both engines then increment
+         * it on the same frames. This is the import f63507b7 gave the statcheck
+         * oracle, now carried to the viewer through the v2 header.
+         *
+         * A v1 file carries no such field, so nothing is written and playback
+         * is exactly what it was before v2 existed. */
+        if (replay.has_players_timer) {
+            players_timer = replay.players_timer;
+        }
         status = REPLAY_PLAYER_PLAYING;
         phase = PHASE_GAME;
         /* fallthrough */
