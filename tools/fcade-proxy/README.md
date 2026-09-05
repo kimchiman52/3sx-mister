@@ -382,8 +382,27 @@ Job state machine: `queued → pulling → converting → ready | failed`.
   (transitively via the Stage S1 tracker). A `state: "failed"` response also
   carries `done: true` (terminal) with a `detail` string.
 
-Before the first bytes exist (job still `pulling`, or no game-start signature
-reached yet) the response is `{state, size: 0, next: from, header_b64: "",
+A quark normally converts to FEWER games than its catalog `num_matches`, and
+that is correct, not breakage. The runner's tracker refuses two classes of
+segment outright, writing no `.3sr` and recording the reason in
+`track3sr_manifest.json` as `"skip_reason"` alongside `"signature_found": false`
+(`runner-track-3sr.patch` -> `Track3srOnFrame`; the predicates and their
+evidence are in `docs/3sr-format.md` §2.1):
+
+- `"no-match-start"` — the `(2,0,0)` `G_No` triple was never followed by
+  `Game2_0()`'s own writes, so the segment holds no match at all (typically a
+  post-KO tail the recorder cut).
+- `"cpu-player"` — `wu_operator` was 0 on one side at the match start, i.e. the
+  cabinet was playing the CPU. The device viewer forces two operators, so a
+  `.3sr` made from such a segment desyncs by frame 60 (measured). Fightcade's
+  winner-plays-the-CPU flow makes these common and INTERLEAVED with human games
+  inside one recording.
+
+`publishTrackerOutput` logs the per-quark list; a quark where every segment is
+skipped fails as `no_games`, which is the honest outcome.
+
+Before the first bytes exist (job still `pulling`, or no confirmed match start
+yet) the response is `{state, size: 0, next: from, header_b64: "",
 b64: "", eof: true, done: false}` — keep polling. `watchpoll` NEVER blocks; a
 job that dies mid-watch surfaces `state: "failed", done: true` on the next
 poll, never a hang.

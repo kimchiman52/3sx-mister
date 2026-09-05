@@ -1747,12 +1747,25 @@ function makeConvertManager() {
             manifest = JSON.parse(fs.readFileSync(path.join(job.trackDir, 'track3sr_manifest.json'), 'utf8'));
         } catch (_) {}
         const signatureFound = new Set();
+        // Games the TRACKER refused to convert, and why. A segment holding no
+        // match ("no-match-start") or one the cabinet ran against the CPU
+        // ("cpu-player") cannot be replayed by the viewer at all, so the runner
+        // writes no .3sr for it -- see runner-track-3sr.patch Track3srOnFrame
+        // and docs/3sr-format.md section 2.1. Surfacing the reasons here is what
+        // stops "this quark produced 2 of 7 games" reading as breakage.
+        const skipped = [];
         if (manifest && Array.isArray(manifest.games)) {
             for (const g of manifest.games) {
-                if (g && typeof g.game_index === 'number' && g.signature_found === true) {
+                if (!g || typeof g.game_index !== 'number') continue;
+                if (g.signature_found === true) {
                     signatureFound.add(g.game_index);
+                } else if (typeof g.skip_reason === 'string' && g.skip_reason.length > 0) {
+                    skipped.push(`game_${g.game_index}=${g.skip_reason}`);
                 }
             }
+        }
+        if (skipped.length > 0) {
+            logInfo(`convert ${job.quarkid}: ${skipped.length} segment(s) not convertible — ${skipped.join(' ')}`);
         }
 
         let names = [];
@@ -1836,7 +1849,7 @@ function makeConvertManager() {
         }
         if (published.length === 0) {
             job.failReason = 'no_games';
-            return failJob(job, 'no playable games produced (no game-start signature reached, or catalog row unnamed)');
+            return failJob(job, 'no playable games produced (every segment held no match or was recorded against the CPU, or the catalog row was unnamed)');
         }
         job.games = published;
         // The just-published quark is the most-recently-served (fresh mtime) so

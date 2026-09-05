@@ -7,17 +7,27 @@ CONVERSION" pipeline: download a Fightcade replay stream, run it through the
 FBNeo replay runner (crowded-street/fbneo-replay-runner @ ccf96ab -- see
 tools/replay_preprocessor.py's header for the exact version-skew reasoning),
 compress the resulting per-frame RAM dumps to a `.scrd` archive per in-session
-game, GATE each archive through `tools/statcheck_runner.py` (only
-statcheck-clean games get published -- a divergent game is dropped, never
-shipped), then run `make_3sr.py generate --quark-json <catalog row>` so every
-published `.meta.json` carries REAL `players[]`/`date`/`duration` (the
-make_3sr.py header comment above `build_meta()` explains why this is
-non-negotiable: the sidecar is the ONLY source of player names on-device).
+game, then gate each archive TWICE before publishing it:
+
+  1. ELIGIBILITY (`make_3sr.probe_match_start`). Does this segment hold a match
+     two humans played? A segment holding no match at all (H1) or one the
+     cabinet ran against the CPU (H4b) is skipped outright -- the device viewer
+     forces two operators, so a `.3sr` built from either desyncs by frame 60,
+     measured. This is why a quark can legitimately yield fewer games than
+     `quark.json.num_matches`.
+  2. CORRECTNESS (`tools/statcheck_runner.py`). Only statcheck-clean games get
+     published -- a divergent game is dropped, never shipped.
+
+Then `make_3sr.py generate --quark-json <catalog row>` runs, so every published
+`.meta.json` carries REAL `players[]`/`date`/`duration` (the make_3sr.py header
+comment above `build_meta()` explains why this is non-negotiable: the sidecar is
+the ONLY source of player names on-device).
 
 One quark -> zero or more `<out-dir>/<quarkid>/game_N.3sr` +
 `game_N.meta.json` pairs (only the clean ones), plus a top-level
-`published_manifest.json` recording quarkid -> published/divergent game
-indices for operator visibility.
+`published_manifest.json` recording quarkid -> published / skipped (by reason) /
+divergent / failed game indices for operator visibility. Those four are kept
+apart deliberately: see `QuarkOutcome`.
 
 DISK SAFETY (the documented A4 ENOSPC lesson -- docs/fcade-replay-notes.md
 section 4 "Disk-space gotcha"): the FBNeo runner writes RAW per-frame `.ram`
@@ -66,6 +76,13 @@ sys.path.insert(0, str(TOOLS_DIR))  # replay_preprocessor, compress_ram_dumps, s
 
 from fcade_replay_tool import ReplayTarget, download_replay  # noqa: E402
 from compress_ram_dumps import compress_ram_dumps  # noqa: E402
+from make_3sr import (  # noqa: E402
+    CorruptArchiveError,
+    CpuPlayerError,
+    ExtractError,
+    NoMatchStartError,
+    probe_match_start,
+)
 
 MAKE_3SR = HERE / "make_3sr.py"
 STATCHECK_RUNNER = TOOLS_DIR / "statcheck_runner.py"
@@ -96,10 +113,33 @@ class GameOutcome:
 
 @dataclass
 class QuarkOutcome:
+    """Per-quark tally. The three drop buckets are kept SEPARATE on purpose:
+    they mean different things and anyone counting `divergent` across manifests
+    to size the engine's remaining bug list must not be handed segments that
+    were never comparable in the first place.
+
+      published  -- a `.3sr` was written.
+      skipped    -- reason -> game indices. INELIGIBLE segments: the recording
+                    itself cannot be replayed by the device viewer, whatever
+                    the engine does. "no-match-start" (H1) and "cpu-player"
+                    (H4b), both detected by `make_3sr.probe_match_start`.
+                    Expected, not a defect; this is why a quark can yield fewer
+                    games than `quark.json.num_matches`.
+      divergent  -- statcheck ran on a comparable segment and the engine
+                    disagreed with the CPS3 recording. A real worklist item.
+      failed     -- the converter itself broke (corrupt archive, make_3sr
+                    error). An operator problem, not an engine one.
+    """
+
     quarkid: str
     published: list[int] = field(default_factory=list)
+    skipped: dict[str, list[int]] = field(default_factory=dict)
     divergent: list[int] = field(default_factory=list)
+    failed: list[int] = field(default_factory=list)
     error: Optional[str] = None
+
+    def skip(self, reason: str, game_index: int) -> None:
+        self.skipped.setdefault(reason, []).append(game_index)
 
 
 # ============================ catalog ============================
@@ -308,7 +348,10 @@ def statcheck_gate(statcheck_exe: Path, scrd_path: Path, timeout_s: float, log) 
 # ============================ make_3sr ============================
 
 
-def generate_3sr(scrd_path: Path, out_3sr: Path, out_meta: Path, quark_json: Path, checksum_interval: int, log) -> bool:
+def generate_3sr(scrd_path: Path, out_3sr: Path, out_meta: Path, quark_json: Path, checksum_interval: int, log) -> int:
+    """Returns make_3sr.py `generate`'s own exit code: 0 converted, 1 failure,
+    2 segment holds no match, 3 recorded against the CPU. Non-zero always means
+    nothing was written."""
     out_3sr.parent.mkdir(parents=True, exist_ok=True)
     command = [
         sys.executable,
@@ -326,10 +369,16 @@ def generate_3sr(scrd_path: Path, out_3sr: Path, out_meta: Path, quark_json: Pat
     ]
     proc = subprocess.run(command, capture_output=True, text=True)
     if proc.returncode != 0:
-        log(f"    make_3sr FAILED for {scrd_path.name}: {proc.stderr.strip()}")
-        return False
+        # 2 = no match in segment, 3 = recorded against the CPU (make_3sr.py
+        # `cmd_generate`, same codes as src/main.c gives statcheck). Both are
+        # SKIPS, not failures -- and both should already have been caught by
+        # the probe_match_start() gate above, so reaching here means the two
+        # disagreed and is worth saying out loud.
+        verb = "SKIPPED" if proc.returncode in (2, 3) else "FAILED"
+        log(f"    make_3sr {verb} (rc={proc.returncode}) for {scrd_path.name}: {proc.stderr.strip()}")
+        return proc.returncode
     log(f"    make_3sr OK: {out_3sr}")
-    return True
+    return 0
 
 
 # ============================ per-quark pipeline ============================
@@ -405,9 +454,35 @@ def publish_quark(
         quark_json_path = quark_work / "quark.json"
         quark_json_path.write_text(json.dumps(row, indent=2), encoding="utf-8")
 
-        # --- 4. per game: statcheck-gate, then publish clean ones only ---
+        # --- 4. per game: eligibility gate, statcheck gate, publish ---
         for scrd_path in sorted(scrd_paths, key=lambda p: int(p.stem.split("_")[-1])):
             game_index = int(scrd_path.stem.split("_")[-1])
+
+            # ELIGIBILITY FIRST, in-process and cheap (probe_match_start stops
+            # decoding at the match start). A segment that holds no match (H1)
+            # or that the cabinet ran against the CPU (H4b) is not something
+            # statcheck can grade OR the device viewer can play -- a `.3sr`
+            # made from one desyncs by frame 60, measured. Running the gate
+            # first means every statcheck FAIL below is a REAL divergence, so
+            # the `divergent` list in published_manifest.json finally means
+            # what its name says.
+            try:
+                probe_match_start(scrd_path)
+            except NoMatchStartError as exc:
+                outcome.skip("no-match-start", game_index)
+                log(f"    SKIPPED game_{game_index} (no-match-start -- segment holds no match, "
+                    f"NOT a divergence): {exc}")
+                continue
+            except CpuPlayerError as exc:
+                outcome.skip("cpu-player", game_index)
+                log(f"    SKIPPED game_{game_index} (cpu-player -- recorded against the CPU, "
+                    f"NOT a divergence): {exc}")
+                continue
+            except (CorruptArchiveError, ExtractError) as exc:
+                outcome.failed.append(game_index)
+                log(f"    FAILED game_{game_index} (unreadable archive): {exc}")
+                continue
+
             clean, detail = statcheck_gate(statcheck_exe, scrd_path, statcheck_timeout, log)
             if not clean:
                 outcome.divergent.append(game_index)
@@ -416,10 +491,15 @@ def publish_quark(
 
             out_3sr = out_dir / quarkid / f"game_{game_index}.3sr"
             out_meta = out_dir / quarkid / f"game_{game_index}.meta.json"
-            if generate_3sr(scrd_path, out_3sr, out_meta, quark_json_path, checksum_interval, log):
+            rc = generate_3sr(scrd_path, out_3sr, out_meta, quark_json_path, checksum_interval, log)
+            if rc == 0:
                 outcome.published.append(game_index)
+            elif rc == 2:
+                outcome.skip("no-match-start", game_index)
+            elif rc == 3:
+                outcome.skip("cpu-player", game_index)
             else:
-                outcome.divergent.append(game_index)  # make_3sr failure -- do not publish
+                outcome.failed.append(game_index)
 
     except PublishError as exc:
         outcome.error = str(exc)
@@ -518,11 +598,22 @@ def main(argv: list[str]) -> int:
             log("--fail-fast: stopping")
             break
 
+    # `skipped` and `failed` are separate keys, not folded into `divergent`:
+    # see QuarkOutcome's docstring. A reader counting engine divergences must
+    # read `divergent` and nothing else, and a reader asking "why did this quark
+    # produce fewer games than num_matches" reads `skipped`.
     manifest = {
         "generated_at": int(time.time() * 1000),
         "gameid": args.gameid,
         "quarks": {
-            o.quarkid: {"published": o.published, "divergent": o.divergent, "error": o.error} for o in outcomes
+            o.quarkid: {
+                "published": o.published,
+                "skipped": o.skipped,
+                "divergent": o.divergent,
+                "failed": o.failed,
+                "error": o.error,
+            }
+            for o in outcomes
         },
     }
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -532,10 +623,18 @@ def main(argv: list[str]) -> int:
 
     total_published = sum(len(o.published) for o in outcomes)
     total_divergent = sum(len(o.divergent) for o in outcomes)
+    total_failed = sum(len(o.failed) for o in outcomes)
     total_errors = sum(1 for o in outcomes if o.error)
+    skipped_by_reason: dict[str, int] = {}
+    for o in outcomes:
+        for reason, games in o.skipped.items():
+            skipped_by_reason[reason] = skipped_by_reason.get(reason, 0) + len(games)
+    skip_detail = ", ".join(f"{n} {reason}" for reason, n in sorted(skipped_by_reason.items())) or "none"
     log(
         f"=== {len(outcomes)} quark(s) processed: {total_published} game(s) published, "
-        f"{total_divergent} dropped (statcheck-divergent/make_3sr-failed), {total_errors} quark error(s) ==="
+        f"{sum(skipped_by_reason.values())} skipped as ineligible ({skip_detail}), "
+        f"{total_divergent} statcheck-divergent, {total_failed} converter failure(s), "
+        f"{total_errors} quark error(s) ==="
     )
 
     if not args.keep_work and not args.work_dir:
