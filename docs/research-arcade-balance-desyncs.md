@@ -146,63 +146,74 @@ the arcade actually reads here, and what a fresh cabinet session initialises
 `Round_Level` to, are both unverified — settling them would also settle the
 netplay question.
 
-### E2 — the RNG drifts continuously; `Random_ix32` is just the visible half
+### E2a — `effect_G9` spawn phase (ROOT-CAUSED; oracle FIXED `f63507b7`)
 
-**Superseded description.** This was first filed as "`Random_ix32` misses one
-advance at round release, 3 instances". Instrumentation (2026-09-04) showed that
-is one symptom of a continuous divergence, not a discrete event.
+**Symptom.** Our engine spawned `effect_G9` a few frames later than CPS3. Each
+spawn burns exactly two `random_16()` (`effect_G9_move` `case 0:`, `effg9.c`), so
+the drift alternated -2/+2 at a fixed lag on archives that otherwise PASS. 42 of
+42 traced RNG calls came from that one function.
 
-**Symptom.** Our engine and CPS3 disagree about *when* `effect_G9` spawns. Each
-spawn burns exactly two `random_16()` — the two calls in `effect_G9_move`'s
-`case 0:` branch (`effg9.c`). On a **passing** archive the drift alternates in a
-strict pattern, three frames apart:
+**Cause.** `effect_G6_move` (`effg6.c`) gates the spawn on
+`now_koc & (players_timer + blink_timing)`. `players_timer` is a free-running
+`u16` the harness never imported, so our synthetic match start had it at 0 while
+the archive was mid-session in the tens of thousands.
 
-```
-frame 483  delta=-2  0 calls    <- CPS3 spawned here
-frame 486  delta=+2  2 calls    <- we spawned, 3 frames later
-frame 487  delta=-2  0 calls
-frame 490  delta=+2  2 calls
-```
+**Address, proven by disassembly: CPS3 `0x020157CE`** (archive offset
+`0x157CE`). `effg6_data` occurs once in the decrypted image at `0x061C6B38`; its
+only literal referrer is inside CPS3's `effect_G6_move` at `0x061083E4`; the gate
+at `0x061085A0` reads `0x020157CE`, adds `blink_timing` (WORK +2), and tests
+against `now_koc` (WORK +0x0206). That address has exactly four referrers in the
+image — the gate plus three `+1; & 0x7FFF` increment sites, matching the port's
+`plcnt.c` / `plcnt2.c` / `plcnt3.c`.
 
-Same cadence (~every 4 frames), consistently late. **42 of 42** traced RNG calls
-came from `effect_G9_move`; nothing else contributed.
+**Why the empirical scan could not settle it — worth remembering.** A scan for "a
+`u16` incrementing by 1 every frame" *prunes* `players_timer`, because it stalls
+~312 frames per game under `Game_pause || EXE_flag`. It also produced a
+false positive, `0x07F02`, which sat a constant 7,254 ahead over the sampled
+window and so gave identical residues mod 4; the two only diverge across a whole
+game. **A residue test on a short window is blind to a constant offset.** Only
+the disassembly discriminated.
 
-**Why one bug looks like two.** `Random_ix16` is force-synced every frame by
-`statcheck_compare.c` and brute-forced back by the device's
-`recover_random_ix16()`, so the drift is repaired 60 times a second and reads as
-clean. `Random_ix32` is **not** synced, so the identical phase offset there is
-permanent and eventually fails a checkpoint hash. One cause, two faces.
+**Result:** drift 322 → **0**, 174 → **0**, 255 → **0**, 418 → **0** across four
+archives. Every other archive fails at exactly the same frame with the same drift
+count — no regression, no improvement.
 
-**Scale.** On device, `recover_random_ix16()` fired **288 times in 13 replays**
-(~22 per replay, roughly a fifth of all checkpoints). This is not a rare event.
+**Not fixable by a FAILING archive, by construction.** A G9 phase error only
+moves `Random_ix16`, which the oracle overwrites every frame, so it can never
+make statcheck FAIL. Its whole cost is downstream: the device viewer's
+`recover_random_ix16()` recoveries (288 in 13 replays).
 
-**Mechanism.** `effect_G6_move` (`effg6.c`) spawns G9 through `effect_G9_init`,
-gated on:
+**STILL OPEN for the viewer.** The `.3sr` v1 header (`docs/3sr-format.md` §1,
+`header_size = 28`) carries `random_ix16` and `random_ix32` but NOT
+`players_timer`, and nothing in `src/replay/` references it. So the shipped
+viewer still starts every replay with `players_timer = 0` and still has the full
+phase offset — `f63507b7` fixes the statcheck oracle only. Closing it needs a
+header field; there is one reserved `pad` byte at `0x0F`, so it needs a v2 or a
+repurposed pair.
 
-```c
-if (ewk->wu.now_koc & (players_timer + ewk->wu.blink_timing)) { break; }
-```
+### E2b — a `random_32` consumer the port never executes (OPEN)
 
-`players_timer` is a free-running `u16` (`plcnt.c`, `players_timer++;
-players_timer &= 0x7FFF;` — the main player-control path, not only the bonus
-paths in `plcnt2.c`/`plcnt3.c`). It is **never imported from the archive**: no
-offset in `arcade_constants.h`, nothing in `src/test/`. Our synthetic match start
-has it at 0 while the archive is mid-session with it in the tens of thousands, so
-the bitmask lands on different frames.
+**Correction.** An earlier revision of this document unified E2a and E2b, calling
+the `Random_ix32` off-by-one a second face of the G9 phase offset. **That was
+wrong**, and the fix above disproves it: `players_timer` is now imported, all G9
+drift is zero, and these three archives fail at exactly the same frame as before.
 
-**Partial confirmation — do not treat the offset as settled.** Scanning the
-archive for a big-endian `u16` incrementing by 1 per frame and surviving a round
-boundary isolated `0x07F02` (16,568 at archive frame 200 -> 18,768 at 2,400,
-never resetting — unlike `GAME_TIMER_OFFSET 0x1136C`, which tracks the archive
-frame index). Importing it shifted the spawn lag from 3 frames to **2**, proving
-it feeds the gate, but did **not** remove the drift. Reverted as unproven. Either
-it is not `players_timer`, or `players_timer` is one of several unimported
-inputs — `blink_timing` is per-effect-instance state and the G6 instance's own
-creation frame is equally unimported.
+**Symptom.** `3455 game_1` @359, `5743 game_1` @301, `7733 game_3` @247 all fail
+identically: in a single frame CPS3 consumes **+2 `random_16` and +1
+`random_32`**, while our engine consumes **zero RNG calls for 40 frames either
+side** (windowed trace over archive frames 260–302).
 
-**This is the fourth instance of one pattern:** the arcade carries state across
-matches and our harness resets it. See also E1 (`Round_Level`), H2
-(`bg_w.stage`), H3 (`t_pl_lvr`).
+**Ruled out.** A BFS over the resolved CPS3 call graph finds no path from
+`effect_G9_move` (`0x06108AC8`) to `random_32` (`0x0611E0D6`) at depth 5, nor
+from `char_move` (`0x06089848`). So this is a consumer the port does not execute
+at all — not a mistimed one.
+
+**Not identified.** The two CPS3 functions carrying both ≥2 `random_16` and a
+`random_32` are `0x0610F278` (3×16, 1×32) and `0x0610F5C4` (4×16, 1×32); neither
+matches +2/+1 alone. Could not verify what runs there — searched the call graph
+and the port's function-level RNG census.
+
+This is the one that actually fails statcheck, so it is the higher-value target.
 
 ### E3 — `pos.x` jumps +32 at round start, cause unknown
 
@@ -354,7 +365,8 @@ mismatch, not for gaps).
 | id | what | state |
 |----|------|-------|
 | E1 | `Round_Level` damage scale | patch exists (external), **blocked** on the netplay `Round_Level = 0` question |
-| E2 | continuous RNG drift via `effect_G9` spawn phase | instrumented (`90ccb151`); cause localised to the `effg6.c` spawn gate; `players_timer` offset UNPROVEN |
+| E2a | `effect_G9` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer still affected** — `.3sr` header carries no `players_timer` |
+| E2b | a `random_32` consumer the port never runs | OPEN, unidentified; this is the one that fails statcheck |
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
 | H1 | `ScrdGame_Init` post-KO false positive | require `Game_timer` reset |
 | H2 | stage not imported | add a CPS3 offset for `bg_w.stage` |
