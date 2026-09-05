@@ -709,6 +709,16 @@ Verified: a 2,270-frame segment whose successor carries `Game_timer` 2,226.
 
 ### H4b — the harness forced `Play_Type == 1` on every segment (FIXED, by rejection)
 
+**Product note (user, 2026-09-05): the rejection is not a cost.** Human-vs-CPU
+replays are not content anyone wants in the viewer — a weekly-best set exists to
+show human matches. So dropping them is the desired behaviour independently of
+whether the harness could reproduce them, and the "costs 57% of the corpus"
+framing elsewhere in this document should be read as *of the ground-truth
+corpus*, not of anything shippable. Do not spend effort trying to recover CPU
+segments; the H4b investigation additionally showed they are not reproducible
+from the archive (the AI reads cabinet state the archive does not carry, and
+clearing `wu_operator` discards the archive's own pinned input word).
+
 `statcheck_runner.c` taps `SWK_START` for player 2 at
 `PHASE_CHARACTER_SELECT`, and `ScrdGame_Init()` never imported `wu_operator`.
 So **every** statcheck run had two human operators: `set_base_data()`
