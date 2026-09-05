@@ -352,13 +352,42 @@ not bite because `app_type_tbl` is stage-flat for most matchups — which is why
 most games pass. **Fix:** import `bg_w.stage`; there is no CPS3 offset for it in
 `arcade_constants.h` today.
 
-### H3 — lever counters are never cleared, and the warm-up is too short
+### H3 — lever counters are never cleared (FIXED)
 
 `t_pl_lvr` (`cmd_data.c`) is a plain global that nothing clears at match start —
-`System_all_clear_Level_B()` does `Bg_Close()` + `effect_work_init()` only. An
-archive can open with `s1_cnt` already at 16 from a pre-match button hold; ours
-starts at 0. The 5-frame warm-up in `Statcheck_CompareValues()` never washes
-that out while a button stays held. Observed: 22 − 6 = 16, exactly.
+`System_all_clear_Level_B()` does `Bg_Close()` + `effect_work_init()` only, and
+neither `Game2_0()` nor `Game2_2()` (`game.c`) mentions it. An archive can open
+with `s1_cnt` already at 16 from a pre-match button hold; ours starts at 0.
+
+**Why the warm-up could never have fixed it.** `read_input_buff()`
+(`statcheck_runner.c`) feeds our engine the archive's own button word every
+frame, so once both sides are holding the same button they increment in
+lockstep — and a constant offset incremented in lockstep stays constant
+forever. Lengthening the 5-frame warm-up in `Statcheck_CompareValues()` would
+only have moved the failure later. Measured on `7733 game_6`: the archive
+enters with p0 `sw_lvbt = 0x0170` and `s1_cnt/s2_cnt/s3_cnt/s5_cnt =
+16/16/17/15`, all running +1/frame; the report was `s1_cnt (6) != 22` at
+archive frame 7 — the 16-count head start, six frames on. (This corrects the
+earlier framing of this item: the warm-up length was never the defect.)
+
+**Fix (this commit).** `Statcheck_SyncValues()` now seeds `t_pl_lvr` from the
+pre-game frame with the existing `read_t_pl_lvr()` reader, exactly as it
+already seeds `players_timer` and for the same reason — one import, after
+which both sides advance identically. No new CPS3 offset was needed:
+`T_PL_LVR_OFFSET` was already in `arcade_constants.h` because the *compare*
+side reads it. This is the import upstream had sketched and left commented
+out (see this file's header comment).
+
+**Measured, 16-segment corpus** (same corpus and build tree as H1):
+
+| segment | before | after |
+|---|---|---|
+| `7733 game_6` | `s1_cnt (6) != 22` @ frame 7, rc=1 | **PASS**, compared frames 1..14874 of 14875 |
+| the 5 segments that passed | PASS | PASS, identical compared-frame ranges |
+| the other 8 failures | (see table above) | unchanged: same file, same line, same values, same frame |
+
+A 14,875-frame segment going clean end to end — not merely past frame 7 — is
+what says the seed is the right value rather than a papered-over symptom.
 
 ### H4 — segment count below `num_matches` is correct, not a bug
 
@@ -457,7 +486,7 @@ mismatch, not for gaps).
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | add a CPS3 offset for `bg_w.stage` |
-| H3 | lever counters / warm-up | clear `t_pl_lvr`, or lengthen the warm-up |
+| H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 

@@ -545,6 +545,32 @@ void Statcheck_SyncValues(SDL_IOStream* io) {
      * Player_control / Player_control_bonus / Player_control_bonus2) each do
      * `+1` then `& 0x7FFF` on that same address. */
     players_timer = read_u16(io, PLAYERS_TIMER_OFFSET);
+
+    /* t_pl_lvr (H3, docs/research-arcade-balance-desyncs.md). The lever/button
+     * command counters in `t_pl_lvr` (`cmd_data.c`) are plain globals that
+     * accumulate across matches and that nothing clears at match start --
+     * `System_all_clear_Level_B()` (`sys_sub.c`) does `Bg_Close()` +
+     * `effect_work_init()` and does not touch them, and neither `Game2_0()`
+     * nor `Game2_2()` (`game.c`) mentions them. So an archive can enter a
+     * match with a counter already run up by a button held through the
+     * preceding screen, while a statcheck run starts a synthetic match with
+     * every counter at 0.
+     *
+     * Unlike `wcp`, these do NOT self-correct from the injected input:
+     * `read_input_buff` feeds our engine the archive's own button word each
+     * frame, so both sides then increment in lockstep -- and a constant offset
+     * incremented in lockstep stays constant forever. Measured on
+     * `7733 game_6`: the archive enters with p0 `s1_cnt = 16` (a punch+kick
+     * hold, `sw_lvbt = 0x0170`, running +1/frame) and statcheck reported
+     * `s1_cnt (6) != 22` at archive frame 7 -- exactly the 16-count head start,
+     * six frames later. The 5-frame warm-up in Statcheck_CompareValues cannot
+     * wash that out while the button stays held.
+     *
+     * Seeding once from the pre-game frame is enough, for the same reason the
+     * `players_timer` seed above is: after it, both sides advance identically.
+     * This is the same import the upstream compare had sketched and left
+     * commented out (see the file header). */
+    read_t_pl_lvr(io, t_pl_lvr);
 }
 
 #endif
