@@ -89,7 +89,10 @@ true difference under 64. The "dirty" hack everyone works around is the thing
 that makes the measurement precise.
 
 **Limits.** It names only OUR call sites. A negative delta means CPS3 called
-something we did not, and that answer is in the arcade disassembly. Reports are
+something we did not, and that answer is in the arcade disassembly. **And it is blind
+to reordering**: if both engines make the same number of calls on a frame but in
+a different order, the delta is 0 and nothing is reported, while the two sides
+still consume different table entries. That is exactly how E3 hid — see E3. Reports are
 capped (`STATCHECK_RNG_DRIFT_MAX`) so a run that drifts every frame cannot bury
 the first divergence.
 
@@ -419,96 +422,57 @@ besides `random_32`, so the +1 had to be a real call.
 `pli_0002()` (`plcnt.c`) is a documented stub, but runs several frames before the
 `3→4` transition and CPS3's effect M4 contains no RNG.
 
-### E3 — RETRACTED: `pos.x` +32 is not an engine divergence, and is now unobservable
+### E3 — RETRACTED and now ROOT-CAUSED: a swapped RNG draw order
 
-**Symptom, as it was.** P0 `pos.x` read 424 where the archive held 392, at
-archive frame 54. Two instances, `7733 game_5` and `1710 game_1`, both
-**Alex vs Yang**.
+**The retraction stands, and is now proven rather than argued.** The earlier
+evidence recorded here was wrong in kind and is corrected below.
 
-**Disposition: retracted as a divergence claim; reclassified under H4b; not
-observable in this corpus.** Both instances are human-vs-CPU segments, so with
-H4b applied both now exit 3 and are never compared. That is *not* the same as
-"fixed": what follows is the evidence for the reclassification, and the one
-thing that stayed unproven.
+**Mechanism.** An lldb hardware watchpoint on `plw[0].wu.xyz[0].disp.pos`
+(condition `== 424`) gives:
 
-**1. Both instances are CPU segments (measured).** `wu_operator` read straight
-out of the archive at the match-start frame (`0x68C6F` / `0x69107`) is `(1, 0)`
-in both, and `(1, 0)` for all 8,842 frames of `7733 game_5`. Both are rejected
-by `ScrdGame_Init()`'s H4b check.
+```
+comm_pa_x +44 <- char_move <- Appear_01000 <- Player_normal
+              <- player_mv_2000 <- move_P1_move_P2 <- plcnt_init
+              <- Player_control <- Game2_1
+```
 
-**2. The mechanism this entry proposed is REFUTED.** `Appear_24000()` and
-`Appear_25000()` (`appear.c`) never run in either segment. `appear_player()`
-dispatches `appear_jmp_tbl[wk->wu.routine_no[4]]`, and the archive holds
-`routine_no[4] == 1` for P0 and `== 21` for P1 on **every** frame from 3 to 60
-in both segments — `Appear_01000` and `Appear_21000`. Table indices 24 and 25
-never occur. The `!wu_operator` X override was a plausible reading of the code
-and is simply not what these recordings executed.
+`comm_pa_x` (`charset.c`) is the walk-in script's "player add X":
+`wk->xyz[0].cal += ctc->ix << 8`. So it is **accumulated script motion**, not a
+direct write.
 
-**3. It is a one-frame teleport, not a placement difference.** A one-off
-position trace of `7733 game_5` (both players, ours vs archive, printed at the
-head of `compare_main_values`) shows our P0 at 392 — the archive's value —
-through frame 53 and 424 on frame 54, with P1 at the archive's 601 on both.
-That it fails at 54 and not earlier is itself the proof it was right all along:
-`Statcheck_CompareValues` asserts `pos` on every frame where
-`G_No[1] == 2 && G_No[2] == 1`, and the archive holds that from frame 11.
-Everything compared *ahead of* P0's `pos` on the failing frame agrees —
-`Game_timer`, `C_No`, `G_No[1..3]`, `Random_ix32`, and for **both** players
-`routine_no[0..7]`, `cg_add_xy`, `do_not_move`, `caution_flag`, `hit_stop`,
-`dm_stop`, plus P0's `mvxy.a`/`mvxy.d`. So the +32 is a single direct write to
-`wk->wu.xyz[0].disp.pos`, not accumulated motion — which rules out the `mvxy`
-path as well as the two `appear.c` overrides.
+**Why the variant differs.** `Appear_01000` case 0 (`appear.c`) does
+`work = random_16() & 3; set_char_move_init(&wk->wu, 9, work)` on
+`Game_timer == 2`, and both players draw on that frame — so **draw ORDER decides
+which player gets which index**. `move_player_work()` (`plcnt.c`) switches on
+`plw[0].wu.wu_operator + (plw[1].wu.wu_operator * 2)`: `case 1`/`case 2` pin the
+order, while `(1,1)` and `(0,0)` fall through to a `Game_timer & 1` arm. A
+`(1,0)` recording therefore takes the pinned arm while our two-operator harness
+took the parity arm, and Alex draws a different index:
 
-**4. A (1,1) segment cannot exhibit it.** Every `wu_operator`-conditioned path
-that can set round-start X is unreachable when both operators are 1:
+| archive | Alex's index -> `&3` | arcade P0.x | ours |
+|---|---|---|---|
+| `7733 g5` (1,0) | `tbl[55]=3` -> **3** | 392 flat | `tbl[56]=12` -> **0**, 424 @54 |
+| `1710 g1` (1,0) | `tbl[32]=5` -> **1** | 392 flat | `tbl[33]=4` -> **0**, 424 @54 |
+| `5743 g0` (1,1) | `tbl[28]=1` -> **1** | 392 flat | same -> PASS |
+| `7733 g6` (1,1) | `tbl[35]=2` -> **2** | **424** | same -> PASS |
 
-- `Appear_24000()` / `Appear_25000()` are `if (!wk->wu.wu_operator)`;
-- `home_visitor_check()`'s CPU arm is the `else` of `if (Play_Type)`, and
-  `Play_Type == 1` exactly when both operators are set (`Setup_Play_Type()`,
-  `sys_sub.c`);
-- `move_player_work()` (`plcnt.c`) pins the two players' update order with
-  `switch (plw[0].wu.wu_operator + (plw[1].wu.wu_operator * 2))` — `case 1`
-  forces `move_P1_move_P2()` and `case 2` forces `move_P2_move_P1()` every
-  frame, while `(1,1)` and `(0,0)` both fall to the `default` arm that
-  alternates on `Game_timer & 1`.
+Variants 1 and 3 hold at 392; variants 0 and 2 step +32. Note `7733 g6` is
+**arcade-side 424 and passes** — the +32 is a legitimate walk-in variant, not a
+defect in either engine.
 
-A genuine human-vs-human recording has `(1, 1)` and so does the harness, so on
-those segments the two sides take the same arm by construction. E3's symptom is
-reachable only in the configuration the harness now refuses.
+**Corrections to what this document previously asserted:**
+- "a single direct write to `xyz[0].disp.pos`, not accumulated motion" — **wrong**.
+  It is accumulated script motion through `char_move`.
+- the `set_field_hosei_flag` camera-clamp candidate — **wrong**, and dropped.
+- "unreachable in (1,1) play" was right, but for the wrong reason: the
+  `wu_operator`-conditioned *write paths* named earlier (`Appear_24000`/
+  `Appear_25000`) never run — `routine_no[4]` is 1 and 21 on every frame 3-60.
+  The real reason is the draw-order switch above.
 
-**5. What is NOT proven.** Which write produced the +32. Ruled out by
-measurement: the two `appear.c` overrides (never dispatched) and `mvxy` drift
-(compared equal on the failing frame). Still open as a candidate, unproven: the
-screen-edge clamp `set_field_hosei_flag(&plw[0], scrr/scrl, …)` in
-`move_P1_move_P2()` / `move_P2_move_P1()`, whose limits come from
-`set_scrrrl()` -> `get_center_position()` = `bg_w.bgw[1].wxy[0].disp.pos`. That
-camera value is neither imported nor compared by statcheck, and the order in
-which the two clamps run is picked by the `wu_operator` switch above — so a
-camera that is 32 off would snap exactly one player by exactly 32 on the frame
-the clamp first arms (`bg_app_stop == 0 && bg_app == 0`). Confirming that needs
-an arcade offset for `bg_w.bgw[1].wxy[0]`, which the H2 note's warning applies
-to: it cannot be derived from the port struct (the arcade `BGW` has 4-byte
-pointers and one extra byte ahead of `stage`), so it would have to come from
-disassembly. Not done.
-
-**6. Design (a) cannot settle it, measured.** Two runs with the archive's
-`wu_operator` forced into `Operator_Status` / `plw[].wu.wu_operator`:
-
-| experiment | first divergence |
-|---|---|
-| operators imported, harness otherwise unchanged | `w_lvr (-32760) != (-32764)` @ frame **7** |
-| same, with `compare_lvr`/`compare_wcp`/`compare_waza_work` suppressed | `routine_no (3) != (1)` @ frame **11** |
-
-Both segments, both experiments, identical results. Neither run reaches frame
-54, so E3 is not re-measurable that way. The first failure is argument 1 of the
-H4b design note in action (`Player_move()` discards the pinned lever word); the
-second is argument 3 (a CPU operator inside the harness's synthetic VERSUS
-match manufactures new divergences — here in the appear state machine —
-*earlier* than the one it was meant to explain).
-
-Previously excluded by measurement, all still valid: segmentation, input
-alignment (our `C_No`, `G_No[1..3]`, `Game_timer` and injected input words match
-frame-for-frame for 53 frames), stage (`app_type_tbl[1][10]` is flat across
-stages and `routine_no[4]` matched), lever warm-up.
+**Limit this exposed in the instrument.** The RNG tracer is **blind to
+equal-count reordering**: on the frame that matters, both engines make the same
+number of `random_16()` calls, so the delta is 0 and nothing is reported. See the
+caveat in the instrumentation section.
 
 ---
 
@@ -885,6 +849,60 @@ quark. Missing games have some other cause (H4 accounts for the count
 mismatch, not for gaps).
 
 ---
+
+## The failure this body of work nearly shipped
+
+Worth stating on its own, because it is the one thing a careful reviewer caught
+that six investigations did not.
+
+**H1 and H4b were taught to the oracle and not to the producers.** Once
+`ScrdGame_Init` learned to reject CPU-recorded and matchless segments, the sweep
+reported zero divergences — and that reads as "the engine is clean". But both
+`.3sr` writers kept converting exactly those segments, and the viewer forces two
+operators the same way the harness did (`replay_player.c`,
+`PHASE_CHARACTER_SELECT` -> `tap_button(SWK_START, 1)`), so every such file is a
+**guaranteed on-device desync**. Demonstrated, not argued: a `.3sr` generated
+from `7733 game_5` (CPU) and from `7733 game_2` (matchless) each produced
+`REPLAY DESYNC at frame 60` in the shipped viewer.
+
+The Mac lane hid this by accident — `publish_3sr.py` gated on `rc == 0`, so
+ineligible segments were dropped as a side effect of the statcheck run. The VPS
+lane has no statcheck at all (D3) and did ~97% of the 22,747 shipped
+conversions.
+
+**Fixed** in `3f04f0bb` (both producers gated), `0b8e05f6` (ineligible reported
+as skipped, not divergent) and `abf81daa` (`RS_EMPTY` given an exit). Both lanes
+now emit byte-identical output and agree file-for-file.
+
+**The general lesson: a rejection added to the oracle is not a fix.** The oracle
+only decides what we *measure*. Anything that also decides what we *ship* has to
+learn the same rule, or the measurement gets cleaner while the product gets
+worse. Check the producers whenever a harness predicate changes.
+
+### Shipped-corpus exposure (bounded, not measured)
+
+Roughly **1.5%-7.4% of 22,747 files, ~330-1,680**, point estimate ~1,280 (5.6%).
+
+- **Matchless: measured exactly, 66 files (0.290%)** — identifiable from the
+  `.3sr` alone because such a segment holds every checksummed field constant but
+  `Game_timer` and the SW words, and djb2 over an odd field count is invertible
+  enough to recover the difference. Validated 16/16 against ground truth. A lower
+  bound, and proof that matchless files did ship.
+- **CPU: not identifiable from a `.3sr` at all.** The obvious classifier — "the
+  CPU side's input word looks idle" — is refuted: the stored word is a real
+  human's, from the other seat, that `Player_move()` simply discarded. Best
+  `.3sr`-visible feature reached AUC 0.725. The estimate instead comes from the
+  Mac worker's own statcheck outcomes over an independent sample of the same
+  catalog (69 FAIL / 1,117 games / 367 quarks = 6.18%, bootstrap 95% CI
+  [4.65%, 7.79%]), which is an upper bound since statcheck-FAIL also catches
+  real divergence.
+- **Do not extrapolate the four local quarks** (62.5% bad). They are
+  investigation samples, ~43x enriched against the corpus-wide matchless rate.
+
+**Not cleaned up.** The 66 matchless files are identifiable and removable today;
+the CPU files cannot be identified without re-converting. Both are the user's
+call. The deployed VPS runner still carries the old tracker, so the VPS lane
+keeps producing ungated output until it is redeployed.
 
 ## Worklist
 
