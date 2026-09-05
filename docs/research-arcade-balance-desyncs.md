@@ -362,45 +362,82 @@ checkpoint sets. The
 divergences were ±2 on `Random_ix16` — the two `random_16()` draws per
 `effect_G9_move` `case 0:`, exactly the predicted signature.
 
-### E2b — a `random_32` consumer the port never executes (OPEN)
+### E2b — RETRACTED: the "consumer we never run" is the CPU player
 
-**Correction.** An earlier revision of this document unified E2a and E2b, calling
-the `Random_ix32` off-by-one a second face of the G9 phase offset. **That was
-wrong**, and the fix above disproves it: `players_timer` is now imported, all G9
-drift is zero, and these three archives fail at exactly the same frame as before.
+**This was never an engine defect.** It is the same root cause as **H4b**.
 
-**Symptom.** `3455 game_1` @359, `5743 game_1` @301, `7733 game_3` @247 all fail
-identically: in a single frame CPS3 consumes **+2 `random_16` and +1
-`random_32`**, while our engine consumes **zero RNG calls for 40 frames either
-side** (windowed trace over archive frames 260–302).
+**What it looked like.** Three archives failed identically on their first
+RNG-drift frame: `delta=-2 … 0 RNG call(s) this frame`, immediately followed by
+`Random_ix32 (N) != cps3 (N+1)`. CPS3 burned +2 `random_16` and +1 `random_32`
+where we burned nothing for 40 frames either side.
 
-**Ruled out.** A BFS over the resolved CPS3 call graph finds no path from
-`effect_G9_move` (`0x06108AC8`) to `random_32` (`0x0611E0D6`) at depth 5, nor
-from `char_move` (`0x06089848`). So this is a consumer the port does not execute
-at all — not a mistimed one.
+**What it is.** On every one of those segments the recording had a **CPU
+player**. The failing frame is the frame `plw[0..1].wu.routine_no[0]` goes
+`3 → 4` — the "FIGHT!" frame, one after `Allow_a_battle_f` flips. `CPU_Sub()`
+(`com_pl.c`) returns 0 while `Allow_a_battle_f == 0`, which is exactly why the
+AI's first draw lands there and not earlier. On that frame `CP_No[id][0] == 0`,
+so `Main_Program()` dispatches `Com_Initialize()`, which calls in order:
 
-**Not identified.** The two CPS3 functions carrying both ≥2 `random_16` and a
-`random_32` are `0x0610F278` (3×16, 1×32) and `0x0610F5C4` (4×16, 1×32); neither
-matches +2/+1 alone. Could not verify what runs there — searched the call graph
-and the port's function-level RNG census.
+1. `Setup_Next_Stand_Timer()` → `random_16_com()` (`ck_pass.c`)
+2. `Setup_Next_Squat_Timer()` → `random_16_com()` (`ck_pass.c`)
+3. `Setup_Bullet_Counter()` → `random_32_com()` (`com_pl.c`)
 
-This is the one that actually fails statcheck, so it is the higher-value target.
+With `Play_Mode == 0` those delegate to `random_16()`/`random_32()` (`pls02.c`).
+**Exactly +2 / +1.** Our engine never runs them because `Player_move()`
+(`plmain.c`) only reaches `cpu_algorithm()` when `wu.wu_operator == 0`, and the
+harness makes both players operators.
 
-### E3 — `pos.x` jumps +32 at round start, cause unknown
+**The discriminator, and it is perfect.** `plw[i].wu.wu_operator` (WORK offset 3;
+archive `0x68C6F` / `0x69107`):
+
+| group | `wu_operator` | segments | statcheck |
+|---|---|---|---|
+| human vs human | (1,1) | 6 | **all PASS** |
+| human vs CPU | (1,0)/(0,1) | 8 | **all FAIL** |
+| attract demo | (0,0) | 2 | NO-MATCH |
+
+Independently confirmed on `5743 game_1`: the P1 lever word (`wcp`, `0x26318`)
+disagrees with the P1 cabinet switch (`P1SW_0`, `0x6AA8C`) on **814/1201
+(67.8%)** battle frames, against a 10–17% latch baseline in the both-human twin.
+P1 is machine-driven.
+
+**Supporting disassembly.** `random_32` = `0x0611E0D6`, 21 call sites image-wide;
+18 sit in `0x06006xxx–0x060136xx`, matching the port's 18 `random_32_com()` sites
+across `com_pl.c` (8), `com_sub.c` (9), `ck_pass.c` (1). `random_tbl_32_com` and
+`random_tbl_16_com` do **not** occur anywhere in the CPS3 image — the `_com`
+tables are a PS2 addition, and on hardware the AI calls `random_32`/`random_16`
+directly, which is precisely what `random_*_com()` does when `Play_Mode == 0`.
+`Random_ix32` (`0x020155EA`) has only three literal referrers and no writer
+besides `random_32`, so the +1 had to be a real call.
+
+**Ruled out along the way**, both real stubs, neither the cause:
+`setup_effK4()` (`effk4.c`) is an empty stub and CPS3's `effect_K4_move` burns
+1×`random_32` + 6×`random_16` per spawn — but K3/K4 are bonus-stage debris
+(`_bonus_char_table`), unreachable in a VS match. Worth its own entry.
+`pli_0002()` (`plcnt.c`) is a documented stub, but runs several frames before the
+`3→4` transition and CPS3's effect M4 contains no RNG.
+
+### E3 — `pos.x` jumps +32 at round start (LIKELY the same cause as E2b/H4b)
 
 **Symptom.** P0 `pos.x` reads 424 where the archive holds 392, at archive frame
-54, in two independent sessions of the **same matchup** (char 1 vs char 10).
-392 is the archive-side round-start default; 424 is ours.
+54. Two instances, both **Alex vs Yang**.
 
-**Ruled out, each by measurement:** segmentation (well-formed match start);
-input alignment (our `C_No`, `G_No[1..3]`, `Game_timer` and injected input words
-match the archive frame-for-frame for 53 frames); stage
-(`app_type_tbl[1][10]` is flat across all stages and our engine demonstrably
-used that entry — `routine_no[4]` matched); Champion/home-visitor
-(`app_type_tbl2[1][10]` gives a different `rno` that would have failed earlier);
-lever warm-up.
+**Both are human-vs-CPU segments.** `appear.c` branches on `wu_operator` in three
+places that decide round-start X: `home_visitor_check()` (its `Play_Type == 0`
+path selects on `wu_operator`), and `Appear_24000()` / `Appear_25000()`, which
+overwrite `wk->wu.xyz[0].disp.pos` **only when `!wu_operator`**. That is an X
+override which leaves `rno` unchanged — which is exactly what the earlier
+"Champion and home-visitor ruled out, because `rno` matched" note could not
+account for.
 
-**Open.** No mechanism established. Reproduces reliably, so it is tractable.
+**Not yet proven.** The mechanism fits and the segment classification fits, but
+E3 has not been re-run with `wu_operator` imported. **H4b is the test**: if E3
+survives it, it is a real defect; if it disappears, it was never one.
+
+Previously excluded by measurement, all still valid: segmentation, input
+alignment (our `C_No`, `G_No[1..3]`, `Game_timer` and injected input words match
+frame-for-frame for 53 frames), stage (`app_type_tbl[1][10]` is flat across
+stages and `routine_no[4]` matched), lever warm-up.
 
 ---
 
@@ -671,8 +708,8 @@ mismatch, not for gaps).
 | E1b | port never updates `Round_Level` in VS | **RETRACTED, not a defect** — arcade `Loser_Sub` (`0x0609C616`) and `Update_VS_Data` (`0x0609C79A`) gate on `Play_Type` exactly as the port does. The archive decrements are all in human-vs-CPU segments |
 | H4b | harness forces `Play_Type == 1` on every segment | **OPEN** — `statcheck_runner.c` taps `SWK_START` for P2 and `ScrdGame_Init` never imports `wu_operator`, so the 8 human-vs-CPU segments run under the wrong `Play_Type`. This, not E1, produced the `vital_new` off-by-ones the old E1 cited |
 | E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device, and existing v1 files keep the old behaviour |
-| E2b | a `random_32` consumer the port never runs | OPEN, unidentified; this is the one that fails statcheck |
-| E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
+| E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect |
+| E3 | `pos.x` +32 at round start | LIKELY the same cause as H4b (`appear.c` overrides X only when `!wu_operator`); both instances are CPU segments. **H4b is the test** |
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
