@@ -29,6 +29,7 @@
  */
 
 #include "test/statcheck_compare.h"
+#include "test/statcheck_seed_audit.h"
 #include "arcade/arcade_constants.h"
 #include "constants.h"
 #include "main.h"
@@ -81,6 +82,25 @@ static void stop_if(bool condition) {
             (unsigned long long)current_compare_frame);
 
     if (configuration.headless) {
+        /* Exit 4, not 1, when the seed audit already found the run's initial
+         * conditions dirty (docs/research-arcade-balance-desyncs.md, "The seed
+         * audit"). Same rule H1 (exit 2) and H4b (exit 3) established: a
+         * segment the harness could not set up correctly must never be
+         * reported as an engine divergence, because that is the report that
+         * gets acted on. 1 keeps its meaning -- "the engine diverged from
+         * CPS3, with a seed the audit says was correct" -- and gets STRONGER
+         * for it. Publication gating is unaffected either way: publish_3sr.py's
+         * statcheck_gate is `clean = proc.returncode == 0`. */
+        if (StatcheckSeedAudit_Dirty()) {
+            fprintf(stderr,
+                    "statcheck: this run's SEED was dirty (%d field(s), reported above at the seed frame). "
+                    "Exiting 4, not 1: the mismatch above is not attributable to the engine until the seed "
+                    "gaps are closed.\n",
+                    StatcheckSeedAudit_MismatchCount());
+            fflush(stderr);
+            exit(4);
+        }
+
         exit(1);
     } else {
 #if defined(_WIN32)

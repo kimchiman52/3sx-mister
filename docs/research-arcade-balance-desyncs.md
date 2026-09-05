@@ -1168,6 +1168,190 @@ No segment that passed starts failing, and the sweep now reports **zero** rc=1.
 
 ---
 
+## The seed audit (2026-09-05)
+
+Seven defects in this body of work shared one shape: **the arcade carries state
+across a match boundary and the harness resets it.** `Round_Level` (E1a),
+`bg_w.stage` (H2), `t_pl_lvr` (H3), `players_timer` (E2a), `wu_operator` (H4b),
+the match-start predicate (H1) and `bg_w.quake_y_index` (E5). Each cost a
+separate investigation, and **two were written up as engine defects and reported
+before being retracted.**
+
+The cost pattern never varied: the seed is wrong at frame 0, nothing notices,
+and the mismatch surfaces at archive frame 300 or 3,090 looking exactly like an
+engine bug. `Game_timer` at frame 1, `s1_cnt` at 7, `routine_no` at 11 — each
+burned an investigation.
+
+**The invariant that makes this cheap to catch: at the seed frame our engine has
+not executed any compared frame yet.** Anything that differs there is an initial
+condition, not behaviour. The audit therefore needs no model of the simulation.
+It only has to notice.
+
+### Where it runs
+
+`StatcheckSeedAudit_Run` (`src/test/statcheck_seed_audit.c`), called from
+`StatcheckRunner_Prologue`'s `PHASE_GAME_TRANSITION` arm (`statcheck_runner.c`)
+**immediately after `Statcheck_SyncValues` and before `SDL_CloseIO`** — the same
+`start_index - 1` frame the import reads. Running after the import is what makes
+the five seeded fields a self-test of the import rather than a restatement of it.
+
+It is read-only. Every engine reference in the file is on the right of a
+comparison or an argument; the only assignments are to file-static counters and
+locals. The behavioural proof is the sweep below: all 143 `PASS — compared
+archive frames a..b of n` lines are **string-identical** before and after.
+
+### What it audits — 150 fields — and what it cannot
+
+`arcade_constants.h` carries ~46 offsets. Not all of them name a value that can
+be soundly compared, and the audit does not invent a comparison it cannot
+justify:
+
+| excluded | why |
+|---|---|
+| `PLW_OFFSET`, `PLW_SIZE`, `T_PL_LVR_OFFSET`, `WAZA_WORK_OFFSET`, `WCP_OFFSET`, `SUPER_ARTS_WORK_OFFSET`, `PIYORI_TYPE_OFFSET` | struct bases and a stride, not fields — audited through the fields reached from them |
+| `P1SW_0_OFFSET`, `P2SW_0_OFFSET` | raw arcade register layout (kicks at bits 7-9) against the port's SWK layout (kicks 8-10, bit 7 unused). `read_input_buff` (`statcheck_runner.c`) exists precisely because the two are different encodings; a bit-for-bit compare would be fabricated and a re-encoded one would only re-test `read_input_buff` |
+| `WORK_CURR_RCA_OFFSET` | `CatchTable* curr_rca` (`include/structs.h`) — the archive holds a CPS3 address, our engine a host address, and there is no map between them |
+
+Everything else is audited: the five `Statcheck_SyncValues` imports, the
+`ScrdGame_Init` match setup (`My_char`, `Super_Arts`, `Player_Color`,
+`New_Challenger`, `bg_w.stage`), the service globals, both players' WORK/PLW
+scalars, and all 34 `T_PL_LVR` fields per player. 150 comparisons per run.
+
+**`t_pl_lvr[].waza_no` is new here.** `compare_lvr()` (`statcheck_compare.c`)
+compares 33 of the struct's 34 fields; upstream's list omits `waza_no`. Measured
+at the seed frame over the 143-segment corpus, **it is the only one of the 34
+that is ever non-zero** — 71 of 80 sampled player-slots carry a value in 2..47,
+every other field is 0 on both sides. Without it the H3 import has nothing to
+check against on that corpus, which is exactly what the first retrodiction run
+showed. `read_t_pl_lvr` already copies the whole struct, so auditing it is free.
+
+### The allowlist
+
+A field is audited **strictly** when the harness is responsible for reproducing
+it at the seed frame. It is allowlisted when our own match-start path provably
+rewrites it before the oracle ever compares it — the seed value is then not an
+initial condition at all. Every entry carries its reason in the code.
+
+| allowlisted | reason |
+|---|---|
+| `Game_timer`, `C_No[0..3]`, `G_No[2]`, `Allow_a_battle_f` | `Game2_0()` (`game.c`) writes `Game_timer = 0; C_No[0..3] = 0; G_No[2] = 3; Allow_a_battle_f = 0` in one frame, on both sides, on the frame **after** the seed frame — that is H1's predicate, so it is true by construction. The carried-in `Game_timer` here is H1's diagnostic law (it equals `len(previous segment) - 2`) |
+| `G_No[0]` | `compare_service_values()` excludes it too (`if (i != 0)`); auditing it would report a difference the oracle itself declines to make |
+| `Scene_Cut` | `Game02()` (`game.c`) recomputes it as its **first** statement every frame — `Scene_Cut = Cut_Cut_Cut();` (`sys_sub.c`), a pure function of the current buttons — before dispatching `Game02_Jmp_Tbl[G_No[2]]` |
+| `waza_type[0..1]` | scratch, not state: its only writer is `waza_type[cmd_id] = j` inside `cmd_move()`'s 56-entry loop (`cmd_main.c`), every frame |
+| `wcp[]`, `waza_work[]` (aggregate) | `Statcheck_CompareValues` itself skips them for 5 archive frames ("Wait a bit so that the game has time to clear garbage values"); they self-correct from the injected button word, and `cmd_init()` (`cmd_main.c`, called by `set_base_data()`) zeroes them at battle start. Reported as two counts, not per field |
+| the per-player WORK/PLW battle group | structural: at the seed frame the archive holds the **previous match's** players while our synthetic session has never played one (`plw` reads all-zero, measured on all 143). "Fresh vs residue" cannot say whether the harness reproduced anything — and cannot hide a defect either, because `set_base_data()` (`plcnt.c`), `plcnt_init()` and `appear_data_set()` (`appear.c`) rebuild all of it, and the oracle only reaches this group when `G_No[1] == 2 && G_No[2] == 1`, strictly later |
+
+`wu.wu_operator` is the **exception inside that last group and stays strict**: it
+is not previous-match residue, it comes from the harness's own synthetic
+character select (`Entry_Mark_Set` -> `Operator_Status[]`, `entry.c` ->
+`set_base_data()`), so it is the harness's responsibility — and it is the field
+H4b's whole rejection rests on. Measured equal on all 143.
+
+Allowlisted differences are **counted always, printed only under
+`STATCHECK_SEED_AUDIT_VERBOSE=1`**. Twenty of them on every clean run is exactly
+the noise that lets a real one go unread. `=2` dumps every audited field whether
+it matches or not — that level is what turns the audit into a positive control,
+below.
+
+### Fail or warn: a fourth typed exit code, and only on an already-failing run
+
+A seed mismatch is not an engine divergence, so exiting 1 would be wrong. But a
+warning that can be ignored does not stop the failure mode this exists for. The
+resolution keeps both properties:
+
+- **rc 0 is untouched.** A clean run with a dirty seed still passes and still
+  publishes. `publish_3sr.py`'s `statcheck_gate` is `clean = proc.returncode
+  == 0`, so a hard failure here would reject segments that are fine in practice
+  — 143 of 143 pass today, and several of them *would* be dirty if any import
+  were removed.
+- **A comparison failure with a dirty seed exits 4, not 1.** `stop_if`
+  (`statcheck_compare.c`) consults `StatcheckSeedAudit_Dirty()` and prints why.
+  This is the rule H1 (exit 2) and H4b (exit 3) already established: a segment
+  the harness could not set up correctly must never be reported as an engine
+  divergence, because that is the report that gets acted on.
+
+The point is not that 4 is softer than 1. It is that **1 gets stronger**: after
+this change, rc 1 means "the engine diverged from CPS3, with a seed the audit
+says was correct". Both of the retracted engine-defect reports would have been
+rc 4.
+
+### Does it retrodict the defects it was built for?
+
+Method: disable exactly one import, rebuild, run, and check the audit names that
+field at the seed frame. **Two of the four historical defects reproduce
+outright; the other two are not reproducible on either corpus and the audit's
+detection path for them is demonstrated by a deliberate skew instead.**
+
+| defect | experiment | result |
+|---|---|---|
+| **`players_timer` (E2a, `f63507b7`)** | drop `players_timer = read_u16(io, PLAYERS_TIMER_OFFSET)` from `Statcheck_SyncValues` | **RETRODICTED. 143/143** segments go DIRTY with `MISMATCH players_timer [seeded] ours=0 cps3=<archive value>` at the seed frame. 126 of them then fail, and every one fails on `Random_ix16` — E2a's exact signature — so all 126 exit **4** where before this change they would have exited 1 and read as an engine divergence. The remaining 17 pass anyway |
+| **`t_pl_lvr` (H3, `cbbbcf25`)** | drop `read_t_pl_lvr(io, t_pl_lvr)` | **RETRODICTED twice over.** (1) On the segment the write-up names: `7733 game_6` (16-segment corpus) goes `rc=4` naming **ten** fields at seed frame 0, including `s1_cnt ours=0 cps3=16` — the exact 16-count head start H3 measured — and its downstream failure is `lvr_3sx->s1_cnt (6) != lvr_cps3->s1_cnt (22)` at archive frame 7, the H3 report verbatim. (2) On the 143-segment corpus, **143/143** go DIRTY naming `t_pl_lvr.waza_no` — and every one of those 143 still exits **0**, because the oracle does not compare `waza_no`. That is the audit catching an imported-state gap the oracle is completely blind to, which is the case it was built for |
+| `Round_Level` (E1a, `1de4c7b5`) | drop the import | **not reproducible on this ground truth.** Measured with `=2`: `Round_Level` is **3 on both sides of all 143 segments** and of all 6 usable 16-segment ones. Our `setup_vs_mode()` seeds 3 and the arcade's `Before_Select_Sub` sets 3 for VS play; E1b established that the arcade's decrements are `Play_Type`-gated, so a human-vs-human corpus never moves it. The import is **inert on this ground truth**, and the audit's silence is a true negative, not a blind spot. Detection control: skew the import `+1` -> **6/6** usable segments `rc=4` naming `Round_Level ours=4 cps3=3`, downstream `vital_new` off by one — E1a's damage-scale mechanism, end to end |
+| `bg_w.stage` (H2, `a3d7af69`) | remove the `Debug_w[DEBUG_STAGE_SELECT]` pin | **not reproducible either.** With the pin gone the stage still matches on 143/143 and 6/6: our synthetic character select already derives the same home stage, because `New_Challenger` **and** `Champion` are now pinned too (`statcheck_runner.c`, upstream #289) and `Setup_Battle_Country()` (`sel_pl.c`) returns `My_char[...]` verbatim. H2's pin is **redundant on today's corpora** — which is a finding, not a reason to remove it, since the stage varies across 13 values and the audit now proves the pin lands. Detection control: pin the **wrong** stage -> **6/6** `rc=4` naming `bg_w.stage`, downstream `pos.x`, `routine_no` and `Random_ix16` — H2's three original symptom classes |
+
+So the honest scoreboard is **2 retrodicted (one of them on two independent
+corpora), 2 shown inert on the available ground truth with the detection path
+demonstrated separately by a deliberate skew**. The two inert
+ones are a statement about the corpus, not about the audit: both need a
+recording the corpus does not contain (a 2P break-in for `Round_Level`, a
+mismatched home-stage for `bg_w.stage`).
+
+### Clean-corpus result
+
+`/Volumes/KimchDrive/3sarm-corpus-2026-09-05`, 143 segments, `--headless`, two
+binaries built from the **same isolated worktree at HEAD**, differing only by
+this change (a second Claude session was editing engine files in the shared
+checkout at the time, so the sweep was moved off it deliberately):
+
+| | before | after |
+|---|---|---|
+| rc 0 | 143 | **143** |
+| rc 1/2/3/4 | 0 | **0** |
+| `PASS — compared archive frames a..b of n` lines that changed | — | **0 of 143** |
+| seed verdict | — | **CLEAN on 143 of 143** |
+
+**No seed mismatch anywhere on the corpus.** That is the expected result — every
+known gap is closed — and it is the reason the audit could be landed without
+changing a single verdict.
+
+Per-segment the audit records 19-24 allowlisted differences (the previous
+match's player residue, plus `Scene_Cut`, `waza_type`, `Game_timer` and `C_No`).
+
+### What the `=2` dump says about the seeds themselves
+
+Running the audit at `STATCHECK_SEED_AUDIT_VERBOSE=2` over the corpus prints all
+150 fields whether they match or not, which answers a question a clean verdict
+cannot: *is this field clean because the import works, or because both sides
+happen to hold the same value anyway?*
+
+| seeded field | distinct CPS3 values at the seed frame, 143 segments | verdict |
+|---|---|---|
+| `players_timer` | **109** (1857..32629) | import is load-bearing and verified |
+| `Random_ix16` | 53 (0..63) | load-bearing, verified |
+| `Random_ix32` | 37 (5..118) | load-bearing, verified |
+| `bg_w.stage` | 13 (1..16) | pin verified — but redundant today (above) |
+| `New_Challenger` | 2 | verified |
+| `Round_Level` | **1** (always 3) | inert on this corpus |
+| `t_pl_lvr` (33 compared fields) | **1** (always 0) | inert on this corpus; `waza_no`, the 34th, is the one that carries |
+
+Also constant-and-equal on both sides across all 143, hence carrying no signal
+today: `Counter_hi` (99), `Counter_low` (53), `round_timer` (99),
+`bg_w.quake_y_index` (0), `cmb_stock`, `cmb_all_stock`, `piyori_type.now`,
+`super_arts.gauge`/`.store`, `wu.hit_stop`, `wu.dm_stop`, `wu.cg_add_xy`, and
+the five `PLW_*` flags. They are kept because their cost is one comparison and
+their absence is what the last seven defects were made of.
+
+### Open
+
+- The oracle still does not **compare** `t_pl_lvr[].waza_no` frame by frame; the
+  audit only checks it at the seed frame. Adding it to `compare_lvr()` would
+  change verdicts and was left out of this change deliberately.
+- `Round_Level` and `bg_w.stage` have no ground truth that exercises them. The
+  fix is more corpus (a 2P break-in recording, and a session whose stage does
+  not follow from the two characters), not more analysis.
+
+---
+
 ## Detection coverage
 
 ### D1 — what the on-device viewer can and cannot see
@@ -1442,6 +1626,7 @@ Note this is not academic: `caldir.c` feeds `dir_sel_table` -> `dir32_skydm` ->
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
+| SA | **the seed audit** — announce imported-state gaps at the seed frame | **BUILT, 2026-09-05** — `src/test/statcheck_seed_audit.c`, run from `StatcheckRunner_Prologue` right after `Statcheck_SyncValues` and before the engine executes any compared frame; 150 fields, read-only. Corpus **CLEAN 143/143**, sweep unchanged at 143 PASS / 0 FAIL with **byte-identical** compared-frame ranges. A comparison failure with a dirty seed now exits **4**, not 1 — H1/H4b's rule, a fourth typed code, so rc 1 gets stronger. Retrodicts `players_timer` (143/143 named; 126 runs move from rc 1 to rc 4) and `t_pl_lvr` (the H3 segment's exact `s1_cnt` numbers, and 143/143 on the wide corpus via `waza_no` — a carried field the oracle never compares). `Round_Level` and `bg_w.stage` are **inert on both corpora** (`=2` dump: 3 and matching on every segment); their detection paths are proven by a deliberate skew instead |
 
 **For a reviewer:** the 16-segment corpus reports **no engine divergence at
 all** — 6 PASS, 8 rejected as unreproducible (H4b), 2 with no match (H1). Every

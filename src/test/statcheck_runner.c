@@ -39,6 +39,7 @@
 #include "test/ram_archive.h"
 #include "test/scrd_game.h"
 #include "test/statcheck_compare.h"
+#include "test/statcheck_seed_audit.h"
 #include "test/statcheck_utils.h"
 
 #include <SDL3/SDL.h>
@@ -385,6 +386,16 @@ void StatcheckRunner_Prologue(void) {
          * known frame-1-desync trap (plan A3b "If it fails"). */
         SDL_IOStream* initial_frame = RamArchive_GetFrame(&game.archive, comparison_index - 1);
         Statcheck_SyncValues(initial_frame);
+
+        /* Seed audit (docs/research-arcade-balance-desyncs.md, "The seed
+         * audit"). Runs HERE and nowhere else: after the import, before the
+         * engine has executed a single compared frame. Anything that differs
+         * at this instant is an initial condition the harness failed to
+         * reproduce, never engine behaviour -- and saying so here costs one
+         * pass over the frame, where saying it 3,000 frames later has twice
+         * cost a retracted engine-defect report. Read-only. */
+        StatcheckSeedAudit_Run(initial_frame, comparison_index - 1);
+
         SDL_CloseIO(initial_frame);
         phase = PHASE_GAME;
     }
