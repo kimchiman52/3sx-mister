@@ -22,8 +22,9 @@ instrumentation" for what the oracle change cost and bought, D1 for the viewer
 half, and **E5** for the seven divergences that were hiding behind the oracle's
 mask. Read any `Random_ix16` claim dated earlier in this document as a statement
 made under the mask. **E5 is now fixed** — it was two port defects in the
-screen-quake writers, not the unimported state it looked like, and the corpus is
-back to 142 PASS / 1 FAIL with the mask off.
+screen-quake writers, not the unimported state it looked like — and **E4 is now
+fixed** too, a single misassociated `/ 2` in `cal_move_dir_forecast`. With both
+masks off the 143-segment corpus is **143 PASS / 0 FAIL**.
 
 **Status (2026-09-05).** Fixed: **E2a** in the statcheck oracle (`f63507b7`)
 and now in the shipped viewer too (`.3sr` v2 carries `players_timer`); **D2**
@@ -37,9 +38,11 @@ human-vs-CPU recordings replayed under the wrong `Play_Type`, which H4b now
 rejects by type rather than reporting as divergence. Open: E2a's viewer half is
 untested on hardware; E3's actual `+32` write was never identified, only shown
 to be unreachable in human-vs-human play; and the usable corpus is down to six
-segments. Nothing here has had a Fable review yet. **E5 is fixed as of
-2026-09-05** — two port defects in the screen-quake writers, host-only, no
-device test; the 143-segment corpus is 142 PASS / 1 FAIL (E4).
+segments. Nothing here has had a Fable review yet. **E5 and E4 are both fixed
+as of 2026-09-05** — E5 two port defects in the screen-quake writers, E4 one
+misassociated `/ 2` in `cal_move_dir_forecast`; both host-only, neither device
+tested. The 143-segment corpus is **143 PASS / 0 FAIL**, with no engine
+divergence outstanding.
 
 **E2a's viewer half is untested on hardware.** The v2 fix was measured on the
 host build only (below); nothing has been deployed to the MiSTer, and the
@@ -453,45 +456,192 @@ besides `random_32`, so the +1 had to be a real call.
 `pli_0002()` (`plcnt.c`) is a documented stub, but runs several frames before the
 `3→4` transition and CPS3's effect M4 contains no RNG.
 
-### E4 — Dudley's `routine_no[2]` lands on 23 where CPS3 lands on 20 (OPEN)
+### E4 — a misassociated `/ 2` in `cal_move_dir_forecast` (FIXED, 2026-09-05)
 
 **The first genuine engine divergence found in a verified human-vs-human
-segment since E2a**, and the reason the corpus was widened.
+segment since E2a**, and the reason the corpus was widened. It is one operator
+precedence error in one line, and it is device-visible.
 
 ```
 1788423525221-5107 game_0   Coccis77 vs Z3rog   Chun-Li (P1) vs Dudley (P2)
-statcheck_compare.c:354: routine_no_3sx (23) != routine_no_cps3 (20)
+statcheck_compare.c:375: routine_no_3sx (23) != routine_no_cps3 (20)
 statcheck: FAIL at archive frame 3090
 ```
 
-**Not a harness artifact, and each exclusion is checked:**
-- `wu_operator == (1,1)` at the confirmed match-start frame — not H4b.
-- Match start confirmed by `Game2_0()`'s own writes — not H1.
-- The operator trace is `(1,1)[0..4855] -> (1,0)[4856..5099]`; the failure at
-  3090 is deep inside the `(1,1)` region, not in the post-KO tail.
-- **Deterministic**: 3/3 in the harvest run, and independently reproduced here
-  at `47167788`, byte-identical message and frame.
+#### The defect
 
-**Located to a player and a slot**, read from the archive (P1's values are
-constant across the window, so the failing pair is `i=1, j=2`):
+`cal_move_dir_forecast()` (`engine/caldir.c`) predicts where a work will be
+`tm` frames from now under constant acceleration and asks
+`caldir_pos_032()` for the 32-way direction from here to there. The port had:
 
-```
-frame 3084..3088   P1 [4,4,3,2,0,0,0,0]   P2 [4, 0,21,1,0,0,0,0]
-frame 3089         P1 [4,4,3,2,0,0,0,0]   P2 [4, 1,88,0,0,0,0,0]
-frame 3090         P1 [4,4,3,2,0,0,0,0]   P2 [4, 1,20,1,0,0,0,0]   <-- FAIL
+```c
+ps[0].dp = (wk->mvxy.d[0].sp * (tm * tm)) / 2;
 ```
 
-Dudley moves `21 -> 88 -> 20` in `routine_no[2]`; we land on **23** where CPS3
-lands on **20**. Comparison site is `compare_service_values()`'s
-`for (int j = 0; j < 8; j++)` loop over `plw[i].wu.routine_no[j]` against
-`WORK_ROUTINE_NO_OFFSET` (0x24).
+Every caller passes **`tm == 5`**, so `tm * tm` is the **odd** number 25, and
+the two ways of associating the halving are not the same function:
 
-**Not investigated.** No mechanism yet. `routine_no[2]` is outside the `.3sr`
-hash window (D1), so this is invisible to the shipped viewer unless it
-propagates — which makes it an oracle-only finding for now.
+| | acceleration term |
+|---|---|
+| port (was) | `trunc(d.sp * 25 / 2)` |
+| arcade | `d.sp * 12` |
 
-**Preserved** with its `.scrd`, report and a reproduce command at
-`/Volumes/KimchDrive/3sarm-corpus-2026-09-05/divergences/`.
+They differ by about `d.sp / 2` — half a unit of acceleration, per axis, per
+forecast.
+
+**The arcade halves the square once, before either multiply.**
+`cal_move_dir_forecast` is CPS3 `0x06090E1C`. The only two sites in the
+decrypted image that reach it — by constant-pool literal or by `bsr`, both
+searched exhaustively — are `check_buttobi_type` (`0x0611E926`) and
+`check_buttobi_type2` (`0x0611EA24`), whose `mov.l` literals are `dir32_skydm`
+`0x065EB724` and `dir32_grddm` `0x065EB764`. With r13 = `tm` and r14 = `wk`:
+
+```
+06090e40  mul.l  r13,r13     ; macl = tm * tm
+06090e4a  sts    macl,r5
+06090e50  cmp/gt r5,r3       ; r3 = 0  ->  T = (r5 < 0)
+06090e52  addc   r3,r5       ; r5 += (r5 < 0)
+06090e54  shar   r5          ; r5 = (tm * tm) / 2, signed  -> 12
+06090e58  mul.l  r2,r5       ; r2 = mvxy.d[0].sp, WORK +0x84
+06090e78  mul.l  r3,r5       ; r3 = mvxy.d[1].sp, WORK +0x88, the SAME r5
+```
+
+`cmp/gt` + `addc` + `shar` is the compiler's signed divide-by-two, and it is
+applied to `tm * tm` **on its own** before either `mul.l`. That is what pins the
+association: the source halved the square, not the product. Both axes then reuse
+the one halved square, so the fix computes it once as `half_tm_squared`.
+
+The rest of the function is a faithful port and was checked instruction by
+instruction against `0x06090E40..0x06090EA6`: the WORK offsets it indexes are
+`+124`/`+128` (`mvxy.a[0]`/`a[1]`), `+0x84`/`+0x88` (`mvxy.d[0]`/`d[1]`) and
+`+100`/`+104` (`xyz[0].cal`/`xyz[1].cal`), and it ends with
+`caldir_pos_032(xyz[0].disp.pos, xyz[1].disp.pos, ps[0].rp.h, ps[1].rp.h)`.
+
+#### The evidence chain, in the order it was walked
+
+1. **The failing slot is a damage-reaction selection.** `routine_no[1] == 1`
+   is the damage arm of `plmain_lv_02[]` (`plmain2.c`), and `routine_no[2] == 88`
+   is the sky-knockdown request that `get_damage_reaction_data()` (`plpdm.c`)
+   resolves in one frame:
+   `routine_no[2] = check_buttobi_type(wk)`, then
+   `wk->as = &dm_reaction_table[routine_no[2]]; routine_no[2] = wk->as->r_no;`.
+   In the port's `dm_reaction_table`, `[97] = {20, 9, 0}` and `[98] = {23, 10, 0}`
+   are **the only two of the 115 entries that produce 20 and 23** — so the
+   archive took index 97 and we took 98. `dir32_skydm` (`pls02.c`) maps direction 11-14 and 18-21 to 97 and
+   **15-17 to 98**, so the whole divergence is one direction bucket.
+2. **Every input to that direction was byte-identical.** A trace in
+   `check_buttobi_type` printed, at the failing frame, `dm_plnum=15`
+   (Chun-Li, the attacker), `dm_butt_type=4`, `weight_level=1`,
+   `xyz[0].cal=46596096`, `xyz[1].cal=618496`,
+   `mvxy = a0 -163840, d0 0, a1 -393216, d1 -28672, kop 1/0`. The archive holds
+   **exactly those values** for P2 at `PLW_OFFSET + PLW_SIZE`
+   (`WORK_XYZ_OFFSET 0x64`, `WORK_MVXY_OFFSET 0x7C`) on frames 3089 and 3090.
+   So `parabora_own_table`, `dm_butt_type`, `weight_level` and the position
+   accumulators were all ruled out by measurement, not by argument.
+3. **The tables were ruled out against the ROM.** `dir_sel_table[128][128]`
+   (`caldir.c`) occurs exactly once in the decrypted image, at CPS3
+   `0x0618F664`, and all **16,384 bytes are identical**; its only two literal
+   referrers are `caldir_pos_256` (`0x0609016C`) and `caldir_pos_032`
+   (`0x06090270`), both of which disassemble to the port's code exactly,
+   including the two constants the port writes as `0x80` and `0xFF`
+   (`mov.w` literals at `0x060902A4` / `0x060902A6`). `dir32_skydm` and
+   `dir32_grddm` are byte-exact at `0x065EB724` / `0x065EB764`.
+4. **That left only the arithmetic**, and the arithmetic is where it was.
+   With the port's association, `ps[1] = trunc(-28672*25/2) + (-393216*5) +
+   618496 = -1705984`, high word **-27**; with the arcade's,
+   `-28672*12 + (-393216*5) + 618496 = -1691648`, high word **-26**. From
+   `(711, 9)` that is `(dx, dy) = (-13, -36)` versus `(-13, -35)`, and
+   `dir_sel_table[13][36] = 11` versus `dir_sel_table[13][35] = 12`:
+   `tent` 139 versus 140, `(tent + 4) >> 3` = **17** versus **18**,
+   `dir32_skydm` = **98** versus **97**, `r_no` = **23** versus **20**.
+   One pixel of forecast, one bucket, one damage reaction.
+
+#### It is not Dudley-specific, and it is not rare — the *consequence* is rare
+
+Measured by running the fixed engine over all 143 segments with both
+associations computed side by side and the disagreements logged:
+
+| | count |
+|---|---|
+| `cal_move_dir_forecast` calls in the corpus | **764** |
+| calls where the two associations give a different 32-direction | **11** (1.4%), across 10 segments |
+| of those, calls where the different direction changes the table value | **1** |
+
+The 11 bucket flips span four victims (Chun-Li, Urien, Necro, Dudley) and five
+attackers (Yun, Yang, Dudley, Chun-Li, Necro) — **the defect is
+character-agnostic**, as the arithmetic says it must be. What is rare is landing on a table edge:
+`dir32_skydm` and `dir32_grddm` are piecewise constant with long runs, so ten of
+the eleven flips (26->27, 29->30, 30->31) stay inside a run of 88 or 91 and
+change nothing. Only the E4 event flipped 17->18, which is the boundary between
+the `98` run (15-17) and the `97` run (18-21). That is the whole reason 142 of
+143 segments passed with the defect in place.
+
+The same measurement, keyed on the return address, shows all 764 calls came from
+`check_buttobi_type` (755, carrying all 11 flips) and `check_buttobi_type2` (9),
+and **none** from `remake_initial_speeds` (`plpdm.c`) — the corpus never
+exercises the third call site or its `dir32_guard_air` table.
+
+#### It is device-visible
+
+`routine_no[2]` is outside the viewer's 13-field checkpoint window
+(`gather_live_fields()`, `replay_player.c`), so the divergence itself is
+oracle-only. It does not stay there. Re-running the **pre-fix** binary on this
+archive with the oracle's `stop_if` made non-fatal, so the run continues past
+the first mismatch:
+
+```
+plw[1] routine_no[2]        first diverges at archive frame 3090   ours 23      cps3 20
+plw[1] mvxy.a[0].sp                                      3100      -81920      -40960
+plw[1] xyz[0].disp.pos                                   3104      694         695
+```
+
+(all three are P2's, the victim: the archive holds `-40960` for
+`plw[1].wu.mvxy.a[0].sp` at frame 3100 and `695` for `plw[1].wu.xyz[0].disp.pos`
+at 3104, while P1's values still match ours.)
+
+`plw[1].wu.xyz[0].disp.pos` is **field index 9 of the checkpoint window**, and
+it stays divergent for hundreds of frames after (3539, 3540, 3820, ...). So this
+was a real on-device desync, not an oracle curiosity: `r_no` 20 and 23 are
+different damage reactions with different `char_ix` (9 versus 10), so the victim
+plays a different knockdown and lands somewhere else.
+
+#### What the fix cost and bought
+
+143-segment sweep, `build/statcheck-verify`, same binary tree, `--headless`:
+
+```
+before   142 PASS / 1 FAIL   (E4)
+after    143 PASS / 0 FAIL
+```
+
+Diffing the per-segment verdict line across the two sweeps, **the E4 segment is
+the only line that changed** (`FAIL at archive frame 3090` ->
+`PASS - compared archive frames 1..4538 of 5100`); the other 142 report a
+byte-identical compared frame range and passed in both runs, so every field the
+oracle compares is unchanged for them.
+
+**Re-conversion consequence, same shape as E5's.** The fix changes
+`plw[i].wu.xyz[0].disp.pos`, which *is* in the checkpoint window, on any replay
+containing a bucket flip that changes the table value. Measured rate on this
+corpus: **1 of 143 segments (0.7%)** — far smaller than E5's 7/143, and it needs
+no `.3sr` format change, but a pre-fix `.3sr` for such a match will mismatch on
+a post-fix build. Not decided here.
+
+#### Still open
+
+- **The device test.** Everything above is host-only.
+- **The third call site is unlocated, not cleared.** The port's
+  `remake_initial_speeds()` (`plpdm.c`) also calls `cal_move_dir_forecast`, and
+  indexes `dir32_guard_air` with the result. No arcade caller of `0x06090E1C`
+  other than the two named above exists by literal pool or `bsr`, and
+  `dir32_guard_air` itself is not found in the image by exact search as `s16`
+  or `u8` — but neither are `dm_reaction_table`, `ris_data_table` or
+  `dm17_to_nm23_change`, three other `plpdm.c` tables, so **"not found" is weak
+  evidence here and the honest word is unlocated, not different**. Nothing above
+  depends on it: the return-address measurement shows `remake_initial_speeds`
+  never ran on any of the 143 segments. It is named because a wrong row there
+  would present exactly like E4 did, and because whatever makes `plpdm.c`'s
+  tables unfindable is worth knowing before the next table argument is made.
 
 ### E3 — RETRACTED and now ROOT-CAUSED: a swapped RNG draw order
 
@@ -1244,7 +1394,7 @@ comparison, destroying the oracle. Correct the comments, not the behaviour.
 | H4b | harness forces `Play_Type == 1` on every segment | **FIXED, by rejection** — `ScrdGame_Init` reads `wu_operator` at the match-start frame (`WORK_WU_OPERATOR_OFFSET`, archive `0x68C6F`/`0x69107`) and returns `SCRD_GAME_INIT_CPU_PLAYER`; `main.c` exits **3**, distinct from 1 and 2. Reproducing the CPU player was tried and refuted by measurement (see H4b) — it breaks input pinning at frame 7 and manufactures a new `routine_no` divergence at frame 11. Costs 8 of 16 segments; sweep now reports **0** divergences |
 | E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device. Both masks that hid it are now gone: the viewer repairs `Random_ix16` only on v1 files (D1) and the oracle asserts it (see "The instrumentation"). Existing v1 files keep the old behaviour, deliberately |
 | E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect. All six instances now exit 3 |
-| E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **OPEN, real** — first (1,1) divergence; deterministic, reproduced at `47167788`; unchanged by the `Random_ix16` unmasking (same archive, frame and values); no mechanism yet |
+| E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **FIXED, one misassociated `/ 2`** — `cal_move_dir_forecast()` (`engine/caldir.c`) wrote `(d.sp * (tm * tm)) / 2` where the arcade computes `d.sp * ((tm * tm) / 2)`; every caller passes `tm == 5`, so `tm * tm` is odd and the two differ by half a unit of acceleration. CPS3 `0x06090E40`-`0x06090E58` halves the square with `cmp/gt`/`addc`/`shar` **before** either `mul.l`. Ruled out first, by measurement: every input byte-identical to the archive, `dir_sel_table` all 16,384 bytes identical to `0x0618F664`, `dir32_skydm`/`dir32_grddm` byte-exact, `caldir_pos_256`/`_032` faithful. Corpus **142/1 -> 143/0**, and the E4 segment is the only verdict line that changed. Character-agnostic (11 bucket flips in 764 calls span 4 victims and 5 attackers); only 1 of the 11 lands on a table edge, which is why 142 segments passed with it in place. **Device-visible**: pre-fix, `plw[1].wu.xyz[0].disp.pos` — checkpoint field 9 — diverges 14 frames later, at archive frame 3104 |
 | E5 | stage quake debris draws `random_16()` where CPS3 does not | **FIXED, two port defects in the quake writers** — (1) `effect_A7_move`/`effect_02_move`'s `tad->hits == 0` early-out wrote `bg_w.quake_y_index` where the arcade's branch only does the SE and tail-calls `push_effect_work` (CPS3 `0x060F91EC`/`0x060DC918`); the write is now `pp_screen_quake(gqdt[tad->quake][1])`, keeping the PS2 rumble and dropping the state. (2) `gqdt` rows 7 and 8 were `{6,0}`, arcade `0x061B941A` has `{6,4}`/`{6,2}`. Corpus 135/8 -> **142/1** and zero residual `bg_w.quake_y_index` divergence, down from 48 of 143 segments. **NOT** an unimported-state defect — both sides enter every segment at 0, so `BG_W_QUAKE_Y_INDEX_OFFSET 0x26BD8` is asserted, never seeded |
 | M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures were E5, and fixing E5 took it back to 142/1 with the assert standing. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
 | M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |
@@ -1263,8 +1413,9 @@ is applied; E1b, E2b and E3 are retracted; H1, H2, H3 and H4b have landed.
 **That sentence was written while the oracle was still masking `Random_ix16`.**
 On the 143-segment corpus with the mask removed the count was 135 PASS / 8 FAIL:
 E4, plus the seven E5 segments. **E5 is now fixed** (two port defects in the
-quake writers) and the count is 142 PASS / 1 FAIL. One real engine divergence
-stands: E4.
+quake writers) and **E4 is now fixed** (one misassociated `/ 2` in
+`cal_move_dir_forecast`), so the count is **143 PASS / 0 FAIL** and no engine
+divergence is outstanding on this corpus.
 
 That is a statement about *this* corpus, and its main consequence is that the
 corpus is now too small to say much: 6 usable segments, all human-vs-human, all

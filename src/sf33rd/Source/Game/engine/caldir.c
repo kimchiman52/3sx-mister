@@ -1061,9 +1061,38 @@ s16 cal_move_dir_forecast(WORK* wk, s16 tm) {
         return 0;
     }
 
-    ps[0].dp = (wk->mvxy.d[0].sp * (tm * tm)) / 2;
+    /* E4 (docs/research-arcade-balance-desyncs.md): the halving binds to
+     * `tm * tm`, NOT to the product with the acceleration. The port used to
+     * write `(d.sp * (tm * tm)) / 2` -- and every caller passes tm == 5, so
+     * `tm * tm` is the ODD number 25 and the two associations are not the same
+     * function: `d.sp * 12` versus `trunc(d.sp * 25 / 2)`, half a unit of
+     * acceleration apart. That is enough to move the forecast point a whole
+     * pixel and, at a direction-bucket edge, to pick a different damage
+     * reaction.
+     *
+     * The arcade halves the square once, before either multiply.
+     * `cal_move_dir_forecast` is CPS3 0x06090E1C, reached from
+     * `check_buttobi_type` CPS3 0x0611E926 (whose `mov.l` literal 0x065EB724 is
+     * dir32_skydm). r13 holds tm, r14 holds wk:
+     *
+     *   06090e40  mul.l  r13,r13     ; macl = tm * tm
+     *   06090e4a  sts    macl,r5
+     *   06090e50  cmp/gt r5,r3       ; r3 = 0  ->  T = (r5 < 0)
+     *   06090e52  addc   r3,r5       ; r5 += (r5 < 0)
+     *   06090e54  shar   r5          ; r5 = (tm * tm) / 2, signed
+     *   06090e58  mul.l  r2,r5       ; r2 = mvxy.d[0].sp, WORK +0x84
+     *   ...
+     *   06090e78  mul.l  r3,r5       ; r3 = mvxy.d[1].sp, WORK +0x88, same r5
+     *
+     * The `cmp/gt`/`addc`/`shar` trio is the compiler's signed divide-by-two
+     * applied to `tm * tm` alone, which is what pins the association: the
+     * source halved the square, not the product. Both axes then reuse the one
+     * halved square, so it is computed once here too. */
+    const s32 half_tm_squared = (tm * tm) / 2;
+
+    ps[0].dp = wk->mvxy.d[0].sp * half_tm_squared;
     ps[0].dp = wk->xyz[0].cal + (ps[0].dp + (wk->mvxy.a[0].sp * tm));
-    ps[1].dp = (wk->mvxy.d[1].sp * (tm * tm)) / 2;
+    ps[1].dp = wk->mvxy.d[1].sp * half_tm_squared;
     ps[1].dp = wk->xyz[1].cal + (ps[1].dp + (wk->mvxy.a[1].sp * tm));
     return caldir_pos_032(wk->xyz[0].disp.pos, wk->xyz[1].disp.pos, ps[0].rp.h, ps[1].rp.h);
 }
