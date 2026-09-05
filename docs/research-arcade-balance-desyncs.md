@@ -1178,6 +1178,63 @@ the CPU files cannot be identified without re-converting. Both are the user's
 call. The deployed VPS runner still carries the old tracker, so the VPS lane
 keeps producing ungated output until it is redeployed.
 
+## The seeding gap, sized (2026-09-05)
+
+Six defects shared one shape — the arcade carries state our harness resets — so
+the obvious question was how much is left. Answer, from `GS_SAVE` in
+`src/netplay/game_state.c` (607 globals) against `arcade_constants.h`:
+
+| category | count |
+|---|---|
+| SEEDED (harness already imports) | 11 |
+| RESET (provably zeroed on our match-start path) | 384 |
+| **CARRIED (survives our reset)** | **202** |
+| UNKNOWN (pointer-aliased writes a name scan cannot see) | 10 |
+
+**But only 7 are worth disassembling.** Of the 202 carried, 92 are read nowhere
+in the simulation, 26 only in `effect/`, and **44 only in `com/` — inert, because
+`ScrdGame_Init` now rejects CPU segments (H4b), so `cpu_algorithm()` never
+runs.** H4b turned a whole risk class into a non-issue. Hand-verifying the
+remaining 40 leaves seven with the shape of the known defects: boot- or
+service-derived, single writer, never rewritten, read by the fighter sim.
+
+**The seven:** `Max_vitality`, `No_Death`, `test_flag`, `ixbfw_cut`, `Country`,
+`CC_Value`, `Limit_Time` — and `Country` is the root that feeds `CC_Value` and
+`Limit_Time`, so one address resolves three.
+
+Strongest is `Max_vitality`: `init3rd.c:Init_Task_1st` (`= 160`) is the only
+writer, and it sets both starting HP and the damage divisor
+`dmcal_d = (original_vitality << 5) / Max_vitality` (`pls02.c:setup_vitality`).
+`pls02.c` carries a live `if (Max_vitality == 192)` branch — the engine expects a
+second value on a cabinet.
+
+A further 13 (`Winner_id`, `Loser_id`, `Conclusion_Type`, `EM_id`, …) are
+genuinely carried but every read sits inside round-settle code that writes them
+first in the same match. Take those only if a divergence is traced to a round
+transition.
+
+`save_w[].Damage_Level` is read unconditionally by `setup_vitality` and is NOT in
+the whitelist, so it fell outside that count — but it is the same class of
+cabinet service setting as `Round_Level` and belongs on the same trip.
+
+**Caveat:** the scanner matches writes by name, so pointer-aliased writes
+(`lvr->x = …`) are invisible — that is why `t_pl_lvr` shows zero writers. Read
+202 as "roughly 200", not exact.
+
+### HARNESS FACT, and a trap: `Mode_Type` is `MODE_ARCADE`
+
+`Menu_Init()` sets `Menu_Cursor_Y[0] = 0` and the harness only ever emits
+`SWK_START`/`SWK_SOUTH`, never DOWN, so `Mode_Select()` takes `case 0` and the
+statcheck harness runs **`MODE_ARCADE`**. Comments in `src/test/scrd_game.c` (the
+H4b block) and `statcheck_runner.c:pin_default_button_mapping` claim
+`MODE_VERSUS`. They are wrong.
+
+**Do not "fix" the harness to actually select VERSUS.** `Statcheck_SyncValues`
+and `Game2_0()` run on the same frame, and `Game2_0`'s MODE_VERSUS arm calls
+`All_Clear_Random_ix()` / `All_Clear_Timer()` — which would wipe the
+`Random_ix16`, `Random_ix32` and `players_timer` seeds before the first
+comparison, destroying the oracle. Correct the comments, not the behaviour.
+
 ## Worklist
 
 | id | what | state |
