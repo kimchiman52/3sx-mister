@@ -101,13 +101,27 @@ invalidated and are not re-converted on account of v2; they simply keep the
 `replay_player.c` -> `ReplayPlayer_Init` holds both halves of this: the
 version/`header_size` table, and `ReplayFile.has_players_timer`.
 
-## 2. Setup block field sources (mirrors `src/test/scrd_game.c`)
+## 2. Setup block field sources
 
-All setup fields are read from the single SCRD archive frame that matches
-the game-start signature `G_No[1]==2 && G_No[2]==0 && G_No[3]==0`
-(`ScrdGame_Init`, `src/test/scrd_game.c:36-70`). Call that archive frame
-index `S` (0-based, into the SCRD archive's own frame table — NOT the
-`.3sr`'s frame index space, see §3).
+All setup fields are read from a single SCRD archive frame. Call its index
+`S` (0-based, into the SCRD archive's own frame table — NOT the `.3sr`'s
+frame index space, see §3). Finding `S` takes **two** frames and **two**
+predicates, and a segment that fails either yields **no `.3sr` at all** —
+see §2.1, which is the part of this section most easily got wrong.
+
+The field reads themselves mirror `scrd_read_match_setup`
+(`src/test/scrd_game.c`), and the producers mirror them in turn:
+`find_match_start` / `_read_setup_block` in
+`tools/fcade-replays/make_3sr.py`, and `Track3srBuildHeader` /
+`Track3srOnFrame` in the FBNeo runner
+(`tools/fcade-replays/runner-track-3sr.patch`).
+
+`.3sr` is **not** a superset of what `ScrdGame_Init` reads, and does not try
+to be. The oracle also reads `bg_w.stage` and the two `wu_operator` bytes;
+neither is in this format, for opposite reasons — the stage is re-derived at
+playback (§6), and `wu_operator` is a *filter*, not data: only recordings
+with both operators set are ever converted, so the value is known to be
+non-zero in every file that exists (§2.1).
 
 | Field              | Archive offset (arcade_constants.h)     | Width | Notes |
 |--------------------|------------------------------------------|-------|-------|
@@ -160,18 +174,87 @@ the gate plus three `+1; & 0x7FFF` increment sites matching the port's three
 `Statcheck_SyncValues` and in `docs/research-arcade-balance-desyncs.md` §E2a.
 
 **RNG sync frame:** `random_ix16`/`random_ix32`/`players_timer` are read from the *same*
-archive frame `S` where the game-start signature matched — this is
-deliberate, not a shortcut. `ScrdGame_Init` sets `game->start_index = S + 1`
-(`scrd_game.c:62`), and `StatcheckRunner_Init` sets
-`comparison_index = game.start_index` (`statcheck_runner.c:242`). The
-runtime's RNG sync (`statcheck_runner.c:341-346`,
-`PHASE_GAME_TRANSITION`) fetches `RamArchive_GetFrame(&game.archive,
-comparison_index - 1)` — i.e. frame `S` again — and calls
-`Statcheck_SyncValues` on it. So "frame `start_index - 1`" in the plan and
-in this doc is the exact same frame as the game-start signature frame;
-there is only one frame read for the whole setup block, not two.
-`players_timer` is read from that same frame, for the same reason: it is
-the frame `Statcheck_SyncValues` is handed.
+archive frame `S` where the setup block was latched — this is
+deliberate, not a shortcut. `ScrdGame_Init` (`src/test/scrd_game.c`) sets
+`game->start_index` to the CONFIRMED frame, `S + 1`, and
+`StatcheckRunner_Init` (`src/test/statcheck_runner.c`) sets
+`comparison_index = game.start_index`. The runtime's RNG sync
+(`statcheck_runner.c`, `PHASE_GAME_TRANSITION`) fetches
+`RamArchive_GetFrame(&game.archive, comparison_index - 1)` — i.e. frame `S`
+again — and calls `Statcheck_SyncValues` on it. So "frame
+`start_index - 1`" in the plan and in this doc is the exact same frame as
+the armed/signature frame; there is only one frame read for the whole setup
+block. `players_timer` is read from that same frame, for the same reason: it
+is the frame `Statcheck_SyncValues` is handed.
+
+Measured over the 16-segment corpus in
+`/Volumes/KimchDrive/3sarm-convert-tmp/rerun2`: `start_index == 1` (so
+`S == 0`) on every one of the 14 segments that contains a match, and no start
+at all on the two that do not.
+
+### 2.1 Finding `S` — and the two segments that must NOT become a `.3sr`
+
+A recorded session is cut into segments on the in-game -> not-in-game
+transition, and **not every segment is a game two people played**. Two classes
+are unconvertible. Both are enforced by `ScrdGame_Init`
+(`src/test/scrd_game.c`) for the statcheck oracle and by both producers —
+`find_match_start` (`tools/fcade-replays/make_3sr.py`) and `Track3srOnFrame`
+(`tools/fcade-replays/runner-track-3sr.patch`) — for the files themselves.
+
+**(a) The `G_No` triple is armed, not confirmed.**
+`G_No[1..3] == (2, 0, 0)` says only "the Game task is parked on the `Game2_0`
+slot" (`Game_Jmp_Tbl[G_No[1]]` -> `Game02` -> `Game02_Jmp_Tbl[G_No[2]]`,
+`game.c`). It does **not** say a match started: a segment cut right after a
+final KO can carry that triple frozen for its entire length while the Game task
+is not being ticked at all — measured on two archives whose `(G_No, C_No)` pair
+never changes across 2,270 and 2,286 frames.
+
+The signature of a match that *did* start is the visible effect of `Game2_0()`
+(`game.c`) having run — it writes `Game_timer = 0; C_No[0..3] = 0; G_No[2] = 3;`
+in one frame. So the frame **after** the triple must show
+`Game_timer == 0 && G_No[2] == 3`. The triple frame is `S` (setup block, RNG
+pair, `players_timer`); the confirming frame is `S + 1`, and it is also the
+first frame of the input table (§3). If no triple is ever confirmed the segment
+holds no match: `make_3sr.py generate` exits **2** and the runner's tracker
+records `"skip_reason": "no-match-start"`. No file is written.
+
+**(b) The cabinet was playing against the CPU.**
+At the confirmed frame `S + 1`, both `plw[0].wu.wu_operator` and
+`plw[1].wu.wu_operator` (`PLW_OFFSET + 3` = `0x68C6F`,
+`PLW_OFFSET + PLW_SIZE + 3` = `0x69107`) must be non-zero. A zero means the
+cabinet ran `Play_Type == 0` with `cpu_algorithm()` driving that side, and
+`Player_move()` (`src/sf33rd/Source/Game/engine/plmain.c`) therefore **discarded** the
+hardware button words this format stores:
+
+```c
+if (wk->wu.wu_operator) { wk->cp->sw_lvbt = lv_data; }
+else { wk->cp->sw_lvbt = processed_lvbt(cpu_algorithm(wk)); }
+```
+
+The device viewer cannot reproduce that. `ReplayPlayer_Tick`
+(`src/replay/replay_player.c`) taps `SWK_START` for player 2 at
+`PHASE_CHARACTER_SELECT`, exactly as the statcheck harness does, so **both**
+sides always come up with `wu_operator != 0` and are fed the stored words —
+words that never moved the CPU-driven character. Measured: a `.3sr` built from
+a `(1, 0)` segment reports `REPLAY DESYNC at frame 60`. `make_3sr.py generate`
+exits **3**; the runner's tracker records `"skip_reason": "cpu-player"`. No file
+is written.
+
+This is why a quark yields fewer games than `quark.json.num_matches`. On the
+16-segment corpus the split is 6 convertible, 2 no-match, 8 CPU. Fightcade's
+winner-plays-the-CPU-until-a-challenger-arrives flow means CPU segments
+interleave with human ones inside one recording, so the ineligible ones are not
+a suffix that could be trimmed by index.
+
+**Exit-code table**, shared by the oracle (`src/main.c`) and the producer
+(`make_3sr.py` -> `cmd_generate`), on purpose:
+
+| code | meaning | is it a defect? |
+|------|---------|-----------------|
+| 0 | converted / compared clean | no |
+| 1 | engine divergence (oracle) or converter failure (producer) | yes |
+| 2 | segment holds no match | no — skip |
+| 3 | recorded against the CPU | no — skip |
 
 **Character id conversion** (`CHAR_ARCADE_TO_3SX`, `src/constants.h:63`):
 

@@ -5,9 +5,15 @@ Format spec: docs/3sr-format.md (read that file first -- this module is a
 straight implementation of it, byte offset for byte offset).
 
 PROVENANCE:
-  - Game-start detection + setup-block field reads mirror
-    src/test/scrd_game.c's ScrdGame_Init (G_No signature, MY_CHAR/SUPER_ARTS/
-    NEW_CHALLENGER/PLAYER_COLOR offsets, CHAR_ARCADE_TO_3SX).
+  - Match-start detection, its TWO REJECTIONS, and the setup-block field
+    reads mirror src/test/scrd_game.c's ScrdGame_Init (armed-then-confirmed
+    G_No signature, the wu_operator pair, MY_CHAR/SUPER_ARTS/
+    NEW_CHALLENGER/PLAYER_COLOR offsets, CHAR_ARCADE_TO_3SX). Sharing the
+    oracle's predicates is the point: a segment statcheck cannot grade is a
+    segment the device viewer cannot play, so this tool must not emit a .3sr
+    for one. `generate` exits 2 for a matchless segment and 3 for a
+    CPU-recorded one -- the same codes src/main.c gives statcheck -- and
+    writes no output file in either case.
   - RNG sync source (Random_ix16/32 from the game-start frame, i.e. frame
     `start_index - 1` in scrd_game.c's own indexing) mirrors
     src/test/statcheck_runner.c's PHASE_GAME_TRANSITION.
@@ -32,6 +38,9 @@ PROVENANCE:
     shorthand some casual descriptions call "djb2", is what's implemented
     here: it's the real function already wired through netplay's desync
     detector, so Stage C can reuse it verbatim).
+
+Exit codes (`generate`): 0 converted, 1 failure, 2 segment holds no match
+(H1), 3 recorded against the CPU (H4b). 2 and 3 mean SKIP, not fail.
 
 Subcommands:
   generate  <archive.scrd> --out <out.3sr>
@@ -80,6 +89,11 @@ PLAYERS_TIMER_OFFSET = 0x157CE
 WORK_XYZ_OFFSET = 0x64
 PLW_OFFSET = 0x68C6C
 PLW_SIZE = 0x498
+# `work.wu.wu_operator` -- src/arcade/arcade_constants.h WORK_WU_OPERATOR_OFFSET.
+# The two players' copies sit at PLW_OFFSET + 3 = 0x68C6F and
+# PLW_OFFSET + PLW_SIZE + 3 = 0x69107. Non-zero == a human operator drove that
+# side; zero == `cpu_algorithm()` did. See `find_match_start` below.
+WORK_WU_OPERATOR_OFFSET = 3
 P1SW_0_OFFSET = 0x6AA8C
 P2SW_0_OFFSET = 0x6AA90
 
@@ -178,6 +192,31 @@ class ExtractError(Exception):
     other required data) was never found."""
 
 
+class NoMatchStartError(ExtractError):
+    """No match ever started in this segment (H1,
+    docs/research-arcade-balance-desyncs.md). The `G_No[1..3] == (2, 0, 0)`
+    triple says only that the Game task is parked on the `Game2_0` slot; a
+    segment cut right after a final KO can carry it frozen for its whole
+    length. `cmd_generate` turns this into exit code 2, mirroring `src/main.c`'s
+    mapping of `SCRD_GAME_INIT_NO_MATCH_START`."""
+
+
+class CpuPlayerError(ExtractError):
+    """The cabinet ran this game against the CPU (H4b,
+    docs/research-arcade-balance-desyncs.md) -- `plw[ix].wu.wu_operator` was 0
+    on at least one side at the match-start frame, i.e. `Play_Type == 0` with
+    `cpu_algorithm()` driving that side.
+
+    The device viewer cannot reproduce such a recording: `ReplayPlayer_Tick`
+    (`src/replay/replay_player.c`, `PHASE_CHARACTER_SELECT` case 0) taps
+    `SWK_START` for player 2 exactly as the statcheck harness does, so both
+    sides always come up with `wu_operator != 0`, and `Player_move()`
+    (`src/sf33rd/Source/Game/engine/plmain.c`) then feeds them the replay's stored
+    button words -- whereas the recording's CPU side ignored those words and
+    ran the AI. `cmd_generate` turns this into exit code 3, mirroring
+    `src/main.c`'s mapping of `SCRD_GAME_INIT_CPU_PLAYER`."""
+
+
 class FormatError(Exception):
     """A .3sr file failed structural validation."""
 
@@ -210,11 +249,25 @@ class ScrdGameData:
     archive_entry_count: int
 
 
-def extract_scrd_game(path: Path, checksum_interval: int = DEFAULT_CHECKSUM_INTERVAL) -> ScrdGameData:
-    """Mirrors src/test/scrd_game.c's ScrdGame_Init (game-start scan) plus
-    the per-frame P1SW_0/P2SW_0 + checksum-window extraction described in
-    docs/3sr-format.md. Single forward pass over the SCRD archive, reusing
-    decode_inputs.py's table/decompress primitives."""
+@dataclass
+class MatchStart:
+    """Where -- and whether -- a real match starts in one SCRD segment.
+
+    `signature_index` is the archive frame `S` carrying the `(2, 0, 0)` G_No
+    triple (the setup block is read there); `start_index` is `S + 1`, the frame
+    on which `Game2_0()`'s own writes are visible and the input stream begins.
+    See `find_match_start`."""
+
+    setup: SetupBlock
+    signature_index: int
+    start_index: int
+    start_frame: bytes
+    wu_operator: tuple[int, int]
+
+
+def _read_archive_table(path: Path):
+    """Opens a SCRD archive and returns its raw bytes plus decoded frame table,
+    raising CorruptArchiveError for the two unusable shapes."""
     data = path.read_bytes()
     table = read_scrd_table(data)
 
@@ -228,52 +281,146 @@ def extract_scrd_game(path: Path, checksum_interval: int = DEFAULT_CHECKSUM_INTE
             f"cannot extract a .3sr from it"
         )
 
-    accum_int = 0
-    game_start_index: Optional[int] = None
-    setup: Optional[SetupBlock] = None
-    p1_words: list[int] = []
-    p2_words: list[int] = []
-    checksum_table: list[tuple[int, int]] = []
+    return data, table
 
+
+def _iter_archive_frames(data: bytes, table):
+    """Lazily yields `(archive_frame_index, full RAM frame bytes)`.
+
+    Lazy on purpose: `probe_match_start` abandons the generator the moment the
+    match start is found, so an eligibility check on a normal segment decodes
+    two frames rather than the whole archive."""
+    accum_int = 0
     for i, (off, size) in enumerate(table.entries):
         compressed = data[off:off + size]
         payload = zero_run_decode(compressed, RAM_FRAME_SIZE)
         payload_int = int.from_bytes(payload, "big")
         accum_int = payload_int if i == 0 else (accum_int ^ payload_int)
+        yield i, accum_int.to_bytes(RAM_FRAME_SIZE, "big")
 
-        if game_start_index is None:
-            frame = accum_int.to_bytes(RAM_FRAME_SIZE, "big")
-            g_no_1, g_no_2, g_no_3 = struct.unpack_from(">HHH", frame, G_NO_OFFSET + 2)
 
-            if g_no_1 == 2 and g_no_2 == 0 and g_no_3 == 0:
-                characters = frame[MY_CHAR_OFFSET:MY_CHAR_OFFSET + 2]
-                supers = frame[SUPER_ARTS_OFFSET:SUPER_ARTS_OFFSET + 2]
-                new_challenger = frame[NEW_CHALLENGER_OFFSET]
-                colors = frame[PLAYER_COLOR_OFFSET:PLAYER_COLOR_OFFSET + 2]
-                (random_ix16,) = struct.unpack_from(">h", frame, RANDOM_IX_16_OFFSET)
-                (random_ix32,) = struct.unpack_from(">h", frame, RANDOM_IX_32_OFFSET)
-                # Same frame S as the RNG pair, on purpose: this is the frame
-                # src/test/statcheck_compare.c -> Statcheck_SyncValues is handed
-                # (statcheck_runner.c PHASE_GAME_TRANSITION passes
-                # `comparison_index - 1`), and seeding players_timer once from it
-                # is what took that harness's G9 drift to zero.
-                (players_timer,) = struct.unpack_from(">H", frame, PLAYERS_TIMER_OFFSET)
+def _read_setup_block(frame: bytes) -> SetupBlock:
+    """The setup block, read from the signature frame `S` -- field for field
+    what `scrd_read_match_setup` (`src/test/scrd_game.c`) reads, plus the RNG
+    pair and players_timer that `Statcheck_SyncValues`
+    (`src/test/statcheck_compare.c`) is handed from that same frame."""
+    characters = frame[MY_CHAR_OFFSET:MY_CHAR_OFFSET + 2]
+    supers = frame[SUPER_ARTS_OFFSET:SUPER_ARTS_OFFSET + 2]
+    new_challenger = frame[NEW_CHALLENGER_OFFSET]
+    colors = frame[PLAYER_COLOR_OFFSET:PLAYER_COLOR_OFFSET + 2]
+    (random_ix16,) = struct.unpack_from(">h", frame, RANDOM_IX_16_OFFSET)
+    (random_ix32,) = struct.unpack_from(">h", frame, RANDOM_IX_32_OFFSET)
+    # Same frame S as the RNG pair, on purpose: this is the frame
+    # src/test/statcheck_compare.c -> Statcheck_SyncValues is handed
+    # (statcheck_runner.c PHASE_GAME_TRANSITION passes `comparison_index - 1`),
+    # and seeding players_timer once from it is what took that harness's G9
+    # drift to zero.
+    (players_timer,) = struct.unpack_from(">H", frame, PLAYERS_TIMER_OFFSET)
 
-                setup = SetupBlock(
-                    characters=(char_arcade_to_3sx(characters[0]), char_arcade_to_3sx(characters[1])),
-                    supers=(supers[0], supers[1]),
-                    colors=(colors[0], colors[1]),
-                    new_challenger=new_challenger,
-                    random_ix16=random_ix16 & 0xFFFF,
-                    random_ix32=random_ix32 & 0xFFFF,
-                    players_timer=players_timer,
+    return SetupBlock(
+        characters=(char_arcade_to_3sx(characters[0]), char_arcade_to_3sx(characters[1])),
+        supers=(supers[0], supers[1]),
+        colors=(colors[0], colors[1]),
+        new_challenger=new_challenger,
+        random_ix16=random_ix16 & 0xFFFF,
+        random_ix32=random_ix32 & 0xFFFF,
+        players_timer=players_timer,
+    )
+
+
+def find_match_start(path: Path, frames) -> MatchStart:
+    """The producer half of `ScrdGame_Init` (`src/test/scrd_game.c`) -- the same
+    two predicates, so this tool converts exactly the segments the oracle can
+    grade and the device viewer can play.
+
+    1. ARMED, then CONFIRMED (H1). `G_No[1..3] == (2, 0, 0)` says only "the Game
+       task is parked on the Game2_0 slot"; a segment cut right after a final KO
+       can carry that triple frozen for its whole length. The signature of a
+       match that actually started is the visible effect of `Game2_0()`
+       (`game.c`) having run -- it writes `Game_timer = 0; C_No[0..3] = 0;
+       G_No[2] = 3;` in one frame -- so the frame AFTER the triple must show
+       `Game_timer == 0 && G_No[2] == 3`. Otherwise: NoMatchStartError.
+
+    2. TWO HUMAN OPERATORS (H4b). `plw[0].wu.wu_operator` and
+       `plw[1].wu.wu_operator`, read at the confirmed start frame, must both be
+       non-zero. A zero means `cpu_algorithm()` drove that side and the stored
+       button words were never what moved the character -- see CpuPlayerError.
+
+    `frames` is a `_iter_archive_frames` generator; on success it is left
+    positioned just past the returned `start_frame`, so a caller can go straight
+    on to reading the input stream."""
+    armed_setup: Optional[SetupBlock] = None
+    armed_index = -1
+    frame_count = 0
+
+    for i, frame in frames:
+        frame_count = i + 1
+
+        if armed_setup is not None:
+            (game_timer,) = struct.unpack_from(">H", frame, GAME_TIMER_OFFSET)
+            (g_no_2_after,) = struct.unpack_from(">H", frame, G_NO_OFFSET + 4)
+
+            if game_timer == 0 and g_no_2_after == 3:
+                operators = (
+                    frame[PLW_OFFSET + WORK_WU_OPERATOR_OFFSET],
+                    frame[PLW_OFFSET + PLW_SIZE + WORK_WU_OPERATOR_OFFSET],
                 )
-                game_start_index = i
+                if operators[0] == 0 or operators[1] == 0:
+                    raise CpuPlayerError(
+                        f"{path}: recorded against the CPU -- wu_operator = "
+                        f"{operators} at the match-start frame (archive frame {i}), so the "
+                        f"cabinet ran Play_Type == 0 with cpu_algorithm() on at least one "
+                        f"side; the device viewer forces two operators and cannot reproduce "
+                        f"it (H4b)"
+                    )
+                return MatchStart(
+                    setup=armed_setup,
+                    signature_index=armed_index,
+                    start_index=i,
+                    start_frame=frame,
+                    wu_operator=operators,
+                )
 
-            continue
+        g_no_1, g_no_2, g_no_3 = struct.unpack_from(">HHH", frame, G_NO_OFFSET + 2)
+        if g_no_1 == 2 and g_no_2 == 0 and g_no_3 == 0:
+            armed_setup = _read_setup_block(frame)
+            armed_index = i
+        else:
+            armed_setup = None
+            armed_index = -1
 
-        # i > game_start_index: part of the in-game input/checksum stream.
-        frame = accum_int.to_bytes(RAM_FRAME_SIZE, "big")
+    raise NoMatchStartError(
+        f"{path}: no match start across {frame_count} frames -- the (2,0,0) G_No "
+        f"triple is never followed by Game2_0()'s Game_timer=0 / G_No[2]=3 "
+        f"(segment holds no match) (H1)"
+    )
+
+
+def probe_match_start(path: Path) -> MatchStart:
+    """Eligibility probe: does this segment hold a match the device viewer can
+    play at all? Raises NoMatchStartError / CpuPlayerError / CorruptArchiveError
+    exactly as `extract_scrd_game` would, but stops decoding at the start frame
+    on a normal segment. Used by publish_3sr.py to skip -- rather than convert
+    and then drop -- an ineligible segment."""
+    data, table = _read_archive_table(path)
+    return find_match_start(path, _iter_archive_frames(data, table))
+
+
+def extract_scrd_game(path: Path, checksum_interval: int = DEFAULT_CHECKSUM_INTERVAL) -> ScrdGameData:
+    """Mirrors src/test/scrd_game.c's ScrdGame_Init (match-start scan AND its
+    two rejections -- see `find_match_start`) plus the per-frame
+    P1SW_0/P2SW_0 + checksum-window extraction described in
+    docs/3sr-format.md. Single forward pass over the SCRD archive, reusing
+    decode_inputs.py's table/decompress primitives."""
+    data, table = _read_archive_table(path)
+    frames = _iter_archive_frames(data, table)
+    start = find_match_start(path, frames)
+
+    p1_words: list[int] = []
+    p2_words: list[int] = []
+    checksum_table: list[tuple[int, int]] = []
+
+    def append_in_game_frame(frame: bytes) -> None:
         (p1,) = struct.unpack_from(">H", frame, P1SW_0_OFFSET)
         (p2,) = struct.unpack_from(">H", frame, P2SW_0_OFFSET)
         p1_words.append(p1)
@@ -283,18 +430,18 @@ def extract_scrd_game(path: Path, checksum_interval: int = DEFAULT_CHECKSUM_INTE
         if checksum_interval and local_index % checksum_interval == 0:
             checksum_table.append((local_index, compute_checksum(frame)))
 
-    if game_start_index is None or setup is None:
-        raise ExtractError(
-            f"{path}: no game-start signature frame found "
-            f"(G_No[1..3]==2,0,0 never matched across {table.frame_count} frames)"
-        )
+    # The confirmed start frame (S + 1) is itself the first in-game frame; the
+    # signature frame S contributes the setup block and no input word.
+    append_in_game_frame(start.start_frame)
+    for _i, frame in frames:
+        append_in_game_frame(frame)
 
     return ScrdGameData(
-        setup=setup,
+        setup=start.setup,
         p1_words=p1_words,
         p2_words=p2_words,
         checksum_table=checksum_table,
-        game_start_frame=game_start_index,
+        game_start_frame=start.signature_index,
         archive_entry_count=table.frame_count,
     )
 
@@ -586,8 +733,19 @@ def cmd_generate(args: argparse.Namespace) -> int:
     scrd_path: Path = args.archive
     out_path: Path = args.out
 
+    # Exit codes deliberately match `src/main.c`'s statcheck mapping so a caller
+    # can use one table for the oracle and the producer: 0 = converted,
+    # 1 = failure, 2 = segment holds no match, 3 = recorded against the CPU.
+    # 2 and 3 are NOT failures -- they are "this segment is not convertible",
+    # and a caller must skip the segment, never publish a .3sr for it.
     try:
         game = extract_scrd_game(scrd_path, checksum_interval=args.checksum_interval)
+    except NoMatchStartError as exc:
+        print(f"skip: {exc}", file=sys.stderr)
+        return 2
+    except CpuPlayerError as exc:
+        print(f"skip: {exc}", file=sys.stderr)
+        return 3
     except CorruptArchiveError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

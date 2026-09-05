@@ -65,7 +65,7 @@ index b261130..fa6e036 100644
  		printf("e.g.: %s mslug\n", argv[0]);
  		printf("e.g.: %s -menu -joy\n", argv[0]);
 diff --git a/src/burner/sdl/run.cpp b/src/burner/sdl/run.cpp
-index fdc1287..f230d4d 100644
+index fdc1287..7069898 100644
 --- a/src/burner/sdl/run.cpp
 +++ b/src/burner/sdl/run.cpp
 @@ -10,6 +10,7 @@
@@ -76,7 +76,7 @@ index fdc1287..f230d4d 100644
  #include <vector>
  
  static unsigned int nDoFPS = 0;
-@@ -77,6 +78,101 @@ static DumpPcTriggerState gDumpPcTrigger = { false, 0x06094d98 };
+@@ -77,6 +78,123 @@ static DumpPcTriggerState gDumpPcTrigger = { false, 0x06094d98 };
  static const INT32 kDumpGameStateOffset = 0x15438;
  static const UINT16 kDumpInGameState = 2;
  
@@ -111,6 +111,10 @@ index fdc1287..f230d4d 100644
 +static const size_t kTrackWorkXyzOffset       = 0x64;
 +static const size_t kTrackPlwOffset           = 0x68C6C;
 +static const size_t kTrackPlwSize             = 0x498;
++// work.wu.wu_operator -- 3sx-mister src/arcade/arcade_constants.h
++// WORK_WU_OPERATOR_OFFSET. The two players' copies sit at 0x68C6F and 0x69107.
++// Non-zero == a human operator drove that side; zero == cpu_algorithm() did.
++static const size_t kTrackWuOperatorOffset    = 3;
 +static const size_t kTrackP1Sw0Offset         = 0x6AA8C;
 +static const size_t kTrackP2Sw0Offset         = 0x6AA90;
 +static const UINT16 kTrackChecksumInterval    = 60;   // make_3sr.py DEFAULT_CHECKSUM_INTERVAL
@@ -153,12 +157,30 @@ index fdc1287..f230d4d 100644
 +	UINT32 checksumCount;
 +	UINT64 recordsConsumedAtSignature;
 +	char endReason[16];
++	// Why no .3sr was written, when none was: "cpu-player" or "no-match-start"
++	// (empty for a finalized game). Distinguishes an INELIGIBLE segment -- one
++	// the device viewer provably cannot play -- from a conversion failure.
++	char skipReason[24];
++};
++
++// The armed-but-unconfirmed match start. The (2,0,0) G_No triple alone does
++// NOT mean a match began (3sx-mister src/test/scrd_game.c -> ScrdGame_Init,
++// H1): the frame AFTER it must show Game2_0()'s own writes. So the setup block
++// is LATCHED here at the triple frame and only written out once the next frame
++// confirms -- and only if both wu_operator bytes are non-zero (H4b).
++struct Track3srPendingStart {
++	bool armed;
++	UINT8 header[32];   // kTrack3srHeaderSize, fully built at the triple frame
++	UINT64 recordsConsumed;
 +};
 +
 +static char gTrack3srPath[MAX_PATH] = { 0 };
 +static UINT32 gTrackGameIndex = 0;
 +static bool gTrackWasInGame = false;
 +static bool gTrackSignatureFound = false;
++static Track3srPendingStart gTrackPending = { false, { 0 }, 0 };
++// Non-empty once this game has been judged unplayable; see Track3srGameResult.
++static char gTrackSkipReason[24] = { 0 };
 +static FILE* gTrackGameFile = NULL;
 +// Incremental-checksum SIDE file (<out-dir>/game_<N>.cks): every checksum
 +// entry is ALSO appended here (8 B LE {frame, hash}) the moment it is
@@ -178,7 +200,7 @@ index fdc1287..f230d4d 100644
  void ReplaySetStatePath(const char* path)
  {
  	snprintf(gReplayStatePath, MAX_PATH, "%s", path ? path : "");
-@@ -107,6 +203,26 @@ bool ReplayHasDumpRamPath()
+@@ -107,6 +225,26 @@ bool ReplayHasDumpRamPath()
  	return gDumpRamPath[0] != '\0';
  }
  
@@ -205,7 +227,7 @@ index fdc1287..f230d4d 100644
  static bool ReplayEnsureDirectoryExists(const char* path)
  {
  	if (mkdir(path, 0755) != 0 && errno != EEXIST) {
-@@ -143,40 +259,291 @@ static bool ReplayIsEnabled()
+@@ -143,40 +281,365 @@ static bool ReplayIsEnabled()
  	return gReplayEnabled;
  }
  
@@ -288,6 +310,13 @@ index fdc1287..f230d4d 100644
 +		} else {
 +			fprintf(fp, "\"signature_found\": false, ");
 +		}
++		// Present ONLY on a game with no .3sr, and then always. It is what lets
++		// an operator tell "this quark legitimately yielded fewer games than
++		// num_matches" from "the converter broke": "cpu-player" and
++		// "no-match-start" are both correct, expected outcomes.
++		if (r.skipReason[0] != '\0') {
++			fprintf(fp, "\"skip_reason\": \"%s\", ", r.skipReason);
++		}
 +		fprintf(fp, "\"frame_count\": %u, \"checksum_count\": %u, \"end_reason\": \"%s\"}",
 +			r.frameCount, r.checksumCount, r.endReason);
 +	}
@@ -295,33 +324,15 @@ index fdc1287..f230d4d 100644
 +	fclose(fp);
 +}
 +
-+// Opens <out-dir>/game_<N>.3sr and writes the 28-byte v1 header
-+// (docs/3sr-format.md section 1) with the setup block read from the
-+// game-start signature frame (make_3sr.py:202-230). frame_count and
-+// checksum_count are 0 placeholders, patched in Track3srFinalizeGame.
-+static bool Track3srOpenGameFile(const UINT8* ram, size_t ramSize)
++// Builds the 32-byte v2 header (docs/3sr-format.md section 1) from the
++// game-start SIGNATURE frame -- the frame carrying the (2,0,0) G_No triple,
++// which is make_3sr.py's frame `S` and 3sx-mister scrd_game.c's armed frame.
++// Called at the triple; the bytes are held in gTrackPending until the NEXT
++// frame confirms a match actually started. frame_count and checksum_count are
++// 0 placeholders, patched in Track3srFinalizeGame.
++static void Track3srBuildHeader(const UINT8* ram, size_t ramSize, UINT8* header)
 +{
-+	if (!ReplayEnsureDirectoryExists(gTrack3srPath)) {
-+		printf("track-3sr: failed to create output directory: %s\n", gTrack3srPath);
- 		return false;
- 	}
- 
--	UINT8* ram = cps3GetMainRam();
--	const INT32 ramSize = cps3GetMainRamSize();
--	if (ram == NULL || ramSize != 0x80000) {
--		printf("Failed to access CPS3 Main RAM for dump\n");
-+	char path[MAX_PATH];
-+	snprintf(path, MAX_PATH, "%s/game_%u.3sr", gTrack3srPath, gTrackGameIndex);
-+	gTrackGameFile = fopen(path, "wb");
-+	if (gTrackGameFile == NULL) {
-+		printf("track-3sr: failed to open output file: %s\n", path);
- 		return false;
- 	}
- 
--	std::vector<UINT8> rawRam((size_t)ramSize);
--	memcpy(rawRam.data(), ram, (size_t)ramSize);
-+	UINT8 header[32];   // kTrack3srHeaderSize
-+	memset(header, 0, sizeof(header));
++	memset(header, 0, 32);
 +	memcpy(&header[0], "3SR1", 4);
 +	Track3srPutU16Le(&header[4], kTrack3srVersion);
 +	Track3srPutU16Le(&header[6], kTrack3srHeaderSize);
@@ -344,8 +355,33 @@ index fdc1287..f230d4d 100644
 +	// harness's effect_G9 spawn-phase drift to zero.
 +	Track3srPutU16Le(&header[28], ReplayReadBigEndianU16(ram, ramSize, kTrackPlayersTimerOffset));
 +	Track3srPutU16Le(&header[30], 0);                                      // reserved, MUST be 0
++}
 +
-+	if (fwrite(header, 1, sizeof(header), gTrackGameFile) != sizeof(header)) {
++// Opens <out-dir>/game_<N>.3sr and writes the latched header. Reached only
++// after BOTH match-start predicates have passed (see Track3srOnFrame), so no
++// .3sr is ever created for a segment the viewer cannot play.
++static bool Track3srOpenGameFile(const UINT8* header)
++{
++	if (!ReplayEnsureDirectoryExists(gTrack3srPath)) {
++		printf("track-3sr: failed to create output directory: %s\n", gTrack3srPath);
+ 		return false;
+ 	}
+ 
+-	UINT8* ram = cps3GetMainRam();
+-	const INT32 ramSize = cps3GetMainRamSize();
+-	if (ram == NULL || ramSize != 0x80000) {
+-		printf("Failed to access CPS3 Main RAM for dump\n");
++	char path[MAX_PATH];
++	snprintf(path, MAX_PATH, "%s/game_%u.3sr", gTrack3srPath, gTrackGameIndex);
++	gTrackGameFile = fopen(path, "wb");
++	if (gTrackGameFile == NULL) {
++		printf("track-3sr: failed to open output file: %s\n", path);
+ 		return false;
+ 	}
+ 
+-	std::vector<UINT8> rawRam((size_t)ramSize);
+-	memcpy(rawRam.data(), ram, (size_t)ramSize);
++	if (fwrite(header, 1, 32, gTrackGameFile) != 32) {
 +		printf("track-3sr: failed to write header: %s\n", path);
 +		fclose(gTrackGameFile);
 +		gTrackGameFile = NULL;
@@ -380,6 +416,14 @@ index fdc1287..f230d4d 100644
 +// in-game -> not-in-game transition and at end of session.
 +static void Track3srFinalizeGame(const char* endReason)
 +{
++	// A game that produced no .3sr and carries no explicit rejection simply
++	// never held a match: the (2,0,0) G_No triple was never followed by
++	// Game2_0()'s writes (H1). Name it, so the manifest distinguishes an
++	// INELIGIBLE segment from a converter failure.
++	if (gTrackGameFile == NULL && gTrackSkipReason[0] == '\0') {
++		snprintf(gTrackSkipReason, sizeof(gTrackSkipReason), "no-match-start");
++	}
++
 +	Track3srGameResult result;
 +	memset(&result, 0, sizeof(result));
 +	result.gameIndex = gTrackGameIndex;
@@ -388,6 +432,7 @@ index fdc1287..f230d4d 100644
 +	result.checksumCount = (UINT32)gTrackChecksums.size();
 +	result.recordsConsumedAtSignature = gTrackRecordsConsumedAtSignature;
 +	snprintf(result.endReason, sizeof(result.endReason), "%s", endReason);
++	snprintf(result.skipReason, sizeof(result.skipReason), "%s", gTrackSkipReason);
 +	gTrackResults.push_back(result);
 +
 +	if (gTrackGameFile != NULL) {
@@ -412,8 +457,8 @@ index fdc1287..f230d4d 100644
 +			gTrackGameIndex, endReason, gTrackFrameCount, (UINT32)gTrackChecksums.size(),
 +			(unsigned long long)gTrackRecordsConsumedAtSignature);
 +	} else {
-+		printf("track-3sr: game_%u ended (%s) with no game-start signature -- no .3sr written\n",
-+			gTrackGameIndex, endReason);
++		printf("track-3sr: game_%u SKIPPED (%s) at %s -- no .3sr written\n",
++			gTrackGameIndex, gTrackSkipReason, endReason);
 +	}
 +
 +	// The side file stays on disk (the relay may still be draining its tail);
@@ -424,6 +469,8 @@ index fdc1287..f230d4d 100644
 +	}
 +
 +	gTrackSignatureFound = false;
++	gTrackPending.armed = false;
++	gTrackSkipReason[0] = '\0';
 +	gTrackFrameCount = 0;
 +	gTrackRecordsConsumedAtSignature = 0;
 +	gTrackChecksums.clear();
@@ -431,13 +478,34 @@ index fdc1287..f230d4d 100644
 +}
 +
 +// Per PC-trigger frame, fed the same normalized RAM view + in-game gate the
-+// .ram dump path uses. Mirrors make_3sr.py extract_scrd_game():
-+//   - before the signature: scan for G_No[1]==2 && G_No[2]==0 && G_No[3]==0
-+//     (the signature frame itself contributes NO input words);
-+//   - after it: append the frame's {P1SW_0, P2SW_0} pair, sampling the
-+//     13-field checksum when local_index % interval == 0.
-+// Game segmentation (in-game -> not-in-game increments the game index) is
-+// the same rule ReplayDumpCps3MainRam uses for game_N/ dump directories.
++// .ram dump path uses. Mirrors make_3sr.py `find_match_start` +
++// `extract_scrd_game`, which in turn mirror 3sx-mister's
++// src/test/scrd_game.c -> ScrdGame_Init. Two gates decide whether this game
++// becomes a .3sr at all; both exist because a segment failing either CANNOT be
++// replayed by the device viewer, so emitting a file for it ships a guaranteed
++// desync:
++//
++//   H1  ARMED, then CONFIRMED. `G_No[1..3] == (2,0,0)` says only "the Game
++//       task is parked on the Game2_0 slot" -- a segment cut right after a
++//       final KO can carry that triple frozen for its whole length. A match
++//       that actually started shows Game2_0()'s own writes on the NEXT frame
++//       (`Game_timer = 0; C_No[0..3] = 0; G_No[2] = 3;`). So arm at the triple
++//       (latching the header), and only open the file when the next frame
++//       confirms.
++//
++//   H4b TWO HUMAN OPERATORS. `plw[0/1].wu.wu_operator` at the confirmed start
++//       must both be non-zero. A zero means the cabinet ran Play_Type == 0 with
++//       cpu_algorithm() driving that side, so `Player_move()` DISCARDED the
++//       hardware button words this tracker records -- and the viewer, which
++//       forces two operators (3sx-mister src/replay/replay_player.c,
++//       PHASE_CHARACTER_SELECT taps SWK_START for player 2), would feed those
++//       words back into a human-controlled character. Measured: such a .3sr
++//       desyncs by frame 60.
++//
++// The CONFIRMED frame is itself the first in-game frame, so it contributes the
++// first {P1SW_0, P2SW_0} pair; the armed/signature frame contributes only the
++// header. Game segmentation (in-game -> not-in-game increments the game index)
++// is the same rule ReplayDumpCps3MainRam uses for game_N/ dump directories.
 +static bool Track3srOnFrame(const UINT8* ram, size_t ramSize, bool isInGame)
 +{
 +	if (gTrackWasInGame && !isInGame) {
@@ -450,16 +518,44 @@ index fdc1287..f230d4d 100644
 +		return true;
 +	}
 +
++	// Already judged unplayable: nothing to record for this game. Wait for the
++	// boundary, which files the manifest row carrying the reason.
++	if (!gTrackSignatureFound && gTrackSkipReason[0] != '\0') {
++		return true;
++	}
++
++	if (!gTrackSignatureFound && gTrackPending.armed) {
++		const UINT16 gameTimer = ReplayReadBigEndianU16(ram, ramSize, kTrackGameTimerOffset);
++		const UINT16 gNo2After = ReplayReadBigEndianU16(ram, ramSize, kTrackGNoOffset + 4);
++		if (gameTimer == 0 && gNo2After == 3) {
++			const UINT8 op0 = ram[kTrackPlwOffset + kTrackWuOperatorOffset];
++			const UINT8 op1 = ram[kTrackPlwOffset + kTrackPlwSize + kTrackWuOperatorOffset];
++			gTrackPending.armed = false;
++			if (op0 == 0 || op1 == 0) {
++				snprintf(gTrackSkipReason, sizeof(gTrackSkipReason), "cpu-player");
++				printf("track-3sr: game_%u is not human-vs-human -- wu_operator = (%u, %u) at the "
++					"match start; the cabinet ran cpu_algorithm() on at least one side and the "
++					"viewer cannot reproduce it. Skipping (no .3sr).\n",
++					gTrackGameIndex, (unsigned)op0, (unsigned)op1);
++				return true;
++			}
++			if (!Track3srOpenGameFile(gTrackPending.header)) {
++				return false;
++			}
++			gTrackSignatureFound = true;
++			gTrackRecordsConsumedAtSignature = gTrackPending.recordsConsumed;
++			// Falls through: the confirmed frame IS the first in-game frame.
++		}
++	}
++
 +	if (!gTrackSignatureFound) {
 +		const UINT16 gNo1 = ReplayReadBigEndianU16(ram, ramSize, kTrackGNoOffset + 2);
 +		const UINT16 gNo2 = ReplayReadBigEndianU16(ram, ramSize, kTrackGNoOffset + 4);
 +		const UINT16 gNo3 = ReplayReadBigEndianU16(ram, ramSize, kTrackGNoOffset + 6);
-+		if (gNo1 == 2 && gNo2 == 0 && gNo3 == 0) {
-+			if (!Track3srOpenGameFile(ram, ramSize)) {
-+				return false;
-+			}
-+			gTrackSignatureFound = true;
-+			gTrackRecordsConsumedAtSignature = (UINT64)(gReplayInputOffset / 10);
++		gTrackPending.armed = (gNo1 == 2 && gNo2 == 0 && gNo3 == 0);
++		if (gTrackPending.armed) {
++			Track3srBuildHeader(ram, ramSize, gTrackPending.header);
++			gTrackPending.recordsConsumed = (UINT64)(gReplayInputOffset / 10);
 +		}
 +		return true;
 +	}
@@ -519,7 +615,7 @@ index fdc1287..f230d4d 100644
  
  	if (gDumpWasInGame && !isInGame) {
  		gDumpGameIndex++;
-@@ -204,7 +571,7 @@ static bool ReplayDumpCps3MainRam()
+@@ -204,7 +667,7 @@ static bool ReplayDumpCps3MainRam()
  		return false;
  	}
  
@@ -528,7 +624,7 @@ index fdc1287..f230d4d 100644
  	fclose(fp);
  
  	if (!ok) {
-@@ -216,10 +583,60 @@ static bool ReplayDumpCps3MainRam()
+@@ -216,10 +679,60 @@ static bool ReplayDumpCps3MainRam()
  	return true;
  }
  
@@ -590,7 +686,7 @@ index fdc1287..f230d4d 100644
  			bRunPause = 1;
  		}
  	}
-@@ -376,6 +793,73 @@ static void ReplayBuildBindings()
+@@ -376,6 +889,73 @@ static void ReplayBuildBindings()
  	}
  }
  
@@ -664,7 +760,7 @@ index fdc1287..f230d4d 100644
  static void ReplayApplyFrameInputs()
  {
  	if (gReplayFinished) {
-@@ -384,8 +868,10 @@ static void ReplayApplyFrameInputs()
+@@ -384,8 +964,10 @@ static void ReplayApplyFrameInputs()
  
  	UINT16 masks[2] = { 0, 0 };
  	if ((gReplayInputOffset + 10) > gReplayInputData.size()) {
@@ -677,7 +773,7 @@ index fdc1287..f230d4d 100644
  	}
  
  	const UINT8* frame = &gReplayInputData[gReplayInputOffset];
-@@ -425,7 +911,9 @@ static bool ReplayInit()
+@@ -425,7 +1007,9 @@ static bool ReplayInit()
  		printf("Failed to read replay inputs blob: %s\n", gReplayInputsPath);
  		return false;
  	}
@@ -688,7 +784,7 @@ index fdc1287..f230d4d 100644
  		printf("Replay inputs blob size must be a multiple of 10 bytes, got %zu\n", gReplayInputData.size());
  		return false;
  	}
-@@ -750,11 +1238,20 @@ int RunInit()
+@@ -750,11 +1334,22 @@ int RunInit()
  		return 1;
  	}
  	gDumpPcTrigger.enabled =
@@ -701,6 +797,8 @@ index fdc1287..f230d4d 100644
 +	gTrackGameIndex = 0;
 +	gTrackWasInGame = false;
 +	gTrackSignatureFound = false;
++	gTrackPending.armed = false;
++	gTrackSkipReason[0] = '\0';
 +	gTrackGameFile = NULL;
 +	gTrackCksFile = NULL;
 +	gTrackFrameCount = 0;
@@ -710,7 +808,7 @@ index fdc1287..f230d4d 100644
  	Sh2SetExecHandler(ReplayExecHook);
  	if (!ReplayIsEnabled()) {
  		StatedAuto(0);
-@@ -766,6 +1263,7 @@ int RunExit()
+@@ -766,6 +1361,7 @@ int RunExit()
  {
  	nNormalLast = 0;
  	Sh2SetExecHandler(NULL);
