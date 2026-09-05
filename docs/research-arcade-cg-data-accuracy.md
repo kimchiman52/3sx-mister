@@ -3741,6 +3741,9 @@ the table were **re-derived here** (§23.3), not copied.
 ### 23.2 Two facts about the measurement chain that this section depends on
 
 **(a) The publish gate has never been able to see this class of defect.**
+*(Superseded 2026-09-05: `statcheck_compare.c` now asserts `Random_ix16`, and
+what that unmasked is `research-arcade-balance-desyncs.md` §E5. The paragraph is
+kept as written because everything §23 measured was measured under the mask.)*
 `src/test/statcheck_compare.c` (and `src/test/test_runner_compare.c`,
 identically) does not *assert* `Random_ix16` — it **overwrites** it from the
 archive every frame:
@@ -4041,7 +4044,10 @@ is unchanged — the table is the same — so no player is advantaged and
 port-vs-port netplay is unaffected; what is lost is *sequence fidelity to the
 arcade*: an arcade-recorded match cannot be reproduced on these two stages,
 and any future arcade-truth oracle that does not dirty-sync `Random_ix16`
-will fail there. For every other stage in the corpus the sequence matched to
+will fail there. (That oracle now exists — the statcheck force-sync came out on
+2026-09-05 — and the 143-segment corpus it was swept over contains no stage-3
+and no stage-19 segment, so it is not evidence about §23.10 either way. It did
+surface two further stages: `research-arcade-balance-desyncs.md` §E5.) For every other stage in the corpus the sequence matched to
 frame 60 in 37/37 replays (previous pass) — there is no evidence of a third
 affected stage, but see §23.11.
 

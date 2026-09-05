@@ -280,10 +280,19 @@ static void compare_service_values(SDL_IOStream* io, bool compare_characters) {
 
     /* RNG call-count instrumentation (see the block comment in pls02.c).
      *
-     * MUST run before the sync below. Because the previous frame ended synced,
-     * our index entered this frame equal to CPS3's, and both sides advance one
-     * per call with `Random_ix16 &= 0x3F`. So this delta IS (our calls - CPS3's
-     * calls) for this frame, for any true difference under 64.
+     * MUST run before the assert below, which ends the run on the very first
+     * divergent frame. That ordering is what keeps the delta EXACT: every frame
+     * that reaches here entered synced (the previous one asserted equal), and
+     * both sides advance one step per call with `Random_ix16 &= 0x3F`. So this
+     * delta IS (our calls - CPS3's calls) for this frame, for any true
+     * difference under 64 -- and it is reported before the failure it explains.
+     *
+     * This used to be true for a different reason: the compare force-synced
+     * `Random_ix16 = random_ix16_cps3` here on every frame, so the field could
+     * never fail and every frame re-entered synced by fiat. That mask was
+     * removed on 2026-09-05 (docs/research-arcade-balance-desyncs.md, "The
+     * instrumentation"): it hid E2a for months and would have hidden the next
+     * one the same way, because a repaired divergence reports as a pass.
      *
      * The trace then names which of OUR call sites ran. It cannot name the call
      * CPS3 made and we did not -- a negative delta means we are missing one, and
@@ -296,8 +305,7 @@ static void compare_service_values(SDL_IOStream* io, bool compare_characters) {
         }
     }
 
-    // This is dirty, but syncing Random_ix16 every frame helps avoid animation-related desyncs
-    Random_ix16 = random_ix16_cps3;
+    assert_equals(Random_ix16, random_ix16_cps3);
 
     const s16 random_ix32_cps3 = read_s16(io, RANDOM_IX_32_OFFSET);
     assert_equals(Random_ix32, random_ix32_cps3);

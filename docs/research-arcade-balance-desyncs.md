@@ -15,6 +15,14 @@ constant in `pow_data.c`, its values are correct, and the defect is an `if`.
 Filing engine behaviour into a data-fidelity document reproduces that blind
 spot. Keep them separate.
 
+**Both `Random_ix16` masks were removed on 2026-09-05**, which is the newest
+work here. The oracle no longer force-syncs the field (it asserts it) and the
+viewer no longer repairs it on v2 files. See M1/M2 in the worklist, "The
+instrumentation" for what the oracle change cost and bought, D1 for the viewer
+half, and **E5** for the seven divergences that were hiding behind the oracle's
+mask. Read any `Random_ix16` claim dated earlier in this document as a statement
+made under the mask.
+
 **Status (2026-09-05).** Fixed: **E2a** in the statcheck oracle (`f63507b7`)
 and now in the shipped viewer too (`.3sr` v2 carries `players_timer`); **D2**
 on the viewer (`c6a75572`, confirmed on hardware); **E1a** applied (the
@@ -48,12 +56,21 @@ Two properties of the harness matter for reading anything below:
 - **It is deterministic.** Four quarks re-converted from scratch reproduced
   every segment count, every PASS/FAIL and every failure value identically.
   Verdicts here are reproducible, not sampled.
-- **It force-syncs `Random_ix16` every frame**, by design — see the comment
+- **It asserts `Random_ix16` honestly, as of 2026-09-05.** For as long as the
+  oracle had existed it instead force-synced the field every frame — the comment
   "This is dirty, but syncing Random_ix16 every frame helps avoid
-  animation-related desyncs" in `statcheck_compare.c`. So `Random_ix16`
-  divergence is invisible to statcheck by construction. `Random_ix32` is
-  compared honestly. Do not read a clean statcheck as evidence about
-  `Random_ix16`.
+  animation-related desyncs" in `compare_service_values()` — so `Random_ix16`
+  divergence was invisible by construction and a clean statcheck said nothing
+  about it. That line is now `assert_equals(Random_ix16, random_ix16_cps3)`,
+  alongside the `Random_ix32` assert that was always honest. **Verdicts recorded
+  in this document BEFORE that date carry the old, weaker meaning.** What the
+  removal surfaced is E5.
+- **The same force-sync still stands in `src/test/test_runner_compare.c`
+  (`compare_service_values`, the DEBUG replay comparer), and it is harmless:**
+  its `compare_values()` and `sync_values()` have **zero callers in `src/`** —
+  `test_runner.c` includes the header and calls neither. A mask over code
+  nothing runs hides nothing, so it was left alone rather than changed
+  unverifiably; there is no corpus that exercises that path to re-grade against.
 
 **Reproduction** (the CWD and interpreter both matter):
 
@@ -78,15 +95,23 @@ call into a 256-entry ring, reset each frame. `statcheck_compare.c` computes the
 per-frame delta BEFORE the force-sync and, when non-zero, prints the callers
 resolved through `dladdr()`.
 
-**Why the delta is exact, and why the force-sync is what makes it so.** Each
-frame begins synced, both sides advance one per call, and the generator masks to
-six bits (`Random_ix16 &= 0x3F`). Therefore
+**Why the delta is exact.** Each frame begins synced, both sides advance one per
+call, and the generator masks to six bits (`Random_ix16 &= 0x3F`). Therefore
 
     (our Random_ix16 - archive Random_ix16) & 0x3F
 
-read before the next sync IS (our calls - CPS3's calls) for that frame, for any
-true difference under 64. The "dirty" hack everyone works around is the thing
-that makes the measurement precise.
+IS (our calls - CPS3's calls) for that frame, for any true difference under 64.
+
+**What guarantees "begins synced" changed on 2026-09-05, and the guarantee got
+stronger.** It used to be the force-sync: every frame was re-synced by fiat, so
+every frame began equal — and no frame could ever fail. Now it is the assert on
+the very next line: a frame only reaches the compare because its predecessor
+asserted equal, and the first frame that does not ends the run. So the delta is
+still exactly one frame's call difference, it is reported immediately before the
+failure it explains, and there is exactly one report per failing run. The
+measurement kept its precision and stopped being a mask. (`STATCHECK_RNG_DRIFT_MAX`
+is now effectively unreachable for `Random_ix16` drift; it still bounds nothing
+else.)
 
 **Limits.** It names only OUR call sites. A negative delta means CPS3 called
 something we did not, and that answer is in the arcade disassembly. **And it is blind
@@ -336,10 +361,12 @@ the disassembly discriminated.
 archives. Every other archive fails at exactly the same frame with the same drift
 count — no regression, no improvement.
 
-**Not fixable by a FAILING archive, by construction.** A G9 phase error only
-moves `Random_ix16`, which the oracle overwrites every frame, so it can never
-make statcheck FAIL. Its whole cost is downstream: the device viewer's
-`recover_random_ix16()` recoveries (288 in 13 replays).
+**Not fixable by a FAILING archive, by construction — while the mask stood.** A
+G9 phase error only moves `Random_ix16`, which the oracle overwrote every frame,
+so it could never make statcheck FAIL. Its whole cost was downstream: the device
+viewer's `recover_random_ix16()` recoveries (288 in 13 replays). Both masks were
+removed on 2026-09-05 — the oracle now asserts `Random_ix16`, and the viewer
+repairs it only on v1 files. See "The instrumentation" and D1.
 
 **CLOSED for the viewer too — `.3sr` v2.** The v1 header (`header_size = 28`)
 carried `random_ix16`/`random_ix32` but not `players_timer`, so the viewer
@@ -513,6 +540,113 @@ defect in either engine.
 equal-count reordering**: on the frame that matters, both engines make the same
 number of `random_16()` calls, so the delta is 0 and nothing is reported. See the
 caveat in the instrumentation section.
+
+### E5 — stage quake debris draws `random_16()` on a frame CPS3 does not (OPEN, two classes)
+
+**This is what removing the oracle's force-sync surfaced**, and it is the whole
+of what it surfaced. Sweeping all 143 segments of
+`/Volumes/KimchDrive/3sarm-corpus-2026-09-05/` before and after the change:
+
+| | segments | PASS | FAIL |
+|---|---|---|---|
+| before (`Random_ix16` force-synced) | 143 | 142 | 1 (E4) |
+| after (`Random_ix16` asserted) | 143 | **135** | **8** (E4 + 7 new) |
+
+E4 fails identically — same archive, same archive frame 3090, same
+`routine_no_3sx (23) != routine_no_cps3 (20)`. No previously-failing segment
+started passing. All seven new failures are `Random_ix16 (n) != random_ix16_cps3
+(m)` in `compare_service_values()`, and the RNG tracer attributes every one of
+them to a single call site.
+
+**Two classes, and the stage is the discriminator.** `bg_w.stage` was read
+directly from each archive at `BG_W_STAGE_OFFSET` and mapped through
+`CHAR_ARCADE_TO_3SX`, the same transform `scrd_read_match_setup()`
+(`src/test/scrd_game.c`) applies:
+
+| class | caller (`statcheck-rng:` trace) | delta | segments | 3SX stage | spawner |
+|---|---|---|---|---|---|
+| **E5a** | `eff19_quake_sub` (`effect/eff19.c`) | **+7** | 4 | 16 (Makoto's) | `bg1602_init00` -> `effect_19_init()` (`stage/bg160.c`) |
+| **E5b** | `eff94_2000_1` (`effect/eff94.c`) | **+1** | 3 | 7 (Ibuki's) | `bg0702_init00` -> `effect_94_init(3)` (`stage/bg070.c`) |
+
+The cohort sizes are not a coincidence and pin the attribution: `effect_19_init()`
+spawns exactly seven works (`for (i = 0; i < 7; i++)`) and BG070 calls
+`effect_94_init(3)` exactly once. **Every work of the stage's quake cohort draws
+on the same frame**, and CPS3 draws nothing on it.
+
+**Both gates are the same variable.** `eff19_quake_sub` `case 0:` returns early
+on `if (bg_w.quake_y_index <= 2)` and otherwise does `work = random_16()`;
+`eff94_2000_0` advances `routine_no[2]` on `if (bg_w.quake_y_index > 3)`, and the
+next tick `eff94_2000_1` does `work = random_16()`. So both classes are one
+mechanism seen through two stages: **`bg_w.quake_y_index` crosses its threshold
+on our side on a frame where the arcade's does not.** The harness never imports
+it (`Statcheck_SyncValues` seeds `Random_ix16`/`Random_ix32`, `players_timer`,
+`t_pl_lvr` and `Round_Level`, and nothing in `bg_w` but the pinned stage).
+
+**It is a single event, not a phase error — measured.** Under the old force-sync
+the delta was computed and logged every frame without failing. Across all 143
+segments that produced **38 `statcheck-rng` lines total: exactly one drifting
+frame in each of the same seven segments, and zero drifting frames in the other
+136.** `STATCHECK_RNG_DRIFT_MAX` is 40, so nothing was truncated. Had this been a
+mistimed draw, the compensating opposite-sign frame would have been logged too
+and was not. Those seven calls (and one) are draws the arcade never makes
+anywhere in the segment. That distinguishes E5 from E2a, whose signature was
+alternating -2/+2 at a fixed lag.
+
+**It is event-triggered, not stage-wide.** The corpus holds **20** stage-16
+segments and **12** stage-7 segments; **4** and **3** of them fail. So this is
+not "the port walks a different sequence from frame 1 of every round on these
+stages" — it is a specific in-match quake whose intensity or duration differs by
+one step. Contrast `research-arcade-cg-data-accuracy.md` §23, which is stage-wide
+by construction, and note that its two stages (3, Yun's and 19, Remy's) **do not
+occur in this corpus at all** — this sweep is not evidence about the §23.10 fix
+either way.
+
+**Failing segments, for reproduction.** All under
+`/Volumes/KimchDrive/3sarm-corpus-2026-09-05/runs/<quark>/work/<quark>/scrd/<quark>.7/`:
+
+| archive | archive frame | delta | ours / cps3 |
+|---|---|---|---|
+| `1788027136680-3135.7_game_0` | 2012 | +7 | 48 / 41 |
+| `1788055654738-9592.7_game_0` | 6885 | +7 | 34 / 27 |
+| `1788055654738-9592.7_game_2` | 2613 | +7 | 17 / 10 |
+| `1788235472499-9794.7_game_1` | 4489 | +7 | 10 / 3 |
+| `1788063281669-6318.7_game_1` | 3300 | +1 | 53 / 52 |
+| `1788063281669-6318.7_game_4` | 3760 | +1 | 5 / 4 |
+| `1788137292498-5401.7_game_0` | 4866 | +1 | 16 / 15 |
+
+**NOT determined — say so rather than guess.**
+- *Why* `bg_w.quake_y_index` differs. The trigger writers are
+  `effa7.c`/`eff02.c` (`bg_w.quake_y_index = gqdt[tad->quake][1]` and
+  `= ewk->wu.scr_mv_y`) and `effect.c`'s `bg_w.quake_y_index = data;` the decay
+  is `ta0_move()` (`stage/tate00.c`). Which of those runs on the failing frame
+  was not traced.
+- The arcade's value could not be compared, because **`bg_w.quake_y_index`'s
+  archive offset is unknown**. `BG_W_STAGE_OFFSET` (0x26BB0) locates
+  `bg_w.stage`, and the port's `BG` struct puts `quake_y_index` 29 bytes past it
+  — which lands on an odd address the SH-2 cannot hold an `s16` at, so the
+  arcade layout differs from the port's and the offset has to come from
+  disassembly, not from `offsetof`.
+- Whether the two classes share one root cause or only one variable.
+
+**What this costs the producer, checked rather than assumed.** `publish_3sr.py`
+gates on `clean = proc.returncode == 0` (`statcheck_gate`), so the honest assert
+now drops these 7 of 143 segments (4.9%) from the Mac conversion lane instead of
+publishing them. **That is the correct outcome, not a regression**, and it is the
+"a rejection added to the oracle is not a fix" lesson running the right way for
+once: after both masks came off, the oracle and the shipped viewer agree. An
+ix16-only divergence fails statcheck, and `Random_ix16` never resyncs afterwards,
+so the same segment's next battle checkpoint would fail the viewer's 13-field
+hash too (D1) — demonstrated by forging exactly that mismatch into a v2 `.3sr`
+and watching it produce `REPLAY DESYNC … [Random_ix16 is the ONLY divergent
+field: live=0025 archive=0026]`. Publishing them would ship guaranteed on-device
+desyncs. The VPS lane still has no statcheck at all (D3) and is unaffected either
+way.
+
+**The experiment that would settle it** is the one
+`research-arcade-cg-data-accuracy.md` §23.11 already names as the natural next
+step: diff CPS3's stage initialisers against the port's for all twenty stages,
+and locate `quake_y_index` in the decrypted image. §23 did `bg190`, `bg030` and
+`bg180`; `bg160` and `bg070` are now the two with measured evidence against them.
 
 ---
 
@@ -990,9 +1124,13 @@ keeps producing ungated output until it is redeployed.
 | E1a | `Play_Type == 1` damage pin has no arcade counterpart | **FIXED** — gated on `ArcadeBalance_IsEnabled()` at both `pow_pow.c` sites, `setup_vs_mode()` seeded to **3** (not 0), `ROUND_LEVEL_OFFSET 0x1137A` imported. Proven by disassembly (`0x0609E36C`/`0x0609E3FA` index `Round_Level` unconditionally); demonstrates on **no** corpus segment — reachable only via 2P break-in, which is not traced |
 | E1b | port never updates `Round_Level` in VS | **RETRACTED, not a defect** — arcade `Loser_Sub` (`0x0609C616`) and `Update_VS_Data` (`0x0609C79A`) gate on `Play_Type` exactly as the port does. The archive decrements are all in human-vs-CPU segments |
 | H4b | harness forces `Play_Type == 1` on every segment | **FIXED, by rejection** — `ScrdGame_Init` reads `wu_operator` at the match-start frame (`WORK_WU_OPERATOR_OFFSET`, archive `0x68C6F`/`0x69107`) and returns `SCRD_GAME_INIT_CPU_PLAYER`; `main.c` exits **3**, distinct from 1 and 2. Reproducing the CPU player was tried and refuted by measurement (see H4b) — it breaks input pinning at frame 7 and manufactures a new `routine_no` divergence at frame 11. Costs 8 of 16 segments; sweep now reports **0** divergences |
-| E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device, and existing v1 files keep the old behaviour |
+| E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device. Both masks that hid it are now gone: the viewer repairs `Random_ix16` only on v1 files (D1) and the oracle asserts it (see "The instrumentation"). Existing v1 files keep the old behaviour, deliberately |
 | E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect. All six instances now exit 3 |
-| E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **OPEN, real** — first (1,1) divergence; deterministic, reproduced at `47167788`; no mechanism yet |
+| E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **OPEN, real** — first (1,1) divergence; deterministic, reproduced at `47167788`; unchanged by the `Random_ix16` unmasking (same archive, frame and values); no mechanism yet |
+| E5 | stage quake debris draws `random_16()` where CPS3 does not | **OPEN, real, 7 segments** — E5a `eff19_quake_sub` +7 on 4 of 20 stage-16 segments, E5b `eff94_2000_1` +1 on 3 of 12 stage-7 segments. Both gate on `bg_w.quake_y_index`, which the harness does not import and whose archive offset is unknown. Invisible until the oracle's force-sync was removed; one drifting frame per segment, never a compensating one |
+| M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures are E5. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
+| M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |
+| M2 | the viewer repaired `Random_ix16` at every checkpoint | **GATED to v1** — `check_checkpoint()` repairs only when `!has_players_timer`; a v2 file fails an ix16-only mismatch and names the field (D1). v1 kept because an A/B twin desyncs at checkpoint 18/189 without it, against ~23,300 shipped v1 files |
 | E3 | `pos.x` +32 at round start | **RETRACTED, not an engine divergence** — both instances are `(1,0)` CPU segments and now exit 3. The proposed `Appear_24000`/`Appear_25000` mechanism is refuted by measurement (`routine_no[4]` is 1 and 21 in both, never 24/25). Unreachable in (1,1) play: every `wu_operator`-conditioned round-start-X path needs an operator flag clear. **NOT proven**: which write produced the +32 (candidate: the `set_field_hosei_flag` clamp against an unimported camera, `bg_w.bgw[1].wxy[0]`) |
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
@@ -1000,10 +1138,14 @@ keeps producing ungated output until it is redeployed.
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 
-**For a reviewer:** the 16-segment corpus now reports **no engine divergence at
+**For a reviewer:** the 16-segment corpus reports **no engine divergence at
 all** — 6 PASS, 8 rejected as unreproducible (H4b), 2 with no match (H1). Every
 one of the eleven failures this document opened with had a harness cause. E1a
 is applied; E1b, E2b and E3 are retracted; H1, H2, H3 and H4b have landed.
+**That sentence was written while the oracle was still masking `Random_ix16`.**
+On the 143-segment corpus with the mask removed the count is 135 PASS / 8 FAIL:
+E4, plus the seven E5 segments. Two real engine divergences stand, in three
+classes.
 
 That is a statement about *this* corpus, and its main consequence is that the
 corpus is now too small to say much: 6 usable segments, all human-vs-human, all
