@@ -56,6 +56,37 @@ a fatal traceback**; read its output, never its status.
 
 ---
 
+## The instrumentation (commit `90ccb151`)
+
+`RngTrace_*` in `pls02.c` records `__builtin_return_address(0)` for every RNG
+call into a 256-entry ring, reset each frame. `statcheck_compare.c` computes the
+per-frame delta BEFORE the force-sync and, when non-zero, prints the callers
+resolved through `dladdr()`.
+
+**Why the delta is exact, and why the force-sync is what makes it so.** Each
+frame begins synced, both sides advance one per call, and the generator masks to
+six bits (`Random_ix16 &= 0x3F`). Therefore
+
+    (our Random_ix16 - archive Random_ix16) & 0x3F
+
+read before the next sync IS (our calls - CPS3's calls) for that frame, for any
+true difference under 64. The "dirty" hack everyone works around is the thing
+that makes the measurement precise.
+
+**Limits.** It names only OUR call sites. A negative delta means CPS3 called
+something we did not, and that answer is in the arcade disassembly. Reports are
+capped (`STATCHECK_RNG_DRIFT_MAX`) so a run that drifts every frame cannot bury
+the first divergence.
+
+Usage:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  build/statcheck-verify/3S-ARM.app/Contents/MacOS/3S-ARM --ram-archive <x.scrd> 2>&1 | grep statcheck-rng
+```
+
+---
+
 ## Confirmed engine divergences
 
 ### E1 — `Round_Level` is ignored in VS play, so damage is off by one step
@@ -115,35 +146,63 @@ the arcade actually reads here, and what a fresh cabinet session initialises
 `Round_Level` to, are both unverified — settling them would also settle the
 netplay question.
 
-### E2 — `Random_ix32` misses one advance at round release
+### E2 — the RNG drifts continuously; `Random_ix32` is just the visible half
 
-**Symptom.** `Random_ix32` off by exactly 1, ours *lower*, on the frame the
-round goes live: `C_No` → `[2,0,0,0]`, `Allow_a_battle_f` 0→1, player
-`routine_no[0]` 3→4. Three independent instances.
+**Superseded description.** This was first filed as "`Random_ix32` misses one
+advance at round release, 3 instances". Instrumentation (2026-09-04) showed that
+is one symptom of a continuous divergence, not a discrete event.
 
-**Mechanism (partly inferred).** `random_32()` (`pls02.c`) increments
-`Random_ix32` once per call. In a human-vs-human match the `random_32_com()`
-wrappers are not in play, so the in-match callers are the two effect sites
-(`effk3.c`, `effk4.c`) and `comm_pjmp()` (`charset.c`):
+**Symptom.** Our engine and CPS3 disagree about *when* `effect_G9` spawns. Each
+spawn burns exactly two `random_16()` — the two calls in `effect_G9_move`'s
+`case 0:` branch (`effg9.c`). On a **passing** archive the drift alternates in a
+strict pattern, three frames apart:
 
-```c
-s32 comm_pjmp(WORK* wk, UNK11* ctc) {
-    if (random_32() < ctc->koc) { ... }
-}
+```
+frame 483  delta=-2  0 calls    <- CPS3 spawned here
+frame 486  delta=+2  2 calls    <- we spawned, 3 frames later
+frame 487  delta=-2  0 calls
+frame 490  delta=+2  2 calls
 ```
 
-a probability-jump opcode in the character-script dispatch. So our character
-script appears not to execute a `pjmp` that CPS3's does on the first fight
-frame. **Not instrumented** — `comm_pjmp` is the leading candidate, not a proven
-cause. Instrumenting `g_random_32_calls` (already exists in `pls02.c`) across
-that frame boundary is the obvious next step.
+Same cadence (~every 4 frames), consistently late. **42 of 42** traced RNG calls
+came from `effect_G9_move`; nothing else contributed.
 
-This is **not** downstream of E3: `appear.c` uses only `random_16()`, which
-statcheck force-syncs.
+**Why one bug looks like two.** `Random_ix16` is force-synced every frame by
+`statcheck_compare.c` and brute-forced back by the device's
+`recover_random_ix16()`, so the drift is repaired 60 times a second and reads as
+clean. `Random_ix32` is **not** synced, so the identical phase offset there is
+permanent and eventually fails a checkpoint hash. One cause, two faces.
 
-**Why this one matters most.** `Random_ix32` is inside the device's checkpoint
-hash window (see D1), so unlike E1 it is a divergence the shipped viewer can
-actually detect — and an RNG desync compounds.
+**Scale.** On device, `recover_random_ix16()` fired **288 times in 13 replays**
+(~22 per replay, roughly a fifth of all checkpoints). This is not a rare event.
+
+**Mechanism.** `effect_G6_move` (`effg6.c`) spawns G9 through `effect_G9_init`,
+gated on:
+
+```c
+if (ewk->wu.now_koc & (players_timer + ewk->wu.blink_timing)) { break; }
+```
+
+`players_timer` is a free-running `u16` (`plcnt.c`, `players_timer++;
+players_timer &= 0x7FFF;` — the main player-control path, not only the bonus
+paths in `plcnt2.c`/`plcnt3.c`). It is **never imported from the archive**: no
+offset in `arcade_constants.h`, nothing in `src/test/`. Our synthetic match start
+has it at 0 while the archive is mid-session with it in the tens of thousands, so
+the bitmask lands on different frames.
+
+**Partial confirmation — do not treat the offset as settled.** Scanning the
+archive for a big-endian `u16` incrementing by 1 per frame and surviving a round
+boundary isolated `0x07F02` (16,568 at archive frame 200 -> 18,768 at 2,400,
+never resetting — unlike `GAME_TIMER_OFFSET 0x1136C`, which tracks the archive
+frame index). Importing it shifted the spawn lag from 3 frames to **2**, proving
+it feeds the gate, but did **not** remove the drift. Reverted as unproven. Either
+it is not `players_timer`, or `players_timer` is one of several unimported
+inputs — `blink_timing` is per-effect-instance state and the G6 instance's own
+creation frame is equally unimported.
+
+**This is the fourth instance of one pattern:** the arcade carries state across
+matches and our harness resets it. See also E1 (`Round_Level`), H2
+(`bg_w.stage`), H3 (`t_pl_lvr`).
 
 ### E3 — `pos.x` jumps +32 at round start, cause unknown
 
@@ -247,7 +306,7 @@ accepted with probability ≈2.0×10⁻⁶.
 `REPLAY_PLAYER_DESYNCED` is assigned in exactly one place — the tail of
 `check_checkpoint()`. No retry, no swallow, no build flag disables checking.
 
-### D2 — the viewer never rescans, so a clean log can be meaningless
+### D2 — the viewer never rescanned (FIXED, `c6a75572`)
 
 `rs_scan()` (`replay_shuffle.c`) has exactly one call site:
 `ReplayShuffle_Tick()`, `case RS_WAIT_BOOT`, which transitions straight to
@@ -258,9 +317,23 @@ then played 734 replays — 56 loops of the same 13 — while 507 `.3sr` sat on 
 card, having arrived 12.5 hours after the scan. Zero divergences logged, and
 that number said nothing about the 494 files never opened.
 
-**Any "N hours clean" claim must be qualified by what the boot scan found.**
-Check the `replay-shuffle: scan of … found N entr(ies)` line in
-`logs/last-run.log` before quoting a clean run as evidence.
+**Fixed in `c6a75572`:** `rs_scan()` now re-runs when `manifest.json`'s mtime
+changes, at the RS_TRANSITION -> `rs_start_next()` boundary — the player is
+terminal, no `.3sr` is loaded, and `s_current` is about to be reassigned, so
+rebuilding the entry arrays cannot invalidate anything in use. Gated on the
+manifest because the wrapper renames it into place once per completed fetch, so
+a half-fetched set cannot trigger a scan.
+
+**Confirmed by experiment 2026-09-04.** After a manual restart the scan reported
+`found 507 entr(ies), 507 playable` and the detector logged a real desync within
+13 replays — `1788331393445-5699/game_4` at frame 1980, checkpoint 34/111,
+`live=6618483e want=ffcaf3a8`. The checkpoint immediately before it read
+`Random_ix16-only divergence: live=002d archive=002c; resynced`, i.e. E2 drifting
+and being repaired, then failing 60 frames later. **The detector works.**
+
+**Still true regardless: any "N hours clean" claim must be qualified by what the
+boot scan found.** Check the `replay-shuffle: scan of … found N entr(ies)` line
+in `logs/last-run.log` before quoting a clean run as evidence.
 
 ### D3 — the VPS does not validate conversions at all
 
@@ -281,13 +354,13 @@ mismatch, not for gaps).
 | id | what | state |
 |----|------|-------|
 | E1 | `Round_Level` damage scale | patch exists (external), **blocked** on the netplay `Round_Level = 0` question |
-| E2 | `Random_ix32` round-release off-by-one | no patch; instrument `g_random_32_calls` around the release frame |
+| E2 | continuous RNG drift via `effect_G9` spawn phase | instrumented (`90ccb151`); cause localised to the `effg6.c` spawn gate; `players_timer` offset UNPROVEN |
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
 | H1 | `ScrdGame_Init` post-KO false positive | require `Game_timer` reset |
 | H2 | stage not imported | add a CPS3 offset for `bg_w.stage` |
 | H3 | lever counters / warm-up | clear `t_pl_lvr`, or lengthen the warm-up |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
-| D2 | no rescan path | viewer cannot see replays fetched after boot |
+| D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 
 **For a reviewer:** E2 is the highest-value target — it is on-device
 detectable, reproduces deterministically, and RNG divergence compounds. E1 is
