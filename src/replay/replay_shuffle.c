@@ -111,6 +111,9 @@
  * the gap is still these 90 frames. */
 #define RS_TRANSITION_FRAMES 90
 
+/* RS_EMPTY manifest poll period, in frames (~5 s at 60 Hz). */
+#define RS_EMPTY_POLL_FRAMES 300
+
 /* Hold-to-skip. SWK_NORTH is MP: the C1 player never reads it (it reads only
  * SWK_START, for hold-to-exit) and the deleted browser had already
  * repurposed it as a state-scoped action button, so it is the one face
@@ -154,7 +157,7 @@ typedef enum RsState {
     RS_WAIT_BOOT,   /* enabled; waiting for the attract/title screen */
     RS_PLAYING,     /* a replay is running (navigating or playing) */
     RS_TRANSITION,  /* terminal reached; holding the message, then advancing */
-    RS_EMPTY,       /* nothing playable in the cache — idle forever, no UI */
+    RS_EMPTY,       /* nothing playable in the cache — idle, watching the manifest */
 } RsState;
 
 static RsState s_state = RS_UNINIT;
@@ -183,6 +186,12 @@ static Uint32 s_played = 0;          /* replays started this session (1-based co
 static Uint32 s_shuffles = 0;        /* how many times the set has been shuffled */
 
 static int s_transition_frames = 0;
+
+/* Frames since RS_EMPTY last stat()ed the manifest. Polling is throttled to
+ * RS_EMPTY_POLL_FRAMES because RS_EMPTY is entered for the whole remaining
+ * session on a card with no replays yet, and a stat() per frame at 60 Hz on
+ * the MiSTer's SD card is pure waste for a file that changes once a day. */
+static int s_empty_poll_frames = 0;
 static int s_replay_frames = 0; /* frames since the current replay was started */
 static int s_skip_hold = 0;
 static bool s_hud_logged = false; /* per-replay "names are on screen" evidence line */
@@ -802,7 +811,11 @@ static bool rs_handle_skip(void) {
 }
 
 void ReplayShuffle_Tick(void) {
-    if (s_state == RS_OFF || s_state == RS_EMPTY) {
+    /* RS_OFF is the only permanent state. RS_EMPTY is NOT: it means "nothing
+     * playable was on the card the last time we looked", and the wrapper's
+     * daily fetch changes that without restarting the core. See the RS_EMPTY
+     * case below. */
+    if (s_state == RS_OFF) {
         return;
     }
 
@@ -949,9 +962,41 @@ void ReplayShuffle_Tick(void) {
         }
         break;
 
+    case RS_EMPTY:
+        /* Not a terminal state. Every path into RS_EMPTY is "the set was empty
+         * when we scanned" -- at boot (RS_WAIT_BOOT), after a rescan found
+         * nothing, or when every entry failed to load (rs_start_next). The
+         * wrapper's fetch (vendor/Main_MiSTer/replay_sync.c) can land hundreds
+         * of replays hours later, and before this poll existed they were
+         * invisible until someone restarted the core -- the same defect
+         * c6a75572 fixed for the normal RS_TRANSITION path, one state over.
+         *
+         * Safe for the same reason the RS_TRANSITION rescan is: no .3sr is
+         * loaded, the player is inactive and s_current is -1, so rebuilding
+         * s_entries/s_order cannot invalidate anything in use.
+         *
+         * Gated on the manifest mtime, not a dirent count, for the same reason
+         * as the RS_TRANSITION rescan: the wrapper renames manifest.json into
+         * place LAST, so a half-fetched set never triggers a scan. */
+        s_empty_poll_frames += 1;
+        if (s_empty_poll_frames >= RS_EMPTY_POLL_FRAMES) {
+            s_empty_poll_frames = 0;
+            const Sint64 mtime = rs_manifest_mtime();
+            if (mtime != 0 && mtime != s_manifest_mtime) {
+                SDL_Log("replay-shuffle: manifest changed while idle (%lld -> %lld) -- rescanning",
+                        (long long)s_manifest_mtime, (long long)mtime);
+                rs_scan();
+                if (s_count > 0) {
+                    SDL_Log("replay-shuffle: %d playable replay(s) appeared -- resuming", s_count);
+                    rs_shuffle();
+                    rs_start_next();
+                }
+            }
+        }
+        break;
+
     case RS_UNINIT:
     case RS_OFF:
-    case RS_EMPTY:
     default:
         break;
     }
