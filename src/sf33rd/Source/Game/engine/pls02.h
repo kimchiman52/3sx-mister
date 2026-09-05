@@ -10,6 +10,14 @@ s32 random_16();
 s32 random_16_com();
 s32 random_16_ex_com();
 s32 random_16_bg();
+/* RNG call-site trace -- see the block comment in pls02.c. Enabled only by the
+ * statcheck harness; a normal build pays one predictable branch per RNG call. */
+void RngTrace_Enable(int on);
+void RngTrace_FrameBegin(void);
+int RngTrace_Count(void);
+const void* RngTrace_Addr(int i);
+unsigned RngTrace_Which(int i);
+
 s32 random_32();
 s32 random_32_com();
 s32 random_32_ex_com();

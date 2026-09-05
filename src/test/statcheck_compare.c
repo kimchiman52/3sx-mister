@@ -34,6 +34,7 @@
 #include "main.h"
 #include "sf33rd/Source/Game/engine/cmb_win.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
+#include "sf33rd/Source/Game/engine/pls02.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
 #include "sf33rd/Source/Game/ui/count.h"
 #include "test/statcheck_utils.h"
@@ -43,6 +44,14 @@
 #include <SDL3/SDL.h>
 
 #include <signal.h>
+/* dladdr() resolves an RNG call site's return address to a symbol name. On
+ * Apple platforms <dlfcn.h> hides it behind _DARWIN_C_SOURCE whenever
+ * _POSIX_C_SOURCE is defined, and this build defines the latter -- so ask for
+ * the Darwin extensions before the include, and only there. */
+#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
+#define _DARWIN_C_SOURCE 1
+#endif
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -226,6 +235,37 @@ static void compare_main_values(SDL_IOStream* io) {
     }
 }
 
+/* One line per diverging frame, then the callers that produced our side of it.
+ * Bounded: after STATCHECK_RNG_DRIFT_MAX reports it goes quiet, because a run
+ * that drifts every frame would otherwise bury the first divergence -- and the
+ * FIRST one is the whole point. */
+#define STATCHECK_RNG_DRIFT_MAX 40
+static int s_rng_drift_reports = 0;
+
+static void statcheck_report_rng_drift(int delta, s16 ours, s16 theirs) {
+    if (s_rng_drift_reports >= STATCHECK_RNG_DRIFT_MAX) {
+        return;
+    }
+    s_rng_drift_reports += 1;
+
+    static const char* kWhich[4] = { "random_16", "random_32", "random_16_ex", "random_32_ex" };
+    const int n = RngTrace_Count();
+    fprintf(stderr, "statcheck-rng: frame %llu delta=%+d (ours ix16=%02x cps3=%02x) -- %d RNG call(s) this frame\n",
+            (unsigned long long)current_compare_frame, delta, (unsigned)(ours & 0x3F), (unsigned)(theirs & 0x3F), n);
+
+    for (int i = 0; i < n; i++) {
+        const void* ra = RngTrace_Addr(i);
+        const unsigned w = RngTrace_Which(i);
+        Dl_info info;
+        const char* sym = "?";
+        if (ra != NULL && dladdr(ra, &info) != 0 && info.dli_sname != NULL) {
+            sym = info.dli_sname;
+        }
+        fprintf(stderr, "statcheck-rng:   [%2d] %-12s <- %s (%p)\n", i, kWhich[w & 3], sym, ra);
+    }
+    fflush(stderr);
+}
+
 static void compare_service_values(SDL_IOStream* io, bool compare_characters) {
     const u16 game_timer_cps3 = read_game_timer(io);
     assert_equals(Game_timer, game_timer_cps3);
@@ -237,6 +277,25 @@ static void compare_service_values(SDL_IOStream* io, bool compare_characters) {
     assert_equals(Counter_low, counter_low_cps3);
 
     const s16 random_ix16_cps3 = read_s16(io, RANDOM_IX_16_OFFSET);
+
+    /* RNG call-count instrumentation (see the block comment in pls02.c).
+     *
+     * MUST run before the sync below. Because the previous frame ended synced,
+     * our index entered this frame equal to CPS3's, and both sides advance one
+     * per call with `Random_ix16 &= 0x3F`. So this delta IS (our calls - CPS3's
+     * calls) for this frame, for any true difference under 64.
+     *
+     * The trace then names which of OUR call sites ran. It cannot name the call
+     * CPS3 made and we did not -- a negative delta means we are missing one, and
+     * the answer to that is in the arcade disassembly, not here. */
+    {
+        const int d16 = (int)(((Random_ix16 - random_ix16_cps3) & 0x3F));
+        const int delta = (d16 > 32) ? (d16 - 64) : d16; /* signed, shortest way round */
+        if (delta != 0) {
+            statcheck_report_rng_drift(delta, Random_ix16, random_ix16_cps3);
+        }
+    }
+
     // This is dirty, but syncing Random_ix16 every frame helps avoid animation-related desyncs
     Random_ix16 = random_ix16_cps3;
 
@@ -431,6 +490,14 @@ static Uint64 start_frame = 0;
 void Statcheck_CompareValues(SDL_IOStream* io, Uint64 frame) {
     current_compare_frame = frame;
 
+    /* Arm once, then reset the ring at every frame boundary so a report only
+     * ever lists calls made by the frame that actually drifted. */
+    static bool rng_trace_armed = false;
+    if (!rng_trace_armed) {
+        RngTrace_Enable(1);
+        rng_trace_armed = true;
+    }
+
     if (start_frame == 0) {
         start_frame = frame;
     }
@@ -448,6 +515,12 @@ void Statcheck_CompareValues(SDL_IOStream* io, Uint64 frame) {
     if (compare_characters) {
         compare_main_values(io);
     }
+
+    /* Frame boundary. This runs AFTER the game frame it is comparing, so the
+     * ring currently holds that frame's calls -- which is what a drift report
+     * above just consumed. Clear it here so the next report lists the next
+     * frame's calls and not a running total. */
+    RngTrace_FrameBegin();
 }
 
 // Syncing

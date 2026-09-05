@@ -627,8 +627,68 @@ u32 g_random_16_calls = 0;
 u32 g_random_32_ex_calls = 0;
 u32 g_random_16_ex_calls = 0;
 
+/* ---- RNG call-site trace (desync instrumentation) ----------------------
+ *
+ * Why a ring of RETURN ADDRESSES and not a counter per call site: random_16()
+ * has dozens of callers across the engine, and the interesting question is not
+ * "how many calls" but "which caller fired on the frame we drifted". A return
+ * address costs one store per call, needs no edit at any call site, and
+ * resolves to a symbol with dladdr() in the host statcheck build.
+ *
+ * How the measurement works. statcheck_compare.c force-syncs Random_ix16 to the
+ * archive every frame, so at the top of frame N our index equals CPS3's at
+ * N-1. Both sides then advance by one per call, and the generators mask to
+ * 6 bits (`Random_ix16 &= 0x3F`). So
+ *
+ *     (our Random_ix16 - archive Random_ix16) & 0x3F
+ *
+ * read BEFORE the next sync is exactly (our calls - CPS3's calls) for that
+ * frame, provided the true difference is < 64. That is the whole instrument:
+ * the delta names the size of the mismatch, and this ring names the callers
+ * that produced our side of it.
+ *
+ * Random_ix32 is NOT synced, so its delta accumulates once drift starts; only
+ * the FIRST diverging frame is meaningful for it.
+ *
+ * Off unless RngTrace_Enable() is called, so a normal build pays one branch. */
+#define RNG_TRACE_MAX 256
+
+typedef struct {
+    const void* ret_addr;
+    u8 which; /* 0=random_16 1=random_32 2=random_16_ex 3=random_32_ex */
+} RngTraceEntry;
+
+int g_rng_trace_enabled = 0;
+static RngTraceEntry s_rng_trace[RNG_TRACE_MAX];
+static int s_rng_trace_n = 0;
+
+void RngTrace_Enable(int on) { g_rng_trace_enabled = on ? 1 : 0; }
+
+/* Call at the START of each traced frame. */
+void RngTrace_FrameBegin(void) { s_rng_trace_n = 0; }
+
+int RngTrace_Count(void) { return s_rng_trace_n; }
+
+const void* RngTrace_Addr(int i) {
+    return (i >= 0 && i < s_rng_trace_n) ? s_rng_trace[i].ret_addr : NULL;
+}
+
+unsigned RngTrace_Which(int i) {
+    return (i >= 0 && i < s_rng_trace_n) ? s_rng_trace[i].which : 0u;
+}
+
+static void rng_trace_record(const void* ra, u8 which) {
+    if (!g_rng_trace_enabled || s_rng_trace_n >= RNG_TRACE_MAX) {
+        return;
+    }
+    s_rng_trace[s_rng_trace_n].ret_addr = ra;
+    s_rng_trace[s_rng_trace_n].which = which;
+    s_rng_trace_n += 1;
+}
+
 s32 random_32() { // 🟢
     g_random_32_calls++;
+    rng_trace_record(__builtin_return_address(0), 1);
     Random_ix32++;
 
     if (Debug_w[0x3B] == -32) {
@@ -641,6 +701,7 @@ s32 random_32() { // 🟢
 
 s32 random_16() { // 🟢
     g_random_16_calls++;
+    rng_trace_record(__builtin_return_address(0), 0);
     Random_ix16++;
 
     if (Debug_w[0x3B] == -32) {
@@ -653,6 +714,7 @@ s32 random_16() { // 🟢
 
 s32 random_32_ex() { // 🟢
     g_random_32_ex_calls++;
+    rng_trace_record(__builtin_return_address(0), 3);
     Random_ix32_ex++;
 
     if (Debug_w[0x3B] == -32) {
@@ -665,6 +727,7 @@ s32 random_32_ex() { // 🟢
 
 s32 random_16_ex() {
     g_random_16_ex_calls++;
+    rng_trace_record(__builtin_return_address(0), 2);
     Random_ix16_ex++;
 
     if (Debug_w[0x3B] == -32) {
