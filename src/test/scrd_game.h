@@ -16,7 +16,20 @@ typedef struct ScrdGame {
     RamArchive archive;
 } ScrdGame;
 
-bool ScrdGame_Init(ScrdGame* game, const char* ram_archive_path);
+/* Outcome of ScrdGame_Init. NO_MATCH_START is NOT an error and NOT a
+ * divergence: the runner's segmenter cuts a new game_N only when G_No[1]
+ * stops being 2 (docs/research-arcade-balance-desyncs.md H4), which can hand
+ * us a segment that is entirely the post-KO tail of the previous match and
+ * contains no Game2_0() at all. Callers must keep that outcome distinct from
+ * ARCHIVE_ERROR so a sweep does not read "no match here" as "engine
+ * divergence" (H1). */
+typedef enum ScrdGameInitResult {
+    SCRD_GAME_INIT_OK,
+    SCRD_GAME_INIT_ARCHIVE_ERROR,
+    SCRD_GAME_INIT_NO_MATCH_START,
+} ScrdGameInitResult;
+
+ScrdGameInitResult ScrdGame_Init(ScrdGame* game, const char* ram_archive_path);
 void ScrdGame_Destroy(ScrdGame* game);
 
 #endif

@@ -24,14 +24,54 @@ static void scrd_adjust_character_numbers(ScrdGame* game) {
     }
 }
 
-bool ScrdGame_Init(ScrdGame* game, const char* ram_archive_path) {
+static void scrd_read_match_setup(ScrdGame* game, SDL_IOStream* io) {
+    SDL_SeekIO(io, MY_CHAR_OFFSET, SDL_IO_SEEK_SET);
+    SDL_ReadIO(io, game->characters, 2);
+
+    SDL_SeekIO(io, SUPER_ARTS_OFFSET, SDL_IO_SEEK_SET);
+    SDL_ReadIO(io, game->supers, 2);
+
+    SDL_SeekIO(io, NEW_CHALLENGER_OFFSET, SDL_IO_SEEK_SET);
+    SDL_ReadU8(io, &game->new_challenger);
+
+    SDL_SeekIO(io, PLAYER_COLOR_OFFSET, SDL_IO_SEEK_SET);
+    SDL_ReadIO(io, game->colors, 2);
+
+    scrd_adjust_character_numbers(game);
+}
+
+/* Finding the match start (H1, docs/research-arcade-balance-desyncs.md).
+ *
+ * `G_No[1..3] == (2, 0, 0)` says only "the Game task is parked on the
+ * Game2_0 slot" (`Game_Jmp_Tbl[G_No[1]]` -> `Game02` ->
+ * `Game02_Jmp_Tbl[G_No[2]]`, game.c). It does NOT say the match started.
+ * A segment cut right after a final KO can carry that triple frozen for its
+ * whole length while the Game task is not being ticked at all -- measured on
+ * two archives whose (G_No, C_No) pair never changes across 2,270 and 2,286
+ * frames. Starting there put the archive mid-match against a fresh engine and
+ * reported `Game_timer (0) != 6501` at archive frame 1: a harness artifact,
+ * not a divergence.
+ *
+ * The signature of a match that actually started is the visible effect of
+ * `Game2_0()` (game.c) having run: it writes, in one frame,
+ *     `Game_timer = 0; C_No[0..3] = 0; G_No[2] = 3;`
+ * So require the frame AFTER the triple to show `Game_timer == 0` and
+ * `G_No[2] == 3`. Measured over the 16-segment corpus in
+ * /Volumes/KimchDrive/3sarm-convert-tmp/rerun2: identical `start_index` (1)
+ * on all 14 segments that contain a match, and no start found on the two that
+ * do not -- which is the correct answer for those, not an error. */
+ScrdGameInitResult ScrdGame_Init(ScrdGame* game, const char* ram_archive_path) {
     SDL_zerop(game);
     game->start_index = -1;
 
     if (!RamArchive_Init(&game->archive, ram_archive_path)) {
         SDL_Log("ScrdGame_Init: Failed to initialize RAM archive");
-        return false;
+        return SCRD_GAME_INIT_ARCHIVE_ERROR;
     }
+
+    /* True when the PREVIOUS frame carried the (2, 0, 0) triple and its
+     * match setup has been latched into `game`. */
+    bool armed = false;
 
     for (int frame_num = 0;; frame_num++) {
         SDL_IOStream* io = RamArchive_GetFrame(&game->archive, frame_num);
@@ -43,39 +83,33 @@ bool ScrdGame_Init(ScrdGame* game, const char* ram_archive_path) {
         const Uint16 g_no_1 = scrd_read_u16(io, G_NO_OFFSET + 2);
         const Uint16 g_no_2 = scrd_read_u16(io, G_NO_OFFSET + 4);
         const Uint16 g_no_3 = scrd_read_u16(io, G_NO_OFFSET + 6);
-        const bool game_just_started = (g_no_1 == 2) && (g_no_2 == 0) && (g_no_3 == 0);
+        const Uint16 game_timer = scrd_read_u16(io, GAME_TIMER_OFFSET);
 
-        if (game_just_started) {
-            SDL_SeekIO(io, MY_CHAR_OFFSET, SDL_IO_SEEK_SET);
-            SDL_ReadIO(io, game->characters, 2);
+        // Game2_0() ran between the armed frame and this one.
+        if (armed && (game_timer == 0) && (g_no_2 == 3)) {
+            game->start_index = frame_num;
+            SDL_CloseIO(io);
+            break;
+        }
 
-            SDL_SeekIO(io, SUPER_ARTS_OFFSET, SDL_IO_SEEK_SET);
-            SDL_ReadIO(io, game->supers, 2);
+        armed = (g_no_1 == 2) && (g_no_2 == 0) && (g_no_3 == 0);
 
-            SDL_SeekIO(io, NEW_CHALLENGER_OFFSET, SDL_IO_SEEK_SET);
-            SDL_ReadU8(io, &game->new_challenger);
-
-            SDL_SeekIO(io, PLAYER_COLOR_OFFSET, SDL_IO_SEEK_SET);
-            SDL_ReadIO(io, game->colors, 2);
-
-            scrd_adjust_character_numbers(game);
-            game->start_index = frame_num + 1;
+        if (armed) {
+            scrd_read_match_setup(game, io);
         }
 
         SDL_CloseIO(io);
-
-        if (game_just_started) {
-            break;
-        }
     }
 
     if (game->start_index == -1) {
-        SDL_Log("ScrdGame_Init: Failed to find game start frame");
+        SDL_Log("ScrdGame_Init: no match start in '%s' -- the (2,0,0) G_No triple is never "
+                "followed by Game2_0()'s Game_timer=0 / G_No[2]=3 (segment holds no match)",
+                ram_archive_path);
         RamArchive_Destroy(&game->archive);
-        return false;
+        return SCRD_GAME_INIT_NO_MATCH_START;
     }
 
-    return true;
+    return SCRD_GAME_INIT_OK;
 }
 
 void ScrdGame_Destroy(ScrdGame* game) {

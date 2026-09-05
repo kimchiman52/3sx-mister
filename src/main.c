@@ -1510,10 +1510,26 @@ int main(int argc, const char* argv[]) {
      * and exits with the verdict (0 = full-game RAM match, 1 = first
      * mismatch). SDL IO does not require SDL_Init, so this runs safely
      * pre-init. */
-    if (!StatcheckRunner_Init(configuration.statcheck.ram_archive_path)) {
-        SDL_Log("statcheck: failed to open/parse RAM archive '%s'",
-                configuration.statcheck.ram_archive_path);
-        return 1;
+    {
+        const ScrdGameInitResult init_result = StatcheckRunner_Init(configuration.statcheck.ram_archive_path);
+
+        /* Exit 2, not 1, when the segment simply holds no match (H1,
+         * docs/research-arcade-balance-desyncs.md). 1 means "the engine
+         * diverged from CPS3" and is what a sweep turns into a worklist item;
+         * a segment the runner cut entirely out of a post-KO tail has nothing
+         * to diverge from, and reporting it as 1 was the H1 false positive.
+         * Callers that gate publication on rc == 0 are unaffected. */
+        if (init_result == SCRD_GAME_INIT_NO_MATCH_START) {
+            printf("statcheck: NO-MATCH — archive '%s' contains no match start; nothing to compare\n",
+                   configuration.statcheck.ram_archive_path);
+            return 2;
+        }
+
+        if (init_result != SCRD_GAME_INIT_OK) {
+            SDL_Log("statcheck: failed to open/parse RAM archive '%s'",
+                    configuration.statcheck.ram_archive_path);
+            return 1;
+        }
     }
 #endif
 

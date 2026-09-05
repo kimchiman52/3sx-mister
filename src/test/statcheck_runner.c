@@ -243,14 +243,16 @@ void StatcheckRunner_PinConfig(void) {
             was_balance != NULL ? was_balance : "auto");
 }
 
-bool StatcheckRunner_Init(const char* ram_archive_path) {
-    if (!ScrdGame_Init(&game, ram_archive_path)) {
+ScrdGameInitResult StatcheckRunner_Init(const char* ram_archive_path) {
+    const ScrdGameInitResult result = ScrdGame_Init(&game, ram_archive_path);
+
+    if (result != SCRD_GAME_INIT_OK) {
         SDL_Log("StatcheckRunner_Init: Failed to initialize replay game");
-        return false;
+        return result;
     }
 
     comparison_index = game.start_index;
-    return true;
+    return SCRD_GAME_INIT_OK;
 }
 
 void StatcheckRunner_Destroy(void) {

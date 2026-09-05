@@ -3,6 +3,8 @@
 #ifndef STATCHECK_RUNNER_H
 #define STATCHECK_RUNNER_H
 
+#include "test/scrd_game.h"
+
 #include <stdbool.h>
 
 /* Plan A3b (docs/plan-fcade-replay-browser.md): the statcheck replay-fidelity
@@ -17,8 +19,13 @@
  * game_step_1's Scrn_Renew (upstream Main_StepFrame/Main_FinishFrame
  * ordering) and compares engine state against the archived frame.
  * Exit code 0 = every archived frame matched; 1 = first mismatch (printed
- * with archive frame number by statcheck_compare.c). */
-bool StatcheckRunner_Init(const char* ram_archive_path);
+ * with archive frame number by statcheck_compare.c); 2 = the archive holds no
+ * match to check (H1, see ScrdGame_Init).
+ *
+ * Init returns ScrdGame_Init's tri-state verbatim so main.c can keep
+ * SCRD_GAME_INIT_NO_MATCH_START (a segmentation artifact, not a divergence)
+ * out of the divergence exit code. */
+ScrdGameInitResult StatcheckRunner_Init(const char* ram_archive_path);
 void StatcheckRunner_Destroy(void);
 void StatcheckRunner_Prologue(void);
 void StatcheckRunner_Epilogue(void);

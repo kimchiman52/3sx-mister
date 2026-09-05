@@ -293,16 +293,48 @@ Six of eleven observed failures were **not** engine bugs. Each has a concrete
 cause; until they are fixed, a statcheck sweep over multi-game sessions will
 report divergences that are not there.
 
-### H1 — `ScrdGame_Init()` false-positives on the post-KO state
+### H1 — `ScrdGame_Init()` false-positives on the post-KO state (FIXED)
 
-`ScrdGame_Init()` (`statcheck_runner.c`) scans for `G_No[1..3] == (2,0,0)` to
-find a match start. That signature also matches the *tail* of the previous
-match, right after the final KO. The archive then starts mid-match while our
-engine starts fresh, giving `Game_timer (0) != <large>` at archive frame 1.
+`ScrdGame_Init()` (`scrd_game.c`) scanned for `G_No[1..3] == (2,0,0)` to find
+a match start. That triple says only "the Game task is parked on the `Game2_0`
+slot" (`Game_Jmp_Tbl[G_No[1]]` -> `Game02` -> `Game02_Jmp_Tbl[G_No[2]]`,
+`game.c`) — not that a match started. The archive then began mid-match while
+our engine started fresh, giving `Game_timer (0) != <large>` at archive
+frame 1.
 
 Diagnostic law, exact in every case checked: the carried-in `Game_timer` at
-frame 0 equals `len(previous segment) − 2`. **Fix:** require `Game_timer` to
-have reset, not just the `G_No` triple.
+frame 0 equals `len(previous segment) − 2`.
+
+**What the two affected segments actually contain — measured.** Neither holds
+a match at all. Dumping every frame of `5743 game_2` (2,270 frames) and
+`7733 game_2` (2,286 frames), the pair `(G_No, C_No)` **never changes** from
+`((0,2,0,0), (9,1,0,0))` across the whole segment. `Game2_0()` therefore never
+runs in them. They are pure post-KO tail — H4's segmenter behaviour, seen from
+the other side. So the right verdict for these is "nothing to check", not
+"start later".
+
+**Fix (this commit).** `Game2_0()` (`game.c`) writes, in one frame,
+`Game_timer = 0; C_No[0..3] = 0; G_No[2] = 3;`. `ScrdGame_Init()` now requires
+the frame *after* the `(2,0,0)` triple to show `Game_timer == 0` **and**
+`G_No[2] == 3` — i.e. that `Game2_0()` demonstrably ran — and reports
+`SCRD_GAME_INIT_NO_MATCH_START` when no such pair exists. `main.c` turns that
+into **exit code 2**, kept distinct from 1 (= engine divergence) so a sweep
+never reads a segmentation artifact as a worklist item. Publication gates that
+test `rc == 0` are unaffected.
+
+**Measured, 16-segment corpus** (`/Volumes/KimchDrive/3sarm-convert-tmp/rerun2`,
+`build/statcheck-verify`, before/after on the same binary tree):
+
+| segment | before | after |
+|---|---|---|
+| `5743 game_2` | `Game_timer (0) != 6501` @ frame 1, rc=1 | `NO-MATCH`, rc=2 |
+| `7733 game_2` | `Game_timer (0) != 6535` @ frame 1, rc=1 | `NO-MATCH`, rc=2 |
+| the 5 segments that passed | PASS | PASS, **identical** compared-frame ranges |
+| the other 9 failures | (see table above) | unchanged: same file, same line, same values, same frame |
+
+The `start_index` the new predicate picks is **1 on all 14 segments that
+contain a match** — byte-identical to the old scan — and undefined (correctly)
+on the two that do not.
 
 ### H2 — the stage is never imported, so the appearance table is wrong
 
@@ -423,7 +455,7 @@ mismatch, not for gaps).
 | E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device, and existing v1 files keep the old behaviour |
 | E2b | a `random_32` consumer the port never runs | OPEN, unidentified; this is the one that fails statcheck |
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
-| H1 | `ScrdGame_Init` post-KO false positive | require `Game_timer` reset |
+| H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | add a CPS3 offset for `bg_w.stage` |
 | H3 | lever counters / warm-up | clear `t_pl_lvr`, or lengthen the warm-up |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
