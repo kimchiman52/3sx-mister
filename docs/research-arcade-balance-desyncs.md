@@ -422,6 +422,46 @@ besides `random_32`, so the +1 had to be a real call.
 `pli_0002()` (`plcnt.c`) is a documented stub, but runs several frames before the
 `3→4` transition and CPS3's effect M4 contains no RNG.
 
+### E4 — Dudley's `routine_no[2]` lands on 23 where CPS3 lands on 20 (OPEN)
+
+**The first genuine engine divergence found in a verified human-vs-human
+segment since E2a**, and the reason the corpus was widened.
+
+```
+1788423525221-5107 game_0   Coccis77 vs Z3rog   Chun-Li (P1) vs Dudley (P2)
+statcheck_compare.c:354: routine_no_3sx (23) != routine_no_cps3 (20)
+statcheck: FAIL at archive frame 3090
+```
+
+**Not a harness artifact, and each exclusion is checked:**
+- `wu_operator == (1,1)` at the confirmed match-start frame — not H4b.
+- Match start confirmed by `Game2_0()`'s own writes — not H1.
+- The operator trace is `(1,1)[0..4855] -> (1,0)[4856..5099]`; the failure at
+  3090 is deep inside the `(1,1)` region, not in the post-KO tail.
+- **Deterministic**: 3/3 in the harvest run, and independently reproduced here
+  at `47167788`, byte-identical message and frame.
+
+**Located to a player and a slot**, read from the archive (P1's values are
+constant across the window, so the failing pair is `i=1, j=2`):
+
+```
+frame 3084..3088   P1 [4,4,3,2,0,0,0,0]   P2 [4, 0,21,1,0,0,0,0]
+frame 3089         P1 [4,4,3,2,0,0,0,0]   P2 [4, 1,88,0,0,0,0,0]
+frame 3090         P1 [4,4,3,2,0,0,0,0]   P2 [4, 1,20,1,0,0,0,0]   <-- FAIL
+```
+
+Dudley moves `21 -> 88 -> 20` in `routine_no[2]`; we land on **23** where CPS3
+lands on **20**. Comparison site is `compare_service_values()`'s
+`for (int j = 0; j < 8; j++)` loop over `plw[i].wu.routine_no[j]` against
+`WORK_ROUTINE_NO_OFFSET` (0x24).
+
+**Not investigated.** No mechanism yet. `routine_no[2]` is outside the `.3sr`
+hash window (D1), so this is invisible to the shipped viewer unless it
+propagates — which makes it an oracle-only finding for now.
+
+**Preserved** with its `.scrd`, report and a reproduce command at
+`/Volumes/KimchDrive/3sarm-corpus-2026-09-05/divergences/`.
+
 ### E3 — RETRACTED and now ROOT-CAUSED: a swapped RNG draw order
 
 **The retraction stands, and is now proven rather than argued.** The earlier
@@ -913,6 +953,7 @@ keeps producing ungated output until it is redeployed.
 | H4b | harness forces `Play_Type == 1` on every segment | **FIXED, by rejection** — `ScrdGame_Init` reads `wu_operator` at the match-start frame (`WORK_WU_OPERATOR_OFFSET`, archive `0x68C6F`/`0x69107`) and returns `SCRD_GAME_INIT_CPU_PLAYER`; `main.c` exits **3**, distinct from 1 and 2. Reproducing the CPU player was tried and refuted by measurement (see H4b) — it breaks input pinning at frame 7 and manufactures a new `routine_no` divergence at frame 11. Costs 8 of 16 segments; sweep now reports **0** divergences |
 | E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device, and existing v1 files keep the old behaviour |
 | E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect. All six instances now exit 3 |
+| E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **OPEN, real** — first (1,1) divergence; deterministic, reproduced at `47167788`; no mechanism yet |
 | E3 | `pos.x` +32 at round start | **RETRACTED, not an engine divergence** — both instances are `(1,0)` CPU segments and now exit 3. The proposed `Appear_24000`/`Appear_25000` mechanism is refuted by measurement (`routine_no[4]` is 1 and 21 in both, never 24/25). Unreachable in (1,1) play: every `wu_operator`-conditioned round-start-X path needs an operator flag clear. **NOT proven**: which write produced the +32 (candidate: the `set_field_hosei_flag` clamp against an unimported camera, `bg_w.bgw[1].wxy[0]`) |
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
