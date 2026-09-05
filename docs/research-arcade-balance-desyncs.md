@@ -137,18 +137,45 @@ if (Play_Type == 1 && !ArcadeBalance_IsEnabled()) { ... }   // both call sites
 
 plus `ROUND_LEVEL_OFFSET 0x1137A` and the archive import.
 
-**BLOCKER before merging.** `setup_vs_mode()` (`netplay.c`) sets
-`Round_Level = 0`. That line is inert today because `pow_pow.c` ignores
-`Round_Level` when `Play_Type == 1`; the patch makes it load-bearing, so every
-arcade-balance netplay match would index `Pow_Control_Data_1[0][0]` = **90**
-instead of 100 — a silent 10% damage reduction. Note the port's own init is 3
-while netplay deliberately zeroes it; those disagree, and the patch converts
-that disagreement into a damage difference. Resolve before shipping.
+**ANSWERED from the archives (2026-09-05).** This was previously written up as a
+decision to be taken. It is not a decision — it is an empirical question, and the
+archives contain real CPS3 RAM for whole human-vs-human sessions. Reading
+`Round_Level` (offset `0x1137A`) across every game of four sessions:
 
-**Evidence gap.** Confirmed from replay diff, not from CPS3 disassembly. What
-the arcade actually reads here, and what a fresh cabinet session initialises
-`Round_Level` to, are both unverified — settling them would also settle the
-netplay question.
+```
+7733  g0 [3]  g1 3->2  g2 [2]  g3 3->2  g4 2->1  g5 [3]  g6 [3]
+5743  g0 [3]  g1 3->2  g2 [2]  g3 [3]
+1710  g0 [3]  g1 3->2
+3455  g0 [3]  g1 [3]   g2 [3]
+```
+
+Three facts, all consistent across 16 games in 4 independent sessions:
+
+1. **The arcade baseline is 3.** Every session starts there. The values ever
+   observed are 1, 2 and 3 — **never 0**.
+2. **`netplay.c`'s `Round_Level = 0` is therefore wrong**, not merely
+   questionable. Seeding 3 matches both the hardware and the port's own
+   `game.c` init; seeding 0 would index `Pow_Control_Data_1[0][0]` = 90 and cut
+   netplay damage 10%, which is what made the external patch look dangerous.
+   With 3, that danger disappears.
+3. **The arcade CHANGES it during a 2P session**, always downward. Our port
+   never does: `Update_VS_Data()` returns early when `Play_Type != 0`, and
+   `Loser_Sub()` decrements only when `Play_Type == 0`.
+
+**So E1 is two defects, and the external patch fixes only the first.**
+
+- **E1a** — `pow_pow.c` ignores `Round_Level` in VS play. Gibletto's patch, plus
+  seeding netplay to 3 rather than 0.
+- **E1b** — our port never *updates* `Round_Level` during VS play while the
+  arcade ramps it down. With E1a alone we would pin whatever we seed while the
+  hardware decays away from it, so the damage scale drifts apart over a session
+  exactly as it does today, just from a different starting point.
+
+**Not established:** whether the observed decrements happen mid-fight or at the
+internal rematch boundary inside a merged segment (see H4 — `Game2_2()` merges a
+rematch into one `game_N`). That distinction decides where E1b's fix belongs, and
+it is answerable from the same archives by correlating the change frame against
+`C_No`/`PL_Wins`.
 
 ### E2a — `effect_G9` spawn phase (ROOT-CAUSED; oracle FIXED `f63507b7`)
 
@@ -368,7 +395,8 @@ mismatch, not for gaps).
 
 | id | what | state |
 |----|------|-------|
-| E1 | `Round_Level` damage scale | patch exists (external), **blocked** on the netplay `Round_Level = 0` question |
+| E1a | `pow_pow.c` ignores `Round_Level` in VS | external patch + seed netplay to **3** (not 0) — netplay question ANSWERED from archives |
+| E1b | port never updates `Round_Level` in VS while the arcade ramps it down | OPEN, no patch; E1a alone is insufficient |
 | E2a | `effect_G9` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer still affected** — `.3sr` header carries no `players_timer` |
 | E2b | a `random_32` consumer the port never runs | OPEN, unidentified; this is the one that fails statcheck |
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
