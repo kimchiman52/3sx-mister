@@ -108,6 +108,12 @@ ReplayPlayerStatus ReplayPlayer_GetStatus(void);
 /* .3sr frame index of the failed checksum checkpoint; only meaningful when
  * status == REPLAY_PLAYER_DESYNCED. */
 Uint32 ReplayPlayer_GetDesyncFrame(void);
+/* True when the failing checkpoint's ONLY divergent field was Random_ix16.
+ * The .3sr stores one djb2 per checkpoint, so the diverging field is normally
+ * unrecoverable; this single field is the exception, because the other twelve
+ * are known live and the unknown one is only 16 bits wide (probe_random_ix16,
+ * replay_player.c). Only meaningful when status == REPLAY_PLAYER_DESYNCED. */
+bool ReplayPlayer_DesyncWasIx16Only(void);
 /* Path of the optional <name>.meta.json sidecar if one exists next to the
  * loaded .3sr, else NULL. Parsed at Init (Step C2 wires cJSON). */
 const char* ReplayPlayer_GetMetaJsonPath(void);

@@ -849,10 +849,39 @@ Checkpoint interval is 60, verified three ways (`DEFAULT_CHECKSUM_INTERVAL`,
 that is not a battle frame (`G_No[1]==2 && G_No[2]==1`) — logged, never failed —
 and stops advancing once `game_ended()`, so a post-KO tail is never checked.
 
-`recover_random_ix16()` (`replay_player.c`) is the only recovery, and it sweeps
+`probe_random_ix16()` (`replay_player.c`) is the only recovery, and it sweeps
 field index 5 alone. It does not mask other fields: sweeping all 65,536 values
 yields only 8,671 distinct hashes, so a hash differing for any other reason is
 accepted with probability ≈2.0×10⁻⁶.
+
+**It no longer repairs a v2 file (2026-09-05).** The repair existed to absorb
+E2a, and E2a is a property of the FILE now: a v2 `.3sr` carries `players_timer`
+and reproduces the recording's spawn phase, so on a v2 file the repair is inert
+— and an inert repair is a trap, because a divergence that arrives later is
+silently repaired and the checkpoint logged `ok`. That is how E2a itself hid for
+months. `check_checkpoint()` therefore repairs only when
+`!replay.has_players_timer`; on a v2 file the sweep runs purely as DIAGNOSIS and
+the checkpoint fails like any other, with the desync line naming `Random_ix16`
+as the sole divergent field (`ReplayPlayer_DesyncWasIx16Only`, also carried into
+`rs_record_outcome`'s `diverged` line in `replay_shuffle.c`, whose old blanket
+"not Random_ix16 drift" claim was true only while the repair was unconditional).
+
+**Why v1 keeps the repair, measured rather than assumed.** Two `.3sr` files were
+built from one corpus archive differing ONLY in the v2 header bytes
+(`1787978900734-9309 game_0`, 10,760 frames, 179 battle checkpoints) and played
+through the host viewer with this change in place:
+
+| twin | outcome | `r16_resyncs` | first repair |
+|---|---|---|---|
+| v2 | `REPLAY COMPLETE … checksums=179/179 … reason=game-ended` | **0** | — |
+| v1 | `REPLAY COMPLETE … checksums=179/179 … reason=game-ended` | **39** | checkpoint **18/189**, frame **1020** |
+
+Without the gate that v1 file stops at frame 1020, 9.5% of the way in. The
+shipped library is overwhelmingly v1 — ~22,682 on the VPS and ~620 on the device
+— so failing v1 files would retire the library overnight in order to report a
+divergence that is already root-caused, fixed and re-measured. Removing the
+repair from v2 costs nothing and buys honesty; removing it from v1 costs the
+library and buys a restatement of E2a.
 
 `REPLAY_PLAYER_DESYNCED` is assigned in exactly one place — the tail of
 `check_checkpoint()`. No retry, no swallow, no build flag disables checking.

@@ -596,16 +596,22 @@ static void rs_now_string(char* out, size_t out_sz) {
  * replay_player.c's log_live_fields already dumps every live value it can see.
  * Two things are recorded that the player's own message cannot carry: the
  * identity of the replay (the player's DESYNC line was written when only one
- * replay was ever in play), and the positive fact that anything reaching
- * DESYNCED is proven NOT to be Random_ix16 drift — recover_random_ix16
- * brute-forces that single field and resyncs whenever it reconciles. */
+ * replay was ever in play), and — for the one field the hash CAN be inverted
+ * for — whether Random_ix16 was the sole divergence (probe_random_ix16,
+ * replay_player.c). That used to be recorded as a blanket "not Random_ix16
+ * drift", because the probe also REPAIRED that field and no ix16-only
+ * mismatch could reach DESYNCED. It repairs only v1 files now, so on a v2
+ * file an ix16-only divergence does reach here, and the record has to say
+ * which of the two it was. */
 /* Record one replay outcome. `st` is the player's terminal status.
  *
  * A divergence-only log cannot answer the question it is usually asked: a
  * quiet file looks identical whether 400 replays played cleanly or the box
  * sat at a menu all night. Recording COMPLETE and ABORTED alongside DESYNCED
- * makes the denominator explicit. The `diverged` line is byte-for-byte what
- * it always was, so anything already grepping this file keeps working. */
+ * makes the denominator explicit. The `diverged` line keeps every field it
+ * always had, in order, so anything already grepping this file keeps working;
+ * only its trailing parenthetical changed, when the Random_ix16 repair became
+ * v1-only and the blanket "not Random_ix16 drift" stopped being true. */
 static void rs_record_outcome(const RbEntry* e, ReplayPlayerStatus st) {
     char path[RB_PATH_MAX];
     rs_diag_path(path, sizeof(path));
@@ -639,12 +645,14 @@ static void rs_record_outcome(const RbEntry* e, ReplayPlayerStatus st) {
     int n;
     if (st == REPLAY_PLAYER_DESYNCED) {
         n = SDL_snprintf(line, sizeof(line),
-                         "%s%s diverged frame=%u replay='%s' path='%s' p1='%s' p2='%s' date='%s' "
-                         "(not Random_ix16 drift: recover_random_ix16 resyncs that field; the .3sr stores one "
-                         "djb2 per checkpoint, so the diverging field is not recoverable)\n",
+                         "%s%s diverged frame=%u replay='%s' path='%s' p1='%s' p2='%s' date='%s' %s\n",
                          rot, stamp, ReplayPlayer_GetDesyncFrame(), e->label, e->path,
                          e->p1[0] ? e->p1 : "(unknown)", e->p2[0] ? e->p2 : "(unknown)",
-                         e->date[0] ? e->date : "(unknown)");
+                         e->date[0] ? e->date : "(unknown)",
+                         ReplayPlayer_DesyncWasIx16Only()
+                             ? "(Random_ix16 was the ONLY divergent field)"
+                             : "(not Random_ix16 drift; the .3sr stores one djb2 per checkpoint, so "
+                               "the diverging field is not recoverable)");
     } else {
         n = SDL_snprintf(line, sizeof(line), "%s%s %s frames=%d replay='%s' p1='%s' p2='%s' date='%s'\n", rot, stamp,
                          (st == REPLAY_PLAYER_COMPLETE) ? "completed" : "skipped", s_replay_frames, e->label,

@@ -3758,7 +3758,8 @@ a defect that is present in every Club Metro round ever played on the port
 surfaced only now, as a replay bug.
 
 **(b) The viewer's `Random_ix16` recovery is exact, so the drift numbers are
-data.** `replay_player.c` -> `recover_random_ix16` sweeps the 16-bit field
+data.** `replay_player.c` -> `probe_random_ix16` (named `recover_random_ix16`
+when this pass ran) sweeps the 16-bit field
 ascending and accepts the first hash match. Its own comment calls this
 "best-effort" and says "the low bits of the applied value may differ" — that
 is too pessimistic. The 13 fields are hashed as 26 little-endian bytes with

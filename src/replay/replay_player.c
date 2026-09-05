@@ -149,6 +149,9 @@ static Uint16 pure_words[2] = { 0 };
 
 static ReplayPlayerStatus status = REPLAY_PLAYER_INACTIVE;
 static Uint32 desync_frame = 0;
+/* Set alongside desync_frame when probe_random_ix16 proved Random_ix16 was the
+ * only divergent field of the thirteen. */
+static bool desync_ix16_only = false;
 static Uint32 checksums_checked = 0;
 static Uint32 checksums_passed = 0;
 static Uint32 checksums_skipped_nonbattle = 0;
@@ -556,6 +559,7 @@ static void reset_runtime_state(void) {
     SDL_zeroa(pure_words);
     exit_hold_frames = 0;
     desync_frame = 0;
+    desync_ix16_only = false;
     checksums_checked = 0;
     checksums_passed = 0;
     checksums_skipped_nonbattle = 0;
@@ -843,9 +847,10 @@ bool ReplayPlayer_Init(const char* path_3sr) {
 
     /* A v1 file plays with whatever players_timer the engine already had,
      * which is the phase offset docs/research-arcade-balance-desyncs.md §E2a
-     * measures: it surfaces as recover_random_ix16() repairs at checkpoints,
-     * never as a hard desync. Log which case this file is so a device log
-     * says whether a run was testing the fix or not. */
+     * measures: it surfaces as probe_random_ix16() repairs at checkpoints,
+     * never as a hard desync. A v2 file gets no such repair — an ix16-only
+     * mismatch there is a real desync. Log which case this file is so a
+     * device log says whether a run was testing the fix or not. */
     char players_timer_text[24];
 
     if (replay.has_players_timer) {
@@ -946,6 +951,10 @@ ReplayPlayerStatus ReplayPlayer_GetStatus(void) {
 
 Uint32 ReplayPlayer_GetDesyncFrame(void) {
     return desync_frame;
+}
+
+bool ReplayPlayer_DesyncWasIx16Only(void) {
+    return desync_ix16_only;
 }
 
 const char* ReplayPlayer_GetMetaJsonPath(void) {
@@ -1627,40 +1636,47 @@ static Uint32 hash_fields(const Uint16 fields[13]) {
     return djb2_update_mem(djb2_init(), canon, sizeof(canon));
 }
 
-/* Random_ix16 recovery (field 6 of the checksum window, 0-based index 5).
+/* Random_ix16 probe (field 6 of the checksum window, 0-based index 5).
  *
- * The statcheck oracle only matches the archives on Random_ix16 because it
- * force-syncs the live variable from the archive EVERY frame
- * (statcheck_compare.c:239 — "This is dirty, but syncing Random_ix16 every
- * frame helps avoid animation-related desyncs"): random_16() is consumed
- * mostly by visual-effect modules (src/sf33rd/Source/Game/effect) whose
- * call counts do not track CPS3 exactly, so the live index drifts by a few
- * steps over hundreds of frames. NOTE it is NOT gameplay-free: at least
- * the dizzy/stun duration (kizetsu_timer_table lookup, plpdm.c:893) and
- * some AI pattern picks (plpat09.c) consume random_16(). A drift that
- * bites one of those changes recovery frames -> positions/timer, which
- * the NEXT battle checkpoint's 12-field check catches as a hard desync —
- * i.e. gameplay-affecting ix16 drift is DETECTED, never silently rendered.
- * (Random_ix32 — asserted, never synced — stays matched; so do
- * timer/C_No/positions in the benign visual-only case.)
- * Observed on the first C1 runs: 15/15 checkpoints clean, then live
- * ix16=0004 vs archive 0002 at f=960 with the other 12 fields identical.
+ * WHAT IT COMPUTES. The .3sr stores one 32-bit djb2 per checkpoint over the
+ * 13-field window, not per-field values, so a mismatching checkpoint cannot
+ * normally name the field that diverged. It can for THIS field alone: the
+ * other 12 are known live, so sweeping the single unknown 16-bit field and
+ * accepting the first hash-matching candidate answers "is Random_ix16 the
+ * ONLY divergent field, and what did the archive hold?". Any second divergent
+ * field means no candidate matches (up to ~2^-16 residual collision odds
+ * against the 32-bit hash), so a hit is a near-exact 12-field verification.
+ * djb2's ix16 contribution is many-to-one (~8-15 candidates collide onto each
+ * achievable value), so *recovered's low bits may differ from the true archive
+ * value; the verdict "ix16-only" is sound, the value is indicative.
+ * Cost: one 64K x 26-byte djb2 sweep, only on mismatch.
  *
- * We cannot replicate the per-frame sync (the .3sr carries only sparse
- * hashes, not per-frame values) — but the archive's Random_ix16 at a
- * checkpoint is RECOVERABLE from the hash: the other 12 fields are known
- * live, so sweep the single unknown 16-bit field and accept the FIRST
- * hash-matching candidate. djb2's ix16 contribution is many-to-one
- * (~8-15 candidates collide onto each achievable value), so recovery is
- * best-effort: the low bits of the applied value may differ from the true
- * archive value, and a resulting between-checkpoint divergence is again
- * caught at the next checkpoint. The sweep still verifies the 12 known
- * fields essentially as strictly as an exact compare (any second
- * divergent field -> no candidate matches -> hard desync, up to ~2^-16
- * residual collision odds against the 32-bit hash) and re-applies the
- * oracle's dirty sync at checkpoint granularity.
- * Cost: one 64K x 26-byte djb2 sweep, only on mismatch. */
-static bool recover_random_ix16(Uint16 fields[13], Uint32 want, Uint16* recovered) {
+ * WHAT IT IS USED FOR, AND WHY THAT CHANGED. It used to REPAIR: on a hit the
+ * candidate was written back into Random_ix16 and the checkpoint counted as
+ * passed. That existed because our random_16() call counts did not track
+ * CPS3's, which is E2a in docs/research-arcade-balance-desyncs.md —
+ * effect_G6_move's spawn gate `now_koc & (players_timer + blink_timing)` fired
+ * on the wrong frames because players_timer was never seeded, so every
+ * effect_G9 spawn burned two random_16() at the wrong time. `.3sr` v2 carries
+ * players_timer and ReplayPlayer_Tick seeds it, which took the measured resync
+ * count on two host A/B twins from 31 -> 0 and 13 -> 0.
+ *
+ * So on a v2 file the repair is inert — and an inert repair is worse than no
+ * repair, because a FUTURE ix16 divergence would be silently repaired and the
+ * checkpoint logged `ok`. E2a itself hid for months behind exactly that. On a
+ * v2 file the sweep therefore only DIAGNOSES: the checkpoint fails like any
+ * other, and the desync line names ix16 as the sole divergent field.
+ *
+ * A v1 file (has_players_timer == false) keeps the repair. Such a file carries
+ * no players_timer, so it legitimately replays with the full E2a phase offset —
+ * that is a property of the FILE, not of the engine, and the shipped library is
+ * overwhelmingly v1 (~22,682 on the VPS, ~620 on the device as of 2026-09-05).
+ * Failing them would retire the library overnight to report a divergence
+ * already root-caused, fixed and re-measured. Measured on one archive built
+ * both ways (docs/research-arcade-balance-desyncs.md D1): the v2 twin completes
+ * with 0 repairs, the v1 twin needs its first at checkpoint 18 of 189.
+ * The repair stays where it is still doing work and goes where it is not. */
+static bool probe_random_ix16(Uint16 fields[13], Uint32 want, Uint16* recovered) {
     for (Uint32 cand = 0; cand <= 0xFFFF; cand++) {
         fields[5] = (Uint16)cand;
 
@@ -1733,16 +1749,23 @@ static void check_checkpoint(void) {
         return;
     }
 
-    if (battle_frame) {
-        Uint16 recovered = 0;
+    /* Is Random_ix16 the only divergent field? See probe_random_ix16. On a v1
+     * file that question is also the repair (E2a is a property of the file);
+     * on a v2 file it is diagnosis only, and the checkpoint fails below. */
+    bool ix16_only = false;
+    Uint16 recovered = 0;
 
-        if (recover_random_ix16(fields, want, &recovered)) {
+    if (battle_frame && probe_random_ix16(fields, want, &recovered)) {
+        ix16_only = true;
+
+        if (!replay.has_players_timer) {
             checksums_checked += 1;
             checksums_passed += 1;
             checksums_r16_resynced += 1;
             SDL_Log("replay: checksum %u/%u ok at frame %u (Random_ix16-only divergence: live=%04x "
-                    "archive=%04x, other 12 fields verified; resynced — the statcheck oracle "
-                    "dirty-syncs this field every frame, statcheck_compare.c:239)",
+                    "archive=%04x, other 12 fields verified; resynced — this is a v1 .3sr, which "
+                    "carries no players_timer and so replays with the E2a phase offset by "
+                    "construction; a v2 file would FAIL here)",
                     k + 1,
                     replay.checksum_count,
                     play_index,
@@ -1772,22 +1795,37 @@ static void check_checkpoint(void) {
 
     checksums_checked += 1;
     desync_frame = play_index;
+    desync_ix16_only = ix16_only;
     phase = PHASE_DONE;
     status = REPLAY_PLAYER_DESYNCED;
     /* The replay's own identity is part of the record: this message was
      * written when exactly one replay was ever in play, so it named the
      * checkpoint and both hashes but not WHICH recording diverged. In a
-     * shuffle session that is the one thing the line was missing. (Which
-     * FIELD diverged is still not knowable here — the .3sr stores a single
+     * shuffle session that is the one thing the line was missing. Which FIELD
+     * diverged is generally not knowable here — the .3sr stores a single
      * 32-bit djb2 per checkpoint over the 13-field window, not per-field
-     * values; log_live_fields below dumps every live value instead.) */
-    SDL_Log("REPLAY DESYNC at frame %u (checkpoint %u/%u: live=%08x want=%08x) in replay '%s' (%s vs %s) — "
+     * values — with the one exception probe_random_ix16 resolves, reported
+     * below; log_live_fields then dumps every live value regardless. */
+    char field_text[96];
+
+    if (ix16_only) {
+        SDL_snprintf(field_text,
+                     sizeof(field_text),
+                     " [Random_ix16 is the ONLY divergent field: live=%04x archive=%04x]",
+                     (Uint16)Random_ix16,
+                     recovered);
+    } else {
+        field_text[0] = '\0';
+    }
+
+    SDL_Log("REPLAY DESYNC at frame %u (checkpoint %u/%u: live=%08x want=%08x)%s in replay '%s' (%s vs %s) — "
             "stopping input injection",
             play_index,
             k + 1,
             replay.checksum_count,
             live,
             want,
+            field_text,
             replay_label,
             have_p1_name ? meta_p1_name : "(unknown)",
             have_p2_name ? meta_p2_name : "(unknown)");

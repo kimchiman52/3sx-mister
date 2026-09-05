@@ -96,7 +96,15 @@ Mac converter's own `3sr-out`. They are not
 invalidated and are not re-converted on account of v2; they simply keep the
 `effect_G9_init()` spawn-phase offset described in
 `docs/research-arcade-balance-desyncs.md` §E2a, which surfaces as
-`recover_random_ix16()` repairs at checkpoints rather than as a desync.
+`probe_random_ix16()` repairs at checkpoints rather than as a desync.
+
+**The repair is v1-only as of 2026-09-05.** `check_checkpoint()`
+(`replay_player.c`) applies it when `!replay.has_players_timer` — i.e. exactly
+on the files that legitimately carry the phase offset. On a v2 file the same
+sweep runs as diagnosis only and an ix16-only mismatch is a real
+`REPLAY_PLAYER_DESYNCED`, so that version's honesty about `Random_ix16` is one
+more thing the version byte buys. Reasoning and the A/B measurement behind the
+split are in `docs/research-arcade-balance-desyncs.md` §D1.
 
 `replay_player.c` -> `ReplayPlayer_Init` holds both halves of this: the
 version/`header_size` table, and `ReplayFile.has_players_timer`.
