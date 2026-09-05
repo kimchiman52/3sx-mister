@@ -5,6 +5,8 @@
 
 #include "test/scrd_game.h"
 
+#include <SDL3/SDL.h>
+
 #include <stdbool.h>
 
 /* Plan A3b (docs/plan-fcade-replay-browser.md): the statcheck replay-fidelity
@@ -20,13 +22,19 @@
  * ordering) and compares engine state against the archived frame.
  * Exit code 0 = every archived frame matched; 1 = first mismatch (printed
  * with archive frame number by statcheck_compare.c); 2 = the archive holds no
- * match to check (H1, see ScrdGame_Init).
+ * match to check (H1, see ScrdGame_Init); 3 = the recording had a CPU player,
+ * which this harness cannot reproduce (H4b, see ScrdGame_Init).
  *
- * Init returns ScrdGame_Init's tri-state verbatim so main.c can keep
- * SCRD_GAME_INIT_NO_MATCH_START (a segmentation artifact, not a divergence)
- * out of the divergence exit code. */
+ * Init returns ScrdGame_Init's result verbatim so main.c can keep the two
+ * harness-limit outcomes (SCRD_GAME_INIT_NO_MATCH_START,
+ * SCRD_GAME_INIT_CPU_PLAYER) out of the divergence exit code. */
 ScrdGameInitResult StatcheckRunner_Init(const char* ram_archive_path);
 void StatcheckRunner_Destroy(void);
+
+/* `wu.wu_operator` the archive held at the match-start frame, for player 0/1.
+ * Valid after StatcheckRunner_Init returns anything but ARCHIVE_ERROR; exists
+ * so main.c can name the values in its SCRD_GAME_INIT_CPU_PLAYER message. */
+Uint8 StatcheckRunner_WuOperator(int player);
 void StatcheckRunner_Prologue(void);
 void StatcheckRunner_Epilogue(void);
 

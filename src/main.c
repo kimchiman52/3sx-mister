@@ -1525,6 +1525,25 @@ int main(int argc, const char* argv[]) {
             return 2;
         }
 
+        /* Exit 3, not 1, when the recording had a CPU player (H4b,
+         * docs/research-arcade-balance-desyncs.md). Same rule as the H1 exit 2
+         * above: 1 means "the engine diverged from CPS3", and the harness
+         * forces two human operators, so a segment the cabinet ran at
+         * `Play_Type == 0` is not comparable at all. A distinct code (rather
+         * than reusing 2) keeps "cannot reproduce this recording" separable
+         * from "nothing in this segment to reproduce" in a sweep. Callers that
+         * gate publication on rc == 0 -- publish_3sr.py's statcheck_gate is
+         * `clean = proc.returncode == 0` -- are unaffected. */
+        if (init_result == SCRD_GAME_INIT_CPU_PLAYER) {
+            printf("statcheck: CPU-PLAYER — archive '%s' was recorded against the CPU "
+                   "(wu_operator = (%u, %u)); the harness forces two operators and cannot "
+                   "reproduce it\n",
+                   configuration.statcheck.ram_archive_path,
+                   StatcheckRunner_WuOperator(0),
+                   StatcheckRunner_WuOperator(1));
+            return 3;
+        }
+
         if (init_result != SCRD_GAME_INIT_OK) {
             SDL_Log("statcheck: failed to open/parse RAM archive '%s'",
                     configuration.statcheck.ram_archive_path);

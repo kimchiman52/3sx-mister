@@ -248,12 +248,22 @@ ScrdGameInitResult StatcheckRunner_Init(const char* ram_archive_path) {
     const ScrdGameInitResult result = ScrdGame_Init(&game, ram_archive_path);
 
     if (result != SCRD_GAME_INIT_OK) {
-        SDL_Log("StatcheckRunner_Init: Failed to initialize replay game");
+        /* ScrdGame_Init has already logged the specific reason. Do not call
+         * either harness limit a failure here: NO_MATCH_START (H1) and
+         * CPU_PLAYER (H4b) are correct verdicts about the archive, and main.c
+         * turns them into exit 2 / 3 rather than the divergence code. */
+        SDL_Log("StatcheckRunner_Init: not comparing '%s' (ScrdGame_Init result %d)",
+                ram_archive_path,
+                (int)result);
         return result;
     }
 
     comparison_index = game.start_index;
     return SCRD_GAME_INIT_OK;
+}
+
+Uint8 StatcheckRunner_WuOperator(int player) {
+    return game.wu_operator[player & 1];
 }
 
 void StatcheckRunner_Destroy(void) {

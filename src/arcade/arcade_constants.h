@@ -55,6 +55,17 @@
 #define PLW_HAZUSENAI_FLAG_OFFSET 0x436
 #define PLW_DO_NOT_MOVE_OFFSET 0x455
 
+/* WORK.wu_operator (H4b, docs/research-arcade-balance-desyncs.md): 1 = a human
+ * is on that side, 0 = the CPU AI drives it. WORK offset 3, so the two players
+ * sit at PLW_OFFSET + 3 = 0x68C6F and PLW_OFFSET + PLW_SIZE + 3 = 0x69107.
+ *
+ * The port's own struct agrees -- `set_base_data()` (`plcnt.c`) writes
+ * `wk->wu.wu_operator = Operator_Status[ix]` and `Setup_Play_Type()`
+ * (`sys_sub.c`) derives `Play_Type` from the pair -- and the value read at
+ * these two addresses partitions the 16-segment corpus exactly along the
+ * PASS/FAIL/no-match line (see the E2b table in the research doc), which is
+ * what confirms the offset rather than the struct arithmetic alone. */
+#define WORK_WU_OPERATOR_OFFSET 3
 #define WORK_ROUTINE_NO_OFFSET 0x24
 #define WORK_HIT_STOP_OFFSET 0x44
 #define WORK_XYZ_OFFSET 0x64

@@ -106,6 +106,10 @@ ScrdGameInitResult ScrdGame_Init(ScrdGame* game, const char* ram_archive_path) {
         // Game2_0() ran between the armed frame and this one.
         if (armed && (game_timer == 0) && (g_no_2 == 3)) {
             game->start_index = frame_num;
+            SDL_SeekIO(io, PLW_OFFSET + WORK_WU_OPERATOR_OFFSET, SDL_IO_SEEK_SET);
+            SDL_ReadU8(io, &game->wu_operator[0]);
+            SDL_SeekIO(io, PLW_OFFSET + PLW_SIZE + WORK_WU_OPERATOR_OFFSET, SDL_IO_SEEK_SET);
+            SDL_ReadU8(io, &game->wu_operator[1]);
             SDL_CloseIO(io);
             break;
         }
@@ -125,6 +129,68 @@ ScrdGameInitResult ScrdGame_Init(ScrdGame* game, const char* ram_archive_path) {
                 ram_archive_path);
         RamArchive_Destroy(&game->archive);
         return SCRD_GAME_INIT_NO_MATCH_START;
+    }
+
+    /* Reject a segment the cabinet ran against the CPU (H4b,
+     * docs/research-arcade-balance-desyncs.md).
+     *
+     * The harness synthesises a two-operator VERSUS match: it taps SWK_START
+     * for player 2 at PHASE_CHARACTER_SELECT (`statcheck_runner.c`), which is
+     * what sets `Operator_Status[1]` (`entry.c` -> Entry_Mark_Set,
+     * `game.c` -> Break_Into_Check), `set_base_data()` (`plcnt.c`) copies that
+     * into `plw[ix].wu.wu_operator`, and `Setup_Play_Type()` (`sys_sub.c`)
+     * turns the pair into `Play_Type == 1`. A recording made against the CPU
+     * ran at `Play_Type == 0` with `cpu_algorithm()` driving one side.
+     *
+     * That is not a gap that importing `wu_operator` would close, for three
+     * independent reasons -- all read off the port's own sources:
+     *
+     * 1. It would DISABLE the oracle's input pinning on exactly those
+     *    segments. `Player_move()` (`plmain.c`) is
+     *        `if (wk->wu.wu_operator) { wk->cp->sw_lvbt = lv_data; }
+     *         else { wk->cp->sw_lvbt = processed_lvbt(cpu_algorithm(wk)); }`
+     *    -- with the operator flag clear it discards `lv_data`, i.e. the
+     *    archive's own button word that `read_input_buff()` feeds it. The test
+     *    would stop being "same inputs, same state" and become "re-derive the
+     *    AI", where one wrong frame is unattributable.
+     *
+     * 2. The AI reads state the archive import set does not carry.
+     *    `Setup_Lv18(save_w[Present_Mode].Difficulty)` (`com_pl.c`,
+     *    `com_sub.c`) and `asagh_zuru[save_w[Present_Mode].Difficulty]` in
+     *    `add_sp_arts_gauge_paring()` / `_tokushu()` / `_ukemi()` /
+     *    `_nagenuke()` (`pls02.c`, each guarded by `wu_operator == 0`) all
+     *    index the cabinet's service difficulty. `Statcheck_SyncValues()`
+     *    (`statcheck_compare.c`) imports Random_ix16, Random_ix32,
+     *    players_timer, t_pl_lvr and Round_Level -- and nothing else. There is
+     *    no offset for `Difficulty` in `arcade_constants.h` and none was
+     *    derivable, so the AI's own difficulty scaling cannot be reproduced.
+     *
+     * 3. `wu_operator == 0` inside the harness's VERSUS match is a state the
+     *    cabinet never had. The recordings are arcade-mode matches; the
+     *    harness drives console MODE_VERSUS (`StatcheckRunner_PinConfig` forces
+     *    game-mode=console because the arcade path never reaches the Menu_Task
+     *    sequence its phase machine watches). Sites branch on the two together
+     *    -- e.g. `cmb_win.c`'s
+     *    `(!ArcadeBalance_IsEnabled() && Mode_Type == MODE_VERSUS) ||
+     *     plw[PLS].wu.wu_operator` and `sys_sub.c`'s
+     *    `(Mode_Type != MODE_VERSUS && Mode_Type != MODE_REPLAY) &&
+     *     plw[PL_id].wu.wu_operator == 0` -- so clearing the flag alone would
+     *    manufacture NEW divergences rather than remove one.
+     *
+     * So the honest outcome is a typed rejection, exactly as H1 does for a
+     * matchless segment: `main.c` turns this into exit code 3, kept distinct
+     * from 1 (= engine divergence) and from 2 (= no match in segment). The
+     * load-bearing property is that a segment the harness cannot reproduce is
+     * never reported as an engine divergence. */
+    if ((game->wu_operator[0] == 0) || (game->wu_operator[1] == 0)) {
+        SDL_Log("ScrdGame_Init: '%s' is not human-vs-human -- wu_operator = (%u, %u) at the match "
+                "start frame, so the cabinet ran Play_Type == 0 with cpu_algorithm() on at least "
+                "one side; the harness forces two operators and cannot reproduce that (H4b)",
+                ram_archive_path,
+                game->wu_operator[0],
+                game->wu_operator[1]);
+        RamArchive_Destroy(&game->archive);
+        return SCRD_GAME_INIT_CPU_PLAYER;
     }
 
     return SCRD_GAME_INIT_OK;

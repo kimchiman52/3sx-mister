@@ -19,13 +19,15 @@ spot. Keep them separate.
 and now in the shipped viewer too (`.3sr` v2 carries `players_timer`); **D2**
 on the viewer (`c6a75572`, confirmed on hardware); **E1a** applied (the
 `Play_Type` damage pin, gated on arcade balance) with **E1b RETRACTED** — see
-E1. **H1-H3** have landed: the 16-segment corpus now stands at 6 PASS /
-8 divergence / 2 no-match, and the partition is exactly human-vs-human /
-human-vs-CPU / attract demo. Open: **E2b** (unidentified, 6 of the 8
-divergences) and **E3** (2 of them) have no patch, and the new **H4b** — the
-harness forces `Play_Type == 1` on every segment — makes the eight
-human-vs-CPU segments uninterpretable. Nothing here has had a Fable review
-yet.
+E1. **H1, H2, H3 and H4b** have all landed, and the 16-segment corpus now
+stands at **6 PASS / 0 divergence / 8 rejected as unreproducible (rc=3) /
+2 no-match (rc=2)**. Every one of the eleven failures this document opened with
+had a harness cause: **E2b** and **E3** are both RETRACTED — they were
+human-vs-CPU recordings replayed under the wrong `Play_Type`, which H4b now
+rejects by type rather than reporting as divergence. Open: E2a's viewer half is
+untested on hardware; E3's actual `+32` write was never identified, only shown
+to be unreachable in human-vs-human play; and the usable corpus is down to six
+segments. Nothing here has had a Fable review yet.
 
 **E2a's viewer half is untested on hardware.** The v2 fix was measured on the
 host build only (below); nothing has been deployed to the MiSTer, and the
@@ -417,22 +419,91 @@ besides `random_32`, so the +1 had to be a real call.
 `pli_0002()` (`plcnt.c`) is a documented stub, but runs several frames before the
 `3→4` transition and CPS3's effect M4 contains no RNG.
 
-### E3 — `pos.x` jumps +32 at round start (LIKELY the same cause as E2b/H4b)
+### E3 — RETRACTED: `pos.x` +32 is not an engine divergence, and is now unobservable
 
-**Symptom.** P0 `pos.x` reads 424 where the archive holds 392, at archive frame
-54. Two instances, both **Alex vs Yang**.
+**Symptom, as it was.** P0 `pos.x` read 424 where the archive held 392, at
+archive frame 54. Two instances, `7733 game_5` and `1710 game_1`, both
+**Alex vs Yang**.
 
-**Both are human-vs-CPU segments.** `appear.c` branches on `wu_operator` in three
-places that decide round-start X: `home_visitor_check()` (its `Play_Type == 0`
-path selects on `wu_operator`), and `Appear_24000()` / `Appear_25000()`, which
-overwrite `wk->wu.xyz[0].disp.pos` **only when `!wu_operator`**. That is an X
-override which leaves `rno` unchanged — which is exactly what the earlier
-"Champion and home-visitor ruled out, because `rno` matched" note could not
-account for.
+**Disposition: retracted as a divergence claim; reclassified under H4b; not
+observable in this corpus.** Both instances are human-vs-CPU segments, so with
+H4b applied both now exit 3 and are never compared. That is *not* the same as
+"fixed": what follows is the evidence for the reclassification, and the one
+thing that stayed unproven.
 
-**Not yet proven.** The mechanism fits and the segment classification fits, but
-E3 has not been re-run with `wu_operator` imported. **H4b is the test**: if E3
-survives it, it is a real defect; if it disappears, it was never one.
+**1. Both instances are CPU segments (measured).** `wu_operator` read straight
+out of the archive at the match-start frame (`0x68C6F` / `0x69107`) is `(1, 0)`
+in both, and `(1, 0)` for all 8,842 frames of `7733 game_5`. Both are rejected
+by `ScrdGame_Init()`'s H4b check.
+
+**2. The mechanism this entry proposed is REFUTED.** `Appear_24000()` and
+`Appear_25000()` (`appear.c`) never run in either segment. `appear_player()`
+dispatches `appear_jmp_tbl[wk->wu.routine_no[4]]`, and the archive holds
+`routine_no[4] == 1` for P0 and `== 21` for P1 on **every** frame from 3 to 60
+in both segments — `Appear_01000` and `Appear_21000`. Table indices 24 and 25
+never occur. The `!wu_operator` X override was a plausible reading of the code
+and is simply not what these recordings executed.
+
+**3. It is a one-frame teleport, not a placement difference.** A one-off
+position trace of `7733 game_5` (both players, ours vs archive, printed at the
+head of `compare_main_values`) shows our P0 at 392 — the archive's value —
+through frame 53 and 424 on frame 54, with P1 at the archive's 601 on both.
+That it fails at 54 and not earlier is itself the proof it was right all along:
+`Statcheck_CompareValues` asserts `pos` on every frame where
+`G_No[1] == 2 && G_No[2] == 1`, and the archive holds that from frame 11.
+Everything compared *ahead of* P0's `pos` on the failing frame agrees —
+`Game_timer`, `C_No`, `G_No[1..3]`, `Random_ix32`, and for **both** players
+`routine_no[0..7]`, `cg_add_xy`, `do_not_move`, `caution_flag`, `hit_stop`,
+`dm_stop`, plus P0's `mvxy.a`/`mvxy.d`. So the +32 is a single direct write to
+`wk->wu.xyz[0].disp.pos`, not accumulated motion — which rules out the `mvxy`
+path as well as the two `appear.c` overrides.
+
+**4. A (1,1) segment cannot exhibit it.** Every `wu_operator`-conditioned path
+that can set round-start X is unreachable when both operators are 1:
+
+- `Appear_24000()` / `Appear_25000()` are `if (!wk->wu.wu_operator)`;
+- `home_visitor_check()`'s CPU arm is the `else` of `if (Play_Type)`, and
+  `Play_Type == 1` exactly when both operators are set (`Setup_Play_Type()`,
+  `sys_sub.c`);
+- `move_player_work()` (`plcnt.c`) pins the two players' update order with
+  `switch (plw[0].wu.wu_operator + (plw[1].wu.wu_operator * 2))` — `case 1`
+  forces `move_P1_move_P2()` and `case 2` forces `move_P2_move_P1()` every
+  frame, while `(1,1)` and `(0,0)` both fall to the `default` arm that
+  alternates on `Game_timer & 1`.
+
+A genuine human-vs-human recording has `(1, 1)` and so does the harness, so on
+those segments the two sides take the same arm by construction. E3's symptom is
+reachable only in the configuration the harness now refuses.
+
+**5. What is NOT proven.** Which write produced the +32. Ruled out by
+measurement: the two `appear.c` overrides (never dispatched) and `mvxy` drift
+(compared equal on the failing frame). Still open as a candidate, unproven: the
+screen-edge clamp `set_field_hosei_flag(&plw[0], scrr/scrl, …)` in
+`move_P1_move_P2()` / `move_P2_move_P1()`, whose limits come from
+`set_scrrrl()` -> `get_center_position()` = `bg_w.bgw[1].wxy[0].disp.pos`. That
+camera value is neither imported nor compared by statcheck, and the order in
+which the two clamps run is picked by the `wu_operator` switch above — so a
+camera that is 32 off would snap exactly one player by exactly 32 on the frame
+the clamp first arms (`bg_app_stop == 0 && bg_app == 0`). Confirming that needs
+an arcade offset for `bg_w.bgw[1].wxy[0]`, which the H2 note's warning applies
+to: it cannot be derived from the port struct (the arcade `BGW` has 4-byte
+pointers and one extra byte ahead of `stage`), so it would have to come from
+disassembly. Not done.
+
+**6. Design (a) cannot settle it, measured.** Two runs with the archive's
+`wu_operator` forced into `Operator_Status` / `plw[].wu.wu_operator`:
+
+| experiment | first divergence |
+|---|---|
+| operators imported, harness otherwise unchanged | `w_lvr (-32760) != (-32764)` @ frame **7** |
+| same, with `compare_lvr`/`compare_wcp`/`compare_waza_work` suppressed | `routine_no (3) != (1)` @ frame **11** |
+
+Both segments, both experiments, identical results. Neither run reaches frame
+54, so E3 is not re-measurable that way. The first failure is argument 1 of the
+H4b design note in action (`Player_move()` discards the pinned lever word); the
+second is argument 3 (a CPU operator inside the harness's synthetic VERSUS
+match manufactures new divergences — here in the appear state machine —
+*earlier* than the one it was meant to explain).
 
 Previously excluded by measurement, all still valid: segmentation, input
 alignment (our `C_No`, `G_No[1..3]`, `Game_timer` and injected input words match
@@ -443,23 +514,33 @@ stages and `routine_no[4]` matched), lever warm-up.
 
 ## Harness false positives — fix these before trusting a statcheck sweep
 
-Six of eleven observed failures were **not** engine bugs. Each had a concrete
-cause; until they were fixed, a statcheck sweep over multi-game sessions would
-report divergences that are not there.
+**All eleven** observed failures turned out not to be engine bugs. Each had a
+concrete cause; until they were handled, a statcheck sweep over multi-game
+sessions reported divergences that are not there. Three of the four causes are
+repairs (H1, H2, H3); the fourth (H4b) is a limit the harness now declares
+instead of hiding.
 
-**H1, H2 and H3 are now fixed.** Over the same 16-segment corpus, before and
-after, on the same build tree:
+**H1, H2, H3 and H4b are now fixed. The corpus reports zero divergences.**
+Over the same 16-segment corpus, on the same build tree
+(`/Volumes/KimchDrive/3sarm-convert-tmp/rerun2`, `build/statcheck-verify`):
 
-| | before | after |
-|---|---|---|
-| PASS | 5 | **6** |
-| divergence (rc=1) | 11 | **8** |
-| no match in segment (rc=2, new) | — | **2** |
+| | original | after H1-H3 | after H4b |
+|---|---|---|---|
+| PASS (rc=0) | 5 | 6 | **6** |
+| divergence (rc=1) | 11 | 8 | **0** |
+| no match in segment (rc=2) | — | 2 | **2** |
+| CPU player, not reproducible (rc=3) | — | — | **8** |
 
-The 8 that remain are 6 × `Random_ix32` (E2b) and 2 × `pos.x` (E3) — two real
-mechanisms, not eleven. Every previously-passing segment still passes with a
-byte-identical compared-frame range, and every failure that was not a false
-positive reports the same file, line, values and frame as before.
+Every one of the eleven original failures had a harness cause. The last eight —
+6 × `Random_ix32` (E2b) and 2 × `pos.x` (E3) — were all human-vs-CPU segments
+being replayed under the wrong `Play_Type`; H4b rejects them by type instead of
+reporting them. Every previously-passing segment still passes with a
+byte-identical compared-frame range (verified: all six `PASS — compared archive
+frames a..b of n` lines are string-identical before and after).
+
+**What this costs.** 8 of 16 segments are no longer checked at all, and 2 more
+hold no match, so 6 of 16 are usable ground truth. That is the honest number:
+the other ten were never being measured correctly.
 
 ### H1 — `ScrdGame_Init()` false-positives on the post-KO state (FIXED)
 
@@ -622,6 +703,110 @@ match — `Game_timer = 0; Round_num = 0; C_No[0..3] = 0` — **without leaving*
 `G_No[1] == 2`. A rematch therefore merges two matches into one `game_N`.
 Verified: a 2,270-frame segment whose successor carries `Game_timer` 2,226.
 
+### H4b — the harness forced `Play_Type == 1` on every segment (FIXED, by rejection)
+
+`statcheck_runner.c` taps `SWK_START` for player 2 at
+`PHASE_CHARACTER_SELECT`, and `ScrdGame_Init()` never imported `wu_operator`.
+So **every** statcheck run had two human operators: `set_base_data()`
+(`plcnt.c`) copies `Operator_Status[ix]` into `plw[ix].wu.wu_operator`, and
+`Setup_Play_Type()` (`sys_sub.c`) makes that `Play_Type == 1`. On the eight
+corpus segments the cabinet recorded against the CPU, hardware ran
+`Play_Type == 0` with `cpu_algorithm()` driving one side and the port ran
+neither. That, not any engine defect, produced all eight remaining failures
+(E2b's six `Random_ix32` and E3's two `pos.x`).
+
+`plw[i].wu.wu_operator` is WORK offset 3 — archive `0x68C6F` and `0x69107` —
+and reading it at the match-start frame partitions the corpus exactly:
+
+| `wu_operator` at start | segments | verdict before H4b |
+|---|---|---|
+| (1,1) human vs human | 6 | all PASS |
+| (1,0) / (0,1) human vs CPU | 8 | all divergence |
+| (0,0) attract demo | 2 | no match (H1, rc=2) |
+
+#### Why the fix is a rejection and not "reproduce the CPU player"
+
+Importing `wu_operator` so `Player_move()` routes through `cpu_algorithm()`
+would, on paper, make eight more segments usable. It does not work, for three
+independent reasons — the first two read off the port's own sources, and the
+first and third were then confirmed by experiment.
+
+**1. It disables the oracle's input pinning on exactly those segments.**
+`Player_move()` (`plmain.c`) is
+
+    if (wk->wu.wu_operator) { wk->cp->sw_lvbt = lv_data; }
+    else { wk->cp->sw_lvbt = processed_lvbt(cpu_algorithm(wk)); }
+
+With the flag clear it **discards `lv_data`** — the archive's own button word,
+which `read_input_buff()` (`statcheck_runner.c`) feeds it every frame. The test
+stops being "same inputs, same state" and becomes "re-derive the AI", in which
+a single wrong frame is unattributable. Measured: with the operators imported
+and nothing else changed, both E3 segments fail at **frame 7** on
+`w_lvr (-32760) != (-32764)` — the lever work itself, i.e. the pinned input.
+
+**2. The AI reads cabinet state the import set does not carry.**
+`Setup_Lv18(save_w[Present_Mode].Difficulty)` (`com_pl.c`, `com_sub.c`) and
+`asagh_zuru[save_w[Present_Mode].Difficulty]` in `add_sp_arts_gauge_paring()` /
+`_tokushu()` / `_ukemi()` / `_nagenuke()` (`pls02.c`, each guarded by
+`wu_operator == 0`) all index the cabinet's service difficulty.
+`Statcheck_SyncValues()` (`statcheck_compare.c`) imports `Random_ix16`,
+`Random_ix32`, `players_timer`, `t_pl_lvr` and `Round_Level` — and nothing
+else. `arcade_constants.h` has no offset for `Difficulty` and none was derived,
+so the AI's difficulty scaling cannot be reconstructed from the archive.
+(`com_pl.c` and `com_sub.c` between them reference 87 of the globals defined in
+`workuser.c`; `Com_Initialize()` resets most of them at battle start, which is
+why this entry rests on `Difficulty`, an input it demonstrably does not reset,
+rather than on the size of that surface.)
+
+**3. `wu_operator == 0` inside the harness's VERSUS match is a state the
+cabinet never had.** The CPU recordings are arcade-mode matches;
+`StatcheckRunner_PinConfig()` forces `game-mode=console` because the arcade
+path never reaches the `Menu_Task` r_no sequence the phase machine watches, so
+the harness always synthesises a console VERSUS match. Sites branch on the two
+together — `cmb_win.c`'s
+`(!ArcadeBalance_IsEnabled() && Mode_Type == MODE_VERSUS) || plw[PLS].wu.wu_operator`
+and `sys_sub.c`'s
+`(Mode_Type != MODE_VERSUS && Mode_Type != MODE_REPLAY) && plw[PL_id].wu.wu_operator == 0`
+— so clearing the flag alone manufactures new divergences. Measured: with the
+operators imported *and* the lever/wcp/waza comparisons suppressed so the
+frame-7 failure above cannot mask it, both segments fail at **frame 11** on
+`routine_no (3) != (1)` — the appear state machine, 43 frames before E3's
+symptom.
+
+Design (a) is therefore not "hard"; it is refuted on this corpus. The load-
+bearing property is the one H1 already established: **a segment the harness
+cannot reproduce must never be reported as an engine divergence.**
+
+#### Fix (this commit)
+
+`ScrdGame_Init()` (`scrd_game.c`) reads `wu_operator` for both players at
+`start_index` — using `WORK_WU_OPERATOR_OFFSET` (3), new in
+`arcade_constants.h` — and returns `SCRD_GAME_INIT_CPU_PLAYER` when either is
+0. `main.c` turns that into **exit code 3**, kept distinct from 1 (engine
+divergence) and from 2 (no match in segment, H1) so a sweep can tell "cannot
+reproduce this recording" from "nothing here to reproduce". Publication gating
+is unaffected: `publish_3sr.py`'s `statcheck_gate` is `clean =
+proc.returncode == 0`.
+
+**Why sample at `start_index` and not "the dominant value".** Measured across
+the corpus, four of the six (1,1) segments carry a short tail of (1,0)/(0,1)
+frames at the very end — 142, 124, 82 and 72 frames — because `manage.c`
+clears the loser's operator after the final KO (`Operator_Status[LOSER] = 0`,
+`plw[LOSER].wu.wu_operator = 0`). The match-start frame is the value
+`set_base_data()` latches and `Setup_Play_Type()` reads, so it is the one that
+decides how the whole segment should have been replayed. It gives the exact
+6 / 8 / 2 partition above with no ambiguity.
+
+**Measured, 16-segment corpus** (same corpus and build tree as H1/H3):
+
+| segment | before | after |
+|---|---|---|
+| the 8 human-vs-CPU segments | rc=1, 6 × `Random_ix32` + 2 × `pos.x` | `CPU-PLAYER`, rc=3, `wu_operator` printed |
+| the 6 (1,1) segments | PASS | PASS, **string-identical** compared-frame ranges |
+| the 2 (0,0) segments | `NO-MATCH`, rc=2 | unchanged |
+
+No segment that passed starts failing, and the sweep now reports **zero** rc=1.
+
 ---
 
 ## Detection coverage
@@ -641,7 +826,8 @@ both players' `pos.x`/`pos.y`, `P1SW_0`/`P2SW_0`.
 `T_PL_LVR` including `s1_cnt`, `G_No[1..3]`, `Counter_hi/low`, `cmb_stock`,
 `mvxy`, `super_arts.*`, `hit_stop`, `dm_stop`, `waza_work`, `wcp`.
 
-So of the three confirmed defects, only **E2 and E3 are on-device detectable**.
+So of what is still standing, only **E2a** is on-device detectable — E2b and
+E3 are retracted (H4b), and E1 lives entirely outside the window.
 
 Checkpoint interval is 60, verified three ways (`DEFAULT_CHECKSUM_INTERVAL`,
 `kTrackChecksumInterval`, and all 507 device `.3sr` headers parsing as
@@ -706,19 +892,24 @@ mismatch, not for gaps).
 |----|------|-------|
 | E1a | `Play_Type == 1` damage pin has no arcade counterpart | **FIXED** — gated on `ArcadeBalance_IsEnabled()` at both `pow_pow.c` sites, `setup_vs_mode()` seeded to **3** (not 0), `ROUND_LEVEL_OFFSET 0x1137A` imported. Proven by disassembly (`0x0609E36C`/`0x0609E3FA` index `Round_Level` unconditionally); demonstrates on **no** corpus segment — reachable only via 2P break-in, which is not traced |
 | E1b | port never updates `Round_Level` in VS | **RETRACTED, not a defect** — arcade `Loser_Sub` (`0x0609C616`) and `Update_VS_Data` (`0x0609C79A`) gate on `Play_Type` exactly as the port does. The archive decrements are all in human-vs-CPU segments |
-| H4b | harness forces `Play_Type == 1` on every segment | **OPEN** — `statcheck_runner.c` taps `SWK_START` for P2 and `ScrdGame_Init` never imports `wu_operator`, so the 8 human-vs-CPU segments run under the wrong `Play_Type`. This, not E1, produced the `vital_new` off-by-ones the old E1 cited |
+| H4b | harness forces `Play_Type == 1` on every segment | **FIXED, by rejection** — `ScrdGame_Init` reads `wu_operator` at the match-start frame (`WORK_WU_OPERATOR_OFFSET`, archive `0x68C6F`/`0x69107`) and returns `SCRD_GAME_INIT_CPU_PLAYER`; `main.c` exits **3**, distinct from 1 and 2. Reproducing the CPU player was tried and refuted by measurement (see H4b) — it breaks input pinning at frame 7 and manufactures a new `routine_no` divergence at frame 11. Costs 8 of 16 segments; sweep now reports **0** divergences |
 | E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device, and existing v1 files keep the old behaviour |
-| E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect |
-| E3 | `pos.x` +32 at round start | LIKELY the same cause as H4b (`appear.c` overrides X only when `!wu_operator`); both instances are CPU segments. **H4b is the test** |
+| E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect. All six instances now exit 3 |
+| E3 | `pos.x` +32 at round start | **RETRACTED, not an engine divergence** — both instances are `(1,0)` CPU segments and now exit 3. The proposed `Appear_24000`/`Appear_25000` mechanism is refuted by measurement (`routine_no[4]` is 1 and 21 in both, never 24/25). Unreachable in (1,1) play: every `wu_operator`-conditioned round-start-X path needs an operator flag clear. **NOT proven**: which write produced the +32 (candidate: the `set_field_hosei_flag` clamp against an unimported camera, `bg_w.bgw[1].wxy[0]`) |
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 
-**For a reviewer:** E2b remains the highest-value engine target — on-device
-detectable, deterministic, and RNG divergence compounds. But **H4b now outranks
-it for the oracle**: eight of the sixteen corpus segments are being replayed
-under the wrong `Play_Type`, which makes their divergences uninterpretable and
-is what sent E1 down a false trail. E1 is closed: E1a is applied and E1b is
-retracted. H1–H3 have landed.
+**For a reviewer:** the 16-segment corpus now reports **no engine divergence at
+all** — 6 PASS, 8 rejected as unreproducible (H4b), 2 with no match (H1). Every
+one of the eleven failures this document opened with had a harness cause. E1a
+is applied; E1b, E2b and E3 are retracted; H1, H2, H3 and H4b have landed.
+
+That is a statement about *this* corpus, and its main consequence is that the
+corpus is now too small to say much: 6 usable segments, all human-vs-human, all
+from four sessions. The next useful move is more (1,1) ground truth, not more
+analysis of these sixteen. Two things are known-open rather than closed —
+E3's actual +32 write (never identified, only shown to be unreachable in (1,1)
+play), and E2a's device test.
