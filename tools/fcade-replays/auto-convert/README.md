@@ -121,6 +121,47 @@ Offline framing self-test (no args, no network, no subprocess at all):
 "$HOME/Developer/fbneo-replay-runner/venv/bin/python" tools/fcade-replays/auto-convert/proxy_ops.py --selftest
 ```
 
+## Failure modes found the hard way (2026-09-03/04)
+
+Three defects that were live for weeks. All fixed; recorded because each one
+*mis-reported itself*, and the next person will otherwise re-derive them.
+
+**`publish_error` is a catch-all, not a push failure.**
+`classify_failure_reason()` buckets any error string without "savestate" in it
+as `publish_error` — runner timeouts, ENOSPC, and genuine push failures all land
+there together. 179 of the ledger's 190 failures carried that label, which sent
+one investigation at rsync permissions and `3sr-incoming` ownership while the
+real causes were elsewhere. **Read the log's actual error text; do not trust the
+ledger reason.** Timeouts now classify as `runner_timeout` (`30fc820f`).
+
+**The Mac lane had half the VPS's runner budget.** This script passed
+`--statcheck-timeout` but never `--runner-timeout`, so it silently took
+`publish_3sr.py`'s 900 s default against the VPS's 30 min
+(`CONVERT_RUNNER_TIMEOUT_MS`). Measured over 72 conversions: **42 %** failed,
+every one a "runner timed out after 900s", on quarks the VPS converts fine —
+28 of that day's 147 catalog rows are longer than 900 s, and a successful
+conversion already runs a median 1479 s. Now `RUNNER_TIMEOUT=1800`
+(`FCADE_RUNNER_TIMEOUT`).
+
+**Scratch peaks ~26 GB per long session, and TMPDIR was unset.** The runner
+writes the whole CPS3 work RAM every frame (524,288 B/frame); `publish_3sr.py`
+compresses and deletes each `game_N/` at the boundary, which bounds it, but a
+10-game / ~100k-frame session still peaked at 26 GB. With `TMPDIR` unset that
+landed on the boot volume (37 GB free at the time) and did exhaust it during
+the investigation. Now pointed at `SCRATCH_DIR` / `FCADE_SCRATCH_DIR`, guarded
+so a missing external volume warns and falls back rather than pointing `TMPDIR`
+at a nonexistent path (`1b5684cd`).
+
+**Two more things worth knowing before trusting any conversion result:**
+
+- **The VPS runs no statcheck at all** — 0 mentions in the deployed
+  `fcade-proxy.js`, no binary, no `publish_3sr.py`. It did 4,935 of 5,051
+  conversions, so **~97.6 % of the shipped corpus is unvalidated** against our
+  engine. Only this Mac worker gates on statcheck.
+- **`publish_3sr.py` has returned exit code 0 while printing a fatal traceback.**
+  Read its output, never its status. Its interpreter is the 3.14 venv at
+  `$RUNNER_DIR/venv`; the system `python3` is 3.9 and cannot parse it.
+
 ## Layout
 
 ```

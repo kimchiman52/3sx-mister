@@ -15,9 +15,13 @@ constant in `pow_data.c`, its values are correct, and the defect is an `if`.
 Filing engine behaviour into a data-fidelity document reproduces that blind
 spot. Keep them separate.
 
-**Status at time of writing:** nothing here is fixed on `new-stuff`. E1 has a
-proposed patch from an external fork (not merged, see caveat). E2 and E3 have no
-patch. All three need a Fable review before anything ships.
+**Status (2026-09-05).** Fixed: **E2a** in the statcheck oracle (`f63507b7`) and
+**D2** on the viewer (`c6a75572`, confirmed on hardware). Open: **E1** has an
+external patch, not merged, blocked on a netplay question; **E2a is still live
+for the shipped viewer** because the `.3sr` header carries no `players_timer`;
+**E2b** and **E3** have no patch and E2b is unidentified; **H1–H3** are
+unfixed, so a broad statcheck sweep would still produce false positives.
+Nothing here has had a Fable review yet.
 
 ---
 
