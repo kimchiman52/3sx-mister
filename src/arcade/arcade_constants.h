@@ -19,6 +19,16 @@
 #define WAZA_WORK_OFFSET 0x256C4
 #define WAZA_TYPE_OFFSET 0x2630C
 #define WCP_OFFSET 0x26318
+/* bg_w.stage. Read off the arcade SH-2 program of sfiii3nr1 (H2,
+ * docs/research-arcade-balance-desyncs.md): `appear_data_init_set` at
+ * CPS3 0x060C00E8 loads &bg_w = 0x02026BAC and reads the stage with
+ * `mov.b @(4,r7),r0`, and `Appear_07000`'s stage==12 test at CPS3
+ * 0x060C0AA6 loads the whole address 0x02026BB0 as a literal.
+ *
+ * DO NOT derive this from a BG_W base plus the port struct's offsetof.
+ * The arcade BG has one extra byte ahead of `stage`, so arcade `stage` is
+ * at +4 / `area` at +5 where the port's bg.h has them at +3 / +4. */
+#define BG_W_STAGE_OFFSET 0x26BB0 // bg_w.stage (CPS3 0x02026BB0)
 #define ROUND_TIMER_OFFSET 0x28679
 #define CMB_STOCK_OFFSET 0x2883C
 #define CMB_ALL_STOCK_OFFSET 0x288A4

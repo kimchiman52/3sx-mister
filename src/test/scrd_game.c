@@ -37,6 +37,24 @@ static void scrd_read_match_setup(ScrdGame* game, SDL_IOStream* io) {
     SDL_SeekIO(io, PLAYER_COLOR_OFFSET, SDL_IO_SEEK_SET);
     SDL_ReadIO(io, game->colors, 2);
 
+    /* Stage (H2, docs/research-arcade-balance-desyncs.md). It is NOT
+     * reconstructible from the character select: on the arcade the stage
+     * carries across matches, and `appear_data_init_set()` (`appear.c`) indexes
+     * `app_type_tbl[own][opp][bg_w.stage]` to pick both `wu.routine_no[4]` and
+     * `wu.xyz[0].disp.pos`, so getting it wrong moves a player at battle start.
+     *
+     * CHAR_ARCADE_TO_3SX is the right transform, not a coincidence: both sides
+     * derive the home stage from a character id in their own index space.
+     * `Setup_Battle_Country()` (`sel_pl.c`) returns `My_char[...]` verbatim, and
+     * on the arcade side the byte at BG_W_STAGE_OFFSET equals one of the two
+     * players' arcade character ids in all 11 measured segments. The port drops
+     * arcade index 15 (CHAR_SHIN_AKUMA) from both spaces -- which is exactly why
+     * `app_type_tbl` is [20][20][22] here against the arcade's [21][21][23]. */
+    Uint8 stage = 0;
+    SDL_SeekIO(io, BG_W_STAGE_OFFSET, SDL_IO_SEEK_SET);
+    SDL_ReadU8(io, &stage);
+    game->stage = (Uint8)CHAR_ARCADE_TO_3SX(stage);
+
     scrd_adjust_character_numbers(game);
 }
 

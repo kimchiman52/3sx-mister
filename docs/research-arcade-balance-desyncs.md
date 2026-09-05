@@ -289,9 +289,23 @@ lever warm-up.
 
 ## Harness false positives — fix these before trusting a statcheck sweep
 
-Six of eleven observed failures were **not** engine bugs. Each has a concrete
-cause; until they are fixed, a statcheck sweep over multi-game sessions will
+Six of eleven observed failures were **not** engine bugs. Each had a concrete
+cause; until they were fixed, a statcheck sweep over multi-game sessions would
 report divergences that are not there.
+
+**H1, H2 and H3 are now fixed.** Over the same 16-segment corpus, before and
+after, on the same build tree:
+
+| | before | after |
+|---|---|---|
+| PASS | 5 | **6** |
+| divergence (rc=1) | 11 | **8** |
+| no match in segment (rc=2, new) | — | **2** |
+
+The 8 that remain are 6 × `Random_ix32` (E2b) and 2 × `pos.x` (E3) — two real
+mechanisms, not eleven. Every previously-passing segment still passes with a
+byte-identical compared-frame range, and every failure that was not a false
+positive reports the same file, line, values and frame as before.
 
 ### H1 — `ScrdGame_Init()` false-positives on the post-KO state (FIXED)
 
@@ -336,21 +350,78 @@ The `start_index` the new predicate picks is **1 on all 14 segments that
 contain a match** — byte-identical to the old scan — and undefined (correctly)
 on the two that do not.
 
-### H2 — the stage is never imported, so the appearance table is wrong
+### H2 — the stage is never imported, so the appearance table is wrong (FIXED)
 
 `appear_data_init_set()` (`appear.c`) picks
 `app_type_tbl[own][opp][bg_w.stage]`, and `appear_data_set()` writes both
 `wu.routine_no[4]` and `wu.xyz[0].disp.pos` from that entry. `ScrdGame_Init()`
-reads characters, supers, new_challenger and colours — **never the stage**. On
+read characters, supers, new_challenger and colours — **never the stage**. On
 the arcade the stage carries across matches, so the harness's synthetic
-char-select cannot reconstruct it.
+char-select cannot reconstruct it. It usually does not bite because
+`app_type_tbl` is stage-flat for most matchups — which is why most games pass.
 
-Solved uniquely against the shipped tables: one failing archive's `rno` occurs
-at stage 7 only, another's at stage 12 only. `routine_no[3]` 3-vs-1 is the
-downstream symptom via `Appear_01000()`'s `Appear_flag` branch. It usually does
-not bite because `app_type_tbl` is stage-flat for most matchups — which is why
-most games pass. **Fix:** import `bg_w.stage`; there is no CPS3 offset for it in
-`arcade_constants.h` today.
+**The CPS3 offset, by disassembly.** An empirical scan was not used, and must
+not be: a residue or delta test over a short window is blind to a constant
+offset, which is exactly how the first `players_timer` candidate came out a
+false positive. The method is §23.4 of
+`docs/research-arcade-cg-data-accuracy.md` — find a table that occurs once in
+the decrypted image, find its sole literal referrer, read the address off the
+instruction that uses it.
+
+- `app_type_tbl` @ CPS3 `0x0619E950`, `app_type_tbl2` @ `0x061A10EF`, each
+  **exactly one** occurrence. The arcade tables are `[21][21][23]`; the port's
+  `[20][20][22]` is byte-for-byte the arcade table with character index 15 and
+  one stage column removed.
+- Their literal-pool slots are unique and adjacent (`0x060C0220`,
+  `0x060C021C`), both in one function: **`appear_data_init_set` @ CPS3
+  `0x060C00E8`**. It loads `&bg_w = 0x02026BAC` (`mov.l 0x60c0214,r7`) and
+  reads the index with **`mov.b @(4,r7),r0`**.
+- Independent second site: `Appear_07000`'s `bg_w.stage == 12 && bg_w.area == 0`
+  test loads the **whole address** as a literal — `mov.l 0x60c0b30,r3` where
+  `[0x060C0B30] = 0x02026BB0` (and `0x02026BB1` for `area`).
+
+So **`BG_W_STAGE_OFFSET = 0x26BB0`**. Note the trap this closes: the arcade
+`BG` has one extra byte ahead of `stage` (arcade `stage` at `+4`, `area` at
+`+5`; the port's `bg.h` has `+3`/`+4`), so the offset must be written
+literally and never derived from a base plus the port's `offsetof`.
+
+**Corroboration against the archives.** The byte at `0x26BB0` was read on every
+frame of all 11 segments: constant across each whole segment, always in
+`0..21`, always equal to one of the two players' arcade character ids (a home
+stage), and different across segments (`11, 1, 1, 7, 5, 3, 3, 12, 12, 10, 2`).
+Feeding those into `app_type_tbl` predicts the archives' `routine_no[4]` **six
+for six**, and four of the six are *uniquely* solvable from the table alone —
+stage 7, 3 and 12 respectively, each equal to the byte read. A constant-offset
+neighbour cannot produce that, which is what makes this not the `players_timer`
+failure mode.
+
+**The index space is the character index space** — verified on both sides, not
+assumed. `Setup_Battle_Country()` (`sel_pl.c`) returns `My_char[...]` verbatim,
+so the port's `bg_w.stage` is a 3SX character id; the arcade's byte is an
+arcade character id. `CHAR_ARCADE_TO_3SX` (`constants.h`) is therefore the
+correct transform over the whole range, and it also names the stage column the
+port dropped: index 15, `CHAR_SHIN_AKUMA`. That is why the port's table is
+`[20][20][22]` against `[21][21][23]`.
+
+**Fix (this commit).** `ScrdGame_Init()` imports the stage through
+`CHAR_ARCADE_TO_3SX`, and the runner pins it at PHASE_MENU with
+`Debug_w[DEBUG_STAGE_SELECT] = stage + 1` — the engine's own override, so
+`Exit_2nd()` (`sel_pl.c`) applies it *and* issues `Push_LDREQ_Queue_BG()` for
+the pinned stage. The same override the DEBUG harness uses
+(`test_runner.c` -> `apply_stage_override`). No engine code changed.
+
+**Measured, 16-segment corpus** (same corpus and build tree as H1/H3):
+
+| segment | before | after |
+|---|---|---|
+| `5743 game_3` | `routine_no (16) != 15` @ frame 11 | gone; now `Random_ix32` @ 234 (E2b) |
+| `7733 game_1` | `routine_no (3) != 1` @ frame 11 | gone; now `Random_ix32` @ 322 (E2b) |
+| `7733 game_4` | `routine_no (3) != 1` @ frame 11 | gone; now `Random_ix32` @ 247 (E2b) |
+| the 6 segments that passed | PASS | PASS, identical compared-frame ranges |
+| the other 5 failures | (see table above) | unchanged: same file, line, values, frame |
+
+Three reports that looked like distinct engine bugs collapse into the E2b
+bucket, which is the point of fixing a false positive.
 
 ### H3 — lever counters are never cleared (FIXED)
 
@@ -485,12 +556,13 @@ mismatch, not for gaps).
 | E2b | a `random_32` consumer the port never runs | OPEN, unidentified; this is the one that fails statcheck |
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
-| H2 | stage not imported | add a CPS3 offset for `bg_w.stage` |
+| H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 
 **For a reviewer:** E2b is now the highest-value target — it is on-device
-detectable, reproduces deterministically, and RNG divergence compounds. E1 is
-the best understood but needs the netplay decision first. H1–H3 should land
-before any broad statcheck sweep, or the sweep's output cannot be trusted.
+detectable, reproduces deterministically, RNG divergence compounds, and with
+H2 fixed it accounts for 6 of the 8 remaining divergences rather than 3. E1 is
+the best understood but needs the netplay decision first. H1–H3 have landed, so
+a broad statcheck sweep can now be trusted.

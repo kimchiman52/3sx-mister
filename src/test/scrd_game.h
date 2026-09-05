@@ -13,6 +13,8 @@ typedef struct ScrdGame {
     Uint8 supers[2];
     Uint8 colors[2];
     Uint8 new_challenger;
+    /* Home stage, already mapped into the port's 3SX index space (H2). */
+    Uint8 stage;
     RamArchive archive;
 } ScrdGame;
 

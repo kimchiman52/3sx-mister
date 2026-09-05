@@ -32,6 +32,7 @@
 #include "port/config/config.h"
 #include "port/sdl/sdl_app.h"
 #include "sf33rd/AcrSDK/common/pad.h"
+#include "sf33rd/Source/Game/debug/debug_config.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
 #include "sf33rd/Source/Game/ui/sc_sub.h"
@@ -283,6 +284,19 @@ void StatcheckRunner_Prologue(void) {
             Last_My_char2[1] = game.characters[1];
             Last_Super_Arts[0] = game.supers[0];
             Last_Super_Arts[1] = game.supers[1];
+            /* Stage pin (H2, docs/research-arcade-balance-desyncs.md). The
+             * archive's stage is a carried-over session fact that the synthetic
+             * char-select cannot reconstruct, and it feeds
+             * `app_type_tbl[own][opp][bg_w.stage]` in `appear_data_init_set()`
+             * (`appear.c`) -- which sets `wu.routine_no[4]` AND
+             * `wu.xyz[0].disp.pos` at battle start. Route it through the
+             * engine's own override rather than writing `bg_w.stage`: `Exit_2nd()`
+             * (`sel_pl.c`) reads `Debug_w[31]` right after `Setup_Battle_Country()`
+             * and does `Battle_Country = bg_w.stage = Debug_w[31] - 1;` before
+             * `Push_LDREQ_Queue_BG(bg_w.stage)`, so the BG load request is issued
+             * for the pinned stage too. Same override the DEBUG harness uses
+             * (`test_runner.c` -> `apply_stage_override`). */
+            Debug_w[DEBUG_STAGE_SELECT] = (s8)(game.stage + 1);
             phase = PHASE_CHARACTER_SELECT_TRANSITION;
             wait_timer = 60;
             break;
