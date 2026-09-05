@@ -96,8 +96,18 @@ const HMDT hmdt[146] = { { 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0 },         { 266, 1, 
 
 const s16 hcct[6] = { 8192, 8224, 8224, 8224, 4, 484 };
 
+/* Rows 7 and 8 read {6, 0} in the PS2 source this port descends from; the
+ * arcade has {6, 4} and {6, 2}. Read off the sfiii3nr1 SH-2 program at CPS3
+ * 0x061B941A -- the table `effect_A7_move` indexes with `tad->quake` at CPS3
+ * 0x060F9364 (`mov.b @(7,r13),r0` -> `shll2` -> `mov.w @(r0,r4)` /
+ * `mov.w @(2,r4)`), so the layout is the same s16[2] rows and only these two
+ * values differ. Corroborated against the archives: with {6, 0} the port wrote
+ * `bg_w.quake_y_index = 0` on twelve quake events across ten of the 143 corpus
+ * segments where the archive holds 2 on the next frame and 1 on the one after
+ * -- exactly one gqdt[8][1] = 2 quake decaying under `ta0_move()`
+ * (docs/research-arcade-balance-desyncs.md, E5b). */
 const s16 gqdt[19][2] = {
-    { 0, 0 }, { 6, 6 }, { 6, 8 }, { 6, 10 }, { 6, 12 }, { 6, 18 }, { 6, 6 },  { 6, 0 },  { 6, 0 },  { 6, 4 },
+    { 0, 0 }, { 6, 6 }, { 6, 8 }, { 6, 10 }, { 6, 12 }, { 6, 18 }, { 6, 6 },  { 6, 4 },  { 6, 2 },  { 6, 4 },
     { 6, 6 }, { 6, 4 }, { 6, 8 }, { 6, 6 },  { 6, 8 },  { 6, 10 }, { 6, 12 }, { 6, 16 }, { 6, 60 },
 };
 
@@ -157,8 +167,15 @@ void effect_02_move(WORK_Other* ewk) {
             }
 
             if (tad->quake != 0) {
-                bg_w.quake_y_index = gqdt[tad->quake][1];
-                pp_screen_quake(bg_w.quake_y_index);
+                /* PS2 pad rumble only. The arcade's `tad->hits == 0` early-out
+                 * does the SE and tail-calls push_effect_work and nothing else
+                 * -- `effect_02_move` (CPS3 0x060DC890..0x060DCC7E) holds no
+                 * reference to bg_w.quake_y_index (0x02026BD8) outside its
+                 * case-1 scr_mv countdown. Writing the field here shook the
+                 * screen on every zero-hit hit mark and put the whole stage
+                 * quake cohort's random_16() draws on a frame the arcade does
+                 * not draw on (docs/research-arcade-balance-desyncs.md, E5a). */
+                pp_screen_quake(gqdt[tad->quake][1]);
             }
 
             push_effect_work(&ewk->wu);

@@ -36,6 +36,7 @@
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/engine/pls02.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
+#include "sf33rd/Source/Game/stage/bg.h"
 #include "sf33rd/Source/Game/ui/count.h"
 #include "test/statcheck_utils.h"
 #include "test/test_assert.h"
@@ -309,6 +310,18 @@ static void compare_service_values(SDL_IOStream* io, bool compare_characters) {
 
     const s16 random_ix32_cps3 = read_s16(io, RANDOM_IX_32_OFFSET);
     assert_equals(Random_ix32, random_ix32_cps3);
+
+    /* bg_w.quake_y_index is compared, never imported. It is not carried across
+     * a match boundary -- both sides enter every corpus segment at 0 -- so
+     * there is nothing for Statcheck_SyncValues to seed, and force-syncing it
+     * per frame would be the Random_ix16 mask all over again. What it does is
+     * gate the stage debris cohorts' random_16() draws, so an unasserted
+     * divergence here surfaces as an unexplained Random_ix16 failure two lines
+     * up. Asserting it names the cause instead: E5 was two port defects in the
+     * quake writers (see the comments in eff02.c), and this is what keeps them
+     * fixed. */
+    const s16 quake_y_index_cps3 = read_s16(io, BG_W_QUAKE_Y_INDEX_OFFSET);
+    assert_equals(bg_w.quake_y_index, quake_y_index_cps3);
 
     const u8 cmb_stock_0_cps3 = read_u8(io, CMB_STOCK_OFFSET);
     const u8 cmb_stock_1_cps3 = read_u8(io, CMB_STOCK_OFFSET + 1);

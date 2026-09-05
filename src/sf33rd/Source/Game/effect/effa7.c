@@ -36,8 +36,13 @@ void effect_A7_move(WORK_Other* ewk) {
             }
 
             if (tad->quake != 0) {
-                bg_w.quake_y_index = gqdt[tad->quake][1];
-                pp_screen_quake(bg_w.quake_y_index);
+                /* PS2 pad rumble only -- see the same branch in
+                 * `effect_02_move` (eff02.c). The arcade's `effect_A7_move`
+                 * (CPS3 0x060F9194..0x060F94F8) runs the SE then tail-jumps to
+                 * push_effect_work (0x060DB8DC) with no store, and touches
+                 * bg_w.quake_y_index (0x02026BD8) only in its case-1 scr_mv
+                 * countdown at CPS3 0x060F9476. */
+                pp_screen_quake(gqdt[tad->quake][1]);
             }
 
             push_effect_work(&ewk->wu);

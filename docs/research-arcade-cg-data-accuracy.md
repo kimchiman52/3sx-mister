@@ -4047,7 +4047,10 @@ and any future arcade-truth oracle that does not dirty-sync `Random_ix16`
 will fail there. (That oracle now exists — the statcheck force-sync came out on
 2026-09-05 — and the 143-segment corpus it was swept over contains no stage-3
 and no stage-19 segment, so it is not evidence about §23.10 either way. It did
-surface two further stages: `research-arcade-balance-desyncs.md` §E5.) For every other stage in the corpus the sequence matched to
+surface seven segments on two further stages, but those turned out NOT to be a
+CG-data defect of this class: `research-arcade-balance-desyncs.md` §E5 is two
+defects in the screen-quake writers -- a `bg_w.quake_y_index` write the arcade
+does not have, and two wrong rows in `gqdt` -- and it is fixed.) For every other stage in the corpus the sequence matched to
 frame 60 in 37/37 replays (previous pass) — there is no evidence of a third
 affected stage, but see §23.11.
 

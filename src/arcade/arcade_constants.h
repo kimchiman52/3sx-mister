@@ -37,6 +37,35 @@
  * The arcade BG has one extra byte ahead of `stage`, so arcade `stage` is
  * at +4 / `area` at +5 where the port's bg.h has them at +3 / +4. */
 #define BG_W_STAGE_OFFSET 0x26BB0 // bg_w.stage (CPS3 0x02026BB0)
+/* bg_w.quake_y_index (E5, docs/research-arcade-balance-desyncs.md). The s16
+ * screen-quake countdown: a hit sets it, `ta0_move()` (`stage/tate00.c`)
+ * decrements it once per frame, and the stage debris cohorts gate their
+ * `random_16()` draws on it (`eff19_quake_sub`, `eff94_2000_0`,
+ * `eff11_quake_sub`, ...).
+ *
+ * DO NOT derive this from BG_W_STAGE_OFFSET plus the port struct's offsetof.
+ * The port's `BG` (`stage/bg.h`) puts `quake_y_index` 29 bytes past `stage`,
+ * which is an odd address an SH-2 cannot hold an s16 at -- the arcade layout
+ * differs. Read off the sfiii3nr1 SH-2 program at five independent sites,
+ * three loading &bg_w = 0x02026BAC and indexing +44, two loading the whole
+ * address as a literal:
+ *   - `eff19_quake_sub`  CPS3 0x060E4BF8: `mov.l <&bg_w>,r12` / `mov #44,r0` /
+ *     `mov.w @(r0,r12),r3` / `cmp/gt` against 2, then 8 and 14 -- the port's
+ *     `<= 2` / `< 8` / `> 14` ladder, selecting eff19_s/m/l_tbl.
+ *   - `eff94_2000_0`     CPS3 0x060F6D30: same load, `cmp/gt` 3 then
+ *     `cmp/ge` 24 -- the port's `> 3` / `>= 24`.
+ *   - `eff11_quake_sub`  CPS3 0x060E0A1A: same load, `cmp/gt` 1, then
+ *     `shll` + index of eff11_quake_index_tbl -- the port's `> 1`.
+ *   - `effect_A7_move`   CPS3 0x060F9476 and `effect_02_move` CPS3 0x060DCBE6:
+ *     the scr_mv countdown stores `wu.scr_mv_y` straight to the literal
+ *     0x02026BD8 (`mov.l <0x02026BD8>,r1` / `mov.w @(98,r14),r2` /
+ *     `mov.w r2,@r1`).
+ *
+ * Corroborated in the archives: the s16 there sits at 0, jumps to 6 or 10 on a
+ * hit and decays by exactly 1 per frame back to 0, which is `ta0_move()`'s
+ * signature (`if (bg_w.quake_y_index > 0) bg_w.quake_y_index--`) and nothing
+ * else's. */
+#define BG_W_QUAKE_Y_INDEX_OFFSET 0x26BD8 // bg_w.quake_y_index (CPS3 0x02026BD8)
 #define ROUND_TIMER_OFFSET 0x28679
 #define CMB_STOCK_OFFSET 0x2883C
 #define CMB_ALL_STOCK_OFFSET 0x288A4
