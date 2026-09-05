@@ -1385,6 +1385,43 @@ and `Game2_0()` run on the same frame, and `Game2_0`'s MODE_VERSUS arm calls
 `Random_ix16`, `Random_ix32` and `players_timer` seeds before the first
 comparison, destroying the oracle. Correct the comments, not the behaviour.
 
+## OPEN DESIGN QUESTION: should the engine fixes have been gated? (user, 2026-09-05)
+
+**E1a is gated on `ArcadeBalance_IsEnabled()`. E4 (`caldir.c`) and E5
+(`eff02.c`/`effa7.c`) are NOT** — they change the simulation in every mode. So
+the port's "PS2" engine no longer matches the original PS2 engine.
+
+That may be wrong, and the answer is **not the same for all three**. The
+distinction that decides it:
+
+- **A decompilation error** — the PS2 binary did X, we transcribed X'. Fixing it
+  restores PS2 fidelity *and* arcade fidelity at once. Ungated is correct;
+  gating would preserve our own typo as if it were a platform behaviour.
+- **A genuine PS2/CPS3 difference** — the PS2 binary really did behave
+  differently. Then an ungated fix silently makes PS2 mode wrong, and it belongs
+  behind `ArcadeBalance_IsEnabled()` like E1a.
+
+**Every fix so far was verified against the CPS3 disassembly and NOT against the
+PS2 binary.** That is exactly the evidence needed to tell these apart, and we do
+not have it. Per fix:
+
+| fix | what we proved | what we did NOT check |
+|---|---|---|
+| **E4** `caldir.c` halving | arcade halves `tm*tm` alone (`0x06090E1C`, `cmp/gt`/`addc`/`shar`) | whether the PS2 binary also does. If it does, ours is a transcription slip and ungated is right |
+| **E5a** quake write removal | the arcade branch has no `&bg_w` write | `pp_screen_quake()` is **PS2 pad rumble** — so this one is the most likely to be genuine PS2 behaviour, and the most likely to need gating |
+| **E5b** `gqdt` rows 7/8 | arcade has `{6,4}`/`{6,2}`, we had `{6,0}` | whether the PS2 table also reads `{6,4}`/`{6,2}` |
+
+**E5a is the sharpest case.** The agent's own words were that the block "reads as
+a PS2 addition using the field as scratch" for rumble — i.e. it may be
+*deliberate PS2 behaviour we removed from PS2 mode*.
+
+**What settles it:** read the PS2 binary at the corresponding sites, the same way
+we read CPS3. Until then, three engine changes are ungated on an assumption
+nobody has tested.
+
+Note this is not academic: `caldir.c` feeds `dir_sel_table` -> `dir32_skydm` ->
+`dm_reaction_table`, i.e. knockdown and juggle behaviour a player can feel.
+
 ## Worklist
 
 | id | what | state |
