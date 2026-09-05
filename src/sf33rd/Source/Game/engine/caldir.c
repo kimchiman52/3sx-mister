@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/engine/caldir.h"
+#include "arcade/arcade_balance.h"
 #include "common.h"
 
 const s32 rate_256_table[256][2] = {
@@ -1061,16 +1062,15 @@ s16 cal_move_dir_forecast(WORK* wk, s16 tm) {
         return 0;
     }
 
-    /* E4 (docs/research-arcade-balance-desyncs.md): the halving binds to
-     * `tm * tm`, NOT to the product with the acceleration. The port used to
-     * write `(d.sp * (tm * tm)) / 2` -- and every caller passes tm == 5, so
-     * `tm * tm` is the ODD number 25 and the two associations are not the same
-     * function: `d.sp * 12` versus `trunc(d.sp * 25 / 2)`, half a unit of
-     * acceleration apart. That is enough to move the forecast point a whole
-     * pixel and, at a direction-bucket edge, to pick a different damage
-     * reaction.
+    /* E4 (docs/research-arcade-balance-desyncs.md) -- GATED. The two balances
+     * associate the halving of the acceleration term differently, and every
+     * caller passes tm == 5, so `tm * tm` is the ODD number 25 and the two
+     * associations are not the same function: `d.sp * 12` versus
+     * `trunc(d.sp * 25 / 2)`, half a unit of acceleration apart. That is
+     * enough to move the forecast point a whole pixel and, at a
+     * direction-bucket edge, to pick a different damage reaction.
      *
-     * The arcade halves the square once, before either multiply.
+     * ARCADE halves the square once, before either multiply.
      * `cal_move_dir_forecast` is CPS3 0x06090E1C, reached from
      * `check_buttobi_type` CPS3 0x0611E926 (whose `mov.l` literal 0x065EB724 is
      * dir32_skydm). r13 holds tm, r14 holds wk:
@@ -1086,13 +1086,27 @@ s16 cal_move_dir_forecast(WORK* wk, s16 tm) {
      *
      * The `cmp/gt`/`addc`/`shar` trio is the compiler's signed divide-by-two
      * applied to `tm * tm` alone, which is what pins the association: the
-     * source halved the square, not the product. Both axes then reuse the one
-     * halved square, so it is computed once here too. */
-    const s32 half_tm_squared = (tm * tm) / 2;
+     * source halved the square, not the product. Both axes reuse the one
+     * halved square, so it is computed once.
+     *
+     * PS2 halves the product. That is what this decompilation has always
+     * emitted, and it is the baseline: this port is a PS2 decompilation and
+     * arcade balance is an addition layered on top, so a CPS3-derived
+     * behavioural change is gated unless there is positive proof it corrects
+     * our own transcription error rather than a genuine platform difference.
+     * The arcade form above was proven against the CPS3 program and NOT
+     * against the PS2 binary, so PS2 keeps its form. */
+    if (ArcadeBalance_IsEnabled()) {
+        const s32 half_tm_squared = (tm * tm) / 2;
 
-    ps[0].dp = wk->mvxy.d[0].sp * half_tm_squared;
+        ps[0].dp = wk->mvxy.d[0].sp * half_tm_squared;
+        ps[1].dp = wk->mvxy.d[1].sp * half_tm_squared;
+    } else {
+        ps[0].dp = (wk->mvxy.d[0].sp * (tm * tm)) / 2;
+        ps[1].dp = (wk->mvxy.d[1].sp * (tm * tm)) / 2;
+    }
+
     ps[0].dp = wk->xyz[0].cal + (ps[0].dp + (wk->mvxy.a[0].sp * tm));
-    ps[1].dp = wk->mvxy.d[1].sp * half_tm_squared;
     ps[1].dp = wk->xyz[1].cal + (ps[1].dp + (wk->mvxy.a[1].sp * tm));
     return caldir_pos_032(wk->xyz[0].disp.pos, wk->xyz[1].disp.pos, ps[0].rp.h, ps[1].rp.h);
 }

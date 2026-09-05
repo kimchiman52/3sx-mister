@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/effect/eff02.h"
+#include "arcade/arcade_balance.h"
 #include "bin2obj/char_table.h"
 #include "common.h"
 #include "sf33rd/Source/Game/effect/effect.h"
@@ -96,20 +97,39 @@ const HMDT hmdt[146] = { { 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0 },         { 266, 1, 
 
 const s16 hcct[6] = { 8192, 8224, 8224, 8224, 4, 484 };
 
-/* Rows 7 and 8 read {6, 0} in the PS2 source this port descends from; the
- * arcade has {6, 4} and {6, 2}. Read off the sfiii3nr1 SH-2 program at CPS3
- * 0x061B941A -- the table `effect_A7_move` indexes with `tad->quake` at CPS3
- * 0x060F9364 (`mov.b @(7,r13),r0` -> `shll2` -> `mov.w @(r0,r4)` /
- * `mov.w @(2,r4)`), so the layout is the same s16[2] rows and only these two
- * values differ. Corroborated against the archives: with {6, 0} the port wrote
+/* E5b (docs/research-arcade-balance-desyncs.md) -- GATED, as a second table
+ * plus a selector rather than a branch at each of the five reads.
+ *
+ * `gqdt` is the PS2 decompilation's table and stays exactly as decompiled.
+ * This port is a PS2 decompilation; arcade balance is an addition layered on
+ * top, so a CPS3-derived data change lives beside the PS2 data, never in place
+ * of it.
+ *
+ * Rows 7 and 8 are the only two that differ: PS2 {6, 0} / {6, 0}, arcade
+ * {6, 4} / {6, 2}. Read off the sfiii3nr1 SH-2 program at CPS3 0x061B941A --
+ * the table `effect_A7_move` indexes with `tad->quake` at CPS3 0x060F9364
+ * (`mov.b @(7,r13),r0` -> `shll2` -> `mov.w @(r0,r4)` / `mov.w @(2,r4)`), so
+ * the layout is the same s16[2] rows and the other seventeen match exactly.
+ * Corroborated against the archives: with {6, 0} the port wrote
  * `bg_w.quake_y_index = 0` on twelve quake events across ten of the 143 corpus
  * segments where the archive holds 2 on the next frame and 1 on the one after
- * -- exactly one gqdt[8][1] = 2 quake decaying under `ta0_move()`
- * (docs/research-arcade-balance-desyncs.md, E5b). */
+ * -- exactly one gqdt[8][1] = 2 quake decaying under `ta0_move()`. Verified
+ * against CPS3 and NOT against the PS2 binary, which is why PS2 keeps {6, 0}. */
 const s16 gqdt[19][2] = {
+    { 0, 0 }, { 6, 6 }, { 6, 8 }, { 6, 10 }, { 6, 12 }, { 6, 18 }, { 6, 6 },  { 6, 0 },  { 6, 0 },  { 6, 4 },
+    { 6, 6 }, { 6, 4 }, { 6, 8 }, { 6, 6 },  { 6, 8 },  { 6, 10 }, { 6, 12 }, { 6, 16 }, { 6, 60 },
+};
+
+/* Identical to `gqdt` except rows 7 and 8. Kept adjacent on purpose: two of
+ * nineteen rows differ, and that is only checkable if the tables sit together. */
+static const s16 gqdt_arcade[19][2] = {
     { 0, 0 }, { 6, 6 }, { 6, 8 }, { 6, 10 }, { 6, 12 }, { 6, 18 }, { 6, 6 },  { 6, 4 },  { 6, 2 },  { 6, 4 },
     { 6, 6 }, { 6, 4 }, { 6, 8 }, { 6, 6 },  { 6, 8 },  { 6, 10 }, { 6, 12 }, { 6, 16 }, { 6, 60 },
 };
+
+const s16 (*gqdt_active(void))[2] {
+    return ArcadeBalance_IsEnabled() ? gqdt_arcade : gqdt;
+}
 
 const EXPLEM explem[4] = { { 10, -92, 0 }, { 10, 96, 0 }, { 13, -44, 60 }, { 18, -18, 0 } };
 
@@ -167,15 +187,31 @@ void effect_02_move(WORK_Other* ewk) {
             }
 
             if (tad->quake != 0) {
-                /* PS2 pad rumble only. The arcade's `tad->hits == 0` early-out
-                 * does the SE and tail-calls push_effect_work and nothing else
-                 * -- `effect_02_move` (CPS3 0x060DC890..0x060DCC7E) holds no
+                /* E5a (docs/research-arcade-balance-desyncs.md) -- GATED.
+                 *
+                 * The arcade's `tad->hits == 0` early-out does the SE and
+                 * tail-calls push_effect_work and nothing else --
+                 * `effect_02_move` (CPS3 0x060DC890..0x060DCC7E) holds no
                  * reference to bg_w.quake_y_index (0x02026BD8) outside its
-                 * case-1 scr_mv countdown. Writing the field here shook the
-                 * screen on every zero-hit hit mark and put the whole stage
+                 * case-1 scr_mv countdown. Writing the field here shakes the
+                 * screen on every zero-hit hit mark and puts the whole stage
                  * quake cohort's random_16() draws on a frame the arcade does
-                 * not draw on (docs/research-arcade-balance-desyncs.md, E5a). */
-                pp_screen_quake(gqdt[tad->quake][1]);
+                 * not draw on, so under arcade balance the state write is
+                 * suppressed and only the rumble is kept.
+                 *
+                 * Under PS2 the write stays. `pp_screen_quake()` is PS2 pad
+                 * rumble (`io/pulpul.c` -> `pulpul_request`), and the block
+                 * reads as a PS2 addition that reached for bg_w.quake_y_index
+                 * as scratch to carry the magnitude -- i.e. plausibly
+                 * deliberate PS2 behaviour. It was proven absent from CPS3 and
+                 * never checked against the PS2 binary, and this port's
+                 * baseline is the PS2 decompilation, so PS2 keeps it. */
+                if (ArcadeBalance_IsEnabled()) {
+                    pp_screen_quake(gqdt_active()[tad->quake][1]);
+                } else {
+                    bg_w.quake_y_index = gqdt_active()[tad->quake][1];
+                    pp_screen_quake(bg_w.quake_y_index);
+                }
             }
 
             push_effect_work(&ewk->wu);
@@ -240,8 +276,8 @@ void effect_02_move(WORK_Other* ewk) {
             ewk->wu.xyz[1].disp.pos += (random_16() & 7) - 3;
         }
 
-        ewk->wu.scr_mv_x = gqdt[tad->quake][0];
-        ewk->wu.scr_mv_y = gqdt[tad->quake][1];
+        ewk->wu.scr_mv_x = gqdt_active()[tad->quake][0];
+        ewk->wu.scr_mv_y = gqdt_active()[tad->quake][1];
         ewk->wu.position_x = ewk->wu.xyz[0].disp.pos;
         ewk->wu.position_y = ewk->wu.xyz[1].disp.pos;
         ewk->wu.position_z = ewk->wu.xyz[2].disp.pos;

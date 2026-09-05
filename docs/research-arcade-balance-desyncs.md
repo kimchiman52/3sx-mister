@@ -456,7 +456,14 @@ besides `random_32`, so the +1 had to be a real call.
 `pli_0002()` (`plcnt.c`) is a documented stub, but runs several frames before the
 `3→4` transition and CPS3's effect M4 contains no RNG.
 
-### E4 — a misassociated `/ 2` in `cal_move_dir_forecast` (FIXED, 2026-09-05)
+### E4 — a misassociated `/ 2` in `cal_move_dir_forecast` (FIXED and GATED, 2026-09-05)
+
+**GATED on `ArcadeBalance_IsEnabled()`.** Everything below describes the arcade
+form and the evidence for it. PS2 keeps `(d.sp * (tm * tm)) / 2`, the form this
+decompilation has always emitted: the arcade association was proven against the
+CPS3 program and never against the PS2 binary, and this port's baseline is the
+PS2 decompilation. See "SETTLED: every CPS3-derived engine change is gated".
+
 
 **The first genuine engine divergence found in a verified human-vs-human
 segment since E2a**, and the reason the corpus was widened. It is one operator
@@ -695,7 +702,18 @@ equal-count reordering**: on the frame that matters, both engines make the same
 number of `random_16()` calls, so the delta is 0 and nothing is reported. See the
 caveat in the instrumentation section.
 
-### E5 — two port defects in the screen-quake writers (FIXED, 2026-09-05)
+### E5 — two port defects in the screen-quake writers (FIXED and GATED, 2026-09-05)
+
+**Both halves are GATED on `ArcadeBalance_IsEnabled()`.** Under PS2 the
+`tad->hits == 0` branch still writes `bg_w.quake_y_index` before calling
+`pp_screen_quake()` (E5a), and still reads `gqdt` with rows 7/8 at `{6, 0}`
+(E5b). `pp_screen_quake()` is PS2 pad rumble, so E5a in particular may be
+deliberate PS2 behaviour rather than a transcription slip — it was shown absent
+from CPS3, never checked against the PS2 binary. E5b is implemented as a second
+table plus a selector, `gqdt_active()`; see "SETTLED: every CPS3-derived engine
+change is gated" for the shape and why. Everything below describes the arcade
+form and the evidence for it.
+
 
 **This is what removing the oracle's force-sync surfaced**, and it is the whole
 of what it surfaced. Sweeping all 143 segments of
@@ -1569,42 +1587,58 @@ and `Game2_0()` run on the same frame, and `Game2_0`'s MODE_VERSUS arm calls
 `Random_ix16`, `Random_ix32` and `players_timer` seeds before the first
 comparison, destroying the oracle. Correct the comments, not the behaviour.
 
-## OPEN DESIGN QUESTION: should the engine fixes have been gated? (user, 2026-09-05)
+## SETTLED: every CPS3-derived engine change is gated (user, 2026-09-05)
 
-**E1a is gated on `ArcadeBalance_IsEnabled()`. E4 (`caldir.c`) and E5
-(`eff02.c`/`effa7.c`) are NOT** — they change the simulation in every mode. So
-the port's "PS2" engine no longer matches the original PS2 engine.
+**The governing rule, from the user, and it is not a per-fix judgement call.**
+This project is a decompilation of the PS2 build. Arcade balance is an
+*addition* layered on top, driven by decompiling CPS3. Therefore **any
+CPS3-derived behavioural change belongs behind `ArcadeBalance_IsEnabled()`**
+unless there is positive proof it corrects our own transcription error rather
+than a genuine PS2/CPS3 difference. Every fix in this document was verified
+against the CPS3 disassembly and **none against the PS2 binary**, which is
+exactly the evidence that would supply such proof. So they are all gated.
 
-That may be wrong, and the answer is **not the same for all three**. The
-distinction that decides it:
+E1a was gated when it landed. **E4 and E5 shipped ungated and are now gated
+too** — they had been changing the simulation in every mode, so the port's
+"PS2" engine no longer matched the original PS2 engine:
 
-- **A decompilation error** — the PS2 binary did X, we transcribed X'. Fixing it
-  restores PS2 fidelity *and* arcade fidelity at once. Ungated is correct;
-  gating would preserve our own typo as if it were a platform behaviour.
-- **A genuine PS2/CPS3 difference** — the PS2 binary really did behave
-  differently. Then an ungated fix silently makes PS2 mode wrong, and it belongs
-  behind `ArcadeBalance_IsEnabled()` like E1a.
+| fix | site | PS2 path | arcade path |
+|---|---|---|---|
+| **E4** | `cal_move_dir_forecast()` (`engine/caldir.c`) | `(d.sp * (tm * tm)) / 2` — the halving binds to the product, as decompiled | `d.sp * ((tm * tm) / 2)` — the halving binds to `tm * tm`, as CPS3 `0x06090E40`-`0x06090E58` |
+| **E5a** | `effect_A7_move` (`effect/effa7.c`), `effect_02_move` (`effect/eff02.c`), the `tad->hits == 0` early-out | `bg_w.quake_y_index = gqdt_active()[tad->quake][1];` then `pp_screen_quake(bg_w.quake_y_index)` — the write restored | `pp_screen_quake(...)` only; no state write, as CPS3 `0x060F91EC` / `0x060DC918` |
+| **E5b** | `gqdt` (`effect/eff02.c`) | `gqdt` rows 7/8 `{6, 0}` / `{6, 0}`, as decompiled | `gqdt_arcade` rows 7/8 `{6, 4}` / `{6, 2}`, as CPS3 `0x061B941A` |
 
-**Every fix so far was verified against the CPS3 disassembly and NOT against the
-PS2 binary.** That is exactly the evidence needed to tell these apart, and we do
-not have it. Per fix:
+**How E5b is gated.** `gqdt` is a `const s16[19][2]` read at five sites across
+two files, so a branch at each read would have been five places to get wrong.
+Instead there are two tables and one selector: `gqdt` keeps the PS2 values
+unchanged, `gqdt_arcade` (static, adjacent to it so the two rows that differ
+are diffable by eye) carries the CPS3 transcription, and
+`gqdt_active()` — declared in `effect/eff02.h` — returns whichever the session
+resolved. Every read goes through the selector. This follows
+`src/arcade/arcade_char_data.c`, which is the tree's precedent for
+arcade-vs-PS2 data selection: PS2 data stays where it is and the arcade variant
+sits beside it, chosen at the read.
 
-| fix | what we proved | what we did NOT check |
-|---|---|---|
-| **E4** `caldir.c` halving | arcade halves `tm*tm` alone (`0x06090E1C`, `cmp/gt`/`addc`/`shar`) | whether the PS2 binary also does. If it does, ours is a transcription slip and ungated is right |
-| **E5a** quake write removal | the arcade branch has no `&bg_w` write | `pp_screen_quake()` is **PS2 pad rumble** — so this one is the most likely to be genuine PS2 behaviour, and the most likely to need gating |
-| **E5b** `gqdt` rows 7/8 | arcade has `{6,4}`/`{6,2}`, we had `{6,0}` | whether the PS2 table also reads `{6,4}`/`{6,2}` |
+**Which balance each gate exercises, measured rather than assumed.** A
+statcheck run prints `statcheck: pinned hermetic config -- ... balance=auto (was
+auto)` and then, on a machine with the romset, `Arcade balance auto-selected:
+CPS3 ROM verified, 20/20 characters adapted`. So the 143-segment sweep runs the
+**arcade** path — it is the gated-ON branch it verifies, and it says so in its
+own log. The PS2 path is covered by the frame-data suite instead: exactly 5 of
+its 99 non-smoke corpora carry an explicit `balance: arcade` key and the other
+94 carry no `balance:` key at all, so they resolve to `DEFAULT_BALANCE = "ps2"`
+(`compile_corpus.py` -> `resolve_balance`); `run.sh` passes the resolved value
+through as `--test-balance`.
 
-**E5a is the sharpest case.** The agent's own words were that the block "reads as
-a PS2 addition using the field as scratch" for rumble — i.e. it may be
-*deliberate PS2 behaviour we removed from PS2 mode*.
-
-**What settles it:** read the PS2 binary at the corresponding sites, the same way
-we read CPS3. Until then, three engine changes are ungated on an assumption
-nobody has tested.
+**What remains open.** The gating makes both modes correct *by the rule*; it
+does not answer which of the three is a decompilation error. Each would be
+*un*gated only on positive evidence from the PS2 binary at the corresponding
+site — read the PS2 build the way CPS3 was read here. Until someone does that,
+they stay gated.
 
 Note this is not academic: `caldir.c` feeds `dir_sel_table` -> `dir32_skydm` ->
-`dm_reaction_table`, i.e. knockdown and juggle behaviour a player can feel.
+`dm_reaction_table`, i.e. knockdown and juggle behaviour a player can feel — so
+PS2 mode and arcade mode now genuinely differ there, deliberately.
 
 ## Worklist
 
@@ -1615,8 +1649,8 @@ Note this is not academic: `caldir.c` feeds `dir_sel_table` -> `dir32_skydm` ->
 | H4b | harness forces `Play_Type == 1` on every segment | **FIXED, by rejection** — `ScrdGame_Init` reads `wu_operator` at the match-start frame (`WORK_WU_OPERATOR_OFFSET`, archive `0x68C6F`/`0x69107`) and returns `SCRD_GAME_INIT_CPU_PLAYER`; `main.c` exits **3**, distinct from 1 and 2. Reproducing the CPU player was tried and refuted by measurement (see H4b) — it breaks input pinning at frame 7 and manufactures a new `routine_no` divergence at frame 11. Costs 8 of 16 segments; sweep now reports **0** divergences |
 | E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device. Both masks that hid it are now gone: the viewer repairs `Random_ix16` only on v1 files (D1) and the oracle asserts it (see "The instrumentation"). Existing v1 files keep the old behaviour, deliberately |
 | E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect. All six instances now exit 3 |
-| E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **FIXED, one misassociated `/ 2`** — `cal_move_dir_forecast()` (`engine/caldir.c`) wrote `(d.sp * (tm * tm)) / 2` where the arcade computes `d.sp * ((tm * tm) / 2)`; every caller passes `tm == 5`, so `tm * tm` is odd and the two differ by half a unit of acceleration. CPS3 `0x06090E40`-`0x06090E58` halves the square with `cmp/gt`/`addc`/`shar` **before** either `mul.l`. Ruled out first, by measurement: every input byte-identical to the archive, `dir_sel_table` all 16,384 bytes identical to `0x0618F664`, `dir32_skydm`/`dir32_grddm` byte-exact, `caldir_pos_256`/`_032` faithful. Corpus **142/1 -> 143/0**, and the E4 segment is the only verdict line that changed. Character-agnostic (11 bucket flips in 764 calls span 4 victims and 5 attackers); only 1 of the 11 lands on a table edge, which is why 142 segments passed with it in place. **Device-visible**: pre-fix, `plw[1].wu.xyz[0].disp.pos` — checkpoint field 9 — diverges 14 frames later, at archive frame 3104 |
-| E5 | stage quake debris draws `random_16()` where CPS3 does not | **FIXED, two port defects in the quake writers** — (1) `effect_A7_move`/`effect_02_move`'s `tad->hits == 0` early-out wrote `bg_w.quake_y_index` where the arcade's branch only does the SE and tail-calls `push_effect_work` (CPS3 `0x060F91EC`/`0x060DC918`); the write is now `pp_screen_quake(gqdt[tad->quake][1])`, keeping the PS2 rumble and dropping the state. (2) `gqdt` rows 7 and 8 were `{6,0}`, arcade `0x061B941A` has `{6,4}`/`{6,2}`. Corpus 135/8 -> **142/1** and zero residual `bg_w.quake_y_index` divergence, down from 48 of 143 segments. **NOT** an unimported-state defect — both sides enter every segment at 0, so `BG_W_QUAKE_Y_INDEX_OFFSET 0x26BD8` is asserted, never seeded |
+| E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **FIXED and GATED, one misassociated `/ 2`** (arcade only; PS2 keeps the decompiled association) — `cal_move_dir_forecast()` (`engine/caldir.c`) wrote `(d.sp * (tm * tm)) / 2` where the arcade computes `d.sp * ((tm * tm) / 2)`; every caller passes `tm == 5`, so `tm * tm` is odd and the two differ by half a unit of acceleration. CPS3 `0x06090E40`-`0x06090E58` halves the square with `cmp/gt`/`addc`/`shar` **before** either `mul.l`. Ruled out first, by measurement: every input byte-identical to the archive, `dir_sel_table` all 16,384 bytes identical to `0x0618F664`, `dir32_skydm`/`dir32_grddm` byte-exact, `caldir_pos_256`/`_032` faithful. Corpus **142/1 -> 143/0**, and the E4 segment is the only verdict line that changed. Character-agnostic (11 bucket flips in 764 calls span 4 victims and 5 attackers); only 1 of the 11 lands on a table edge, which is why 142 segments passed with it in place. **Device-visible**: pre-fix, `plw[1].wu.xyz[0].disp.pos` — checkpoint field 9 — diverges 14 frames later, at archive frame 3104 |
+| E5 | stage quake debris draws `random_16()` where CPS3 does not | **FIXED and GATED, two port defects in the quake writers** (arcade only; PS2 keeps the `bg_w.quake_y_index` write and `gqdt` rows 7/8 at `{6,0}`, via `gqdt_active()`) — (1) `effect_A7_move`/`effect_02_move`'s `tad->hits == 0` early-out wrote `bg_w.quake_y_index` where the arcade's branch only does the SE and tail-calls `push_effect_work` (CPS3 `0x060F91EC`/`0x060DC918`); the write is now `pp_screen_quake(gqdt[tad->quake][1])`, keeping the PS2 rumble and dropping the state. (2) `gqdt` rows 7 and 8 were `{6,0}`, arcade `0x061B941A` has `{6,4}`/`{6,2}`. Corpus 135/8 -> **142/1** and zero residual `bg_w.quake_y_index` divergence, down from 48 of 143 segments. **NOT** an unimported-state defect — both sides enter every segment at 0, so `BG_W_QUAKE_Y_INDEX_OFFSET 0x26BD8` is asserted, never seeded |
 | M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures were E5, and fixing E5 took it back to 142/1 with the assert standing. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
 | M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |
 | M2 | the viewer repaired `Random_ix16` at every checkpoint | **GATED to v1** — `check_checkpoint()` repairs only when `!has_players_timer`; a v2 file fails an ix16-only mismatch and names the field (D1). v1 kept because an A/B twin desyncs at checkpoint 18/189 without it, against ~23,300 shipped v1 files |

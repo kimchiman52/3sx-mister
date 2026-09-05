@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/effect/effa7.h"
+#include "arcade/arcade_balance.h"
 #include "bin2obj/char_table.h"
 #include "common.h"
 #include "sf33rd/Source/Game/effect/eff02.h"
@@ -36,13 +37,21 @@ void effect_A7_move(WORK_Other* ewk) {
             }
 
             if (tad->quake != 0) {
-                /* PS2 pad rumble only -- see the same branch in
-                 * `effect_02_move` (eff02.c). The arcade's `effect_A7_move`
+                /* E5a -- GATED; see the same branch in `effect_02_move`
+                 * (eff02.c) for the full note. The arcade's `effect_A7_move`
                  * (CPS3 0x060F9194..0x060F94F8) runs the SE then tail-jumps to
                  * push_effect_work (0x060DB8DC) with no store, and touches
                  * bg_w.quake_y_index (0x02026BD8) only in its case-1 scr_mv
-                 * countdown at CPS3 0x060F9476. */
-                pp_screen_quake(gqdt[tad->quake][1]);
+                 * countdown at CPS3 0x060F9476 -- so arcade balance keeps only
+                 * the PS2 pad rumble. PS2 keeps the write: it is what this
+                 * decompilation has always emitted and it was never checked
+                 * against the PS2 binary. */
+                if (ArcadeBalance_IsEnabled()) {
+                    pp_screen_quake(gqdt_active()[tad->quake][1]);
+                } else {
+                    bg_w.quake_y_index = gqdt_active()[tad->quake][1];
+                    pp_screen_quake(bg_w.quake_y_index);
+                }
             }
 
             push_effect_work(&ewk->wu);
@@ -97,8 +106,8 @@ void effect_A7_move(WORK_Other* ewk) {
             ewk->wu.xyz[1].disp.pos += (random_16() & 7) - 3;
         }
 
-        ewk->wu.scr_mv_x = gqdt[tad->quake][0];
-        ewk->wu.scr_mv_y = gqdt[tad->quake][1];
+        ewk->wu.scr_mv_x = gqdt_active()[tad->quake][0];
+        ewk->wu.scr_mv_y = gqdt_active()[tad->quake][1];
         ewk->wu.position_x = ewk->wu.xyz[0].disp.pos;
         ewk->wu.position_y = ewk->wu.xyz[1].disp.pos;
         ewk->wu.position_z = ewk->wu.xyz[2].disp.pos;

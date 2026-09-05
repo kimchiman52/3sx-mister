@@ -28,6 +28,13 @@ extern const s16 hit_mark_dir_table[16];
 extern const HMDT hmdt[];
 extern const s16 hcct[];
 extern const s16 gqdt[][2];
+
+/* The screen-quake table the current balance reads: `gqdt` (the PS2
+ * decompilation's, unchanged) under PS2, the CPS3 0x061B941A transcription
+ * under arcade balance. Rows 7 and 8 are the only two that differ. See E5b in
+ * docs/research-arcade-balance-desyncs.md and the tables in eff02.c. */
+const s16 (*gqdt_active(void))[2];
+
 extern const EXPLEM explem[];
 extern const EXPLEM explem2[][20];
 extern const s16 hit_mark_hosei_table[][2];
