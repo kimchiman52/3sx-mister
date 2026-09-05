@@ -7,6 +7,14 @@
 #define MY_CHAR_OFFSET 0x11387
 #define ALLOW_A_BATTLE_F_OFFSET 0x11389
 #define SUPER_ARTS_OFFSET 0x1138B // Super_Arts
+/* Round_Level (CPS3 0x0201137A, s16). Confirmed by disassembly of the
+ * sfiii3nr1 SH-2 program: it is the sole index of Pow_Control_Data_1
+ * (0x06194A2C) in the two arcade damage routines at 0x0609E36C /
+ * 0x0609E3FA, and the only address the five arcade writers touch --
+ * Before_Select_Sub (0x06095234 `= 7`, 0x0609531A `= 3`), the demo init
+ * (0x06097654 `= 7`), Loser_Sub (0x0609C61E `--`) and Update_VS_Data
+ * (0x0609C884 `++`). */
+#define ROUND_LEVEL_OFFSET 0x1137A
 #define NEW_CHALLENGER_OFFSET 0x113DA
 #define G_NO_OFFSET 0x15436
 #define C_NO_OFFSET 0x154A6

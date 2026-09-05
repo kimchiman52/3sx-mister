@@ -571,6 +571,28 @@ void Statcheck_SyncValues(SDL_IOStream* io) {
      * This is the same import the upstream compare had sketched and left
      * commented out (see the file header). */
     read_t_pl_lvr(io, t_pl_lvr);
+
+    /* Round_Level (E1a, docs/research-arcade-balance-desyncs.md). Per-cabinet
+     * session state a replay cannot re-derive: it is the index into
+     * `Pow_Control_Data_1[0] = {90,95,98,100,103,106,109,112}` in
+     * `cal_damage_vitality()` / `cal_damage_vitality_eff()` (pow_pow.c),
+     * so an unimported value scales every hit by the wrong percentage.
+     *
+     * Nothing in a segment can reconstruct it: the only writers are
+     * `Before_Select_Sub()` (game.c) at session start and the
+     * `Play_Type == 0` branches of `Update_VS_Data()` / `Loser_Sub()`
+     * (manage.c), all of which ran BEFORE the segment the archive starts at.
+     * A statcheck run starts a synthetic match, so it inherits
+     * `Before_Select_Sub()`'s 3 while the archive can be at any level the
+     * preceding session left. Measured over the 16-segment corpus: 3, 2 and
+     * 1 all occur, and 5 segments step down mid-segment (always at match
+     * end, in `Game_Manage_8_0()` -> `Quick_Entry()` -> `Loser_Sub()`, never
+     * during combat), so the ONE seed here is enough -- the value is
+     * constant for every frame in which damage is dealt.
+     *
+     * Offset from the arcade SH-2 program of sfiii3nr1, see
+     * ROUND_LEVEL_OFFSET in arcade_constants.h. */
+    Round_Level = read_s16(io, ROUND_LEVEL_OFFSET);
 }
 
 #endif

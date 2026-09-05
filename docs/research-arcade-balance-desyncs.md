@@ -17,11 +17,15 @@ spot. Keep them separate.
 
 **Status (2026-09-05).** Fixed: **E2a** in the statcheck oracle (`f63507b7`)
 and now in the shipped viewer too (`.3sr` v2 carries `players_timer`); **D2**
-on the viewer (`c6a75572`, confirmed on hardware). Open: **E1** has an
-external patch, not merged, blocked on a netplay question; **E2b** and **E3**
-have no patch and E2b is unidentified; **H1-H3** are unfixed, so a broad
-statcheck sweep would still produce false positives. Nothing here has had a
-Fable review yet.
+on the viewer (`c6a75572`, confirmed on hardware); **E1a** applied (the
+`Play_Type` damage pin, gated on arcade balance) with **E1b RETRACTED** — see
+E1. **H1-H3** have landed: the 16-segment corpus now stands at 6 PASS /
+8 divergence / 2 no-match, and the partition is exactly human-vs-human /
+human-vs-CPU / attract demo. Open: **E2b** (unidentified, 6 of the 8
+divergences) and **E3** (2 of them) have no patch, and the new **H4b** — the
+harness forces `Play_Type == 1` on every segment — makes the eight
+human-vs-CPU segments uninterpretable. Nothing here has had a Fable review
+yet.
 
 **E2a's viewer half is untested on hardware.** The v2 fix was measured on the
 host build only (below); nothing has been deployed to the MiSTer, and the
@@ -98,14 +102,19 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 
 ## Confirmed engine divergences
 
-### E1 — `Round_Level` is ignored in VS play, so damage is off by one step
+### E1 — the `Play_Type == 1` damage pin is a PS2-ism (E1a, REAL but narrow; E1b RETRACTED)
 
-**Symptom.** `vital_new` differs by exactly 1, ours always *higher* (we deal
-less damage). Five independent instances across one session, at unrelated
-frames, all off by 1 in the same direction.
+**Status, 2026-09-05.** This section previously reported two defects. After a
+disassembly of the arcade program and a re-reading of the archives with the
+segments correctly classified, **E1a is real but demonstrates on nothing in the
+corpus, and E1b does not exist.** Both halves of the earlier write-up rested on
+an assumption that turned out to be false — that all 16 corpus segments are
+human-vs-human. They are not.
 
-**Mechanism.** `cal_damage_vitality()` and `cal_damage_vitality_eff()`
-(`pow_pow.c`) select the damage scale with:
+#### The mechanism
+
+`cal_damage_vitality()` and `cal_damage_vitality_eff()` (`pow_pow.c`) select the
+damage scale with:
 
 ```c
 if (Play_Type == 1) { yy = Pow_Control_Data_1[0][3]; }
@@ -114,73 +123,181 @@ else                { yy = Pow_Control_Data_1[0][Round_Level]; }
 
 `Pow_Control_Data_1[0]` (`pow_data.c`) is `{90,95,98,100,103,106,109,112}` — a
 percentage scale whose **index 3 is exactly 100**. So the port pins neutral
-damage for human-vs-human play, while the arcade scales by the cabinet's
-`Round_Level`. `Play_Type == 1` means both players are human
+damage for human-vs-human play. `Play_Type == 1` means both players are human
 (`Setup_Play_Type()`, `sys_sub.c`).
 
-**Why it is invisible early in a session.** `Round_Level` initialises to 3
-(`game.c`), which *is* the hardcoded index — so the first games of a session
-match, and divergence begins only once the cabinet's level moves off 3. On the
-measured session, games 0–2 PASS and 3–9 FAIL. That clean-prefix-then-permanent
-signature is the tell for this defect.
+#### E1a — the pin has no arcade counterpart (MEASURED, by disassembly)
 
-**`Round_Level` is per-cabinet session state that cannot be re-derived.**
-`Update_VS_Data()` (`manage.c`) returns early when `Play_Type != 0`, so our port
-never updates it during VS play at all; `Loser_Sub()` decrements only when
-`Play_Type == 0`. A replay resumes mid-session, so the value it ran under is not
-recoverable from the replay — it has to be read from the archive. That means a
-statcheck for this defect needs a `ROUND_LEVEL_OFFSET` added to
-`arcade_constants.h` and imported in `sync_values()`, which does **not** exist
-on `new-stuff` today.
+The decisive evidence is the arcade program itself, not an archive. Working from
+the decrypted 8 MB big-endian SH-2 image of `sfiii3nr1` (built exactly as
+`docs/research-arcade-cg-data-accuracy.md` §23.4 describes; both of that
+section's anchors re-verified — `random_16` at CPS3 `0x0611E0EE` loading
+`0x020155E8`, and `random_tbl_16` unique at `0x065EB434`):
 
-**Proposed patch** — external, from `gibletto/3sx` branch
-`round-level-damage-parity` (commit `2d1edca6`), NOT merged:
+- `Pow_Control_Data_1` is at **CPS3 `0x06194A2C`** — the 16-byte pattern
+  `5A5F6264676A6D70 64686C6E70727478` occurs **exactly once** in the image.
+  `Power_Data` is at `0x061946EC`.
+- Its only two consumers are the adjacent, structurally identical routines at
+  **CPS3 `0x0609E36C`** and **`0x0609E3FA`** — `cal_damage_vitality` and
+  `cal_damage_vitality_eff`. They index the row **unconditionally with
+  `Round_Level`**:
 
-```c
-if (Play_Type == 1 && !ArcadeBalance_IsEnabled()) { ... }   // both call sites
-```
+  ```
+  0609E410  mov.l 0x609e4a8,r6   ; 0x06194A2C = Pow_Control_Data_1
+  0609E414  mov.w 0x609e49c,r0   ; 0x03C0 (attacker struct offset)
+  0609E416  mov.w @(r0,r4),r0
+  0609E418  cmp/eq #15,r0
+  0609E41A  bf/s 0x609e428
+  0609E41C  mov.w @r2,r7         ; r2 = 0x0201137A -> r7 = Round_Level (delay slot)
+  0609E420  add r7,r2
+  0609E422  mov.b @(8,r2),r0     ; row 1: Pow_Control_Data_1[1][Round_Level]
+  0609E42C  mov.b @r2,r2         ; row 0: Pow_Control_Data_1[0][Round_Level]
+  0609E432  muls.w r2,r1
+  0609E436  jsr @r3              ; 0x0612D428 = signed divide
+  0609E438  mov #100,r0          ; (power * yy) / 100
+  ```
 
-plus `ROUND_LEVEL_OFFSET 0x1137A` and the archive import.
+  The one branch selects the **row**, not the index — both arms add
+  `Round_Level`.
+- **Negative proof.** Every `mov.l @(disp,PC),Rn` in `0x0609E340..0x0609E490`
+  was enumerated: exactly four literals — `Power_Data` `0x061946EC`,
+  `Round_Level` `0x0201137A`, `Pow_Control_Data_1` `0x06194A2C`, and the
+  signed-divide helper `0x0612D428`. **`Play_Type` is never loaded there.**
+- `Play_Type` is **CPS3 `0x020113B4`** (`s16` in the arcade; the port declares
+  `u8`), pinned from arcade `Setup_Play_Type` at **`0x060914D4`**, which is
+  byte-for-byte the port's (`Operator_Status[0] & 0x7F && Operator_Status[1] &
+  0x7F` -> 1 else 0, `Operator_Status` at `0x020156E2`).
 
-**ANSWERED from the archives (2026-09-05).** This was previously written up as a
-decision to be taken. It is not a decision — it is an empirical question, and the
-archives contain real CPS3 RAM for whole human-vs-human sessions. Reading
-`Round_Level` (offset `0x1137A`) across every game of four sessions:
+So the pin is a PS2-ism and the port is unfaithful. **But it is a no-op almost
+everywhere**, because it only differs from the arcade when `Round_Level != 3` at
+a moment when `Play_Type == 1`:
 
-```
-7733  g0 [3]  g1 3->2  g2 [2]  g3 3->2  g4 2->1  g5 [3]  g6 [3]
-5743  g0 [3]  g1 3->2  g2 [2]  g3 [3]
-1710  g0 [3]  g1 3->2
-3455  g0 [3]  g1 [3]   g2 [3]
-```
+- `Before_Select_Sub()` (`game.c`; arcade `0x0609520C`, unguarded tail store at
+  `0x0609531A`) ends with `Round_Level = 3`, and `Pow_Control_Data_1[0][3] ==
+  100` is exactly what the pin produces;
+- neither `Update_VS_Data()` nor `Loser_Sub()` moves `Round_Level` while
+  `Play_Type == 1` — on hardware either (see E1b below).
 
-Three facts, all consistent across 16 games in 4 independent sessions:
+The reachable divergence is therefore **a second player breaking into a 1P game
+that has already moved the cabinet's level**. That path was not traced, so how
+often it is reached is **not established**.
 
-1. **The arcade baseline is 3.** Every session starts there. The values ever
-   observed are 1, 2 and 3 — **never 0**.
-2. **`netplay.c`'s `Round_Level = 0` is therefore wrong**, not merely
-   questionable. Seeding 3 matches both the hardware and the port's own
-   `game.c` init; seeding 0 would index `Pow_Control_Data_1[0][0]` = 90 and cut
-   netplay damage 10%, which is what made the external patch look dangerous.
-   With 3, that danger disappears.
-3. **The arcade CHANGES it during a 2P session**, always downward. Our port
-   never does: `Update_VS_Data()` returns early when `Play_Type != 0`, and
-   `Loser_Sub()` decrements only when `Play_Type == 0`.
+**What the corpus says: nothing, and it cannot.** All six human-vs-human
+segments run at `Round_Level == 3` for every frame (table below), where the pin
+and the arcade agree to the value. **No segment in the corpus shows a
+`vital_new` divergence at all** — the 8 divergences are 6 × `Random_ix32` (E2b)
+and 2 × `pos.x` (E3). The "five `vital_new` failures" this section used to cite
+as E1's symptom are not reproducible here and were, on the evidence below, a
+harness artifact.
 
-**So E1 is two defects, and the external patch fixes only the first.**
+Applying the change is measurably inert on the corpus: a before/after sweep of
+all 16 segments (baseline build vs. patched build, same archives, same binary
+flags) produced **byte-identical** result lines — 6 PASS / 8 divergence /
+2 no-match either way.
 
-- **E1a** — `pow_pow.c` ignores `Round_Level` in VS play. Gibletto's patch, plus
-  seeding netplay to 3 rather than 0.
-- **E1b** — our port never *updates* `Round_Level` during VS play while the
-  arcade ramps it down. With E1a alone we would pin whatever we seed while the
-  hardware decays away from it, so the damage scale drifts apart over a session
-  exactly as it does today, just from a different starting point.
+**Fix applied:** `if (Play_Type == 1 && !ArcadeBalance_IsEnabled())` at both call
+sites, plus `setup_vs_mode()` (`netplay.c`) seeding `Round_Level = 3` rather than
+`0` — mandatory in the same change, because `Pow_Control_Data_1[0][0] == 90`
+would otherwise cut every netplay hit by 10%.
 
-**Not established:** whether the observed decrements happen mid-fight or at the
-internal rematch boundary inside a merged segment (see H4 — `Game2_2()` merges a
-rematch into one `game_N`). That distinction decides where E1b's fix belongs, and
-it is answerable from the same archives by correlating the change frame against
-`C_No`/`PL_Wins`.
+#### E1b — RETRACTED. The arcade does not move `Round_Level` in 2P play
+
+The earlier claim was that the arcade ramps `Round_Level` down during a 2P
+session while the port never does. **Both halves of the arcade's gating are
+identical to the port's:**
+
+| arcade site | action | guard |
+|---|---|---|
+| `Loser_Sub` `0x0609C5E4`, store `0x0609C61E` | `--Round_Level`, clamp 0 | `Play_Type == 0` (test at `0x0609C616`) |
+| `Update_VS_Data` `0x0609C750`, store `0x0609C884` | `++Round_Level`, clamp 7 | `if (Play_Type != 0) return` at `0x0609C79A` |
+
+A whole-image scan for the big-endian literal `0201137A` finds **6 aligned pool
+entries, 7 code loads, 5 writers and 2 readers** — the two writers above,
+`Before_Select_Sub` (`0x06095234` `= 7` under `Demo_Flag == 0`, `0x0609531A`
+`= 3`) and the demo init (`0x06097654` `= 7`); the damage pair is the only
+reader in the entire program. (The scan cannot exclude an `@(R0,Rn)` indexed
+write or a bulk clear.) Every one of those matches the port's own writers
+(`game.c` `Round_Level = 7` / `= 3` in `Before_Select_Sub()`, `demo02.c`
+`Round_Level = 7`, `manage.c` `Update_VS_Data()` / `Loser_Sub()`).
+
+**So the port is already faithful, and nothing is to be written for E1b.**
+
+#### Why the archives said otherwise: the segments are not all human-vs-human
+
+The retraction turns on a fact the earlier reading did not have.
+`plw[i].wu.wu_operator` is at WORK offset 3 — archive `0x68C6F` and `0x69107`
+(`PLW_OFFSET 0x68C6C`, `PLW_SIZE 0x498`). Read across all 16 corpus segments it
+partitions them:
+
+| quark | seg | dominant `wu_operator` | `Round_Level` seen | statcheck (this tree) |
+|---|---|---|---|---|
+| 3455 | g0 | (1,1) human-human | 3 | PASS |
+| 3455 | g1 | (1,0) human-CPU | 3 | FAIL `Random_ix32` @359 |
+| 3455 | g2 | (1,1) human-human | 3 | PASS |
+| 5743 | g0 | (1,1) human-human | 3 | PASS |
+| 5743 | g1 | (0,1) human-CPU | 3 -> 2 | FAIL `Random_ix32` @301 |
+| 5743 | g2 | (0,0) attract | 2 | no-match (rc=2) |
+| 5743 | g3 | (0,1) human-CPU | 3 | FAIL `Random_ix32` @234 |
+| 7733 | g0 | (1,1) human-human | 3 | PASS |
+| 7733 | g1 | (1,0) human-CPU | 3 -> 2 | FAIL `Random_ix32` @322 |
+| 7733 | g2 | (0,0) attract | 2 | no-match (rc=2) |
+| 7733 | g3 | (0,1) human-CPU | 3 -> 2 | FAIL `Random_ix32` @247 |
+| 7733 | g4 | (1,0) human-CPU | 2 -> 1 | FAIL `Random_ix32` @247 |
+| 7733 | g5 | (1,0) human-CPU | 3 | FAIL `pos.x` @54 |
+| 7733 | g6 | (1,1) human-human | 3 | PASS |
+| 1710 | g0 | (1,1) human-human | 3 | PASS |
+| 1710 | g1 | (1,0) human-CPU | 3 -> 2 | FAIL `pos.x` @54 |
+
+The partition is exact, and three things fall out of it that corroborate each
+other:
+
+1. **Only 6 of the 16 segments are human-vs-human.** Eight are human-vs-CPU and
+   two are attract demo. The old "16 games of 4 human-vs-human sessions" framing
+   was wrong, and everything E1 used to claim rested on it.
+2. **`wu_operator` predicts the statcheck verdict perfectly.** All six (1,1)
+   segments PASS; all eight human-vs-CPU segments diverge; both (0,0) segments
+   are the two no-matches. That is the 6 / 8 / 2 tally, explained.
+3. **Every `Round_Level` change happens in a non-(1,1) segment**, and every
+   (1,1) segment holds `Round_Level` constant at 3 — exactly what the arcade
+   `Play_Type == 0` gate predicts. The archives corroborate the disassembly
+   rather than contradicting it.
+
+The harness taps `SWK_START` for player 2 at `PHASE_CHARACTER_SELECT`
+(`src/test/statcheck_runner.c`), and `ScrdGame_Init` never imports
+`wu_operator`, so **every statcheck run has two human operators and therefore
+`Play_Type == 1`**, including on the eight segments the cabinet ran at
+`Play_Type == 0`. On those, hardware used `Pow_Control_Data_1[0][Round_Level]`
+while the port used index 3 — a `vital_new` off-by-one with no engine defect
+behind it. That is the harness artifact the old E1 symptom description was
+measuring. (Fixing the harness properly means importing `Operator_Status` /
+`wu_operator`; that is a separate item and is not done here.)
+
+#### Where the decrements actually land (measured, kept because it was asked)
+
+For the five segments that do step down, the transition frame is identical in
+all five: `C_No` goes `[7,0] -> [7,3]` on the changing frame, with
+`G_No == [1,2,1,1]`, one player at `vital_new == -1`, and it never recurs in
+that segment. Mapping through `Management_Jmp_Tbl[C_No[0]]` (`manage.c`, index
+`n` is `Game_Manage_(n+1)th`), `C_No[0] == 7` dispatches `Game_Manage_8th` ->
+`Game_Manage_8_0()`, whose first statements are `Round_num++; Quick_Entry();`
+and which then writes `C_No[1] = 3` — so the arcade's decrement is
+`Quick_Entry()` -> `Loser_Sub()` on exactly that frame. **Not mid-fight, and not
+at the internal rematch boundary** (5743 g1's round-1 end at f3677/f3678 shows
+the same `[7,0] -> [7,3]` step with `Round_Level` unchanged, because
+`Quick_Entry()` returns early until `PL_Wins[Winner_id] >=
+save_w[Present_Mode].Battle_Number[Play_Type] + 1`). This is the port's
+structure exactly; it is recorded here only to close the question, since the
+port already has the same behaviour under the same guard.
+
+#### Statcheck support (applied)
+
+`ROUND_LEVEL_OFFSET 0x1137A` is now in `src/arcade/arcade_constants.h` and
+imported once by `Statcheck_SyncValues()` (`statcheck_compare.c`) alongside
+`players_timer` and `t_pl_lvr`. One seed is sufficient: the value is constant
+across every frame in which damage is dealt, and the only in-segment change is
+the match-end decrement above. The offset was previously taken on trust from an
+external fork; it is now **confirmed by disassembly** (see the address table in
+E1b).
 
 ### E2a — `effect_G9` spawn phase (ROOT-CAUSED; oracle FIXED `f63507b7`)
 
@@ -550,8 +667,9 @@ mismatch, not for gaps).
 
 | id | what | state |
 |----|------|-------|
-| E1a | `pow_pow.c` ignores `Round_Level` in VS | external patch + seed netplay to **3** (not 0) — netplay question ANSWERED from archives |
-| E1b | port never updates `Round_Level` in VS while the arcade ramps it down | OPEN, no patch; E1a alone is insufficient |
+| E1a | `Play_Type == 1` damage pin has no arcade counterpart | **FIXED** — gated on `ArcadeBalance_IsEnabled()` at both `pow_pow.c` sites, `setup_vs_mode()` seeded to **3** (not 0), `ROUND_LEVEL_OFFSET 0x1137A` imported. Proven by disassembly (`0x0609E36C`/`0x0609E3FA` index `Round_Level` unconditionally); demonstrates on **no** corpus segment — reachable only via 2P break-in, which is not traced |
+| E1b | port never updates `Round_Level` in VS | **RETRACTED, not a defect** — arcade `Loser_Sub` (`0x0609C616`) and `Update_VS_Data` (`0x0609C79A`) gate on `Play_Type` exactly as the port does. The archive decrements are all in human-vs-CPU segments |
+| H4b | harness forces `Play_Type == 1` on every segment | **OPEN** — `statcheck_runner.c` taps `SWK_START` for P2 and `ScrdGame_Init` never imports `wu_operator`, so the 8 human-vs-CPU segments run under the wrong `Play_Type`. This, not E1, produced the `vital_new` off-by-ones the old E1 cited |
 | E2a | `effect_G9_init()` spawn phase / `players_timer` | **oracle FIXED** `f63507b7` (drift 322/174/255/418 -> 0); **viewer FIXED** via `.3sr` v2 (host A/B: 31 -> 0 and 13 -> 0 `r16_resyncs`); NOT yet tested on the device, and existing v1 files keep the old behaviour |
 | E2b | a `random_32` consumer the port never runs | OPEN, unidentified; this is the one that fails statcheck |
 | E3 | `pos.x` +32 at round start | no patch; mechanism unknown, reproduces reliably |
@@ -561,8 +679,9 @@ mismatch, not for gaps).
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 
-**For a reviewer:** E2b is now the highest-value target — it is on-device
-detectable, reproduces deterministically, RNG divergence compounds, and with
-H2 fixed it accounts for 6 of the 8 remaining divergences rather than 3. E1 is
-the best understood but needs the netplay decision first. H1–H3 have landed, so
-a broad statcheck sweep can now be trusted.
+**For a reviewer:** E2b remains the highest-value engine target — on-device
+detectable, deterministic, and RNG divergence compounds. But **H4b now outranks
+it for the oracle**: eight of the sixteen corpus segments are being replayed
+under the wrong `Play_Type`, which makes their divergences uninterpretable and
+is what sent E1 down a false trail. E1 is closed: E1a is applied and E1b is
+retracted. H1–H3 have landed.

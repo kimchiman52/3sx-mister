@@ -1200,8 +1200,26 @@ static void setup_vs_mode() {
     Random_ix16_ex_com = 0;
     Random_ix32_ex_com = 0;
 
-    // Round/match state.
-    Round_Level = 0;
+    /* Round/match state.
+     *
+     * Round_Level is seeded to 3, NOT 0. Three independent sources agree on
+     * 3 and none on 0:
+     *   - the port's own `Before_Select_Sub()` (game.c) ends with
+     *     `Round_Level = 3;`, and so does its arcade counterpart (CPS3
+     *     0x0609520C, store at 0x0609531A);
+     *   - real CPS3 main RAM: `Round_Level` (CPS3 0x0201137A, confirmed by
+     *     disassembly -- it is the sole index of `Pow_Control_Data_1` in
+     *     the arcade damage routines at 0x0609E36C/0x0609E3FA) reads 3 at
+     *     the start of every one of 16 games across 4 independent Fightcade
+     *     sessions, and the only values ever observed are 3, 2 and 1 --
+     *     never 0;
+     *   - `game.c`'s other init is 7 (demo), so 0 is not a port value
+     *     either.
+     * It matters because `cal_damage_vitality()` (pow_pow.c) indexes
+     * `Pow_Control_Data_1[0] = {90,95,98,100,103,106,109,112}` with it under
+     * arcade balance: index 3 is exactly 100 (neutral), index 0 is 90 --
+     * seeding 0 would silently cut every netplay hit by 10%. */
+    Round_Level = 3;
     Round_Result = 0;
     SDL_zeroa(PL_Wins);
     Conclusion_Type = 0;
