@@ -103,20 +103,35 @@ s16 poison_flag[2];
  *
  * ARCADE DOES NOT HAVE IT: Win_01000 only. Gated below; see E7.
  *
- * DIVERGENT IN SHAPE, NOT IN PRESENCE -- established, deliberately NOT changed,
- * because they are an ordering/argument class and not E7's "call the arcade
- * never makes". Written up as E9 in docs/research-arcade-balance-desyncs.md:
- *   twelve_win_backjump (0x060C4A84)  arcade puts the pair at the HEAD of
- *     win_rno[1] cases 0 and 1 (0x060C4AEC/0x060C4B0C, 0x060C4B88/0x060C4BA8),
- *     before char_move; we put it at the tail, after.
- *   meta_win_pause  arcade 0x060C54B2 has ONE pair -- plw[wk->wu.id] with
- *     scrr/scrl -- BEFORE the dispatch, and no Bonus_Game_Flag test at all
- *     (0x02016B3A appears nowhere in 0x060C54B2..0x060C558C). We have three
- *     pairs after the dispatch behind a Bonus_Game_Flag if/else.
- *   bonus_game_win_pause  arcade 0x060C5308 has the plw[1]-then-plw[0] shape we
- *     have, in the same place, but passes the ordinary scrr/scrl pair -- both
- *     its pairs read the same *(0x02026CB0) +- *(0x02026BD4) every other routine
- *     reads -- where we pass bs_scrrrl[1][*] / bs_scrrrl[0][*]. */
+ * DIVERGENT IN SHAPE, NOT IN PRESENCE -- E9b/E9c/E9d in
+ * docs/research-arcade-balance-desyncs.md. Two of the three are now gated,
+ * the third is left with its reason written at the routine:
+ *   twelve_win_backjump (0x060C4A84)  E9b, FIXED and GATED. The arcade puts
+ *     the pair at the HEAD of win_rno[1] cases 0 and 1 (0x060C4AEC/0x060C4B0C,
+ *     0x060C4B88/0x060C4BA8), before add_y_sub/add_x_sub/char_move; we put it
+ *     at the tail, after. Cases 2, 3 and 4 have no pair on either side.
+ *   meta_win_pause (0x060C54B2)  E9c, FIXED and GATED. ONE pair -- plw[wk->wu.id]
+ *     with the ordinary bound -- BEFORE the dispatch, and no Bonus_Game_Flag
+ *     test at all (0x02016B3A appears nowhere in 0x060C54B2..0x060C558C, and
+ *     no pool literal of the routine is within +-255 of it, so no base+disp
+ *     read can reach it either). We had three pairs after the dispatch behind
+ *     a Bonus_Game_Flag if/else.
+ *   bonus_game_win_pause (0x060C5308)  E9d, NOT changed. The arcade has the
+ *     plw[1]-then-plw[0] shape we have, in the same place, but passes the
+ *     ordinary bound -- both its pairs read the same *(0x02026CB0) +-
+ *     *(0x02026BD4) every other routine reads -- where we pass bs_scrrrl[1][*]
+ *     / bs_scrrrl[0][*]. See the comment at the routine for why.
+ * The arcade bound, everywhere in this cluster, is bg_w+0x104 +- bg_w+40:
+ * bgw[1].wxy[0].disp.pos (r9 = 0x02026BAC + 84 + 144 is &bgw[1] on the
+ * arcade's 144-byte BGW, +32 is wxy) and bg_w.pos_offset (the arcade writes
+ * it as `service byte 0x0206AC62 ? 248 : 192` at 0x060BB6FE/0x060BB704 --
+ * the routine our bg_sub.c writes `bg_w.pos_offset = 0xC0` in, same loop of
+ * seven pos_x_work/pos_y_work clears following -- and at 0x060C5D66/0x060C5D74;
+ * the corpus measures that byte 0). scrr/scrl are that same value in versus,
+ * where set_scrrrl() computes them at the top of Player_control from the same
+ * field and 192, and nothing in the player pass writes bgw[1].wxy[0]. They are
+ * NOT that value inside a bonus game: set_scrrrl() has exactly two callers,
+ * Player_control and menu.c, and Player_control_bonus is not one of them. */
 const s16 winner_type_tbl[20] = { 6, 0, 0, 6, 2, 7, 9, 3, 4, 1, 12, 0, 5, 14, 8, 13, 6, 10, 11, 15 };
 
 void win_player(PLW* wk) {
@@ -1312,8 +1327,24 @@ void twelve_win_away(PLW* wk) {
 }
 
 void twelve_win_backjump(PLW* wk) {
+    /* ARCADE (E9b): 0x060C4A84 makes the screen-edge correction FIRST in
+     * win_rno[1] cases 0 and 1 -- the jsr pairs at 0x060C4AEC/0x060C4B0C and
+     * 0x060C4B88/0x060C4BA8 precede the `jsr @r11` (char_move, 0x06089848) at
+     * 0x060C4B10 and the add_y_sub/add_x_sub/char_move run at
+     * 0x060C4BAC/0x060C4BB4/0x060C4BB8. This is the one routine in the
+     * population where the character travels between the two positions
+     * (case 1 integrates mvxy before char_move), so clamp-then-move and
+     * move-then-clamp differ by a frame of displacement at the wall. PS2
+     * keeps the tail pair, bit-identical. See E9 in
+     * docs/research-arcade-balance-desyncs.md. */
     switch (win_rno[1]) {
     case 0:
+        if (ArcadeBalance_IsEnabled()) {
+            if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
+                set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+            }
+        }
+
         char_move(&wk->wu);
 
         if (wk->wu.cg_type == 1) {
@@ -1328,13 +1359,21 @@ void twelve_win_backjump(PLW* wk) {
             }
         }
 
-        if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
-            set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+        if (!ArcadeBalance_IsEnabled()) {
+            if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
+                set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+            }
         }
 
         break;
 
     case 1:
+        if (ArcadeBalance_IsEnabled()) {
+            if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
+                set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+            }
+        }
+
         add_y_sub((WORK_Other*)wk);
         add_x_sub((WORK_Other*)wk);
         char_move(&wk->wu);
@@ -1345,8 +1384,10 @@ void twelve_win_backjump(PLW* wk) {
             wk->wu.xyz[1].cal = 0;
         }
 
-        if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
-            set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+        if (!ArcadeBalance_IsEnabled()) {
+            if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
+                set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+            }
         }
 
         break;
@@ -1675,6 +1716,27 @@ s16 win_select(PLW* /* unused */, s16 num) {
 void bonus_game_win_pause(PLW* wk) {
     bg_app_stop = 1;
 
+    /* ARCADE (E9d, deliberately NOT changed): 0x060C5308 has exactly this
+     * shape -- bg_app_stop, plw[1] pair, plw[0] pair, dispatch at 0x060C538A
+     * -- but all four calls (0x060C5338, 0x060C5354, 0x060C536A and the
+     * `jsr @r11` at 0x060C5384 the call census missed) pass the cluster's
+     * ordinary bound, bgw[1].wxy[0].disp.pos +- bg_w.pos_offset, not a
+     * per-player one. bs_scrrrl is setup_bs_scrrrl_bs()'s 512 +-
+     * bsmr_range_table[...], per player and asymmetric, which a shared
+     * `centre +- width` pair cannot express, so this IS a divergence.
+     *
+     * It is not transcribed because the port has no live value to pass:
+     * scrr/scrl are stale here (set_scrrrl() is called from Player_control
+     * and menu.c only, never from Player_control_bonus), and the live read
+     * the arcade makes runs through get_center_position()'s
+     * `Bonus_Game_Flag == 21 -> 512` arm on the port, a test the arcade
+     * routine does not have -- whether the arcade's bgw[1].wxy[0] is 512 in
+     * that game was not established. Unreachable in versus play, so no
+     * corpus can adjudicate either arm; it would rest on an identity that
+     * has not been read. Also noted, not acted on: the case-0 test at
+     * 0x060C53B8 is `cmp/eq #21` against Bonus_Game_Flag where ours is
+     * `== 20`; whether that is a renumbering or a divergence was not
+     * chased. See E9 in docs/research-arcade-balance-desyncs.md. */
     if (set_field_hosei_flag(&plw[1], bs_scrrrl[1][0], 1)) {
         set_field_hosei_flag(&plw[1], bs_scrrrl[1][1], 0);
     }
@@ -1750,6 +1812,34 @@ const s16 meta_win_tbl[20] = { 33, 32, 32, 32, 32, 32, 33, 32, 32, 37, 32, 32, 3
 void meta_win_pause(PLW* wk) {
     bg_app_stop = 1;
 
+    /* ARCADE (E9c): 0x060C54B2 is 218 bytes -- the bg_app_stop store at
+     * 0x060C54C4, ONE correction pair on plw[wk->wu.id] (0x060C54DE/0x060C5500,
+     * r4 = 0x02068C6C + id * 1176) with the cluster's ordinary bound, then the
+     * routine_no[3] dispatch at 0x060C5506 whose case 0 is
+     * set_char_move_init(&wu, 9, meta_win_tbl[player_number]) (table
+     * 0x061A3A10, player_number at @(0x3C0,r14)), case 1/9 char_move
+     * (0x060C5570 -> 0x06089848) and default rts (0x060C557E). There is no
+     * Bonus_Game_Flag test: 0x02016B3A is not a pool literal of the routine
+     * and no literal of the routine is within +-255 of it.
+     *
+     * The bound is read live -- bg_w.bgw[1].wxy[0].disp.pos +- bg_w.pos_offset,
+     * what the arcade reads at bg_w+0x104 and bg_w+40 -- rather than scrr/scrl,
+     * because this routine is reachable inside a bonus game (win_player's
+     * My_char test comes before its Bonus_Game_Flag test) and scrr/scrl are
+     * stale there: set_scrrrl() is called from Player_control and menu.c only.
+     * In versus the two are the same number (set_scrrrl() derives scrr/scrl
+     * from this field and 192 at the top of Player_control, and nothing in
+     * the player pass writes it). PS2 keeps its three pairs after the
+     * dispatch, bit-identical. See E9 in
+     * docs/research-arcade-balance-desyncs.md. */
+    if (ArcadeBalance_IsEnabled()) {
+        const s16 centre = bg_w.bgw[1].wxy[0].disp.pos;
+
+        if (set_field_hosei_flag(&plw[wk->wu.id], centre + bg_w.pos_offset, 1)) {
+            set_field_hosei_flag(&plw[wk->wu.id], centre - bg_w.pos_offset, 0);
+        }
+    }
+
     switch (wk->wu.routine_no[3]) {
     case 0:
         wk->wu.routine_no[3]++;
@@ -1760,6 +1850,10 @@ void meta_win_pause(PLW* wk) {
     case 9:
         char_move(&wk->wu);
         break;
+    }
+
+    if (ArcadeBalance_IsEnabled()) {
+        return;
     }
 
     if (Bonus_Game_Flag) {

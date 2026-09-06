@@ -1148,8 +1148,9 @@ arcade does not make the call. Of `win_pl.c`'s 24 pairs, 1 is absent, **16 are
 present in the same place with the same arguments**, and 7 are present but
 divergent in placement or arguments (E9b/c/d); all 6 of `lose_pl.c`'s are
 present, all 6 divergent in placement. What did come out of it is one unrelated defect in a routine E8 had
-named and could not reach (see E9) and three shape divergences that are real,
-evidenced, and deliberately not changed.
+named and could not reach (see E9) and three shape divergences that are real
+and evidenced — two of them since **gated** (E9b, E9c), one left with its
+reason sharpened (E9d).
 
 **How each routine was pinned.** Nothing here is positional inference.
 `win_player` (`0x060C2DDC`) copies the 16-entry `win_jp_tbl` at `0x061A38C0`
@@ -1232,14 +1233,26 @@ That is **24 pairs in `win_pl.c`** (48 calls) and **6 in `lose_pl.c`** (12),
 which is the whole population. The adjudication is recorded in both files as a
 header comment carrying the addresses, so it does not have to be re-derived.
 
-**What was NOT established, and is not claimed.** Whether any *other* routine's
-clamp can strand its own exit the way Oro's did — that question is per-routine
-and the answer for Oro says nothing about Twelve or Chun-Li. And the arcade
-composes its screen bound inline as `*(0x02026CB0) ± *(0x02026BD4)` where the
-port reads the `scrr` / `scrl` globals `set_scrrrl()` writes as
-`get_center_position() ± 192`; that `*(0x02026BD4)` is always 192 is
-**untested** and nothing above depends on it, because every site in this
-cluster reads the same two words.
+**What was NOT established at the time, and how it stands now (E9, second
+pass).** Whether any *other* routine's clamp can strand its own exit the way
+Oro's did is **moot as a port question**: with E7 gated, every remaining pair
+in both files is one the arcade also makes (same routine, same bound), so a
+clamp that stranded an exit would strand it on the arcade too — a property of
+the game, not a divergence — and the one ordering difference that could have
+made a port-only strand (E9b) is now gated. Whether an *arcade* routine
+strands itself was not chased; nothing rests on it. And the two words the
+arcade composes its bound from are **identified**: `0x02026CB0` is
+`bg_w.bgw[1].wxy[0].disp.pos` (`r9 = 0x02026BAC + 84 + 144` is `&bgw[1]` on
+the arcade's 144-byte `BGW`, `+32` is `wxy`), and `0x02026BD4` is
+`bg_w.pos_offset` — the arcade writes it at `0x060BB6FE`/`0x060BB704` as
+`*(0x0206AC62) ? 248 : 192` in the routine our `bg_sub.c` writes
+`bg_w.pos_offset = 0xC0` in (same seven-iteration `pos_x_work`/`pos_y_work`
+clear following the store), and again at `0x060C5D66`/`0x060C5D74`; all 18
+literal loaders of `0x02026BD4` are reads. `0x0206AC62` is the service byte
+§"`Max_vitality`" already found selecting 192/160, measured 0 on all 143
+archives. So **`*(0x02026BD4)` is 192 under the corpus's hardware setting,
+and 248 under the other** — "always 192" was the wrong question; the port's
+five `pos_offset = 192` writers are the 192 arm.
 
 ### E8 — `effect_L7_init`'s input gate tests the wrong bit (FIXED and GATED, 2026-09-06)
 
@@ -1399,7 +1412,7 @@ remaining non-PASS results are 1 `rc=4` (H5's Twelve segment) and 2 `rc=3`
   the **pre-change** binary are all clean. Recorded because it happened, not
   because it is understood; it is not attributable to this change.
 
-### E9 — `Win_13000()`'s input gate tests the wrong bit, and three shape divergences that were not changed (2026-09-06)
+### E9 — `Win_13000()`'s input gate tests the wrong bit, and three shape divergences, two of them now gated (2026-09-06)
 
 E7's adjudication of the `set_field_hosei_flag` population (above) found no
 second absence. It found four other things, one of which is a defect of E8's
@@ -1481,65 +1494,167 @@ harmless, not that it is right. **The gate rests on the disassembly alone**,
 which is the same standing E1a has, and it is stated here rather than implied.
 Sweep logs are kept at `<corpus>/sweeps/e9-win13000-after/`.
 
-#### E9b, E9c, E9d — established, and deliberately NOT changed
+#### E9b, E9c, E9d — second pass: E9b and E9c FIXED and GATED, E9d NOT changed (2026-09-06)
 
-These three are real, they are proven to the same standard as E7, and no code
-moved for them. They are an **ordering / argument** class, not E7's "a call the
-arcade never makes", and E7's fixing rule does not reach them. They are written
-down here so the next reader inherits the evidence instead of the question.
+The first pass established all three and changed nothing, on the ground that
+an ordering / argument class is not E7's "a call the arcade never makes". The
+second pass sat down to make the edits and found that two of them can be made
+without touching the PS2 arm at all, and that the third cannot be made
+honestly yet. What follows supersedes the first pass's "why it is not being
+changed" paragraphs; its evidence stands and is repeated only where it is
+load-bearing.
 
-**E9b — the arcade corrects before the animation step; `lose_pl.c` and
-`twelve_win_backjump` (`0x060C4A84`) correct after.** In all six `lose_pl.c`
-routines and in both `twelve_win_backjump` cases, the arcade's `jsr` pair is the first thing
-the routine does — ahead of the `pcon_rno` tests, ahead of the
-`routine_no[3]` dispatch, ahead of `char_move`. Ours is the last thing.
-`Normal_normal_Loser` reads cleanest: `0x060C59E2`/`0x060C5A04` (the pair),
-then `0x060C5A08 mov.l 0x60c5ae4,r4 ; =02068c5e` and the
-`tst`/`cmp/eq #4` pair (`pcon_rno[1] == 0 || == 4`), then `0x060C5A18
-mov.w @(r0,r14),r0` with `r0 = 42`. A compiler cannot hoist a call over that
-branch, so this is source order, not scheduling. Two consequences: the arcade
-clamps then moves and we move then clamp; and on the `pcon_rno[1] == 0 || == 4`
-early returns (`Lose_10000`, `Lose_30000`, `Normal_normal_Loser`,
-`meta_lose_pause`) we skip the correction entirely where the arcade has already
-made it. **Why it is not being changed**: the correction is a wall clamp, and
-during a stationary lose animation clamp-then-move and move-then-clamp agree —
-which is consistent with all 447 corpus segments passing with it in place, and
-`lose_pl.c` runs on every round of every match, so a live failure here would be
-loud. `twelve_win_backjump` is the one arm where the character genuinely
-travels, and it is Twelve-only on one of three `win_rno[0]` branches. Changing
-seven routines' evaluation order on that basis is a larger and riskier edit
-than the evidence demands right now.
+**Why the order is not cosmetic — the pair has consumers.** `set_field_hosei_flag`
+(`pls02.c`; arcade `0x0611DFB8`, same body: `satse[player_number]` at
+`0x065EB304`, `micchaku_flag` at `+969`, `hos_fi_flag` at `+970`,
+`hosei_amari` at `+982`) writes `micchaku_flag`, `hos_fi_flag` and
+`hosei_amari` on **every** call, zeros included when the character is inside
+the bound. `plcnt.c` -> `Player_control()` runs `set_scrrrl()`, then
+`player_main_process[pcon_rno[0]]()` (which is where `plpnm.c` ->
+`Normal_41000()` -> `lose_player()` and `Normal_40000()` -> `win_player()`
+sit), then `check_damage_hosei()`, which copies `hosei_amari` into
+`muriyari_ugoku`, pushes the *other* player by it (`check_damage_hosei_dageki`)
+and zeroes both. `bg_sub.c`'s scroll reads `micchaku_flag` (`x_left_check` /
+`x_right_check` are skipped for a player whose flag is 1 / 2). So "clamp then
+move" versus "move then clamp" is a per-frame difference in what the other
+player is pushed by and what the camera is told, and the port's
+`pcon_rno[1] == 0 || == 4` early returns are frames on which the arcade has
+already written those three fields and the port has not.
 
-**E9c — `meta_win_pause` has one pair in the arcade and three in the port.**
-Arcade `0x060C54B2` is 218 bytes: `bg_app_stop = 1`, one
-`set_field_hosei_flag` pair on `plw[wk->wu.id]` with the ordinary `scrr`/`scrl`
-(`0x060C54DE`/`0x060C5500`), then the `routine_no[3]` dispatch
-(`0x060C5506`) whose `case 0` is
-`set_char_move_init(&wu, 9, meta_win_tbl[player_number])` — `meta_win_tbl` at
-`0x061A3A10`, `@(0x03C0,r14)` being `player_number`, the same displacement
-`win_player` uses. **There is no `Bonus_Game_Flag` test**: `0x02016B3A` does
-not appear anywhere in `0x060C54B2..0x060C558C`. The port has
-`if (Bonus_Game_Flag) { pair(plw[1], bs_scrrrl[1]); pair(plw[0],
-bs_scrrrl[0]); } else { pair(plw[id], scrr/scrl); }`, after the dispatch. So
-in a bonus game the port corrects **both** players, with `bs_scrrrl`, where the
-arcade corrects only this one, with `scrr`/`scrl`. **Why it is not being
-changed**: an arcade-faithful `meta_win_pause` has to move the call *and* drop
-the branch, and the compound edit is E9b's risk plus E9d's. Reach is also
-near-zero for the corpora — it needs `My_char[id] != player_number` **and**
-`Bonus_Game_Flag`.
+**E9b — FIXED and GATED, all eight sites.** In each of `lose_pl.c`'s six
+routines nothing precedes the first `jsr` but the register prologue (and, in
+`meta_lose_pause`, the `bg_app_stop` store at `0x060C5B3E`), and the
+`pcon_rno` tests and the `routine_no[3]` dispatch follow it —
+`Normal_normal_Loser` (`0x060C59E2`/`0x060C5A04`, then `0x060C5A08`
+`mov.l ... =02068c5e`, then `0x060C5A18` with `r0 = 42`) is the clean one
+and the other five read the same way: `Lose_10000` `0x060C561A`/`0x060C563C`
+then `0x060C5640..0x060C5650` (`pcon_rno` tests) then `0x060C5654`;
+`Lose_20000` `0x060C5768`/`0x060C578A` then `0x060C578E` then the `bra
+0x60c5a72` (Judge_normal_loser) at `0x060C57A4` or the dispatch at
+`0x060C57AA`; `Lose_30000` `0x060C588A`/`0x060C58AC` then `0x060C58B4`;
+`Judge_normal_loser` `0x060C5A98`/`0x060C5ABA` then `0x060C5AC0`;
+`meta_lose_pause` `0x060C5B58`/`0x060C5B7A` then `0x060C5B7E`. In
+`twelve_win_backjump` the pairs head `win_rno[1]` cases 0 and 1
+(`0x060C4AEC`/`0x060C4B0C` before the `jsr @r11` = `char_move` at
+`0x060C4B10`; `0x060C4B88`/`0x060C4BA8` before `add_y_sub` `0x060B6720`,
+`add_x_sub` `0x060B669C` and `char_move` at `0x060C4BAC`/`0x060C4BB4`/
+`0x060C4BB8`), and cases 2, 3 and 4 have no pair on either side. Every body
+otherwise matches the port arm for arm, including which `routine_no[3]`
+values fall through to `char_move` and which return.
 
-**E9d — `bonus_game_win_pause` passes `bs_scrrrl` where the arcade passes
-`scrr`/`scrl`.** Arcade `0x060C5308` has the port's shape exactly — `plw[1]`
-then `plw[0]`, both before the dispatch — but both of its pairs read the same
-`*(0x02026CB0) ± *(0x02026BD4)` that every other routine in the cluster reads
-(`mov r13,r5; add #84,r5; add r10,r5` with `r10 = 0x0090` and `mov #32,r0`
-resolves to `0x02026BAC + 0x104`, and `mov #40,r0` to `0x02026BD4`), not a
-separate per-player bound. The port passes `bs_scrrrl[1][0..1]` /
-`bs_scrrrl[0][0..1]`, which `plcnt2.c` -> `setup_bs_scrrrl_bs()` derives from
-`scrc ± bsmr_range_table[...]`. **Not changed, and one thing not established**:
-whether the arcade has a `bs_scrrrl` equivalent at all was not chased, and
-`bonus_game_win_pause` is unreachable in versus play, so nothing in the corpora
-can adjudicate it either way.
+The gate is the same statement twice: `if (ArcadeBalance_IsEnabled())` runs
+the pair at the head, `if (!ArcadeBalance_IsEnabled())` runs it at the tail.
+The PS2 arm is the tail pair and nothing else, statement for statement what
+both files always had (`lose_pl.c` factors the pair into a `static`
+`loser_field_hosei()`; `win_pl.c` keeps it inline). One consequence worth
+naming: on `Lose_20000`'s judge path the arcade corrects **twice** before the
+dispatch — its own pair, then `Judge_normal_loser`'s — and the second call
+finds `hami == 0` and leaves `hosei_amari = 0`, where the port corrected once,
+after, and left `hosei_amari = -hami`. The gate reproduces that: both head
+pairs run under the arcade arm, neither tail pair does. The bound stays
+`scrr`/`scrl` in both arms: these routines are reached from `Normal_41000` /
+`Win_11000` in versus, where `set_scrrrl()` has just derived `scrr`/`scrl` at
+the top of `Player_control()` from the same `bgw[1].wxy[0]` and 192 the
+arcade reads inline, and no writer of `bgw[1].wxy[0]` is in the player pass
+(writers: `stage/*.c`, `eff93.c`, `sys_sub.c`, opening, ending).
+
+**E9c — FIXED and GATED.** Arcade `0x060C54B2`: `bg_app_stop` store at
+`0x060C54C4`, one pair on `plw[wk->wu.id]` (`0x060C54DE`/`0x060C5500`, `r4 =
+0x02068C6C + id * 1176`) with the ordinary bound, dispatch at `0x060C5506`,
+`case 0` = `set_char_move_init(&wu, 9, meta_win_tbl[player_number])`
+(`0x061A3A10`, `@(0x3C0,r14)`), `case 1`/`9` -> `char_move` (`0x060C5570` ->
+`0x06089848`), default `rts` (`0x060C557E`). No `Bonus_Game_Flag`: `0x02016B3A`
+is not a pool literal of the routine, and no literal of the routine is within
+±255 of it, so no `@(disp,rn)` read can reach it either. The arcade arm makes
+that one pair before the dispatch and returns after it; the PS2 arm is the
+original three-pair `if (Bonus_Game_Flag)` block after the dispatch,
+untouched. **The arcade arm reads the bound live**, `bg_w.bgw[1].wxy[0].disp.pos
+± bg_w.pos_offset` — what the arcade reads at `bg_w+0x104` and `bg_w+40` (see
+the identification under E7) — rather than `scrr`/`scrl`, because
+`meta_win_pause` is reachable inside a bonus game (`win_player`'s `My_char`
+test precedes its `Bonus_Game_Flag` test) and `scrr`/`scrl` are stale there:
+`set_scrrrl()` has exactly two callers, `Player_control` and `menu.c`, and
+`Player_control_bonus` is not one of them. In versus the two are the same
+number. Reach for the ordering half needs only `My_char[id] != player_number`
+(Twelve winning while copied); reach for the dropped branch needs a bonus game
+as well.
+
+**E9d — NOT changed, for a sharper reason than "compound risk".** Arcade
+`0x060C5308` has our shape exactly and all four of its calls (`0x060C5338`,
+`0x060C5354`, `0x060C536A`, and the `jsr @r11` at `0x060C5384` the call census
+missed) pass the ordinary bound, `bgw[1].wxy[0] ± pos_offset` — one
+`centre ± width` shared by both players. `bs_scrrrl` is
+`setup_bs_scrrrl_bs()`'s `512 ± bsmr_range_table[...]`, per player and
+asymmetric (`{64,192}` / `{224,-136}` for one operator layout), which a shared
+`centre ± width` **cannot express**; so this is a real divergence, and
+"whether the arcade has a `bs_scrrrl` equivalent" is answered for this
+routine: it does not use one. It is not transcribed because the port has no
+live value to pass: `scrr`/`scrl` are stale in a bonus game (above), and the
+port's own live read, `get_center_position()`, returns a constant 512 when
+`Bonus_Game_Flag == 21` — a test the arcade routine does not make — so whether
+the arcade's `bgw[1].wxy[0]` is 512 in that game, i.e. whether reading the
+field live on the port would reproduce the arcade, was not established.
+Unreachable in versus play, so no corpus can adjudicate either arm; it would
+rest on an identity that has not been read, and it stays as it is. Also in this
+routine, noted and not acted on: `0x060C53B8` tests `Bonus_Game_Flag` with
+`cmp/eq #21` where the port's `case 0` tests `== 20` (the port uses both
+values elsewhere — `plmain2.c`, `get_center_position()`); whether that is a
+renumbering between the two programs or a divergence was not chased.
+
+**Two things read on the way that are not E9 and are not changed.** (1) The
+arcade's `Lose_10000`, `Lose_20000`, `Lose_30000` and `Normal_normal_Loser`
+zero three words at `0x020281B8..0x020281BD` in `case 0` (`mov.w r0,@(4,r4)`
+/ `@(2,r4)` / `@r4` with `r0 = 0`; `Judge_normal_loser` and `meta_lose_pause`
+do not), and an init routine at `0x060B6EB4..0x060B6ED4` zeroes the same
+cluster (`0x020281AC..0x020281C1`). The port has no counterpart write. The
+four literal referrers of `0x020281B8` are those four writers; no loader of
+`0x020281AC` (`win_rno`, 25 referrers), `0x020281B0` or `0x020281B2` reaches
+`+12..+16`. **No reader found**, by literal scan and by base+displacement from
+the neighbouring literals; treated as dead state, not proven dead. (2)
+`Lose_30000` `case 0` picks `set_char_move_init(&wu, 9, Country == 1 ? 56 : 58)`
+on the judge path (`0x060C5920` loads `0x0201556F`, `cmp/eq #1`, `56`/`58`
+at `0x060C5938`/`0x060C5936`) and `24 : 28` on the other (`0x060C5992`/
+`0x060C5990`); the port hardcodes 56 and 24. `0x0201556F` is `Country`
+(§"`Max_vitality`" table: arcade 1, ours 4), so under the value the arcade
+program runs with the port's constants are the taken arm. Urien's routine
+(`loser_type_tbl[13] = 3`).
+
+**Result.**
+
+All three corpora were re-swept at `a3172c7f` + this change with
+`resweep_corpus.py --headless --no-manifest` (sweep tag `e9bcd-after`), so the
+recorded manifests stayed as the "before", and then swept **again with a
+control binary** in which `lose_pl.c`'s helper returns before the pair under
+the arcade arm — i.e. **no correction at all** in any of the six routines (tag
+`e9b-control-nopair`, the source restored byte-identical afterwards, `cmp`
+verified). The harness pins `balance=auto`, which resolves to the arcade arm
+(the archive would desync from frame 1 otherwise), so both sweeps exercised
+the changed code, not the PS2 arm.
+
+| gate | before (manifest) | treatment: pair at head | control: no pair |
+|---|---|---|---|
+| corpus 2026-09-05 (143 eligible) | 143 PASS | **143 PASS** | **143 PASS** |
+| corpus 2026-09-06 (183 eligible) | 183 PASS | **183 PASS** | **183 PASS** |
+| corpus 2026-09-06b (121 eligible) | 121 PASS | **121 PASS** | **121 PASS** |
+| row-by-row diff vs manifest (verdict, `rc`, fail frame; all 463 records) | — | **0 differences** | **0 differences** |
+| frame-data suite (`--check-golden`, 99 goldens; these corpora pin PS2, so this is the PS2-arm identity check) | 99 GREEN, zero drift | **99 GREEN, zero drift** (`--jobs 3`, no `143`) | not run |
+
+**Read the control before the treatment.** Removing the correction outright
+moves nothing, so 447/447 with the pair at the head is not coverage of the
+ordering, and 447/447 with it at the tail — the first pass's "which is what
+447/447 says" — never was: **the corpus is blind to this pair by
+construction.** `statcheck_compare.c` compares positions (`xyz[0].disp.pos`,
+`xyz[1].disp.pos`) and never `micchaku_flag`, `hos_fi_flag` or
+`hosei_amari`; the position half of the pair only fires when the loser is
+outside `scrl..scrr`, which in-play hosei prevents, and the deciding round's
+lose sequence is never compared at all (`game_ended()` stops at `PL_Wins ==
+2`). So the corpora say the change is harmless on 447 segments and nothing
+else. **The gate rests on the disassembly alone** — the same standing E1a and
+E9a have — and the first pass's stated reason for holding off ("a wall clamp
+around a stationary lose animation agrees either way — which is what 447/447
+with it in place says") was an inference the corpus could not support. Sweep
+logs are kept at `<corpus>/sweeps/e9bcd-after/` and
+`<corpus>/sweeps/e9b-control-nopair/`.
 
 Note this routine also carries the **fourth** call site that the
 register-tracking call graph missed: `0x060C5384` is a `jsr @r11` whose `r11`
@@ -3492,9 +3607,9 @@ the reported symptom was on a *passing* prefix, and nothing here matched it.
 | E7 | `Win_01000()` clamps the winner where the arcade does not — the 2026-09-06 corpus's D4 | **FIXED and GATED** — `animation/win_pl.c` -> `Win_01000()` called a `set_field_hosei_flag` pair between `bg_app_stop = 1` and `switch (routine_no[3])`; the arcade routine has **nothing** between them (`060c2ea2 mov.b r3,@r2` -> `060c2ea6 mov.w @(r0,r14),r0`, r0 = 42 = `routine_no[3]`, then `cmp/eq #0/#1/#9` with 1 and 9 sharing a target as the port's `case 1: case 9:` does). Reached as `win_jp_tbl[winner_type_tbl[player_number]]` — `win_player` (`0x060C2DDC`) copies the 16-entry table at `0x061A38C0` to stack and indexes it by the 21-entry table at `0x061A3890` (Oro -> 1 -> `0x060C2E8C`); both tables unique in the image, `0x061A3890` has exactly one literal referrer. Negative established over the whole 1,318-byte routine with all three `jijii_*` inlined: no aligned word equals `&set_field_hosei_flag` (`0x0611DFB8`) so no `jsr` reaches it, and `bsr` cannot either (`0x5AC06` away vs `±0x1000` reach) — with `random_16` (`0x0611E0EE`, `0x136` distant) found by the same scan as the positive control. The clamp pins Oro at screen centre + 164, so `jijii_jump`'s `xyz[0].disp.pos > bgw[1].xy[0].disp.pos + 320` exit is unreachable and the win leap never ends. Archive agrees frame for frame: `routine_no[3] == 9`, `win_rno == 2/1` throughout, winner X climbing to **674 at f3,290** against a 668 threshold (camera 348), where `win_rno[1]` steps 1 -> 2 — the exit firing — then freezes. Corpus 178/4 -> **181 PASS / 1 `rc=1`**, exactly 3 verdicts moved, all one session; 143-corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. ~~**The other 47 `win_pl.c` sites and 12 in `lose_pl.c` are UNADJUDICATED**~~ — **CLOSED 2026-09-06**, all of them read out of the arcade: **`Win_01000` is the only absence**. Every other site calls it on the arcade too — 16 of `win_pl.c`'s 24 pairs identically, 7 present but divergent in placement or arguments (E9b/c/d), all 6 in `lose_pl.c` present — `Normal_normal_Winner` (`0x060C37BA`, pinned by `Win_00000` being `bra 0x60c37ba; nop`) **included** — see "The other 59 sites, adjudicated" for the per-site `jsr` addresses. E7 is a singleton, not the head of a family |
 | E8 | `effect_L7_init()` gate 3 tests the wrong bit — the 2026-09-06 corpus's D5 | **FIXED and GATED** — the arcade (`0x06113FC8`) gates Hugo's Poison taunt gag on **bit 12** of the raw `P1SW_0`/`P2SW_0` (`mov.w 0x61140c0,r4` -> `r4 = 0x1000`; `0x0206AA8C`/`0x0206AA90` per branch); the port tested **bit 0**, `SWK_UP`, so it never spawned and never drew — `delta=-1`, CPS3 drawing where we did not, the opposite direction from E6. Function identified independently: `effl7_data_tbl` unique at `0x061CB064` with exactly one literal referrer (pool word `0x061141A4`, loaded at `0x0611416C`, in-function); `effmovejptbl[217] = 0x06113D54`, and 217 is the `wu.id` this routine stores. Exactly **one** `random_16` pool word in the function (`0x061141A0` -> `jsr` at `0x06114166`; `bsr` cannot reach, `0x9F64` vs `±0x1000`), so one draw per spawn. `SWK_START` is used as a **conversion identity** — the port's own raw-arcade converter `src/test/replay_game.c` -> `read_input_buff()` maps `(raw & (1 << 12)) << 2`, i.e. bit 12 -> `SWK_START`; that bit 12 **is** START is likely but **NOT proven**, and nothing rests on it. Two harness changes were needed because the `sw_lvbt` mirror carries no start bit at all: `statcheck_runner.c` -> `read_input_buff()` now imports it, and `pause.c` -> `Check_Pause_Term()`'s `STATCHECK` carve-out moved **above** the `SWK_START` check — the same correction the `.3sr` replay player already had, whose comment stated the now-false precondition "`read_input_buff` never emits `SWK_START`"; leaving it below cost 3 passing segments (`t_pl_lvr` `left_cnt` 35 vs 36, `right_cnt` 53 vs 54, and one `waza` `w_type`), measured not predicted. PS2 keeps `& 1` (`SWK_UP` is `1 << 0`, bit-identical). Corpus 181/1 -> **182 PASS / 0 `rc=1`**, exactly 1 verdict moved; 143-corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. ~~`win_pl.c` -> `Win_13000()` carries the **identical `& 1` gate** and is deliberately UNADJUDICATED — its arcade counterpart was never read~~ — **read and FIXED 2026-09-06, see E9a**: `win_jp_tbl[13]` is `0x060C4D22` and it masks `0x1000` off the same `0x0206AA8C`/`0x0206AA90` |
 | E9a | `Win_13000()`'s input gate tests bit 0 where the arcade tests bit 12 | **FIXED and GATED** — E8's defect in the routine E8 named and could not read. `win_player`'s `win_jp_tbl` (`0x061A38C0`, one referrer) entry `[13]` is `0x060C4D22`, and `0x060C4DF4 mov.w 0x60c4e74,r4` loads **`0x1000`**, `tst`-ed against `0x0206AA90` (`id != 0`) or `0x0206AA8C` (`id == 0`) — the same two raw switch words and the same bit E8 established. Ours tested `SWK_UP`. **Chun-Li's routine and hers alone**: `winner_type_tbl` holds 13 at exactly one index, 15 = `CHAR_CHUNLI` (arcade 16, Shin Akuma at 15), on the match-deciding branch. **Not cosmetic** — the held arm calls `set_char_move_init(&wu, 9, 40)` and returns *without* `win_select()`, so it skips a `random_16` draw the arcade takes; a Chun-Li player holding up desynchronised the RNG. Fix is E8's shape verbatim, `SWK_START` under `ArcadeBalance_IsEnabled()` (the conversion identity `read_input_buff()` fixes, not a claim about the physical button); PS2 keeps `& 1`, bit-identical to `SWK_UP`. Routine identity is independent of the mask: its `case 0` matches the port statement for statement including the `default: Normal_normal_Winner` tail-jump to `0x060C37BA`. **Not corpus-exercised** — all three corpora unchanged, so this rests on the disassembly alone |
-| E9b | the arcade corrects the screen bound **before** the animation step; `lose_pl.c` (×6) and `twelve_win_backjump` (×2) do it after | **ESTABLISHED, deliberately NOT CHANGED** — in all six `lose_pl.c` routines and both `twelve_win_backjump` cases the arcade's `jsr` pair is the first thing the routine does, ahead of the `pcon_rno` tests and the `routine_no[3]` dispatch; ours is the last. `Normal_normal_Loser` is the clean reading: `0x060C59E2`/`0x060C5A04`, then `0x060C5A08 mov.l ... ; =02068c5e` + `tst`/`cmp/eq #4`, then `0x060C5A18` with `r0 = 42`. A call cannot be hoisted over that branch, so it is source order. Two consequences: clamp-then-move vs move-then-clamp, and our `pcon_rno[1] == 0 \|\| == 4` early returns skip a correction the arcade has already made. **Not fixed** because it is an ordering class, not E7's "a call the arcade never makes", and because a wall clamp around a stationary lose animation agrees either way — which is what 447/447 with it in place says. `twelve_win_backjump` is the one travelling arm and it is Twelve-only on one of three `win_rno[0]` branches |
-| E9c | `meta_win_pause` makes three correction pairs behind a `Bonus_Game_Flag` branch; the arcade makes one and has no such branch | **ESTABLISHED, deliberately NOT CHANGED** — arcade `0x060C54B2` is 218 bytes: `bg_app_stop = 1`, one pair on `plw[wk->wu.id]` with the ordinary `scrr`/`scrl` (`0x060C54DE`/`0x060C5500`), then the dispatch at `0x060C5506` whose `case 0` is `set_char_move_init(&wu, 9, meta_win_tbl[player_number])` — `meta_win_tbl` at `0x061A3A10`, 21 entries = ours with **34 inserted at index 15**, and `@(0x03C0,r14)` the same `player_number` displacement `win_player` uses. **`0x02016B3A` (`Bonus_Game_Flag`) appears nowhere in `0x060C54B2..0x060C558C`.** So in a bonus game we correct **both** players with `bs_scrrrl` where the arcade corrects only this one with `scrr`/`scrl`, and we do it after the dispatch. Not fixed: the faithful edit is E9b's move plus dropping the branch, and reach needs `My_char[id] != player_number` **and** `Bonus_Game_Flag` together |
-| E9d | `bonus_game_win_pause` passes `bs_scrrrl`; the arcade passes `scrr`/`scrl` | **ESTABLISHED, deliberately NOT CHANGED** — arcade `0x060C5308` has our shape exactly (`plw[1]` then `plw[0]`, both before the dispatch at `0x060C538A`) but both pairs read the same `*(0x02026CB0) ± *(0x02026BD4)` every other routine in the cluster reads — `mov r13,r5; add #84,r5; add r10,r5` with `r10 = 0x0090` plus `mov #32,r0` is `0x02026BAC + 0x104`, and `mov #40,r0` is `0x02026BD4`. We pass `bs_scrrrl[1][0..1]` / `bs_scrrrl[0][0..1]` from `plcnt2.c` -> `setup_bs_scrrrl_bs()`. **NOT established**: whether the arcade has a `bs_scrrrl` at all. Unreachable in versus play, so no corpus can adjudicate it. This routine is also where the resolved-call census under-counted — `0x060C5384` is a fourth `jsr @r11` the graph missed, which is why the adjudication rests on the literal scan plus disassembly and never on absence from the census |
+| E9b | the arcade corrects the screen bound **before** the animation step; `lose_pl.c` (×6) and `twelve_win_backjump` (×2) did it after | **FIXED and GATED (second pass, 2026-09-06)** — in all six `lose_pl.c` routines nothing precedes the first `jsr` but the prologue (and `meta_lose_pause`'s `bg_app_stop` store), and the `pcon_rno` tests and `routine_no[3]` dispatch follow; `twelve_win_backjump` heads `win_rno[1]` cases 0 and 1 with the pair (`0x060C4AEC`/`0x060C4B0C` before `jsr @r11` = `char_move` at `0x060C4B10`; `0x060C4B88`/`0x060C4BA8` before `add_y_sub`/`add_x_sub`/`char_move`). Not cosmetic: the pair writes `micchaku_flag`/`hos_fi_flag`/`hosei_amari` every call, `check_damage_hosei()` pushes the **other** player by `hosei_amari` the same frame, `bg_sub.c` reads `micchaku_flag` for the scroll. Gate: `ArcadeBalance_IsEnabled()` runs the pair at the head, `!` runs it at the tail; PS2 arm is the tail pair only, bit-identical. Reproduces the arcade's double correction on `Lose_20000`'s judge path. **Not corpus-adjudicable**: 447/447 with the pair at the head, and 447/447 with NO pair at all under the arcade arm (control) — `statcheck_compare.c` compares positions and none of the three fields the pair writes, and an in-bounds loser never moves. 0 verdict lines moved either way; the gate rests on the disassembly alone |
+| E9c | `meta_win_pause` made three correction pairs behind a `Bonus_Game_Flag` branch after the dispatch; the arcade makes one before it and has no such branch | **FIXED and GATED (second pass, 2026-09-06)** — arcade `0x060C54B2`: `bg_app_stop`, one pair on `plw[wk->wu.id]` (`0x060C54DE`/`0x060C5500`), dispatch `0x060C5506`; `0x02016B3A` is neither a pool literal of the routine nor within ±255 of one. Arcade arm: that one pair, before the dispatch, reading the bound **live** as `bg_w.bgw[1].wxy[0].disp.pos ± bg_w.pos_offset` (the arcade's `bg_w+0x104` / `bg_w+40`) because the routine is reachable in a bonus game where `scrr`/`scrl` are stale (`set_scrrrl()` is called from `Player_control` and `menu.c` only). PS2 arm untouched. **Not corpus-exercised** (0 verdict lines moved on all three corpora); rests on the disassembly alone |
+| E9d | `bonus_game_win_pause` passes `bs_scrrrl`; the arcade passes the ordinary bound | **ESTABLISHED, deliberately NOT CHANGED (reason sharpened, 2026-09-06)** — arcade `0x060C5308` has our shape and all four calls (`0x060C5338`/`0x060C5354`/`0x060C536A`/`0x060C5384`) pass `bgw[1].wxy[0] ± pos_offset`, a shared `centre ± width`; `bs_scrrrl` is per-player and asymmetric (`512 ± bsmr_range_table`), which that form cannot express — a real divergence, and this routine uses no `bs_scrrrl` equivalent. Not transcribed because the port has no live value to pass: `scrr`/`scrl` are stale in a bonus game, and `get_center_position()` returns a constant 512 for `Bonus_Game_Flag == 21`, a test the arcade routine lacks — whether the arcade's `bgw[1].wxy[0]` is 512 there was not established. Unreachable in versus; no corpus can adjudicate either arm. Also noted: `0x060C53B8` tests `Bonus_Game_Flag == 21` where ours tests `== 20` — not chased |
 | FP | `EXE_flag` / `Game_pause` were never compared against CPS3 — a detection blind spot, not a defect | **CLOSED, 2026-09-06** — both offsets added to `arcade_constants.h` (`EXE_FLAG_OFFSET 0xEECC` = CPS3 `0x0200EECC`, `GAME_PAUSE_OFFSET 0x1136E` = CPS3 `0x0201136E`; established by E6's disassembly at three sites — `effect_C08_move` routines 1 and 2 at `0x060DD918`/`0x060DDA84` and `effect_C74_move` at `0x060F13D4` — and corroborated in the archives, not taken from the comment). **ASSERTED every compared frame, never seeded**, the `bg_w.quake_y_index` call and the opposite of `players_timer`: `Game2_0()` zeroes `Game_pause` and `set_EXE_flag()` recomputes `EXE_flag` from a `Game_timer` that `Game2_0()` just zeroed, so there is nothing to import and a mismatch is behaviour. **One normalization, forced by measurement**: the arcade holds **-1** through the 90-frame K.O. window where our `effect_84_move` holds **1** (`Time_Data[1]`), and the archive shows `EXE_flag` freezing across a -1 run exactly as across a 1 run — so `compare_service_values()` maps that one value and stays strict on every other. **`0x81` is not masked**: every writer was traced unreachable under STATCHECK (`Check_Pause_Term()` returns 0 unconditionally above both the `SWK_START` and connection tests since `3769c189`; `Check_SoftReset` needs `SWK_BACK`, which `read_input_buff` never emits; the five `menu.c` writers are training/replay paths; `cpLoopTask`'s `|= 0x80` is DEBUG-only) and the compare merely *labels* the case — it never fired on any of the 328 corpus runs. Seed audit: `EXE_flag` **strict** (0 on 183/183 and 143/143), `Game_pause` **allowlisted** on `Game2_0()`'s next-frame zero (archive carries 1 into the seed frame on 50/183 and 38/143, ours is 1 on all, both 0 at `start_index` on 183/183 and 143/143). **Zero new failures**: 2026-09-06 **182 PASS / 0 `rc=1` / 1 `rc=4` / 2 `rc=3` unchanged**, 2026-09-05 **143/143 unchanged**, **0** `PASS — compared archive frames a..b of n` lines changed on either corpus, frame-data suite **99 GREEN, zero drift**. Archive census over every frame of both corpora (1,167,121 + 869,986): `EXE_flag` ∈ {0,1,2,3}, `Game_pause` ∈ {0,1,-1} and **nothing else** — in particular no `0x81`. **Positive control**: remove the `-1 -> 1` substitution and the corpus goes **182/182 and 143/143 FAIL**, at archive frames 941-5,755 and 921-4,255, every one of them the identical line `game_pause_3sx (1) != game_pause_cps3_norm (-1)` — so the assert is live, the compared window reaches a K.O. freeze on EVERY segment, and the mask hides exactly one value pair with nothing behind it. **CORRECTED 2026-09-06**: the claim "every consumer on both sides is a zero test" was half wrong. The ARCADE half is measured and true — 192 4-aligned pool entries, 237 `mov.l` loads, **209** distinct `mov.w @Rn,Rm` reads of which **208** are followed immediately by `tst Rm,Rm` and the one exception (`0x060F2A78`, a `bt/s` delay slot) by `exts.w`+`tst` at `0x060F2A92`/`94`, and **28** distinct writers. The PORT half is FALSE: `cmb_win.c` (7x `& 0x80`), `spgauge.c`, `tate00.c`, `effa2.c` (6x), `plcnt*.c`/`game.c` (`!= 0x81`), `menu.c` (`& 0x7F`), `sc_sub.c` all read it as a mask or an inequality, and several are reachable in an arcade battle. The substitution is sound anyway — it rewrites the ARCHIVE's value, and the arcade side is the zero test. **The `-1` writer is now identified**: CPS3 `0x060F51AC` (`mov.w r4,@r10`, r10 = `0x0201136E` from `0x060F516C`), fed by `mov #-1,r4` at `0x060F5194` in the `bt/s` delay slot of the `message_index == 0` arm, followed by `routine_no[1]++` and `jsr` to `0x060D643C` with both arguments 0 — the port's `effect_84_move` `case 0` exactly; the function loads `Time_Data` (`0x061BF974`, the byte string `{80,90,50,50,50}`, unique in the image) 20 instructions earlier. **NEW OPEN ITEM**: `TATE00()`'s `if (Game_pause & 0x80) return;` (`stage/tate00.c`) can never fire on our side, so we run `jump_tbl[bg_w.bg_routine]()` / `Scrn_Renew()` / `Irl_*` on every frame including the arcade's -1 window — and camera/BG state beyond `bg_w.quake_y_index` is not compared, so the oracle could not see it either way. `EXE_obroll`, the third flag of the family, is still unassertable — no CPS3 address, and our port has ONE writer (`EXE_obroll = 0`, `manage.c`) against 55 readers, so it is structurally dead on our side |
 | M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures were E5, and fixing E5 took it back to 142/1 with the assert standing. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
 | M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |

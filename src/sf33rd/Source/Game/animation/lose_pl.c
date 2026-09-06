@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/animation/lose_pl.h"
+#include "arcade/arcade_balance.h"
 #include "common.h"
 #include "sf33rd/Source/Game/effect/effc1.h"
 #include "sf33rd/Source/Game/engine/charset.h"
@@ -33,19 +34,44 @@
  * 0x060C5768/0x060C578A, 0x060C588A/0x060C58AC, 0x060C59E2/0x060C5A04,
  * 0x060C5A98/0x060C5ABA and 0x060C5B58/0x060C5B7A.
  *
- * DIVERGENT IN SHAPE, NOT IN PRESENCE -- established, deliberately NOT changed
- * (E9 in docs/research-arcade-balance-desyncs.md). In all six the arcade makes
- * the correction the FIRST thing the routine does, before the pcon_rno tests
- * and before the routine_no[3] dispatch; we make it the LAST thing, after. Two
- * consequences: the arcade corrects before char_move and we correct after, and
- * on the `pcon_rno[1] == 0 || == 4` early returns below we skip the correction
- * entirely where the arcade has already made it. Normal_normal_Loser is the
+ * DIVERGENT IN SHAPE, NOT IN PRESENCE -- E9b, FIXED and GATED 2026-09-06 (see
+ * docs/research-arcade-balance-desyncs.md). In all six the arcade makes the
+ * correction the FIRST thing the routine does: nothing but the register
+ * prologue (and, in meta_lose_pause, the bg_app_stop store at 0x060C5B3E)
+ * precedes the first jsr, and the pcon_rno tests and the routine_no[3]
+ * dispatch follow it. Ours was the LAST thing. Normal_normal_Loser is the
  * clearest reading -- 0x060C59E2/0x060C5A04 (the pair), then 0x060C5A08
  * `mov.l 0x60c5ae4,r4 ; =02068c5e` and the tst/cmp-eq-#4 pair, then
- * 0x060C5A18 `mov.w @(r0,r14),r0` with r0 = 42. */
+ * 0x060C5A18 `mov.w @(r0,r14),r0` with r0 = 42.
+ *
+ * Why it matters: the pair writes micchaku_flag / hos_fi_flag / hosei_amari
+ * every call (zeros when inside the bound), check_damage_hosei() consumes
+ * hosei_amari the same frame to push the OTHER player and zeroes it, and
+ * bg_sub.c's scroll reads micchaku_flag. So on the `pcon_rno[1] == 0 || == 4`
+ * early returns the arcade has corrected the loser and we had not; and on the
+ * Lose_20000 -> Judge_normal_loser path the arcade corrects twice before the
+ * dispatch (0x060C5768/0x060C578A then 0x060C5A98/0x060C5ABA), which leaves
+ * hosei_amari = 0, where we corrected once, after.
+ *
+ * Shape of the gate: ArcadeBalance_IsEnabled() runs the pair at the head and
+ * skips it at the tail; PS2 keeps the tail pair and no head pair, statement
+ * for statement what this file has always done. The bound is scrr/scrl in
+ * both arms: these routines are reached from Normal_41000 only, in versus,
+ * where set_scrrrl() has just computed them from the same bgw[1].wxy[0] and
+ * 192 the arcade reads inline (bg_w+0x104 and bg_w+40; the arcade writes 192
+ * to the latter at 0x060BB6FE/0x060BB704 when the service byte 0x0206AC62 is
+ * 0, which the corpus measures it to be). */
 const s16 loser_type_tbl[20] = { 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0 };
 
 const s16 meta_lose_tbl[20] = { 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 28, 24, 24, 24, 24, 24, 24 };
+
+/* The screen-edge correction every routine in this file makes. Arcade
+ * (0x0611DFB8) and port agree on the body; only WHERE it is called differs. */
+static void loser_field_hosei(PLW* wk) {
+    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1) != 0) {
+        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    }
+}
 
 void lose_player(PLW* wk) {
     void (*lose_jp_tbl[4])(PLW*) = { Lose_00000, Lose_10000, Lose_20000, Lose_30000 };
@@ -68,6 +94,10 @@ void Lose_00000(PLW* wk) {
 }
 
 void Lose_10000(PLW* wk) {
+    if (ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
+    }
+
     if ((pcon_rno[0] == 2) && (pcon_rno[1] == 3)) {
         switch (wk->wu.routine_no[3]) {
         case 0:
@@ -101,13 +131,17 @@ void Lose_10000(PLW* wk) {
         }
     }
 
-    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1) != 0) {
-        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    if (!ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
     }
 }
 
 void Lose_20000(PLW* wk) {
     s16 work;
+
+    if (ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
+    }
 
     if ((pcon_rno[0] == 2) && (pcon_rno[1] == 3)) {
         Judge_normal_loser(wk);
@@ -137,12 +171,16 @@ void Lose_20000(PLW* wk) {
         break;
     }
 
-    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1) != 0) {
-        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    if (!ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
     }
 }
 
 void Lose_30000(PLW* wk) {
+    if (ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
+    }
+
     if ((pcon_rno[0] == 2) && (pcon_rno[1] == 3)) {
         switch (wk->wu.routine_no[3]) {
         case 0:
@@ -173,13 +211,17 @@ void Lose_30000(PLW* wk) {
         }
     }
 
-    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1) != 0) {
-        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    if (!ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
     }
 }
 
 void Normal_normal_Loser(PLW* wk) {
     s16 work;
+
+    if (ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
+    }
 
     if ((pcon_rno[1] == 0) || (pcon_rno[1] == 4)) {
         return;
@@ -199,13 +241,17 @@ void Normal_normal_Loser(PLW* wk) {
         break;
     }
 
-    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1) != 0) {
-        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    if (!ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
     }
 }
 
 void Judge_normal_loser(PLW* wk) {
     s16 work;
+
+    if (ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
+    }
 
     switch (wk->wu.routine_no[3]) {
     case 0:
@@ -222,13 +268,17 @@ void Judge_normal_loser(PLW* wk) {
         break;
     }
 
-    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1) != 0) {
-        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    if (!ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
     }
 }
 
 void meta_lose_pause(PLW* wk) {
     bg_app_stop = 1;
+
+    if (ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
+    }
 
     if ((pcon_rno[1] == 0) || (pcon_rno[1] == 4)) {
         return;
@@ -246,7 +296,7 @@ void meta_lose_pause(PLW* wk) {
         break;
     }
 
-    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1) != 0) {
-        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    if (!ArcadeBalance_IsEnabled()) {
+        loser_field_hosei(wk);
     }
 }
