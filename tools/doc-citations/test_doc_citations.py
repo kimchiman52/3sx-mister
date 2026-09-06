@@ -28,6 +28,7 @@ Exit: 0 all assertions hold; 1 an assertion failed; 2 harness failure.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -67,6 +68,14 @@ MUST_CATCH = [
     # accepted again.
     ("7 bare line citation into an anchor-required file",
      "unanchored-citation", "src/netplay/game_state.c:580"),
+    # A symbol deleted from a file that STILL EXISTS. Until the history corpus
+    # stopped skipping current paths, this came back as phantom-identifier
+    # with the text "has never existed" -- for 35 real names in one document,
+    # all removed by 2c63adc7 -- and that confidently-wrong text sent a lane
+    # to rewrite a document that was correct. The needle is the commit: the
+    # finding must not merely say "gone", it must say where.
+    ("8 symbol deleted from a file that still exists (RELAY_REQ, 2c63adc7)",
+     "stale-identifier", "2c63adc7"),
 ]
 
 # Case 4 is a documented RECALL GAP, asserted as such so that it cannot be
@@ -499,6 +508,161 @@ def check_archive_is_not_scanned():
     return failures
 
 
+def check_history_tells_stale_from_phantom():
+    """The history corpus must answer "did this name ever exist as code?"
+    for EVERY path, including paths still in the tree.
+
+    WHY. History.tokens() used to index historical blobs only for paths that
+    were no longer tracked (`if p in current: continue`), as a cost saving.
+    The consequence was a factually false diagnostic: any symbol deleted from
+    a file that survived it was reported as `phantom-identifier` with the
+    evidence "absent ... from every historical revision of every source
+    file". On docs/plan-netplay-connection.md that text was wrong 65 times
+    out of 65, and it caused a real misdiagnosis -- the document was read as
+    an unbuilt design whose names never shipped.
+
+    WHAT IS ASSERTED, in a throwaway repository built here so the verdicts
+    depend on nothing but the mechanism:
+
+      stale_widget_count   defined in the fixture's widget source, deleted by
+                           a later commit while that file lived on
+                           -> stale-identifier, and the message names BOTH
+                           the path and the commit
+      gone_file_widget     deleted together with its file -> stale-identifier
+                           naming that file and commit (the case the old corpus
+                           already handled; it must not regress)
+      never_widget_count   in no revision of anything     -> phantom-identifier
+                           with the "every historical revision" evidence
+      comment_only_widget  named in a comment in one historical revision,
+                           never as code                  -> phantom-identifier,
+                           and the evidence says the mention was in a comment
+                           (the old raw corpus would have called this stale)
+      live_widget_count    still defined                  -> silence
+
+    The checker is run twice: the second run must reproduce the first, which
+    is what proves the on-disk history cache (a pickle in the repo's git
+    common dir, keyed on the raw log) returns the same corpus it stored.
+    """
+    tmp = tempfile.mkdtemp(prefix="doccite-history-test-")
+    failures = []
+    git = ["git", "-C", tmp, "-c", "user.name=doccite",
+           "-c", "user.email=doccite@example.invalid",
+           "-c", "commit.gpgsign=false"]
+
+    def sh(*args):
+        subprocess.run(git + list(args), check=True, capture_output=True)
+
+    def put(rel, text):
+        full = os.path.join(tmp, rel)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    try:
+        sh("init", "-q")
+        put("src/widget.c",
+            "int stale_widget_count = 0;\n"
+            "/* comment_only_widget: named here, defined nowhere */\n"
+            "int live_widget_count = 1;\n")
+        put("src/gone_file.c", "int gone_file_widget = 2;\n")
+        sh("add", "-A")
+        sh("commit", "-q", "-m", "add widgets")
+        put("src/widget.c", "int live_widget_count = 1;\n")
+        os.unlink(os.path.join(tmp, "src/gone_file.c"))
+        sh("add", "-A")
+        sh("commit", "-q", "-m", "drop stale_widget_count and gone_file.c")
+        removing = subprocess.run(git + ["rev-parse", "HEAD"], check=True,
+                                  capture_output=True, text=True).stdout.strip()
+        put("docs/widget-notes.md",
+            "# Widget notes\n\n"
+            "NOT A REAL DOCUMENT. Built by test_doc_citations.py.\n\n"
+            "The counter `stale_widget_count` is reset by `never_widget_count` "
+            "after `comment_only_widget` runs; `gone_file_widget` went with "
+            "its file, and `live_widget_count` is the survivor.\n")
+        sh("add", "-A")
+        sh("commit", "-q", "-m", "notes")
+
+        runs = []
+        for _ in range(2):
+            proc = subprocess.run(
+                [sys.executable, CHECKER, "--root", tmp, "--json",
+                 "docs/widget-notes.md"],
+                cwd=tmp, capture_output=True, text=True)
+            if proc.returncode not in (0, 1):
+                sys.stderr.write("checker failed (rc=%d):\n%s\n"
+                                 % (proc.returncode, proc.stderr))
+                raise SystemExit(2)
+            runs.append(json.loads(proc.stdout)["findings"])
+        findings = runs[0]
+        if runs[0] != runs[1]:
+            failures.append(
+                "HISTORY CACHE CHANGED THE VERDICT: a second run over the same "
+                "repository (served from the cached corpus) produced different "
+                "findings -- first %s, second %s"
+                % ([(f["code"], f["message"]) for f in runs[0]],
+                   [(f["code"], f["message"]) for f in runs[1]]))
+
+        def about(sym):
+            return [f for f in findings
+                    if f["code"] in ("stale-identifier", "phantom-identifier")
+                    and ("`%s`" % sym) in f["message"]]
+
+        for sym, path in (("stale_widget_count", "src/widget.c"),
+                          ("gone_file_widget", "src/gone_file.c")):
+            hits = about(sym)
+            if not hits:
+                failures.append("NOT CAUGHT: `%s` produced no finding" % sym)
+                continue
+            f = hits[0]
+            if f["code"] != "stale-identifier":
+                failures.append(
+                    "MISCLASSIFIED: `%s` existed as code in %s and was deleted, "
+                    "but is reported as %s: %r -- the checker is claiming a "
+                    "real symbol never existed"
+                    % (sym, path, f["code"], f["message"]))
+                continue
+            if "`%s`" % path not in f["message"]:
+                failures.append(
+                    "NO PATH: the stale finding for `%s` must name `%s`, the "
+                    "file it was removed from: %r" % (sym, path, f["message"]))
+            if removing[:8] not in f["message"]:
+                failures.append(
+                    "NO COMMIT: the stale finding for `%s` must name %s, the "
+                    "commit that removed it: %r"
+                    % (sym, removing[:8], f["message"]))
+
+        hits = about("never_widget_count")
+        if not hits or hits[0]["code"] != "phantom-identifier":
+            failures.append(
+                "`never_widget_count` never existed anywhere and must stay "
+                "phantom-identifier; got %s"
+                % [(f["code"], f["message"]) for f in hits])
+        elif "every historical revision" not in " ".join(hits[0]["evidence"]):
+            failures.append(
+                "the phantom evidence for `never_widget_count` no longer says "
+                "history was searched: %r" % hits[0]["evidence"])
+
+        hits = about("comment_only_widget")
+        if not hits or hits[0]["code"] != "phantom-identifier":
+            failures.append(
+                "`comment_only_widget` was only ever a word in a comment and "
+                "must be phantom-identifier, not a symbol that 'existed'; got "
+                "%s" % [(f["code"], f["message"]) for f in hits])
+        elif "comment" not in " ".join(hits[0]["evidence"]):
+            failures.append(
+                "the phantom evidence for `comment_only_widget` should say the "
+                "historical mention was inside a comment: %r"
+                % hits[0]["evidence"])
+
+        if about("live_widget_count"):
+            failures.append(
+                "SPURIOUS: `live_widget_count` is still defined and produced %s"
+                % [(f["code"], f["message"]) for f in about("live_widget_count")])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return failures
+
+
 def main():
     failures = []
 
@@ -530,6 +694,7 @@ def main():
     failures.extend(check_fix_refuses_range_citations())
     failures.extend(check_fix_anchors_to_definition_not_mention())
     failures.extend(check_archive_is_not_scanned())
+    failures.extend(check_history_tells_stale_from_phantom())
 
     good = run(GOOD)
     for f in good:

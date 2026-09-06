@@ -138,8 +138,10 @@ docstring is checked by the check it documents.
 
 import argparse
 import fnmatch
+import hashlib
 import json
 import os
+import pickle
 import re
 import subprocess
 import sys
@@ -288,6 +290,40 @@ RE_DEGENERATE = re.compile(r"^\s*(?:[{}();,]*|\*/|/\*+|#include\b.*)\s*$")
 
 RE_BACKTICK = re.compile(r"`([^`\n]{1,200})`")
 RE_WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+# `git cat-file --batch` object header: "<sha> blob <size>\n".
+RE_CATFILE_HDR = re.compile(rb"([0-9a-f]{40}) blob (\d+)\n")
+ZERO_SHA = "0" * 40
+
+# History corpus (see the History class). The pathspecs whose every historical
+# revision is indexed. .js is here for the same reason it is in
+# CODE_PROSE_EXTS: tools/rendezvous-server is real code whose deleted names
+# documents cite.
+HISTORY_EXTS = ("*.c", "*.h", "*.cpp", "*.hpp", "*.py", "*.sh", "*.js")
+
+# The stage-1 index cache lives in the git COMMON dir (shared by every linked
+# worktree of the repository, invisible to `git status`), keyed on a digest of
+# the raw log it was built from. Bump the format when the pickle layout
+# changes; a mismatch is just a rebuild.
+HISTORY_CACHE_FILE = "doc-citations-history.pickle"
+HISTORY_CACHE_FORMAT = 1
+
+# Stage-2 memo: blob sha -> its comment-stripped identifier set. A blob's
+# content never changes, so this cache never goes stale; it is simply capped.
+# Decommenting is the walk's whole cost (~11 MB/s, char-by-char), and the
+# same few hundred blobs are decommented on every run -- a persisted memo
+# makes the second run's walk almost free.
+HISTORY_BLOB_MEMO_FILE = "doc-citations-history-blobs.pickle"
+HISTORY_BLOB_MEMO_FORMAT = 1
+HISTORY_BLOB_MEMO_MAX = 6000
+
+# Stage-2 bounds. Decommenting measured ~11 MB/s on this tree; 128 MB is
+# ~12 s of walking in the worst case before findings start saying
+# "not located" instead of naming a commit. Raw blob bytes are kept resident
+# up to HISTORY_BYTES_RESIDENT so the many names one commit removed from one
+# file are answered from memory.
+HISTORY_STRIP_BUDGET = 128 * 1024 * 1024
+HISTORY_BYTES_RESIDENT = 96 * 1024 * 1024
 RE_IDENT_FULL = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # C4: an appeal to a named artifact. Requires (a) an evidence verb, (b) a
@@ -664,6 +700,42 @@ def load_record_globs(path):
     return globs
 
 
+class Removal:
+    """Where a symbol that is no longer in the tree went. See History.removal.
+
+    kind is one of:
+      "commit"       removed from `path` by `commit`, an ancestor of HEAD
+      "uncommitted"  HEAD's path still has it as code; the working tree does not
+      "renamed"      path was renamed to moved_to by commit while still
+                     carrying it as code; the removal from moved_to was not found
+      "gone-path"    HEAD's last indexed revision of `path` has it as code, but the
+                     path is not tracked any more and no diff recorded its deletion
+      "branch"       removed from `path` by `commit`, which HEAD does not descend from
+      "elsewhere"    exists as code in `path` only on a ref HEAD does not descend from
+      "unlocated"    named by historical revisions of `paths`, but the search budget
+                     ran out before any of them was decommented, so code-or-comment
+                     is unknown
+      "comments-only" every historical mention, in every path, is inside a comment
+
+    Every kind but the last two means the name existed as code.
+    """
+
+    __slots__ = ("kind", "path", "commit", "moved_to", "paths", "examined")
+
+    # Lower is better. removal() stops at the first result of rank 0.
+    RANK = {"commit": 0, "uncommitted": 0, "branch": 1, "renamed": 2,
+            "gone-path": 2, "elsewhere": 3, "unlocated": 4, "comments-only": 5}
+
+    def __init__(self, kind, path=None, commit=None, moved_to=None,
+                 paths=(), examined=()):
+        self.kind = kind
+        self.path = path
+        self.commit = commit
+        self.moved_to = moved_to
+        self.paths = list(paths)
+        self.examined = list(examined)
+
+
 class History:
     """What this repo has EVER contained, used to separate two different
     failures that look identical to a naive checker.
@@ -686,25 +758,85 @@ class History:
 
     Paths come from `git log --all --name-only`, which is exact.
 
-    Identifiers come from tokenising every blob that any non-current revision
-    of a *.c/*.h/*.cpp/*.hpp/*.py/*.sh path ever had. That is exact for the
-    dominant case (a symbol that vanished with its file). KNOWN LIMIT: a symbol
-    renamed inside a file that still exists is classified as a phantom rather
-    than as stale. That is a deliberate choice, not an oversight -- a reader who
-    greps for such a name finds nothing either way, so it is still a live defect
-    worth reporting.
+    Identifiers come in two stages, because exactness and speed pull in
+    opposite directions here.
+
+    Stage 1, the INDEX: every blob that any revision on any ref ever had at a
+    HISTORY_EXTS path -- INCLUDING paths that still exist -- is tokenised raw
+    (comments kept) into a per-path token set. This is the cheap, complete
+    question "has this name ever appeared in that file, in any form?". It used
+    to skip paths still in the tree, which halved the blob count but made the
+    checker say "has never existed" about every symbol deleted from a file
+    that survived it -- 35 real, shipped names in one document, removed by a
+    single commit, all reported as fabrications. A checker that is
+    confidently wrong is worse than one that is silent, so that guard is gone.
+    The index is 12.6k blobs / 345 MB on this tree and takes ~4 s to build,
+    which is why it is cached: a pickle in the git common dir, keyed on a
+    digest of the raw log it was built from, so any new commit on any ref
+    rebuilds it and an unchanged history loads in ~0.05 s.
+
+    Stage 2, the WALK: only for a name a document actually cites and the
+    current code does not have. Each candidate path's revisions are walked
+    newest-first, decommented on demand, to find the commit whose diff took
+    the name out of that file as CODE. That is what lets the finding say
+    "removed from src/netplay/direct_p2p.c in 2c63adc7" instead of "no longer
+    exists", and it is also what keeps a name that only ever lived in a
+    comment from being called real. Decommenting is ~11 MB/s, so the walk is
+    memoised per blob and bounded by HISTORY_STRIP_BUDGET; past the budget a
+    finding says so rather than guessing.
+
+    Two git defaults would make the walk lie, and both are overridden. `git
+    log --raw` detects renames, so a moved file prints ONE entry naming both
+    paths; read naively, the old path appears to live on with the new file's
+    content, and a symbol that was really deleted from the new path years
+    later gets blamed on the restructure commit that moved it. Rename entries
+    are therefore split: the old path ends (kind "renamed") and the new path
+    inherits the pre-rename blob as its "old" side, so the walk continues
+    across the move. And `git log` prints NO diff for a merge commit, so a
+    symbol dropped during conflict resolution -- menu.c lost
+    check_netplay_cancelled in merge 9dd530bf that way -- had no removing
+    entry at all and was misreported as an uncommitted deletion.
+    --full-history --diff-merges=first-parent makes merges print their diff
+    against the line of development they landed on -- and because that diff
+    is then where the walk first meets a removal that really happened on the
+    merged branch, the walk steps down into the merge's side commits and
+    names the one that did it (2c63adc7, not the merge that landed it).
+
+    Self-exclusion mirrors Repo.code_tokens: tools/doc-citations/ is never
+    indexed, because this tool's own tests name the very symbols they assert
+    do not exist.
     """
 
-    def __init__(self, root, enabled=True):
+    def __init__(self, root, enabled=True, use_cache=True):
         self.root = root
         self.enabled = enabled
+        self.use_cache = use_cache
         self._paths = None
-        self._tokens = None
         self._suffix = None
+        self._tokens = None
+        # Stage 1 (see class docstring).
+        self._index = None        # path -> set of raw tokens over every revision
+        self._path_bytes = None   # path -> total blob bytes, for cheapest-first
+        self._entries = None      # path -> [(commit, old_blob, new_blob,
+                                  #           renamed_to_or_None)], newest first
+        self._commits = None      # commit -> (date, subject)
+        self._parents = None      # commit -> [parent, ...]
+        self._side = {}           # merge -> commits on its merged-in side
+        self._head = None         # commits reachable from HEAD
+        self._tracked = None      # paths in the working tree (git ls-files)
+        self.cache_hit = None     # True/False after the index is loaded
+        # Stage 2.
+        self._blob_bytes = {}     # blob -> raw bytes (evicted in bulk)
+        self._blob_code = {}      # blob -> frozenset of comment-stripped tokens
+        self._blob_memo = None    # blob -> b"tok\ntok..." persisted across runs
+        self._blob_memo_dirty = False
+        self._removals = {}       # token -> Removal or None
+        self.stripped_bytes = 0
 
-    def _git(self, args, binary=False):
+    def _git(self, args, input=None):
         return subprocess.run(["git", "-C", self.root] + args,
-                              capture_output=True, check=True).stdout
+                              capture_output=True, check=True,
+                              input=input).stdout
 
     def paths(self):
         if not self.enabled:
@@ -735,41 +867,394 @@ class History:
                     self._suffix.add("/".join(parts[k:]))
         return cited in self._suffix
 
+    # -- stage 1: the index ------------------------------------------------
+
+    def _load_index(self):
+        if self._index is not None:
+            return
+        raw = self._git(["log", "--all", "--topo-order", "--full-history",
+                         "--diff-merges=first-parent", "--raw", "--no-abbrev",
+                         "--pretty=format:%H%x00%P%x00%as%x00%s", "--"]
+                        + list(HISTORY_EXTS))
+        entries = defaultdict(list)
+        commits = {}
+        parents = {}
+        blob_paths = defaultdict(list)
+        commit = None
+        for line in raw.decode("utf-8", "replace").split("\n"):
+            if not line:
+                continue
+            if not line.startswith(":"):
+                parts = line.split("\0", 3)
+                if len(parts) == 4 and len(parts[0]) == 40:
+                    commit = parts[0]
+                    parents[commit] = parts[1].split()
+                    commits[commit] = (parts[2], parts[3])
+                continue
+            fields = line.split("\t")
+            meta = fields[0].split()
+            if len(meta) < 5 or commit is None:
+                continue
+            old, new, status = meta[2], meta[3], meta[4][0]
+            paths = [p for p in fields[1:]
+                     if not p.startswith("tools/doc-citations/")]
+            if status in "RC" and len(fields) == 3:
+                src_p, dst_p = fields[1], fields[2]
+                if status == "R" and src_p in paths:
+                    entries[src_p].append((commit, old, ZERO_SHA, dst_p))
+                if dst_p in paths:
+                    entries[dst_p].append(
+                        (commit, old if status == "R" else ZERO_SHA, new, None))
+                    if new.strip("0") and dst_p not in blob_paths[new]:
+                        blob_paths[new].append(dst_p)
+                if old.strip("0") and src_p in paths and src_p not in blob_paths[old]:
+                    blob_paths[old].append(src_p)
+                continue
+            for p in paths:
+                entries[p].append((commit, old, new, None))
+                for sha in (old, new):
+                    if sha.strip("0") and p not in blob_paths[sha]:
+                        blob_paths[sha].append(p)
+        self._entries = entries
+        self._commits = commits
+        self._parents = parents
+        key = hashlib.sha256(b"%d\n" % HISTORY_CACHE_FORMAT + raw).hexdigest()
+        cached = self._read_cache(key) if self.use_cache else None
+        self.cache_hit = cached is not None
+        if cached is None:
+            cached = self._build_index(blob_paths)
+            if self.use_cache:
+                self._write_cache(key, cached)
+        self._index, self._path_bytes = cached
+
+    def _build_index(self, blob_paths):
+        index = defaultdict(set)
+        path_bytes = defaultdict(int)
+        if not blob_paths:
+            return dict(index), dict(path_bytes)
+        body = self._git(["cat-file", "--batch"],
+                         input="\n".join(sorted(blob_paths)).encode())
+        intern = sys.intern
+        pos = 0
+        while pos < len(body):
+            m = RE_CATFILE_HDR.match(body, pos)
+            if not m:  # "<sha> missing" -- cannot happen for shas git just listed
+                nl = body.find(b"\n", pos)
+                pos = nl + 1 if nl >= 0 else len(body)
+                continue
+            sha = m.group(1).decode()
+            size = int(m.group(2))
+            start = m.end()
+            data = body[start:start + size]
+            pos = start + size + 1
+            toks = set(map(intern, RE_WORD.findall(data.decode("utf-8", "replace"))))
+            for p in blob_paths[sha]:
+                index[p].update(toks)
+                path_bytes[p] += size
+        return dict(index), dict(path_bytes)
+
+    def _cache_file(self, name=HISTORY_CACHE_FILE):
+        try:
+            common = self._git(["rev-parse", "--git-common-dir"]).decode().strip()
+        except (subprocess.CalledProcessError, OSError):
+            return None
+        if not os.path.isabs(common):
+            common = os.path.join(self.root, common)
+        return os.path.join(common, name)
+
+    def _write_pickle(self, path, payload):
+        tmp = "%s.%d.tmp" % (path, os.getpid())
+        try:
+            with open(tmp, "wb") as fh:
+                pickle.dump(payload, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, path)
+        except OSError:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    def _read_cache(self, key):
+        path = self._cache_file()
+        if not path or not os.path.isfile(path):
+            return None
+        try:
+            with open(path, "rb") as fh:
+                data = pickle.load(fh)
+            if data.get("format") == HISTORY_CACHE_FORMAT and data.get("key") == key:
+                return data["index"], data["path_bytes"]
+        except Exception:  # a corrupt or foreign cache is just a cache miss
+            return None
+        return None
+
+    def _write_cache(self, key, cached):
+        path = self._cache_file()
+        if path:
+            self._write_pickle(path, {"format": HISTORY_CACHE_FORMAT, "key": key,
+                                      "index": cached[0], "path_bytes": cached[1]})
+
+    def _load_blob_memo(self):
+        if self._blob_memo is not None:
+            return self._blob_memo
+        self._blob_memo = {}
+        path = self._cache_file(HISTORY_BLOB_MEMO_FILE) if self.use_cache else None
+        if path and os.path.isfile(path):
+            try:
+                with open(path, "rb") as fh:
+                    data = pickle.load(fh)
+                if data.get("format") == HISTORY_BLOB_MEMO_FORMAT:
+                    self._blob_memo = data["blobs"]
+            except Exception:
+                pass
+        return self._blob_memo
+
+    def save(self):
+        """Persist the stage-2 memo if this run added to it. Call once, at
+        the end of a run; cheap when nothing changed."""
+        if not (self.use_cache and self._blob_memo_dirty):
+            return
+        path = self._cache_file(HISTORY_BLOB_MEMO_FILE)
+        if path:
+            self._write_pickle(path, {"format": HISTORY_BLOB_MEMO_FORMAT,
+                                      "blobs": self._blob_memo})
+        self._blob_memo_dirty = False
+
     def tokens(self):
+        """Every identifier any indexed revision ever contained, comments
+        included. Membership here is necessary but not sufficient for "did
+        exist as code" -- see removal()."""
         if not self.enabled:
             return None
         if self._tokens is None:
-            current = set(subprocess.run(
-                ["git", "-C", self.root, "ls-files"],
-                capture_output=True, text=True, check=True).stdout.split("\n"))
-            raw = self._git([
-                "log", "--all", "--raw", "--no-abbrev", "--pretty=format:",
-                "--", "*.c", "*.h", "*.cpp", "*.hpp", "*.py", "*.sh",
-            ]).decode("utf-8", "replace")
-            blobs = set()
-            for line in raw.split("\n"):
-                if not line.startswith(":"):
-                    continue
-                fields = line.split("\t")
-                meta = fields[0].split()
-                if len(meta) < 4:
-                    continue
-                for p in fields[1:]:
-                    if p in current:
-                        continue
-                    for sha in (meta[2], meta[3]):
-                        if sha and sha.strip("0"):
-                            blobs.add(sha)
-            if not blobs:
-                self._tokens = set()
-                return self._tokens
-            proc = subprocess.run(
-                ["git", "-C", self.root, "cat-file", "--batch"],
-                input="\n".join(sorted(blobs)).encode(),
-                capture_output=True)
-            body = proc.stdout.decode("utf-8", "replace")
-            self._tokens = set(RE_WORD.findall(body))
+            self._load_index()
+            self._tokens = set()
+            for s in self._index.values():
+                self._tokens |= s
         return self._tokens
+
+    def where(self, tok):
+        """Paths whose history names `tok` anywhere, cheapest-to-walk first."""
+        self._load_index()
+        hits = [p for p, s in self._index.items() if tok in s]
+        hits.sort(key=lambda p: (self._path_bytes.get(p, 0), p))
+        return hits
+
+    # -- stage 2: the walk -------------------------------------------------
+
+    def _head_commits(self):
+        if self._head is None:
+            out = self._git(["rev-list", "HEAD"]).decode()
+            self._head = set(out.split())
+        return self._head
+
+    def _side_commits(self, merge):
+        """Commits a merge brought in: reachable from its second parent and
+        not from its first. Empty for a non-merge."""
+        if merge not in self._side:
+            ps = self._parents.get(merge, [])
+            if len(ps) < 2:
+                self._side[merge] = frozenset()
+            else:
+                out = self._git(["rev-list", ps[1], "^" + ps[0]]).decode()
+                self._side[merge] = frozenset(out.split())
+        return self._side[merge]
+
+    def _refine_merge(self, tok, path, commit, on_head):
+        """A merge's first-parent diff is where the walk first sees a removal
+        that really happened on the branch it merged. Prefer the branch
+        commit that did it; keep the merge only when the removal happened in
+        the merge itself (conflict resolution)."""
+        while True:
+            side = self._side_commits(commit)
+            if not side:
+                return commit
+            for c2, old, new, moved in on_head:
+                if (c2 in side and not moved
+                        and not self._has_code(tok, new, path)
+                        and self._has_code(tok, old, path)):
+                    commit = c2
+                    break
+            else:
+                return commit
+
+    def _tracked_paths(self):
+        if self._tracked is None:
+            out = self._git(["ls-files", "-z"]).decode("utf-8", "replace")
+            self._tracked = {p for p in out.split("\0") if p}
+        return self._tracked
+
+    def _blob_data(self, blob, path):
+        data = self._blob_bytes.get(blob)
+        if data is not None:
+            return data
+        if sum(len(v) for v in self._blob_bytes.values()) > HISTORY_BYTES_RESIDENT:
+            self._blob_bytes.clear()
+        shas = sorted({s for _c, o, n, _m in self._entries.get(path, ())
+                       for s in (o, n) if s.strip("0")})
+        body = self._git(["cat-file", "--batch"], input="\n".join(shas).encode())
+        pos = 0
+        while pos < len(body):
+            m = RE_CATFILE_HDR.match(body, pos)
+            if not m:
+                nl = body.find(b"\n", pos)
+                pos = nl + 1 if nl >= 0 else len(body)
+                continue
+            size = int(m.group(2))
+            start = m.end()
+            self._blob_bytes[m.group(1).decode()] = body[start:start + size]
+            pos = start + size + 1
+        return self._blob_bytes.get(blob, b"")
+
+    def _has_code(self, tok, blob, path):
+        """Does this revision of `path` contain `tok` OUTSIDE comments?"""
+        if not blob.strip("0"):
+            return False
+        toks = self._blob_code.get(blob)
+        if toks is None:
+            memo = self._load_blob_memo()
+            packed = memo.get(blob)
+            if packed is not None:
+                toks = frozenset(packed.decode().split("\n"))
+                self._blob_code[blob] = toks
+                return tok in toks
+            data = self._blob_data(blob, path)
+            # Whole-word pre-check: a blob that lacks the name even in comments
+            # cannot have it as code, and is not worth decommenting. \b, not a
+            # lookbehind: the lookbehind form measured 10 s of a 16 s walk.
+            if not re.search(rb"\b" + re.escape(tok.encode()) + rb"\b", data):
+                return False
+            text = data.decode("utf-8", "replace")
+            ext = os.path.splitext(path)[1]
+            if ext in DECOMMENTABLE_EXTS:
+                text = strip_comments_for_ext(text, ext)
+            self.stripped_bytes += len(text)
+            toks = frozenset(RE_WORD.findall(text))
+            self._blob_code[blob] = toks
+            if len(memo) < HISTORY_BLOB_MEMO_MAX:
+                memo[blob] = "\n".join(sorted(toks)).encode()
+                self._blob_memo_dirty = True
+        return tok in toks
+
+    def _removal_in(self, tok, path):
+        """The Removal of `tok` from `path`, or None if `path` only ever
+        mentioned it in comments."""
+        ents = self._entries.get(path, [])
+        head = self._head_commits()
+        on_head = [e for e in ents if e[0] in head]
+        off_head = [e for e in ents if e[0] not in head]
+        # --topo-order lists a commit before every ancestor of it, and merges
+        # print their first-parent diff, so the first HEAD-reachable entry is
+        # HEAD's own revision of this path.
+        if on_head:
+            commit, _old, new, _moved = on_head[0]
+            if self._has_code(tok, new, path):
+                if path in self._tracked_paths():
+                    return Removal("uncommitted", path, commit)
+                return Removal("gone-path", path, commit)
+            for commit, old, new, moved in on_head:
+                if not self._has_code(tok, new, path) and self._has_code(tok, old, path):
+                    if moved:
+                        return Removal("renamed", path, commit, moved_to=moved)
+                    return Removal("commit", path,
+                                   self._refine_merge(tok, path, commit, on_head))
+        found = None
+        for commit, old, new, moved in off_head:
+            if self._has_code(tok, new, path):
+                found = found or Removal("elsewhere", path, commit)
+            elif self._has_code(tok, old, path):
+                if moved:
+                    found = found or Removal("renamed", path, commit, moved_to=moved)
+                    continue
+                return Removal("branch", path, commit)
+        return found
+
+    def removal(self, tok):
+        """Where `tok` went, or None if no indexed revision ever named it (or
+        history is disabled). Prefers a HEAD-ancestor answer over a branch
+        one, and stops as soon as it has one."""
+        if not self.enabled:
+            return None
+        if tok in self._removals:
+            return self._removals[tok]
+        paths = self.where(tok)
+        result = None
+        if paths:
+            examined = []
+            best = None
+            queue = list(paths)
+            while queue:
+                p = queue.pop(0)
+                if self.stripped_bytes > HISTORY_STRIP_BUDGET:
+                    best = best or Removal("unlocated", paths=paths, examined=examined)
+                    break
+                r = self._removal_in(tok, p)
+                examined.append(p)
+                if r is None:
+                    continue
+                if best is None or Removal.RANK[r.kind] < Removal.RANK[best.kind]:
+                    best = r
+                if Removal.RANK[best.kind] == 0:
+                    break
+                # A rename hands the walk on to the new path, whose history is
+                # where the real removal is.
+                if r.kind == "renamed" and r.moved_to not in examined \
+                        and r.moved_to not in queue:
+                    queue.append(r.moved_to)
+            result = best or Removal("comments-only", paths=paths, examined=examined)
+            result.paths = paths
+        self._removals[tok] = result
+        return result
+
+    def describe(self, tok, rem):
+        """(message, evidence list) for a stale-identifier finding."""
+        short = rem.commit[:8] if rem.commit else None
+        date, subject = self._commits.get(rem.commit, ("", "")) if rem.commit else ("", "")
+        others = [p for p in rem.paths if p != rem.path]
+        also = ("; %d other historical file%s also carried it (%s)"
+                % (len(others), "" if len(others) == 1 else "s",
+                   ", ".join(others[:3]) + (", ..." if len(others) > 3 else ""))
+                if others else "")
+        if rem.kind == "commit":
+            return ("`%s` no longer exists in the tree: removed from `%s` in `%s`"
+                    % (tok, rem.path, short),
+                    ["%s %s %s" % (short, date, subject),
+                     "it did exist as code, so this document is describing "
+                     "removed code" + also])
+        if rem.kind == "uncommitted":
+            return ("`%s` no longer exists in the tree: removed from `%s` by an "
+                    "uncommitted change" % (tok, rem.path),
+                    ["still present as code at HEAD (%s %s %s)"
+                     % (short, date, subject) + also])
+        if rem.kind == "renamed":
+            return ("`%s` no longer exists in the tree: last seen in `%s`, which "
+                    "`%s` renamed to `%s`; its removal from there was not located"
+                    % (tok, rem.path, short, rem.moved_to),
+                    ["%s %s %s" % (short, date, subject),
+                     "it did exist as code" + also])
+        if rem.kind == "gone-path":
+            return ("`%s` no longer exists in the tree: it went with `%s`, which "
+                    "is no longer tracked (last indexed revision `%s`)"
+                    % (tok, rem.path, short),
+                    ["%s %s %s" % (short, date, subject),
+                     "it did exist as code" + also])
+        if rem.kind == "branch":
+            return ("`%s` no longer exists in the tree: removed from `%s` in `%s`, "
+                    "a commit HEAD does not descend from" % (tok, rem.path, short),
+                    ["%s %s %s" % (short, date, subject),
+                     "it did exist as code on another ref" + also])
+        if rem.kind == "elsewhere":
+            return ("`%s` is not in this tree: it exists as code in `%s` only on "
+                    "a ref HEAD does not descend from (`%s`)"
+                    % (tok, rem.path, short),
+                    ["%s %s %s" % (short, date, subject) + also])
+        # unlocated
+        shown = ", ".join(rem.paths[:3]) + (", ..." if len(rem.paths) > 3 else "")
+        return ("`%s` no longer exists in the tree: historical revisions of %d "
+                "file%s name it (%s), but the removing commit was not located"
+                % (tok, len(rem.paths), "" if len(rem.paths) == 1 else "s", shown),
+                ["the history walk hit its budget (HISTORY_STRIP_BUDGET) after "
+                 "%d of %d files; code-or-comment is unverified for the rest"
+                 % (len(rem.examined), len(rem.paths))])
 
 
 # ---------------------------------------------------------------------------
@@ -1340,7 +1825,6 @@ def check_path_cites(repo, unit, findings, seen_paths, history, dclass,
 
 def check_identifiers(repo, unit, findings, allowed, stats, history, dclass):
     toks = repo.code_tokens()
-    hist = history.tokens()
     for m in RE_BACKTICK.finditer(unit.text):
         payload = m.group(1)
         if "/" in payload or " " in payload:
@@ -1351,23 +1835,39 @@ def check_identifiers(repo, unit, findings, allowed, stats, history, dclass):
             stats["ident_checked"] += 1
             if tok in toks or tok in allowed:
                 continue
-            if hist is not None and tok in hist:
+            rem = history.removal(tok)
+            if rem is not None and rem.kind != "comments-only":
+                message, evidence = history.describe(tok, rem)
                 findings.append(Finding(
                     "stale-identifier", "advisory", unit.path,
-                    unit.line_of(m.start()),
-                    "`%s` no longer exists in the tree" % tok,
-                    evidence=["it did exist in a deleted revision, so this "
-                              "document is describing removed code"]))
+                    unit.line_of(m.start()), message, evidence=evidence))
                 continue
+            # A true phantom. Say exactly what was searched: the second clause
+            # used to claim "every historical revision of every source file"
+            # while the corpus skipped every file still in the tree, and that
+            # confidently-wrong text sent a reader to rewrite a document that
+            # was correct.
+            if not history.enabled:
+                evidence = ["absent from every tracked file with comments "
+                            "stripped; git history NOT consulted (--no-history), "
+                            "so this may be deleted code rather than a fabrication"]
+            elif rem is not None:
+                shown = ", ".join(rem.paths[:3]) + (", ..." if len(rem.paths) > 3 else "")
+                evidence = ["absent from every tracked file with comments "
+                            "stripped, and from every historical revision of "
+                            "every source file as code: history names it only "
+                            "inside comments (%s)" % shown]
+            else:
+                evidence = ["absent from every tracked file with comments "
+                            "stripped, and from every historical revision of "
+                            "every source file: only prose asserts this symbol"]
             findings.append(Finding(
                 "phantom-identifier",
                 PHANTOM_SEVERITY if dclass == "reference" else "advisory",
                 unit.path,
                 unit.line_of(m.start()),
                 "`%s` is referenced but has never existed" % tok,
-                evidence=["absent from every tracked file with comments "
-                          "stripped, and from every historical revision of "
-                          "every source file: only prose asserts this symbol"],
+                evidence=evidence,
                 suggestion="correct the name, or add it to "
                            "tools/doc-citations/allowlist.txt with a reason"))
 
@@ -1463,9 +1963,15 @@ def main(argv=None):
     ap.add_argument("--include-testdata", action="store_true",
                     help="also scan tools/doc-citations/testdata (fixtures)")
     ap.add_argument("--no-history", action="store_true",
-                    help="skip the git-history corpus (~3s). Without it a "
-                         "deleted-code citation cannot be told apart from a "
-                         "fabricated one, so everything reports as an error.")
+                    help="skip the git-history corpus (~4s to build, ~0.4s "
+                         "from its cache in the git common dir). Without it "
+                         "a deleted-code citation cannot be told apart from "
+                         "a fabricated one, so everything reports as "
+                         "phantom, with evidence text that says history was "
+                         "not consulted.")
+    ap.add_argument("--no-history-cache", action="store_true",
+                    help="rebuild the history index instead of loading the "
+                         "cached one, and do not write a cache")
     args = ap.parse_args(argv)
 
     root = os.path.abspath(args.root)
@@ -1482,7 +1988,8 @@ def main(argv=None):
 
     checks = {c.strip() for c in args.checks.split(",") if c.strip()}
     allowed = load_allowlist(args.allowlist)
-    history = History(root, enabled=not args.no_history)
+    history = History(root, enabled=not args.no_history,
+                      use_cache=not args.no_history_cache)
     record_globs = load_record_globs(args.record_globs)
     external_globs = load_record_globs(args.external_paths)
     anchor_required_globs = load_record_globs(args.anchor_required)
@@ -1533,6 +2040,7 @@ def main(argv=None):
 
     findings = [f for f in findings if not quoted(f)]
     findings.sort(key=lambda f: (f.path, f.line, f.code))
+    history.save()
 
     baseline_keys = set()
     if args.baseline and os.path.isfile(args.baseline):

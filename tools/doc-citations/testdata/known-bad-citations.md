@@ -63,3 +63,13 @@ the checker can test. It must be reported, not silently accepted.
 (Deliberately anchor-free. If a future edit adds a symbol name to the sentence
 above, this case stops testing what it is for -- the citation would then be
 checked by the ordinary drift path instead.)
+
+## 8 -- a symbol deleted from a file that still exists  [stale-identifier]
+
+Real history, immutable: `RELAY_REQ` was the S5 relay's request message. It
+was code in src/netplay/direct_p2p.c, rendezvous.h and
+tools/rendezvous-server/rendezvous-server.js, and commit 2c63adc7 ("remove the
+S5 relay entirely") deleted it from all of them while every one of those files
+lived on. Before the fix this was reported as `phantom-identifier` with the
+text "has never existed", because the history corpus skipped every path still
+in the tree. It must be reported as stale, naming that commit.
