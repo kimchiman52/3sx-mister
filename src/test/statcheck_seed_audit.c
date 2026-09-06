@@ -543,15 +543,22 @@ static void audit_lvr(SDL_IOStream* io) {
  * `wk->player_number = My_char[wk->wu.id]` -- and `My_char` is itself audited
  * strictly a few lines above, so this index is not taken on trust.
  *
- * NOT SEEDABLE, and that is why this is an audit and not an import. Closing
- * the gap the way H3 closed `t_pl_lvr` would mean copying the residue out of
- * the archive, and `WAZA_WORK::w_ptr` is a CPS3 address into the command table
+ * SEEDED SINCE H5b, so this audit is now a self-test of that seed rather than
+ * a standing report of a gap. `sync_waza_work_carried()`
+ * (`statcheck_compare.c`) imports the twelve scalar fields below and
+ * RECONSTRUCTS `w_ptr` as `&tbl[16]` from our own copy of the command table.
+ * The earlier reading here -- that `WAZA_WORK::w_ptr` is a CPS3 address
  * (measured: 0x0619BDF8, 0x0619BE32, 0x0619BE64, 0x0619BE96 on the seed frame
- * of `1784875995078-5749_game_1`) with no map to a host pointer -- and the
- * residual `w_type` on that segment is 1, i.e. `chk_move_jp[1] == check_1`,
- * which dereferences `*waza_ptr->w_ptr`. Importing `w_type` without `w_ptr`
- * would make the port follow a pointer it does not have. So rc=4 is the honest
- * verdict for such a segment, not a repaired PASS. */
+ * of `1784875995078-5749_game_1`) with no map to a host pointer, so the
+ * residual `w_type == 1` (`chk_move_jp[1] == check_1`) would make the port
+ * follow a pointer it does not have -- was true of an ARBITRARY pointer and
+ * false of this one. Those four addresses are 32 bytes past their entries'
+ * table bases and are the same on every Twelve segment in all three corpora,
+ * because an idle recogniser entry never leaves the two-state cycle
+ * `check_init()` reloads it into. `sync_waza_work_carried()` seeds only states
+ * that cycle can produce and leaves anything else untouched -- so a residue we
+ * genuinely cannot place still lands here, still reports DIRTY, and still
+ * exits 4. */
 static void audit_wcp_waza(SDL_IOStream* io) {
     WORK_CP wcp_cps3[2];
     SDL_SeekIO(io, WCP_OFFSET, SDL_IO_SEEK_SET);

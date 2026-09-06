@@ -30,10 +30,13 @@
 
 #include "test/statcheck_compare.h"
 #include "test/statcheck_seed_audit.h"
+#include "arcade/arcade_balance.h"
+#include "arcade/arcade_cmd_data.h"
 #include "arcade/arcade_constants.h"
 #include "constants.h"
 #include "main.h"
 #include "sf33rd/Source/Game/engine/cmb_win.h"
+#include "sf33rd/Source/Game/engine/cmd_data.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/engine/pls02.h"
 #include "sf33rd/Source/Game/engine/slowf.h"
@@ -688,6 +691,149 @@ void Statcheck_CompareValues(SDL_IOStream* io, Uint64 frame) {
 
 // Syncing
 
+/* waza_work[][48..55] -- the CARRIED command-recogniser entries (H5b,
+ * docs/research-arcade-balance-desyncs.md).
+ *
+ * `cmd_init()` (`cmd_main.c`) clears only `waza_work[cmd_id][0..47]` under
+ * `ArcadeBalance_IsEnabled()`, reproducing CPS3's 0x540-of-0x620 memset, so
+ * entries 48..55 CARRY ACROSS THE MATCH BOUNDARY. `waza_compel_all_init()`
+ * marks an entry live only below `pl_cmd_num[char][6]`, and that bound reaches
+ * past 48 for exactly one character: `pl_cmd_num[CHAR_TWELVE][6] == 50`
+ * (`cmd_data.c`), i.e. entries 48 and 49 on Twelve and nothing anywhere else.
+ * An archive whose session already played Twelve on this side enters the
+ * segment with those two entries populated; a statcheck run enters with zeros,
+ * because its synthetic session has never played a match.
+ *
+ * WHAT THE RESIDUE ACTUALLY IS. An idle recogniser entry runs a closed
+ * two-state cycle driven entirely by the STATIC command table `tbl` for that
+ * entry (`ArcadeCommandData_Get(char)[j]`, the same pointer `cmd_move()`
+ * hands `chk_move_jp[]`):
+ *
+ *   - `check_init()` (w_type 0) reloads w_type/w_int/free1/free2/w_lvr from
+ *     `tbl[12..15]`, sets `w_ptr = &tbl[16]`, zeroes the tame/shot fields, and
+ *     dispatches the loaded handler in the SAME frame;
+ *   - that handler, with no matching lever, restores `free2 = free1`,
+ *     decrements `w_int`, and drops `w_type` back to 0 once it goes negative
+ *     (`check_0`, and both arms of `check_1`).
+ *
+ * So every frame-boundary state of an idle entry is `w_type == tbl[12]` with
+ * `0 <= w_int < tbl[13]`, or the expired `w_type == 0, w_int == -1` -- with
+ * w_lvr/free1/free2 at their table values, the tame/shot fields zero, and
+ * `w_ptr` at `&tbl[16]` throughout, because nothing in the cycle calls
+ * `check_next()`. Measured over all 16 Twelve segments in the three corpora:
+ * every populated entry 48/49 is in exactly one of those two states, and the
+ * archived `w_ptr` is 0x0619BE64 / 0x0619BE96 on every one of them -- constant,
+ * and 32 bytes past the entry's table base (consecutive gaps 0x3A/0x32/0x32
+ * match sizeof(unk_cmd_184/185/186) = 58/50/50 bytes exactly).
+ *
+ * THAT MAKES IT SEEDABLE, which corrects this file's earlier reading. The
+ * blocker recorded against H5 was that `WAZA_WORK::w_ptr` is a CPS3 address
+ * with no map to a host pointer, and that the residual `w_type == 1` is
+ * `check_1`, which dereferences it. True of an arbitrary pointer -- but the
+ * pointer here is never arbitrary: in the idle cycle it is `&tbl[16]`, and our
+ * own copy of that table gives it to us. So the twelve scalar fields come from
+ * the archive and `w_ptr` is RECONSTRUCTED, never imported.
+ *
+ * The guard is the whole safety argument, so it is deliberately narrow: an
+ * entry is seeded only when its archived state is one the idle cycle can
+ * actually produce from `tbl`. Anything else -- a mid-command state left by
+ * `check_next()`, a held charge (tame.flag set, or free1 walked down below
+ * `tbl[14]`) -- means `w_ptr` is somewhere we cannot name, so that entry is
+ * left alone and the seed audit reports it DIRTY, which is still rc 4. An
+ * all-zero archive entry cannot pass the guard either: `expired` needs
+ * `w_int == -1`, and the post-init arm needs `w_type == tbl[12]`, which is
+ * never 0 (0 is `check_init` itself, and a table dispatching back into
+ * `check_init` would not terminate).
+ *
+ * GATED on ArcadeBalance_IsEnabled() as a PREDICATE, not as a behaviour
+ * switch: it is the same condition `cmd_init()` keys the partial clear off, so
+ * outside it `SDL_zeroa(waza_work[cmd_id])` wipes all 56 entries at match start
+ * and there is no carried state to seed in the first place. It also selects the
+ * command table, mirroring `get_commands()`'s arcade arm. */
+enum { WAZA_WORK_ARCHIVE_STRIDE = 28 }; /* 12 x s16 + one 32-bit CPS3 w_ptr */
+
+static void read_waza_work_entry(SDL_IOStream* io, int i, int j, WAZA_WORK* dst) {
+    SDL_SeekIO(io, WAZA_WORK_OFFSET + (Sint64)((i * 56) + j) * WAZA_WORK_ARCHIVE_STRIDE, SDL_IO_SEEK_SET);
+
+    SDL_zerop(dst);
+    SDL_ReadS16BE(io, &dst->w_type);
+    SDL_ReadS16BE(io, &dst->w_int);
+    SDL_ReadS16BE(io, &dst->free1);
+    SDL_ReadS16BE(io, &dst->w_lvr);
+
+    u32 w_ptr;
+    SDL_ReadU32BE(io, &w_ptr); /* CPS3 address. Reconstructed from our own table, never imported. */
+    (void)w_ptr;
+
+    SDL_ReadS16BE(io, &dst->free2);
+    SDL_ReadS16BE(io, &dst->w_dead);
+    SDL_ReadS16BE(io, &dst->w_dead2);
+    SDL_ReadS16BE(io, &dst->uni0.tame.flag);
+    SDL_ReadS16BE(io, &dst->uni0.tame.shot_flag);
+    SDL_ReadS16BE(io, &dst->uni0.tame.shot_flag2);
+    SDL_ReadS16BE(io, &dst->free3);
+    SDL_ReadS16BE(io, &dst->shot_ok);
+}
+
+/* Is `b` a state the idle cycle above can produce from command table `tbl`?
+ * Only then is `w_ptr == &tbl[16]` a fact rather than a hope. */
+static bool waza_carried_is_idle(const s16* tbl, const WAZA_WORK* b) {
+    const bool post_init = (b->w_type == tbl[12]) && (b->w_int >= 0) && (b->w_int < tbl[13]);
+    const bool expired = (b->w_type == 0) && (b->w_int == -1);
+
+    return (post_init || expired) && (b->w_lvr == tbl[15]) && (b->free1 == tbl[14]) && (b->free2 == tbl[14]) &&
+           (b->w_dead == tbl[1]) && (b->w_dead2 == tbl[2]) && (b->uni0.tame.flag == 0) &&
+           (b->uni0.tame.shot_flag == 0) && (b->uni0.tame.shot_flag2 == 0) && (b->free3 == 0) && (b->shot_ok == 0);
+}
+
+static void sync_waza_work_carried(SDL_IOStream* io) {
+    if (!ArcadeBalance_IsEnabled()) {
+        return;
+    }
+
+    for (int i = 0; i < 2; i++) {
+        if (My_char[i] >= 20) {
+            continue;
+        }
+
+        /* Same table `cmd_move()` indexes: get_commands() -> ArcadeCommandData_Get,
+         * and plcnt_init() (plcnt.c) sets `wk->player_number = My_char[wk->wu.id]`. */
+        const s16* const* adrs = (const s16* const*)ArcadeCommandData_Get(My_char[i]);
+        const int live_end = (int)pl_cmd_num[My_char[i]][6];
+
+        for (int j = WAZA_WORK_CARRIED_FIRST; j < live_end; j++) {
+            WAZA_WORK b;
+            read_waza_work_entry(io, i, j, &b);
+
+            const s16* tbl = adrs[j];
+
+            if (!waza_carried_is_idle(tbl, &b)) {
+                continue;
+            }
+
+            WAZA_WORK* a = &waza_work[i][j];
+            a->w_type = b.w_type;
+            a->w_int = b.w_int;
+            a->free1 = b.free1;
+            a->w_lvr = b.w_lvr;
+            a->free2 = b.free2;
+            a->w_dead = b.w_dead;
+            a->w_dead2 = b.w_dead2;
+            a->uni0.tame.flag = b.uni0.tame.flag;
+            a->uni0.tame.shot_flag = b.uni0.tame.shot_flag;
+            a->uni0.tame.shot_flag2 = b.uni0.tame.shot_flag2;
+            a->free3 = b.free3;
+            a->shot_ok = b.shot_ok;
+
+            /* RECONSTRUCTED, not imported: `check_init()` leaves w_ptr exactly
+             * here, and the guard above just established the entry is in a
+             * state only `check_init()` (plus in-place w_int decrements) can
+             * have produced. */
+            a->w_ptr = (s16*)(uintptr_t)&tbl[16];
+        }
+    }
+}
+
 void Statcheck_SyncValues(SDL_IOStream* io) {
     Random_ix16 = read_s16(io, RANDOM_IX_16_OFFSET);
     Random_ix32 = read_s16(io, RANDOM_IX_32_OFFSET);
@@ -802,6 +948,8 @@ void Statcheck_SyncValues(SDL_IOStream* io) {
     Country = read_u8(io, COUNTRY_OFFSET);
     Setup_Difficult_V();
     Setup_Limit_Time();
+
+    sync_waza_work_carried(io);
 }
 
 #endif

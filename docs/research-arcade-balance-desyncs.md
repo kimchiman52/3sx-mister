@@ -1279,8 +1279,9 @@ arcade counterpart of `Win_13000` was not read out. See *Still open*.
 
 Exactly **one** verdict line changed. With E7 and E8 landed, **no engine
 divergence is outstanding on either corpus**: the 2026-09-06 corpus's three
-remaining non-PASS results are 1 `rc=4` (H5's unseedable Twelve segment) and
-2 `rc=3` (H4b's CPU players), both harness verdicts by design.
+remaining non-PASS results are 1 `rc=4` (H5's Twelve segment) and 2 `rc=3`
+(H4b's CPU players), both harness verdicts by design. *(H5b since seeded that
+`rc=4`: the corpus is 183 PASS / 2 `rc=3` as of 2026-09-06.)*
 
 #### Still open
 
@@ -2001,6 +2002,170 @@ than argued: preprocessing `cmd_main.c` with the host build's own flags emits
 is the only engine edit. The two real changes are both in `src/test/`, which
 needs no `ArcadeBalance_IsEnabled()` gate.
 
+### H5b — the carried entries ARE seedable: `w_ptr` is `&tbl[16]`, not an arbitrary address (FIXED, 2026-09-06)
+
+H5 closed the false negative and left a residue: a Twelve segment whose carried
+`waza_work[][48..49]` differs could report only rc 0 or rc 4, never rc 1,
+because the state was judged unimportable. Across the three corpora that came
+to **five** `rc=4` segments — every non-PASS in 447 eligible segments, and every
+one of them Twelve:
+
+| segment | characters | Twelve's side |
+|---|---|---|
+| `1785200151999-8704` g1 | Makoto / Twelve | 1 |
+| `1785200151999-8704` g2 | Makoto / Twelve | 1 |
+| `1785803982634-6917` g1 | Twelve / Chun-Li | 0 |
+| `1785823449983-1131` g10 | Twelve / Necro | 0 |
+| `1784875995078-5749` g1 | Twelve / Elena | 0 |
+
+All five `wu_operator = [1,1]`, all five failing `compare_waza_work()` at
+archive frame 7, all five naming the **same seven fields with the same seven
+values**. Values that repeat across five unrelated matches are not previous-
+match residue; they are constants. That is the thread this section pulls.
+
+#### The discriminator: one line of the audit's own output
+
+Sixteen segments in the three corpora contain Twelve. Five carry no residue at
+all (their side had not yet played Twelve in that session, and nothing but a
+Twelve match ever writes entries 48/49 — they are dead, and so never written,
+for the other nineteen characters). The remaining **eleven** all report a DIRTY
+seed naming exactly seven fields, and those eleven split into two signatures
+that differ **in one line**:
+
+    waza_work[S][48].w_int    ours=0 cps3=-1        both
+    waza_work[S][48].w_lvr    ours=0 cps3=-32766    both
+    waza_work[S][48].w_dead   ours=0 cps3=1         both
+    waza_work[S][49].w_type   ours=0 cps3=1         <-- the 5 that FAIL
+    waza_work[S][49].w_int    ours=0 cps3=-1        <-- the 6 that PASS
+    waza_work[S][49].w_lvr    ours=0 cps3=8         both
+    waza_work[S][49].w_dead   ours=0 cps3=4         both
+    waza_work[S][49].w_dead2  ours=0 cps3=2         both
+
+Entry 49's `w_type` at the seed frame predicts the verdict on **16 of 16**
+segments. Everything else about the residue is identical.
+
+#### The mechanism: a period-2 idle cycle whose phase is all that carries
+
+An idle recogniser entry runs a closed loop over the STATIC command table, and
+`cmd_move()` hands `chk_move_jp[]` that table on every frame:
+
+- `check_init()` (`w_type == 0`) does `cmd_tbl_ptr += 12` then four
+  post-increments, reloading `w_type`/`w_int`/`free1`/`free2`/`w_lvr` from
+  `tbl[12..15]`, setting `w_ptr = &tbl[16]`, zeroing `tame.*`/`free3`/`shot_ok`
+  — and then **dispatches the loaded handler in the same frame**;
+- that handler, with no matching lever, restores `free2 = free1`, decrements
+  `w_int`, and drops `w_type` back to 0 once it goes negative (`check_0`, and
+  both arms of `check_1`).
+
+Twelve's entry 48 is `unk_cmd_186` (`arcade_cmd_data.c`), whose `tbl[12..15]`
+are `{1, 0, 0, -32766}`: `check_init` loads `w_type = 1, w_int = 0`, `check_1`
+decrements to `-1` and resets `w_type` to 0 — so entry 48 sits at
+`(w_type 0, w_int -1)` at **every** frame boundary. Entry 49 is `unk_cmd_187`,
+`tbl[12..15] = {1, 1, 0, 8}`: `w_int` starts one higher, so the entry alternates
+`(1, 0)` and `(0, -1)` with period 2 and **never settles**.
+
+Both sides run that cycle. Our side enters the match with the entries zeroed and
+therefore always lands on `(0, -1)` at frame 7. The archive enters wherever the
+previous Twelve match left it. When that is the even phase the two agree; when
+it is the odd phase they stay one frame apart forever, and `compare_waza_work()`
+says so at frame 7 — the second frame it runs at all. Nothing about the
+gameplay is involved, which is why the fail frame was 7 on all five.
+
+Every one of the seven differing values is now accounted for as a table
+constant: `w_dead`/`w_dead2` are `tbl[1]`/`tbl[2]` (and are rewritten on both
+sides by `waza_compel_all_init()` at match start, so they were never
+load-bearing), `w_lvr` is `tbl[15]`, and `w_type`/`w_int` are the phase.
+
+#### The correction: `w_ptr` in this state is `&tbl[16]`
+
+H5 recorded the blocker as "`WAZA_WORK::w_ptr` is a CPS3 address into the
+command table (measured: `0x0619BDF8`, `0x0619BE32`, `0x0619BE64`, `0x0619BE96`)
+with no map to a host pointer". True of an arbitrary pointer. **Those four are
+not arbitrary.** Their consecutive gaps are `0x3A`, `0x32`, `0x32` = 58, 50, 50
+bytes — exactly `sizeof(unk_cmd_184[29])`, `sizeof(unk_cmd_185[25])`,
+`sizeof(unk_cmd_186[25])` as our own transcription has them. So entries 46..49
+sit at the same relative offset inside four consecutively laid-out tables, and
+that offset is the one `check_init()` produces and nothing in the idle cycle
+moves, because `check_next()` — the only other writer of `w_ptr` — is reachable
+only through a `tame.flag` branch the cycle never takes.
+
+And the reconstruction target is not the CPS3 pointer anyway. Everything that
+will read `w_ptr` afterwards (`check_1`, `check_next`, `check_0`) is **our** code
+reading **our** table, so the value we need is the one our own `check_init()`
+would have written: `&tbl[16]`. That is available by construction.
+
+#### The fix
+
+`sync_waza_work_carried()` (`statcheck_compare.c`), called from
+`Statcheck_SyncValues`, imports the twelve compared scalar fields for
+`j` in `[WAZA_WORK_CARRIED_FIRST, pl_cmd_num[My_char[i]][6])` and
+**reconstructs `w_ptr`** rather than importing it. The loop body is unreachable
+for nineteen characters: `pl_cmd_num[c][6] <= 48` for every `c != CHAR_TWELVE`,
+and Twelve's 50 admits exactly entries 48 and 49.
+
+The guard is the safety argument, so it is narrow. An entry is seeded only when
+its archived state is one the idle cycle can produce from `tbl` — `w_lvr`,
+`free1`, `free2`, `w_dead`, `w_dead2` at their table values, `tame.*`, `free3`,
+`shot_ok` zero, and `(w_type, w_int)` either post-init (`tbl[12]`, `0 <= w_int <
+tbl[13]`) or expired (`0`, `-1`). Anything else — a mid-command state left by
+`check_next()`, a charge in progress — means `w_ptr` is somewhere we cannot
+name, so that entry is left alone, the audit still reports it DIRTY, and the run
+still exits **4**. H5's protection is intact; what changed is that the states
+this corpus actually contains are no longer among the ones we give up on. An
+all-zero archive entry cannot pass the guard either: `expired` needs
+`w_int == -1`, and the post-init arm needs `w_type == tbl[12]`, which is never 0
+(0 is `check_init` itself).
+
+Gated on `ArcadeBalance_IsEnabled()` as a **predicate, not a behaviour switch**:
+it is the condition `cmd_init()` keys the partial clear off, so outside it
+`SDL_zeroa(waza_work[cmd_id])` wipes all 56 entries at match start and there is
+no carried state to seed. No engine file was touched.
+
+#### Result — three corpora, before and after, `--headless` throughout
+
+| | 2026-09-05 (143) | 2026-09-06 (185) | 2026-09-06b (135) |
+|---|---|---|---|
+| before | 143 PASS | 182 PASS / 1 `rc=4` / 2 `rc=3` | 117 PASS / 4 `rc=4` / 12 `rc=3` / 2 `rc=2` |
+| after | **143 PASS** | **183 PASS / 0 `rc=4` / 2 `rc=3`** | **121 PASS / 0 `rc=4` / 12 `rc=3` / 2 `rc=2`** |
+
+**447 of 447 eligible segments PASS.** Eleven verdict lines moved and no others:
+the five `rc=4 -> rc=0`, and six segments that were already `rc=0` with a DIRTY
+seed going CLEAN — the audit had been correctly reporting a gap on those too,
+and closing it silenced them. The five that clear are not clearing on a
+technicality; they compare **3,657 / 3,680 / 7,410 / 4,208 / 5,019** archive
+frames apiece.
+
+Coverage of "nothing else moved" is split, deliberately, because the two halves
+warrant different evidence. For the **16 Twelve segments** the full
+`PASS — compared archive frames a..b of n` line was captured on both binaries:
+the only five that differ are the five that had no PASS line before, and the
+five zero-residue Twelve segments are untouched down to their allowlisted-
+difference counts. For the other **447 segments the loop is statically
+unreachable** — it runs `j` from 48 to `pl_cmd_num[My_char[i]][6]`, and that
+bound is at most 48 for all nineteen non-Twelve characters, so
+`sync_waza_work_carried()` reads nothing and writes nothing on them; their
+verdict lines (rc, fail frame, assert, seed verdict) are measured identical on
+top of that.
+
+#### Controls
+
+- **The seed is live.** Force the guard false so nothing is ever seeded: all
+  sixteen Twelve segments return **exactly** to the pre-fix line, the five back
+  to `rc=4` with the same seven `MISMATCH` lines. The seed, not some incidental
+  difference between the two binaries, is what moved the verdicts.
+- **`w_ptr` is never dereferenced from the seeded state on this corpus — stated
+  as the negative it is.** Skewing it one word (`&tbl[15]`) changes nothing on
+  all sixteen. That is ambiguous between "never read" and "read but
+  insensitive", so a second control replaces it with a pointer whose every word
+  is `28`, the `command_ok()` sentinel — any dereference before `check_init()`
+  rewrites it would fire the command and diverge loudly. **Still 0 of 16
+  differ.** So the corpus does not test the reconstruction; `&tbl[16]` rests on
+  `check_init()`'s own arithmetic and on the pointer-gap evidence above, not on
+  a passing sweep. The flip side is that no wrong-but-green outcome can come
+  from `w_ptr` here: the seed's entire effect on this corpus is the twelve
+  scalar fields, and in practice `[49].w_type`.
+- **Frame-data suite:** 99 GREEN, zero drift.
+
 ---
 
 ## The seed audit (2026-09-05)
@@ -2210,9 +2375,12 @@ their absence is what the last seven defects were made of.
   it") turned out to have a twin running the other way: for `waza_work` the
   oracle compared what the audit had agreed not to check. Both halves of that
   pair are worth checking for any group added here in future.
-- A Twelve segment whose carried `waza_work[][48..49]` differs can now only
+- ~~A Twelve segment whose carried `waza_work[][48..49]` differs can now only
   report rc=0 or rc=4, never rc=1. Seeding it is blocked on `WAZA_WORK::w_ptr`
-  being a CPS3 address (H5).
+  being a CPS3 address (H5).~~ **CLOSED 2026-09-06 by H5b** — the blocking
+  pointer is `&tbl[16]`, which our own command table supplies, so the state is
+  seeded and the audit is now a self-test of that seed. A residue the idle
+  cycle cannot produce is still left unseeded and still exits 4.
 - `Round_Level` and `bg_w.stage` have no ground truth that exercises them. The
   fix is more corpus (a 2P break-in recording, and a session whose stage does
   not follow from the two characters), not more analysis.
@@ -2705,7 +2873,8 @@ never converted at all, which is a deploy question, not a re-conversion one.
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
-| H5 | seed audit allowlisted `waza_work[]` wholesale; carried entries 48-55 read as engine divergence | **FIXED, 2026-09-06** — the 2026-09-06 corpus's D3 and D6, both `rc=1` at archive frame 7 on a CLEAN seed. `cmd_init()` clears only entries 0..47 under `ArcadeBalance_IsEnabled()` ("CPS3 clears 0x540 bytes of each 0x620-byte command-state block"), so 48..55 carry across the match boundary — arcade residue vs a synthetic session that has never played a match. Two fixes, both in `src/test/`: `compare_waza_work()` now skips entries with `waza_flag[j] == -1`, the test `compare_wcp()` already applied and which `cmd_main.c` gates every `waza_work` access on; and the audit is now strict for `j >= 48 && j < pl_cmd_num[My_char[i]][6]`. `CHAR_TWELVE` is the only character whose live range reaches 48. Not seedable — `WAZA_WORK::w_ptr` is a CPS3 address (measured `0x0619BDF8`..`0x0619BE96`) and the residual `w_type` 1 is `check_1`, which dereferences it. Corpus 177/6 -> **178 pass / 4 rc=1 / 1 rc=4**, exactly 2 verdicts moved; 143-segment corpus **143/143 unchanged**; frame-data suite 99 GREEN. Corrects D3's 29-vs-21 allowlist-count inference — `s_expected` counts `waza_work[]` as **one** |
+| H5 | seed audit allowlisted `waza_work[]` wholesale; carried entries 48-55 read as engine divergence | **FIXED, 2026-09-06** — the 2026-09-06 corpus's D3 and D6, both `rc=1` at archive frame 7 on a CLEAN seed. `cmd_init()` clears only entries 0..47 under `ArcadeBalance_IsEnabled()` ("CPS3 clears 0x540 bytes of each 0x620-byte command-state block"), so 48..55 carry across the match boundary — arcade residue vs a synthetic session that has never played a match. Two fixes, both in `src/test/`: `compare_waza_work()` now skips entries with `waza_flag[j] == -1`, the test `compare_wcp()` already applied and which `cmd_main.c` gates every `waza_work` access on; and the audit is now strict for `j >= 48 && j < pl_cmd_num[My_char[i]][6]`. `CHAR_TWELVE` is the only character whose live range reaches 48. Judged not seedable at the time — **that half is superseded by H5b**, which shows the blocking `WAZA_WORK::w_ptr` is always `&tbl[16]`. Corpus 177/6 -> **178 pass / 4 rc=1 / 1 rc=4**, exactly 2 verdicts moved; 143-segment corpus **143/143 unchanged**; frame-data suite 99 GREEN. Corrects D3's 29-vs-21 allowlist-count inference — `s_expected` counts `waza_work[]` as **one** |
+| H5b | the carried `waza_work[][48..49]` residue was left unseeded, so a Twelve segment could never report rc=1 | **FIXED, 2026-09-06** — the last non-PASS class in the corpora: **5** `rc=4`, all Twelve, all `wu_operator = [1,1]`, all failing `compare_waza_work()` at archive frame 7 naming the **same seven fields with the same seven values**. Constants repeating across five unrelated matches are not residue: every one is a `arcade_cmd_data.c` table constant for Twelve's entries 48 (`unk_cmd_186`) / 49 (`unk_cmd_187`). An idle entry runs a closed cycle — `check_init()` reloads `w_type`/`w_int`/`free1`/`free2`/`w_lvr` from `tbl[12..15]`, sets `w_ptr = &tbl[16]` and dispatches in the same frame; the handler then decrements `w_int` and drops `w_type` to 0 when it goes negative. Entry 48's `tbl[13] == 0` makes it a fixed point at `(0,-1)`; entry 49's `tbl[13] == 1` gives it **period 2**, and the phase is the whole defect. **`waza_work[S][49].w_type` at the seed frame predicts the verdict on 16 of 16 Twelve segments** — the eleven populated ones split into two DIRTY signatures differing in exactly one line. **Seedable after all**: H5 read `w_ptr` as an unmappable CPS3 address, but the four measured values `0x0619BDF8`/`0x0619BE32`/`0x0619BE64`/`0x0619BE96` have gaps `0x3A`/`0x32`/`0x32` = the byte sizes of `unk_cmd_184`/`185`/`186` exactly, so all four sit at the one offset `check_init()` produces — and the value we need is what **our** `check_init()` would write, `&tbl[16]`, not the CPS3 address. `sync_waza_work_carried()` (`statcheck_compare.c`) imports the twelve scalar fields and RECONSTRUCTS `w_ptr`, behind a guard that admits only states the idle cycle can produce; anything else stays unseeded and still exits 4, so H5's protection is intact. Unreachable for 19 characters (`pl_cmd_num[c][6] <= 48`). Corpora **143/143 -> 143/143**, **182+1rc4 -> 183 PASS**, **117+4rc4 -> 121 PASS** — **447 of 447 eligible segments PASS**, 11 verdict lines moved (5 rc=4->0, 6 DIRTY->CLEAN); the five clear over 3,657-7,410 compared frames each. Nothing else moved, on split evidence: PASS ranges captured on both binaries for all 16 Twelve segments (none changed), and the loop is STATICALLY UNREACHABLE for the other 447 (`pl_cmd_num[c][6] <= 48` for all nineteen non-Twelve characters), with their verdict lines measured identical on top. Frame-data suite 99 GREEN, zero drift. Controls: forcing the guard false returns all 16 segments to the pre-fix line exactly; and `w_ptr` is **never dereferenced** from the seeded state on this corpus — replacing it with a pointer of all-`28` `command_ok()` sentinels changes **0 of 16**, so the reconstruction rests on `check_init()`'s arithmetic, not on a passing sweep |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 | CAB | **the seven cabinet / service globals** — `Max_vitality`, `No_Death`, `test_flag`, `ixbfw_cut`, `Country`, `CC_Value`, `Limit_Time` | **RESOLVED, 2026-09-05** — all seven addressed by disassembly and recorded with their evidence chains in `arcade_constants.h`, then measured over every frame of all 143 corpus segments. Four are **identical on both sides** (`Max_vitality` 160, `No_Death` 0, `test_flag` 0, `ixbfw_cut` 0) and are **asserted**, not seeded — a negative result that closes four of the forty hand-verified carried globals. `Country` is the one real difference (ours 4, arcade 1) and is **seeded**; `CC_Value` and `Limit_Time` are then **re-derived** by `Setup_Difficult_V()` / `Setup_Limit_Time()` and asserted, so one address resolves three and the import self-tests its own derivation. Latent, not fatal: the difference gates `effb8_normal_or_senyou()`'s `random_16()` draw, which the honest `Random_ix16` assert proves is never reached in a compared frame on this corpus. Sweep **143/143 -> 143/143**, zero PASS lines changed; detection control (seed removed) goes **143/143 DIRTY** naming all four. `save_w.Difficulty` / `.Damage_Level` came on the same trip and also agree |
