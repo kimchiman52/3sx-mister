@@ -140,6 +140,18 @@ command and its observed output, or a named primary source. Things that were
     invariant (§18). The correct word is **undefended**. One genuine OVIX
     overrun does exist — Ibuki's, index 2277 against 2,230 entries — and it is
     **pre-existing in PS2**, from a byte-identical cell (§18.6(i)).
+    **Superseded 2026-09-06 (§24): CLOSED, unreachable.** §18's "two data
+    properties" were one property and one error: the timer walk is
+    **stationary** (every one of Elena's 91 `parts_nix[i] == i`, so
+    `eff01.c`'s `cg_ix++` branch never runs for her), and the only other
+    writer is the cell's `olc >> 4`, whose maximum over all 7,769 cells is
+    16. Parts **17-90**, not just 85-90, are unreachable, by exhaustive
+    enumeration of every writer — no timing argument. `cg_audit.py` now
+    computes the reachable part set per character (`ovct_reachability()`)
+    and `residual_audit.py` reports OVCT violations on reachable parts (0),
+    so the tail is **defended by the audit**. The same sweep found an
+    **arcade-only dangling next-index on Dudley** (entry 177 → 178, past a
+    178-entry table; §24.6(i), item R).
 
 ---
 
@@ -152,7 +164,7 @@ command and its observed output, or a named primary source. Things that were
 | Full-cast crash-class audit, door 2 (residual) | **CLOSED** — 6 cells, Remy only (§17.3) |
 | Elena crash fix | **LANDED** `23326679` — range applied in `src/arcade/arcade_char_data.c`; gate `cg_audit.py` class (a) 66 → 0 (§8.A) |
 | Remy crash fix | **LANDED** `a5bc6a5b` — range applied in `src/arcade/arcade_char_data.c`; gate `residual_audit.py` residual-OOB 6 → 0 (§8.K) |
-| Elena OVCT unpatched tail | **OPEN** — latent, **undefended** (not "unreachable" — §18) |
+| Elena OVCT unpatched tail | **CLOSED 2026-09-06 — unreachable, defended by the audit** (§24). Parts 17-90 are indexed by no writer: the OVIX is the identity and no cell emits `olc >> 4` above 16, and the `eff01.c` timer walk is stationary (`parts_nix[i] == i` for all 91). No code change; `cg_audit.py` -> `ovct_reachability()` and `residual_audit.py` R2b `part_reachable` enforce it. Corrects §18's "undefended" |
 | 1,694 wrong-sprite cells (measured against the audit's oracle reach — §11.2 notes 162 more scripts, 2,441 cells, with no oracle at all) | **MOSTLY LANDED** items D, E, N (§8.D, §8.E, §8.N) — class (c) 1688 (post-§8.K baseline) → 89; item F (Chun-Li, 72 of the 89) investigated, deliberately left as-is (§8.F); remaining 17 enumerated with reasons (§8.D's Urien 0x52D9 ambiguity, and 7 of Necro/Hugo/Yun/Akuma's 9 smaller own-group cells — the same per-raw-value ambiguity; Akuma's other 2, `0x546B`, are a no-oracle block on a unanimous delta, not an ambiguity — §8.P) |
 | Shape-divergent scripts (316) | **OPEN** — enumerated; §11.4 now offers an oracle |
 | Upstream issue #363 | **OPEN** upstream; our findings not yet reported (§13) |
@@ -638,6 +650,11 @@ the clamp behaving as written, producing wrong sprites rather than a fault.
   map over 91 entries and names parts 85-90 outright. What is true is that no
   Elena *cell* emits an effective `cg_olc_ix` ≥ 85 (max 16 over 7,769 cells) —
   a property of the data, not a guard. **Undefended, not unreachable.**
+  **Closed by §24 (2026-09-06): unreachable, and defended by the audit.**
+  §18's residual worry — the timer walk marching up to 85 — cannot happen:
+  every one of Elena's 91 entries has `parts_nix[i] == i`, so the walk is
+  stationary. Parts 17-90 are indexed by no writer. `cg_audit.py` computes
+  the reachable set (`r<=16`) and prints `tail-unreached(6)`.
 - **Every other character's OVIX is 2-5 entries SHORTER than PS2's.**
   `wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix]` (`charset.c:2739`, `:2904`) is
   unbounded. **Corrected by the third pass (§18.6(i)): one character does
@@ -811,6 +828,25 @@ explicit remap for `parts_char`, or add a bounds check where `parts_char`
 becomes `cg_number` (`eff01.c:169`). Note upstream **deleted** a richer
 per-character OVCT remap (`remap_ovct_parts_char`) in #283 — its Ibuki/Urien
 bands have no equivalent today.
+
+> #### Status 2026-09-06: CLOSED — unreachable, no code change, defended by the audit (§24)
+>
+> Neither option above was taken, on purpose. Parts 85-90 — and parts 17-90
+> with them — are indexed by **no writer** of the part index: the OVIX is the
+> identity and the maximum `olc >> 4` over all 7,769 of Elena's cells is 16;
+> `plcnt_init` writes 0; `exdm_ix_data[*][8][3]` is 0; and the `eff01.c` timer
+> walk is **stationary** because every one of her 91 entries has
+> `parts_nix[i] == i` (§18.3's "monotone and unbounded march" was wrong —
+> §24.4). The X.C.O.P.Y. table-swap window is closed by data too (§24.3).
+> Applying −29360 would have shown six sprites (10822-10827) nobody can prove
+> are the right ones, on a path nobody can reach, and moved the netplay
+> digest for it. Instead the reachability model is now code:
+> `tools/arcade-audit/cg_audit.py` -> `ovct_reachability()` (table column
+> `ovct a/p reach`, ELENA row `91/85 r<=16 tail-unreached(6)`), and
+> `residual_audit.py` R2b annotates each OVCT violation with
+> `part_reachable` and prints the invariant `on a REACHABLE part : 0`. A
+> future cell, table or writer that makes a tail part reachable turns the
+> row into `TAIL-REACHED(n)!`.
 
 ### C. A bounds guard (cheap, high value, defensive)
 
@@ -1335,6 +1371,32 @@ release-note under §8.O. Rationale in §21.13.
 > (pre-change build at `90bc598d`) → `de7a005eef378cab`, both captured from
 > the boot log's "Arcade balance auto-selected" line against the same
 > verified romset. Not merged to `mister`, not on-device verified.
+
+### R. Dudley's dangling OVCT next-index — arcade entry 177 → 178, past a 178-entry table (§24.6(i)) — OPEN, decision needed
+
+Found by the §24 reachability sweep, **arcade-only** (PS2 control: none).
+Dudley's arcade OVCT has 178 entries; entry 177 is `{timer 250, parts_char 0,
+parts_nix 178}` — byte-identical to PS2's entry 177 — but the PS2 table has
+two more entries, `178 = {sprite 5058, nix 178}` and `179 = {sprite 5059, nix
+179}` (both group 5, Dudley's own, `colcd 13, mts 1`, self-looping). On the
+arcade table `nix 178` points one element past the `SDL_malloc(location.size)`
+buffer `read_ovct` returns, so `get_new_parts_data` would build the part from
+**heap bytes** and hand `parts_char` to the renderer unremapped. Reachable in
+principle: the walk seeds are 82 (`saca[28..31]`, olc 39) and 130
+(`saca[48..51]`, olc 40), the chain from 130 is 47 one-frame steps to entry
+177, then 250 more frames there. The scripts hold those `olc` values for 33
+and 18 frames respectively (hit-stop extends the hold; the SA freeze does not,
+`sa_stop_flag`), so it is **not observed and timing-gated** — the same class
+§18 put Elena's tail in, and this time the timing argument is all there is.
+
+Options, each a decision: (1) carry PS2's trailing entries when
+`arcade_count < ps2_count` — needs a larger buffer than `location.size` and
+moves the digest (§8.O); (2) clamp `parts_nix >= arcade_count` to `i` in
+`Apply3SXRenderingConventions` — stationary at part 177, `parts_char 0`, never
+drawn, whereas PS2 would show sprite 5058; also moves the digest; (3) a bounds
+check in `eff01.c` -> `get_new_parts_data`, which touches a PS2 engine file
+and must be gated. `cg_audit.py` prints the row as `walk>end[178](arcade-only)`
+until one of them lands.
 
 ---
 
@@ -2522,6 +2584,16 @@ constant-sourced — but the *field* is shared, and the arithmetic
 ---
 
 ## 18. Elena's OVCT tail: the "unreachable" claim was wrong
+
+> **Read with §24 (2026-09-06).** This section's verdict — "not-observed, not
+> provably unreachable" — is itself superseded: §24 enumerates every writer
+> of the part index and shows the tail unreachable with no timing argument.
+> Three statements below are wrong and are corrected there: §18.3(2)'s
+> "monotone and unbounded" walk (every `parts_nix[i] == i`, so it is
+> stationary), §18.3(2)'s "+1 for P1" (`player_number` is the *character*;
+> the +1 is Gill's), and §18.6(iii)'s reading of `exdm_ix_data`'s subscript
+> as a player slot (it is the character, and rows 2..19 are live). The rest
+> — §18.1, §18.2, §18.5, §18.6(i)-(ii) — stands.
 
 §7.5 and §8.B call Elena's unpatched OVCT parts 85-90 "currently unreachable"
 because *"no selected `ovix` entry reaches a part ≥ 85"*. **That reason is
@@ -4221,3 +4293,246 @@ is the natural next experiment (§23.11).
   mechanical: walk the CPS3 `ta_move_tbl` (its entries are known even though
   its referrer is not), decode each `bgXX0N_init00`'s spawn list with
   `spawn.py`, and diff against `stage/bg*.c`.
+
+---
+
+## 24. Elena's OVCT tail: CLOSED — unreachable by every writer, and the audit now checks it (eighth pass, 2026-09-06)
+
+**Citation style for this section.** As in §21-§23: this document is not in
+`tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line. Code was read at
+`new-stuff` @ `a3172c7f`. Every number marked **measured** was produced by
+`tools/arcade-audit/cg_audit.py` (`ovct_reachability()`, added in this pass)
+against the same `rom.bin` (md5 `909f5abec4b6b21bf7d2a452a03fdfcc`) and
+`SF33RD.AFS` the rest of this document uses, or by the scratch sweep that
+preceded it and that the function reproduces.
+
+**Headline.** §18 was right that "no OVIX entry reaches a part ≥ 85" was a
+false defence, and wrong about what replaces it. The part index has exactly
+five writers in the engine (§24.2). Enumerating them over the shipped data
+gives a reachable set for Elena of **parts 1-16, exactly** — not because a
+timer never runs out, but because **every one of her 91 OVCT entries has
+`parts_nix[i] == i`**, which makes `eff01.c`'s timer walk a self-loop, and
+because the identity OVIX turns the cell's `olc >> 4` (max **16** over all
+7,769 cells, pre- and post-terminator) directly into the part index. Parts
+**17-90** are cold, the six unpatched ones among them. No timing argument is
+needed and none is used. §8.B is closed with **no code change**; the model
+is now code in `cg_audit.py` and `residual_audit.py`, so the claim is
+re-derived on every audit run instead of resting in prose.
+
+### 24.1 What the six entries are
+
+Decoded from `LOC[ELENA]['ovct']` (`0x2AEB58`, 91 × 16 B, big-endian, field
+order as `read_ovct`) — **measured**:
+
+| part | hos_x | hos_y | colmd | colcd | prio | flip | timer | disp | mts | nix | parts_char |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 85 | 0 | 0 | 0 | 0 | 2 | 0 | 255 | 0 | 0 | 85 | 0x9CF6 (40182) |
+| 86 | 0 | 0 | 0 | 0 | 2 | 0 | 255 | 0 | 0 | 86 | 0x9CF7 (40183) |
+| 87 | 0 | 0 | 0 | 0 | 2 | 0 | 255 | 0 | 0 | 87 | 0x9CF8 (40184) |
+| 88 | 0 | 0 | 0 | 0 | 2 | 0 | 255 | 0 | 0 | 88 | 0x9CF9 (40185) |
+| 89 | 0 | 0 | 0 | 0 | 2 | 0 | 255 | 0 | 0 | 89 | 0x9CFA (40186) |
+| 90 | 0 | 0 | 0 | 0 | 2 | 0 | 255 | 0 | 0 | 90 | 0x9CFB (40187) |
+
+They are the last six of a **58-value run**: parts 33-90 carry `parts_char`
+`0x9CC2..0x9CFB` contiguously (33 → `0x9CC2`, 90 → `0x9CFB`). That run is the
+exact "raw gap 0x9CC2-0x9CFB" the `elena_cg_ranges` comment (§8.A) calls
+"58 arcade-only sprites elided": it is not sprite-less and not elided — it is
+the OVCT's namespace, and **no script cell of any of the 20 characters
+references any value in it** (measured: 0 cells). `Apply3SXRenderingConventions`
+gives parts 33-84 their PS2 sprites (33-34 → 11745-11746, 35-84 →
+10772-10821, the −28385 / −29360 bands of §18.5); parts 85-90 are past
+`common_count = 85` and keep the raw values, all ≥ 37,664. The comment is
+corrected in this pass.
+
+**What the PS2 uses parts 33-84 for, and the arcade does not (measured).**
+Every PS2 part 33-84 has `parts_char` equal to the `cg_number` of the PS2 cell
+that selects it, with `colcd 8` (13 for 33-34) and `mts 1` — `eff01.c` ->
+`effect_01_move` sets `my_mts = 14` for `parts_mts != 0` — i.e. a second draw
+of the body sprite in another texture mode. The PS2 cells that select them:
+`btca[15]` and `dmca[82..89]` (parts 33-34: the electric-shock scripts of
+§5/§8.A) and `saca[48]` (parts 35-84, one per cell, the SA slot
+`9900_g[8..11]`). The arcade versions of those same scripts select **`olc 0`**
+(btca/dmca) or **parts 1-16** (`saca[48]`, cells 3-55). Arcade parts 17-90 are
+selected by nothing in the arcade data; the PS2 port re-purposed 33-84 for its
+own rendering convention and dropped 85-90 (its OVIX and OVCT both end at 85).
+PS2 OVIX entries 35-78 additionally carry a slot-1 part 1-16 (`ovix[35] = {35,
+1, 0, 0}` … `{78, 16, 0, 0}`); the arcade OVIX is the identity throughout
+(`{i, 0, 0, 0}`, all 91 — confirms §18.2).
+
+### 24.2 Every writer of the part index
+
+`get_new_parts_data` (`eff01.c`) reads the part at
+`mwk->wu.overlap_char_tbl + ewk->wu.now_koc`. `now_koc` is `cg_ix`, plus one
+when `type == 0 && mwk->player_number == 0 && rl_flag`. Everything that can
+put a value into `cg_ix`, and everything that feeds it:
+
+| # | Writer | Value | Elena, measured |
+|---|---|---|---|
+| 1 | `charset.c` -> `check_cgd_data` (both copies): `wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];` | the cell's `olc` word `>> 4` selects an OVIX entry; its four `s16` slots are the part indices, one per overlap `type` | `olc >> 4` over all 7,769 cells, all ten tables: pre-terminator `{0: 7596, 1..14: 3 each, 15: 5, 16: 5}`, post-terminator `{0: 121}`; **max 16**; all nonzero in `saca[48]` |
+| 2 | `plcnt.c` -> `plcnt_init`: `wk->wu.cg_olc_ix = wk->wu.cg_hit_ix = 0;` | OVIX[0] | `{0, 0, 0, 0}` |
+| 3 | `plpdm.c` -> `Player_damage`: `wk->wu.cg_olc_ix = datadrs[3];` with `datadrs = exdm_ix_data[wk->wu.dm_exdm_ix][wk->player_number]` — **unshifted**, and `player_number` is the **character** (`plcnt.c` -> `plcnt_init`: `wk->player_number = My_char[ix]`; `constants.h`: `CHAR_GILL = 0`) | `exdm_ix_data[b][8][3]` | rows `{ 30, 21, 1, 0, 10394 }` and `{ 40, 21, 1, 0, 10394 }` → **0**; the `cg_number` 10394 it also writes is group 9 |
+| 4 | `eff01.c` -> `effect_01_move` restart: `ewk->wu.cg_olc.olc_ix[type] = ewk->wu.cg_ix = mwk->cg_olc.olc_ix[type];` | the master's current selection, i.e. #1-#3 through the OVIX | slot 0 of `ovix[e]` for `e ∈ {0..16}` = `{0..16}`; slots 1-3 are 0 for all 91 entries, so overlap types 1-3 never leave `if (mwk->cg_olc.olc_ix[type] == 0) return;` |
+| 5 | `eff01.c` -> `effect_01_move` timer walk: `if (--cg_ctr == 0) { cg_ix = parts_nix ? parts_nix : cg_ix + 1; }` | the current part's `parts_nix`, else the next index | **`parts_nix[i] == i` for i = 1..90; `parts_nix[0] == 0`** |
+
+Not writers: `netplay/game_state.c` restores `cg_ix`/`cg_olc`/`overlap_char_tbl`
+from saved copies of the same values; `cg_type` 20/30 (the X.C.O.P.Y. markers,
+§24.3) are only ever compared, never assigned, outside a cell decode (grep
+`cg_type = 20` / `= 30`: no hits in `src/sf33rd`). `effect_01_init` sets no
+part index; `pull_effect_work` does not zero the work, but the stale `cg_ix`
+is unreachable: the walk branch requires the effect's cached selection to
+equal the master's nonzero one, and the cache is written 0 in routine 0 and
+by every dormant frame, so the first live frame is always a restart (#4).
+
+### 24.3 The proof
+
+1. **Seeds.** By #1-#3, the only OVIX indices Elena's engine state can hold
+   are `{0..16}`. With the identity OVIX, slot 0 gives part indices `{1..16}`
+   (0 is the dormant sentinel, #4) and slots 1-3 give nothing. Seeds =
+   **{1..16}**.
+2. **Closure.** From any seed p, #5 moves to `parts_nix[p]` if nonzero, else
+   `p + 1`. For p ∈ 1..90, `parts_nix[p] == p`: the walk stays put, for any
+   number of timer expiries. The `cg_ix + 1` branch requires `parts_nix == 0`,
+   which only entry 0 has, and entry 0 is never a walk position (never a
+   seed; no entry's `nix` is 0 except its own). So the closure of {1..16} is
+   **{1..16}**, and `cg_ix + 1` **never executes for Elena**. Reachable parts
+   = **1-16**; unreachable = **17-90**, including all six unpatched ones.
+3. **Gill's +1 does not apply.** `mwk->player_number == 0` is `CHAR_GILL`;
+   Elena is 8. (For Gill it is a left-facing part offset — his `parts_nix`
+   pairs make that consistent; not audited here.)
+4. **The X.C.O.P.Y. window is closed by data.** `effk7.c` -> `K7_move_type_0`
+   rebinds `overlap_char_tbl`/`olc_ix_table` to the target's tables
+   (`set_base_data_metamorphose` -> `set_char_base_data`) when Twelve's
+   current cell has `cg_type == 20`, while `mwk->cg_olc` still holds the
+   selection decoded from Twelve's cell against Twelve's 133-entry OVIX. Had
+   that selection been a part index in 85-90, `eff01.c` would have applied it
+   to Elena's table. Measured over both data universes: Twelve has **40**
+   cells with `cg_type == 20`; every one has `olc >> 4 == 0`, so
+   `cg_olc = ovix[0] = {0, 0, 0, 0}` — all four overlays dormant at the swap
+   — and the cell before each marker also has `olc >> 4 == 0`. After the
+   swap the cells come from Elena's tables (item 1). The reverse marker
+   (`cg_type == 30`, Elena's cells) rebinds to Twelve's *larger* tables and is
+   irrelevant to her tail.
+5. **Model completeness.** The cell census is the same one every other
+   section uses (§19: the 500 spans tile the ROM; the only un-decoded script
+   is Ibuki's `atca` orphan). Post-terminator cells are included in the
+   `olc` sweep even though they never execute; they contribute only 0.
+
+That is the whole argument. It rests on the shipped ROM (sha-pinned by
+`rom_load.c`) and on the five writers; it does not rest on `parts_timer`,
+hit-stop, or how long a script holds an `olc`. §18.4's three "openers"
+reduce to: a different ROM, a code change to `eff01.c`/`charset.c`, or a
+data change to `exdm_ix_data` — each a change to the thing being audited,
+and the first two would move the `cg_audit.py` row (§24.5).
+
+### 24.4 Corrections to §18 (recorded, not silently edited)
+
+- **§18.3(2)** says the walk "is monotone and unbounded" and would "march
+  through 85-90 and off the end", held off only by `parts_timer = 255`. Wrong:
+  `parts_nix[i] == i` makes it a self-loop. The 255-frame arithmetic and the
+  "69 steps from the anchor at 16" were computed for a walk that does not
+  exist.
+- **§18.3(2)** says the +1 is applied "for P1/type-0/`rl_flag`". `player_number`
+  is not the player slot; it is `My_char[ix]`, the character id, and the test
+  is `== CHAR_GILL`. (`effk7.c` copies the *target's* `player_number` into
+  Twelve on morph, which only makes sense for a character id.)
+- **§18.6(iii)** reads `exdm_ix_data[dm_exdm_ix][player_number]` as indexed by
+  a player slot ∈ {0, 1}, concludes rows 2..19 are unreachable and that
+  "every character reads Gill's or Alex's row", and warns that "fixing" the
+  subscript would overrun 19 OVIXes. The subscript **is** the character; the
+  20 rows are live, one per character (which is why their `cg_number`s map
+  1:1 onto groups 1..20 — the "inference" there is the mechanism); the 964 in
+  row 7 is Ibuki's own and in range for her 2,230-entry OVIX. There is no
+  dormant defect and nothing to fix. `statcheck_compare.c` records the same
+  reading of `player_number`.
+- **§8.A's `elena_cg_ranges` comment** ("58 arcade-only sprites elided") — see
+  §24.1; corrected in `src/arcade/arcade_char_data.c` in this pass.
+- §18.6(i) (Ibuki's pre-terminator OVIX overrun at 2277) and §18.6(ii) (the
+  tables are genuinely two entries shorter; bytes past every OVCT decode as
+  RICT) are **re-confirmed** for all 20 characters (measured; the RICT
+  pattern `nix 513/257, timer 255, char 1` appears past every arcade OVCT).
+  The seven characters whose post-terminator cells carry `olc` words like
+  `0x8000` (Gill, Alex, Yun, Yang, Urien, Remy; Ibuki's is pre-terminator)
+  are decoder artefacts of the same kind as §15.7's, and are reported
+  separately from the pre-terminator set.
+
+### 24.5 The defence, in code
+
+- `tools/arcade-audit/cg_audit.py` -> `ovct_reachability(ci)`: parses the
+  arcade OVIX/`parts_nix` (and the PS2 ones as the §6.1 control), sweeps
+  every cell's `olc >> 4` (pre and post terminator), adds `plcnt_init`'s 0
+  and `exdm_ix_data[*][ci][3]` (parsed from `plpdm.c`), and takes the closure
+  of #4/#5 with **no timing constraint** — an upper bound on what the C can
+  index. Per character the JSON gains `ovct_reachability` and the stats
+  `ovct_reach_max`, `ovct_reach_unpatched` (reachable parts ≥ `common_count`),
+  `ovct_walk_past_end` / `_ps2` (walk indices outside the table),
+  `ovix_oob_pre_terminator`. **No pre-existing JSON value changed**
+  (measured: field-by-field diff against `1d7aa3cb`'s file, 0 differences).
+- The table's last column is now `ovct a/p reach`, and the flag is a
+  reachability verdict, not a count difference: `TAIL-REACHED(n)!` when a
+  reachable part is unpatched, `walk>end[...]` when the walk leaves the
+  table, `tail-unreached(n)` when a tail exists but nothing indexes it, else
+  `ok`.
+- `tools/arcade-audit/residual_audit.py` R2b annotates every OVCT violation
+  with `part_reachable` and prints `on a REACHABLE part : 0` — that line is
+  the invariant. R2b itself stays reachability-blind on purpose (every slot
+  is checked), so the six Elena rows still print, now with
+  `part_reachable=False`.
+
+ELENA row, `cg_audit.py`, before (committed `1d7aa3cb`, re-run 2026-09-06 —
+byte-identical JSON) and after:
+
+```
+ELENA    7769 |    0    0     0     0    13    10 |     0     0     0     0     0     0     0 | 91/85 UNPATCHED-TAIL!  91/85 ok
+ELENA    7769 |    0    0     0     0    13    10 |     0     0     0     0     0     0     0 | 91/85 r<=16 tail-unreached(6)  91/85 ok
+```
+
+`residual_audit.py` invariants after: `residual < 0 : 0`,
+`residual >= offset-table length : 0`, and R2b `on a REACHABLE part : 0`
+(6 slot violations, all Elena 85-90, all `part_reachable=False`).
+
+### 24.6 Adjacent findings from the same sweep
+
+**(i) DUDLEY — an arcade-only dangling `parts_nix`, timing-gated, OPEN (item
+R).** Arcade entry 177 of 178 is `{timer 250, char 0, nix 178}`,
+byte-identical to PS2's entry 177, but PS2's table continues with `178 =
+{sprite 5058, nix 178}` and `179 = {sprite 5059, nix 179}` (group 5, `colcd
+13`, `mts 1`). The arcade walk from seed 130 (`saca[48..51]`, `olc` 40) is 47
+one-frame steps to 177 then 250 frames to 178, one element past the
+`SDL_malloc(location.size)` buffer; from seed 82 (`saca[28..31]`, `olc` 39) it
+is 344 + 250 frames. Those scripts hold the `olc` for 18 and 33 script
+frames. `cg_audit.py` prints `178/180 r<=177 walk>end[178](arcade-only)`.
+This is the only character whose arcade walk leaves its table. See §8.R.
+
+**(ii) RYU — a pre-existing PS2 quirk, not ours.** PS2 entries 54 and 55 (the
+two entries the port added) carry `nix 57` and `58` against a 56-entry table,
+and PS2 cells select 54 and 55 directly, so the PS2 walk leaves its own table
+after 255 frames. The arcade table (54 entries) has no dangling `nix`.
+Reported as `ovct_walk_past_end_ps2 = [57, 58]`; by §6.1 not an adaptation
+defect.
+
+**(iii) For 16 of the other 19 characters the reachable maximum is
+`entries − 1`** (`r<=` column): the arcade OVCTs are used to their ends,
+which is what makes Elena's 17-90 and the PS2's "+2 entries per character"
+stand out as port-side data. The three exceptions — Yang (5 of 20), Akuma
+(69 of 115), Chun-Li (63 of 75) — also carry cold parts, but every one of
+them is below `common_count`, so it holds a PS2-patched `parts_char`;
+`ovct_reach_unpatched` is 0 for all 20.
+
+### 24.7 What this does not establish
+
+- Nothing about what parts 85-90 (or 17-32, 33-90) *would* look like — no
+  sprite identity was checked, because no path draws them. §18.5's −29360
+  band remains an unverified arithmetic guess and is not applied.
+- The CPS3's own overlay engine was not disassembled; the port runs the PS2
+  engine (`eff01.c`) on arcade data, and that is the only engine whose
+  reachability matters here.
+- Dudley's window (§24.6(i)) was measured in script frames from cell `ctr`
+  sums; hit-stop accumulation across a multi-hit SA was not modelled. The
+  finding is "arcade-only dangling index, ≥ 297 frames from an 18-frame
+  hold", not "reachable in play".
+- The reachability model is per-character: a part index decoded against one
+  character's OVIX and consumed against another's table (the X.C.O.P.Y.
+  window) was checked only at the 40 `cg_type == 20` markers and their
+  predecessors, which is where the swap happens; `cg_audit.py` does not
+  model the swap generically.

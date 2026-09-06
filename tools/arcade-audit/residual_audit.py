@@ -339,6 +339,11 @@ def audit():
         # for i < common_count and kept RAW past it.
         common = min(a_cnt, p_cnt)
         post = p_char[:common] + a_char[common:]
+        # This loop is deliberately reachability-blind: it bounds-checks EVERY
+        # table slot. `part_reachable` says whether any writer of the part
+        # index can ever land on that slot (cg_audit.ovct_reachability, doc
+        # §24) — a violation on an unreachable slot is latent data, not a door.
+        part_reach = set(CG.ovct_reachability(ci)['arcade']['reach'])
         for i, v in enumerate(post):
             verdict, g, n, L = classify(v, lengths)
             if verdict == 'ok' or verdict == 'gap':
@@ -347,6 +352,7 @@ def audit():
             result['ovct_violations'].append(dict(
                 cls=verdict, char=NAMES[ci], part=i, parts_char=v, group=g,
                 residual=n, table_len=L, patched_from_ps2=(i < common),
+                part_reachable=(i in part_reach),
                 arcade_parts=a_cnt, ps2_parts=p_cnt,
                 group_reachability=kind, group_loaded_when=why))
         for i, v in enumerate(p_char):
@@ -464,11 +470,13 @@ def main():
 
     print("R2b — OVCT parts_char -> cg_number (eff01.c:169)")
     ov = res['ovct_violations']
-    print("  post-adaptation violations : %d" % len(ov))
+    print("  post-adaptation violations : %d  (every table slot, reachable or not)" % len(ov))
     for x in ov:
-        print("     %-7s part %-4d parts_char=%-7d %-18s patched_from_ps2=%s  %s"
+        print("     %-7s part %-4d parts_char=%-7d %-18s patched_from_ps2=%-5s part_reachable=%-5s %s"
               % (x['char'], x['part'], x['parts_char'], x['cls'],
-                 x['patched_from_ps2'], x['group_loaded_when']))
+                 x['patched_from_ps2'], x['part_reachable'], x['group_loaded_when']))
+    print("  on a REACHABLE part         : %d  (cg_audit.ovct_reachability, doc §24 — the invariant)"
+          % len([x for x in ov if x['part_reachable']]))
     print("  PS2 control                : %d" % len(res['ovct_violations_ps2_control']))
     for x in res['ovct_violations_ps2_control']:
         print("     %s" % x)

@@ -445,6 +445,11 @@
    "ovix_arcade": 146,
    "ovix_ps2": 148,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 391,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -461,7 +466,216 @@
    "koc_oob": 6,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 392,
+    "seeds": [
+     "1-27",
+     "29-30",
+     "62-74",
+     "76",
+     "78",
+     "80",
+     "82",
+     "84",
+     "94",
+     "96",
+     "98",
+     "100",
+     "102",
+     "104",
+     "106",
+     "132",
+     "134",
+     "136",
+     "148",
+     "150",
+     "152",
+     "154",
+     "156",
+     "166",
+     "168",
+     "170",
+     "172",
+     "174",
+     "186",
+     "188",
+     "190",
+     "192",
+     "194",
+     "206",
+     "208",
+     "210",
+     "212",
+     "214",
+     "216",
+     "218",
+     "220",
+     "222",
+     "255-279",
+     "283",
+     "287",
+     "291-292",
+     "315-316",
+     "343-344",
+     "349-350"
+    ],
+    "reach": [
+     "1-27",
+     "29-30",
+     "62-74",
+     "76",
+     "78",
+     "80",
+     "82",
+     "84",
+     "94",
+     "96",
+     "98",
+     "100",
+     "102",
+     "104",
+     "106",
+     "132",
+     "134",
+     "136",
+     "148",
+     "150",
+     "152",
+     "154",
+     "156",
+     "166",
+     "168",
+     "170",
+     "172",
+     "174",
+     "186",
+     "188",
+     "190",
+     "192",
+     "194",
+     "206",
+     "208",
+     "210",
+     "212",
+     "214",
+     "216",
+     "218",
+     "220",
+     "222",
+     "255-391"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": [
+     2048
+    ]
+   },
+   "ps2": {
+    "entries": 396,
+    "seeds": [
+     "1-27",
+     "29-30",
+     "62-74",
+     "76",
+     "78",
+     "80",
+     "82",
+     "84",
+     "94",
+     "96",
+     "98",
+     "100",
+     "102",
+     "104",
+     "106",
+     "132",
+     "134",
+     "136",
+     "148",
+     "150",
+     "152",
+     "154",
+     "156",
+     "166",
+     "168",
+     "170",
+     "172",
+     "174",
+     "186",
+     "188",
+     "190",
+     "192",
+     "194",
+     "206",
+     "208",
+     "210",
+     "212",
+     "214",
+     "216",
+     "218",
+     "220",
+     "222",
+     "255-279",
+     "283",
+     "287",
+     "291-292",
+     "315-316",
+     "343-344",
+     "349-350",
+     "392",
+     "394"
+    ],
+    "reach": [
+     "1-27",
+     "29-30",
+     "62-74",
+     "76",
+     "78",
+     "80",
+     "82",
+     "84",
+     "94",
+     "96",
+     "98",
+     "100",
+     "102",
+     "104",
+     "106",
+     "132",
+     "134",
+     "136",
+     "148",
+     "150",
+     "152",
+     "154",
+     "156",
+     "166",
+     "168",
+     "170",
+     "172",
+     "174",
+     "186",
+     "188",
+     "190",
+     "192",
+     "194",
+     "206",
+     "208",
+     "210",
+     "212",
+     "214",
+     "216",
+     "218",
+     "220",
+     "222",
+     "255-394"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "ALEX": {
   "name": "ALEX",
@@ -689,6 +903,11 @@
    "ovix_arcade": 53,
    "ovix_ps2": 55,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 56,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -705,7 +924,45 @@
    "koc_oob": 4,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 57,
+    "seeds": [
+     "1-10",
+     "12-17",
+     "21-48",
+     "51-56"
+    ],
+    "reach": [
+     "1-10",
+     "12-48",
+     "50-56"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": [
+     1136,
+     2224
+    ]
+   },
+   "ps2": {
+    "entries": 59,
+    "seeds": [
+     "1-10",
+     "12-17",
+     "21-48",
+     "51-58"
+    ],
+    "reach": [
+     "1-10",
+     "12-48",
+     "50-58"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "RYU": {
   "name": "RYU",
@@ -831,6 +1088,14 @@
    "ovix_arcade": 7,
    "ovix_ps2": 9,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 53,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [
+    57,
+    58
+   ],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -847,7 +1112,66 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 54,
+    "seeds": [
+     "1",
+     "3",
+     "5-6",
+     "10",
+     "14",
+     "18-20",
+     "30",
+     "34",
+     "38",
+     "42",
+     "46",
+     "50"
+    ],
+    "reach": [
+     "1-31",
+     "34-36",
+     "38-43",
+     "46-48",
+     "50-53"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 56,
+    "seeds": [
+     "1",
+     "3",
+     "5-6",
+     "10",
+     "14",
+     "18-20",
+     "30",
+     "34",
+     "38",
+     "42",
+     "46",
+     "50",
+     "54-55"
+    ],
+    "reach": [
+     "1-31",
+     "34-36",
+     "38-43",
+     "46-48",
+     "50-55"
+    ],
+    "past_end": [
+     57,
+     58
+    ],
+    "ovix_oob": []
+   }
+  }
  },
  "YUN": {
   "name": "YUN",
@@ -1285,6 +1609,11 @@
    "ovix_arcade": 20,
    "ovix_ps2": 22,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 5,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -1301,7 +1630,36 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 6,
+    "seeds": [
+     "1-5"
+    ],
+    "reach": [
+     "1-5"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": [
+     2048,
+     2292,
+     2308
+    ]
+   },
+   "ps2": {
+    "entries": 8,
+    "seeds": [
+     "1-7"
+    ],
+    "reach": [
+     "1-7"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "DUDLEY": {
   "name": "DUDLEY",
@@ -1707,6 +2065,13 @@
    "ovix_arcade": 41,
    "ovix_ps2": 43,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 177,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [
+    178
+   ],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -1723,7 +2088,57 @@
    "koc_oob": 33,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 178,
+    "seeds": [
+     "1-15",
+     "18-26",
+     "40",
+     "47",
+     "63-65",
+     "73-74",
+     "80-82",
+     "130"
+    ],
+    "reach": [
+     "1-15",
+     "18-26",
+     "40-45",
+     "47-65",
+     "73-177"
+    ],
+    "past_end": [
+     178
+    ],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 180,
+    "seeds": [
+     "1-15",
+     "18-26",
+     "40",
+     "47",
+     "63-65",
+     "73-74",
+     "80-82",
+     "130",
+     "178-179"
+    ],
+    "reach": [
+     "1-15",
+     "18-26",
+     "40-45",
+     "47-65",
+     "73-179"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "NECRO": {
   "name": "NECRO",
@@ -1898,6 +2313,11 @@
    "ovix_arcade": 10,
    "ovix_ps2": 12,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 45,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -1914,7 +2334,40 @@
    "koc_oob": 1,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 46,
+    "seeds": [
+     "1",
+     "13",
+     "21",
+     "33",
+     "41-45"
+    ],
+    "reach": [
+     "1-45"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 48,
+    "seeds": [
+     "1",
+     "13",
+     "21",
+     "33",
+     "41-47"
+    ],
+    "reach": [
+     "1-47"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "HUGO": {
   "name": "HUGO",
@@ -2083,6 +2536,11 @@
    "ovix_arcade": 62,
    "ovix_ps2": 64,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 70,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -2107,7 +2565,34 @@
     "slack": 3232,
     "ps2_span": 11188
    }
-  ]
+  ],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 71,
+    "seeds": [
+     "1-39",
+     "49-70"
+    ],
+    "reach": [
+     "1-70"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 73,
+    "seeds": [
+     "1-39",
+     "49-72"
+    ],
+    "reach": [
+     "1-72"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "IBUKI": {
   "name": "IBUKI",
@@ -2289,6 +2774,13 @@
    "ovix_arcade": 2230,
    "ovix_ps2": 2235,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 2285,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [
+    2277
+   ],
    "ovix_arcade_shorter_by": 5,
    "a_oob": 0,
    "b_gap": 0,
@@ -2305,7 +2797,198 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 2286,
+    "seeds": [
+     "1-2",
+     "4",
+     "6",
+     "8",
+     "10",
+     "12",
+     "14",
+     "16",
+     "23-62",
+     "71",
+     "80-153",
+     "155-185",
+     "188-334",
+     "336-357",
+     "359-376",
+     "380",
+     "383-393",
+     "397-410",
+     "412-422",
+     "424-438",
+     "440",
+     "442-454",
+     "456",
+     "458-478",
+     "480",
+     "482-500",
+     "502",
+     "504-516",
+     "518",
+     "520",
+     "522",
+     "524",
+     "526",
+     "528",
+     "530-537",
+     "539-1114",
+     "1116-1198",
+     "1201-1236",
+     "1238-1304",
+     "1306-1314",
+     "1325-1378",
+     "1383-1844",
+     "1852-1914",
+     "1916-2000",
+     "2002-2136",
+     "2142-2276",
+     "2278-2285"
+    ],
+    "reach": [
+     "1-334",
+     "336-357",
+     "359-376",
+     "380",
+     "383-393",
+     "397-410",
+     "412-422",
+     "424-438",
+     "440",
+     "442-454",
+     "456",
+     "458-478",
+     "480",
+     "482-500",
+     "502",
+     "504-516",
+     "518",
+     "520",
+     "522",
+     "524",
+     "526",
+     "528",
+     "530-537",
+     "539-1114",
+     "1116-1198",
+     "1201-1236",
+     "1238-1304",
+     "1306-1314",
+     "1325-1378",
+     "1383-1844",
+     "1852-1914",
+     "1916-2000",
+     "2002-2136",
+     "2142-2276",
+     "2278-2285"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [
+     2277
+    ],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 2296,
+    "seeds": [
+     "1-2",
+     "4",
+     "6",
+     "8",
+     "10",
+     "12",
+     "14",
+     "16",
+     "23-62",
+     "71",
+     "80-153",
+     "155-185",
+     "188-333",
+     "337-357",
+     "359-376",
+     "380",
+     "383-393",
+     "397-410",
+     "412-422",
+     "424-438",
+     "440",
+     "442-454",
+     "456",
+     "458-478",
+     "480",
+     "482-500",
+     "502",
+     "504-516",
+     "518",
+     "520",
+     "522",
+     "524",
+     "526",
+     "528",
+     "530-537",
+     "539-1114",
+     "1116-1198",
+     "1201-1236",
+     "1238-1304",
+     "1306-1314",
+     "1325-1378",
+     "1383-1844",
+     "1852-1914",
+     "1916-2000",
+     "2002-2136",
+     "2142-2276",
+     "2278-2286",
+     "2289",
+     "2293-2295"
+    ],
+    "reach": [
+     "1-333",
+     "337-357",
+     "359-376",
+     "380",
+     "383-393",
+     "397-410",
+     "412-422",
+     "424-438",
+     "440",
+     "442-454",
+     "456",
+     "458-478",
+     "480",
+     "482-500",
+     "502",
+     "504-516",
+     "518",
+     "520",
+     "522",
+     "524",
+     "526",
+     "528",
+     "530-537",
+     "539-1114",
+     "1116-1198",
+     "1201-1236",
+     "1238-1304",
+     "1306-1314",
+     "1325-1378",
+     "1383-1844",
+     "1852-1914",
+     "1916-2000",
+     "2002-2136",
+     "2142-2276",
+     "2278-2295"
+    ],
+    "past_end": [],
+    "ovix_oob": [
+     2277
+    ]
+   }
+  }
  },
  "ELENA": {
   "name": "ELENA",
@@ -2493,6 +3176,11 @@
    "ovix_arcade": 91,
    "ovix_ps2": 85,
    "ovct_unpatched_tail": 6,
+   "ovct_reach_max": 16,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -2524,7 +3212,34 @@
     "slack": 1952,
     "ps2_span": 9364
    }
-  ]
+  ],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 91,
+    "seeds": [
+     "1-16"
+    ],
+    "reach": [
+     "1-16"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 85,
+    "seeds": [
+     "1-16",
+     "33-84"
+    ],
+    "reach": [
+     "1-16",
+     "33-84"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "ORO": {
   "name": "ORO",
@@ -2657,6 +3372,11 @@
    "ovix_arcade": 41,
    "ovix_ps2": 43,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 66,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -2673,7 +3393,42 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 67,
+    "seeds": [
+     "1-5",
+     "9-37",
+     "53",
+     "56",
+     "61",
+     "64-66"
+    ],
+    "reach": [
+     "1-66"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 69,
+    "seeds": [
+     "1-5",
+     "9-37",
+     "53",
+     "56",
+     "61",
+     "64-68"
+    ],
+    "reach": [
+     "1-68"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "YANG": {
   "name": "YANG",
@@ -3843,6 +4598,11 @@
    "ovix_arcade": 20,
    "ovix_ps2": 22,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 5,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -3859,7 +4619,40 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 20,
+    "seeds": [
+     "1-5"
+    ],
+    "reach": [
+     "1-5"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": [
+     1264,
+     2048,
+     2224
+    ]
+   },
+   "ps2": {
+    "entries": 22,
+    "seeds": [
+     "1-5",
+     "8",
+     "20-21"
+    ],
+    "reach": [
+     "1-5",
+     "8",
+     "20-21"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "KEN": {
   "name": "KEN",
@@ -3945,6 +4738,11 @@
    "ovix_arcade": 24,
    "ovix_ps2": 26,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 41,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -3961,7 +4759,32 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 42,
+    "seeds": [
+     "31-41"
+    ],
+    "reach": [
+     "31-41"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 44,
+    "seeds": [
+     "31-43"
+    ],
+    "reach": [
+     "31-43"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "SEAN": {
   "name": "SEAN",
@@ -4047,6 +4870,11 @@
    "ovix_arcade": 25,
    "ovix_ps2": 27,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 24,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -4071,7 +4899,36 @@
     "slack": 1512,
     "ps2_span": 4800
    }
-  ]
+  ],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 25,
+    "seeds": [
+     "1-8",
+     "10-24"
+    ],
+    "reach": [
+     "1-8",
+     "10-24"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 27,
+    "seeds": [
+     "1-8",
+     "10-26"
+    ],
+    "reach": [
+     "1-8",
+     "10-26"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "URIEN": {
   "name": "URIEN",
@@ -4466,6 +5323,11 @@
    "ovix_arcade": 187,
    "ovix_ps2": 189,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 328,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -4490,7 +5352,66 @@
     "slack": 2256,
     "ps2_span": 15012
    }
-  ]
+  ],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 329,
+    "seeds": [
+     "1-23",
+     "26",
+     "62-73",
+     "255-285",
+     "288-318",
+     "320",
+     "322",
+     "324",
+     "326",
+     "328"
+    ],
+    "reach": [
+     "1-23",
+     "26",
+     "62-73",
+     "255-285",
+     "288-328"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": [
+     1030,
+     2048
+    ]
+   },
+   "ps2": {
+    "entries": 352,
+    "seeds": [
+     "1-23",
+     "26",
+     "62-73",
+     "108",
+     "255-284",
+     "288-318",
+     "320",
+     "322",
+     "324",
+     "326",
+     "328-351"
+    ],
+    "reach": [
+     "1-23",
+     "26",
+     "62-73",
+     "108",
+     "110",
+     "112",
+     "204",
+     "255-284",
+     "288-351"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "AKUMA": {
   "name": "AKUMA",
@@ -4710,6 +5631,11 @@
    "ovix_arcade": 34,
    "ovix_ps2": 36,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 69,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -4726,7 +5652,46 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 115,
+    "seeds": [
+     "1",
+     "3",
+     "5",
+     "8",
+     "10",
+     "27",
+     "44-69"
+    ],
+    "reach": [
+     "1-69"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 117,
+    "seeds": [
+     "1",
+     "3",
+     "5",
+     "8",
+     "10",
+     "27",
+     "44-69",
+     "115-116"
+    ],
+    "reach": [
+     "1-69",
+     "115-116"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "CHUNLI": {
   "name": "CHUNLI",
@@ -5892,6 +6857,11 @@
    "ovix_arcade": 75,
    "ovix_ps2": 77,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 63,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -5908,7 +6878,34 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 75,
+    "seeds": [
+     "1-63"
+    ],
+    "reach": [
+     "1-63"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 78,
+    "seeds": [
+     "1-63",
+     "75-77"
+    ],
+    "reach": [
+     "1-63",
+     "75-77"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "MAKOTO": {
   "name": "MAKOTO",
@@ -6042,6 +7039,11 @@
    "ovix_arcade": 139,
    "ovix_ps2": 141,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 251,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -6058,7 +7060,82 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 252,
+    "seeds": [
+     "1-86",
+     "92",
+     "98",
+     "104",
+     "110",
+     "116",
+     "122",
+     "128-136",
+     "146",
+     "151",
+     "159",
+     "161",
+     "163",
+     "168",
+     "174",
+     "179",
+     "183",
+     "185",
+     "199",
+     "207",
+     "213",
+     "218",
+     "222",
+     "226",
+     "230-251"
+    ],
+    "reach": [
+     "1-205",
+     "207-251"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 254,
+    "seeds": [
+     "1-86",
+     "92",
+     "98",
+     "104",
+     "110",
+     "116",
+     "122",
+     "128-136",
+     "146",
+     "151",
+     "159",
+     "161",
+     "163",
+     "168",
+     "174",
+     "179",
+     "183",
+     "185",
+     "199",
+     "207",
+     "213",
+     "218",
+     "222",
+     "226",
+     "230-253"
+    ],
+    "reach": [
+     "1-205",
+     "207-253"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "Q": {
   "name": "Q",
@@ -6192,6 +7269,11 @@
    "ovix_arcade": 18,
    "ovix_ps2": 20,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 17,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -6208,7 +7290,36 @@
    "koc_oob": 0,
    "idx_oob": 0
   },
-  "over_declared_sections": []
+  "over_declared_sections": [],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 18,
+    "seeds": [
+     "1-13",
+     "15-17"
+    ],
+    "reach": [
+     "1-13",
+     "15-17"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 20,
+    "seeds": [
+     "1-13",
+     "15-19"
+    ],
+    "reach": [
+     "1-13",
+     "15-19"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "TWELVE": {
   "name": "TWELVE",
@@ -6318,6 +7429,11 @@
    "ovix_arcade": 133,
    "ovix_ps2": 135,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 132,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -6342,7 +7458,36 @@
     "slack": 2336,
     "ps2_span": 23936
    }
-  ]
+  ],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 133,
+    "seeds": [
+     "1-56",
+     "118-132"
+    ],
+    "reach": [
+     "1-56",
+     "118-132"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": []
+   },
+   "ps2": {
+    "entries": 135,
+    "seeds": [
+     "1-56",
+     "118-134"
+    ],
+    "reach": [
+     "1-56",
+     "118-134"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  },
  "REMY": {
   "name": "REMY",
@@ -6714,6 +7859,11 @@
    "ovix_arcade": 31,
    "ovix_ps2": 33,
    "ovct_unpatched_tail": 0,
+   "ovct_reach_max": 41,
+   "ovct_reach_unpatched": 0,
+   "ovct_walk_past_end": [],
+   "ovct_walk_past_end_ps2": [],
+   "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
    "b_gap": 0,
@@ -6738,6 +7888,50 @@
     "slack": 25136,
     "ps2_span": 4544
    }
-  ]
+  ],
+  "ovct_reachability": {
+   "arcade": {
+    "entries": 42,
+    "seeds": [
+     "1-5",
+     "7-14",
+     "16-17",
+     "19-29",
+     "34"
+    ],
+    "reach": [
+     "1-5",
+     "7-14",
+     "16-17",
+     "19-41"
+    ],
+    "past_end": [],
+    "ovix_oob_pre_terminator": [],
+    "ovix_oob_post_terminator": [
+     2048,
+     2464,
+     2608
+    ]
+   },
+   "ps2": {
+    "entries": 44,
+    "seeds": [
+     "1-5",
+     "7-14",
+     "16-17",
+     "19-29",
+     "34",
+     "42-43"
+    ],
+    "reach": [
+     "1-5",
+     "7-14",
+     "16-17",
+     "19-43"
+    ],
+    "past_end": [],
+    "ovix_oob": []
+   }
+  }
  }
 }

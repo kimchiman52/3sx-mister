@@ -31,8 +31,10 @@ TOTAL script cells 29 (expected 29), distinct buffer positions 17 (expected 17)
 PASS
 ```
 
-`cg_audit.py` covers sprite indices in the 10 script tables (plus OVCT/OVIX
-coverage). `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
+`cg_audit.py` covers sprite indices in the 10 script tables, plus OVCT/OVIX
+coverage and the OVCT **reachability** model (`ovct_reachability()`; table
+column `ovct a/p reach`, verdicts `ok` / `tail-unreached(n)` /
+`walk>end[...]` / `TAIL-REACHED(n)!`). `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
 RICT HIIT BODA HANA CATA CAUA ATTA HOSA ATIT PROT — where hitboxes, throw
 placement and attack properties live (upstream issue #325). It imports
 `cg_audit.py` for the shared constants and does not modify it. Its invariant:
@@ -61,11 +63,23 @@ residual >= offset-table length : 0
 
 **That invariant covers the script-cell residual only.** The same script also
 runs a separate bounds check over the OVCT `parts_char -> cg_number` path
-(`eff01.c:169`, printed as "R2b" in its output) and, as of this writing,
-reports **6** post-adaptation violations there — all Elena parts 85-90. That
-is doc worklist item **B** (§18) and it is still **OPEN**; "0/0" on the two
-assertions above does not mean every out-of-bounds door in this tool is shut.
-See the doc, §17.
+(`eff01.c:169`, printed as "R2b" in its output). R2b checks **every table
+slot**, reachable or not, and reports **6** post-adaptation violations — all
+Elena parts 85-90, every one `part_reachable=False`. The invariant there is
+the third line:
+
+```
+on a REACHABLE part         : 0
+```
+
+`part_reachable` comes from `cg_audit.py` -> `ovct_reachability()`: the set of
+OVCT parts any writer of the part index can land on (the cell's `olc >> 4`
+through the OVIX, `plcnt_init`'s 0, `exdm_ix_data[*][character][3]`, and the
+closure of `eff01.c`'s timer walk over `parts_nix` with no timing constraint).
+Elena's reachable set is parts 1-16; parts 17-90 are cold (doc §24, worklist
+item **B**, CLOSED 2026-09-06). The same model flags **Dudley** as
+`walk>end[178](arcade-only)` — an arcade entry whose `parts_nix` points one
+past the table (doc §24.6(i), item **R**, OPEN).
 
 Expected at the time of writing (`fix/arcade-cg-mapping` branch point):
 

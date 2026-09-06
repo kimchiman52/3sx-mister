@@ -1136,9 +1136,16 @@ static const CgRemapRange elena_cg_ranges[] = {
        0x9CFC (this range's start) maps to 11706 under -0x6F42 -- the delta
        step (0x3A = 58) equals the size of the intervening raw gap
        0x9CC2-0x9CFB, which backs 0 cells in any of Elena's ten tables. So
-       0x9C88..0x9D24 maps onto one unbroken PS2 run 11648..11746, with 58
-       arcade-only sprites elided, and all 41 raw values in this range land
-       in group 9. See docs/research-arcade-cg-data-accuracy.md §8.A. */
+       0x9C88..0x9D24 maps onto one unbroken PS2 run 11648..11746, with the
+       58-value gap absent from the script namespace, and all 41 raw values
+       in this range land in group 9. See docs/research-arcade-cg-data-accuracy.md §8.A.
+       The gap is not sprite-less: those 58 values are exactly the parts_char
+       of Elena's OVCT parts 33-90, which no cell selects (doc §24). Parts
+       33-84 get their PS2 sprites from Apply3SXRenderingConventions' patch
+       loop; parts 85-90 (0x9CF6-0x9CFB) have no PS2 counterpart and are
+       unreachable by every writer of the part index -- see §24 for the
+       proof and tools/arcade-audit/cg_audit.py -> ovct_reachability() for
+       the check that enforces it. */
     { .first = 0x9CFC, .last = 0x9D24, .delta = -0x6F42 },
     { .first = 0x0CB4, .last = 0x0CB4, .delta = -0x1E0 },
 };

@@ -262,6 +262,126 @@ def ps2_parse(blob, base, size, ents, idx):
             out.append(('L', r)); q = q2
     return cgd, out
 
+# ---------------------------------------------------------------- OVCT reachability (doc §24)
+# Which OVCT parts can eff01.c ever index for a character? An `arcade_count >
+# ps2_count` tail (Elena, parts 85-90) is only a hazard if some part index in
+# it is reachable. Every writer of the part index, from the code:
+#   charset.c   check_cgd_data:  wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];
+#               (both copies) -> the cell's olc word >> 4 selects an OVIX entry,
+#               whose four s16 slots are the part indices, one per overlap type
+#   plcnt.c     plcnt_init:      wk->wu.cg_olc_ix = 0            (OVIX[0])
+#   plpdm.c     Player_damage:   wk->wu.cg_olc_ix = datadrs[3]   (exdm_ix_data[b][character][3], NOT shifted)
+#   eff01.c     effect_01_move:  restart at the master's part index, then on
+#               timer expiry cg_ix = parts_nix if nonzero else cg_ix + 1
+#               (get_new_parts_data adds 1 only when the master's
+#               player_number == 0, i.e. the character is Gill)
+# So: seeds = OVIX[e].olc_ix[0..3] for every e a cell (or plcnt/plpdm) can
+# emit, then the timer walk's closure over parts_nix. The walk is modelled
+# with NO timing constraint (any hold length), so the closure is an upper
+# bound on what the C can index. A negative or past-the-end index is recorded
+# in `past_end`, not expanded: the C would read outside the table there.
+OVCT_ELEM, OVIX_ELEM = 16, 8
+OVCT_NIX_OFF = 12          # OverlapPart.parts_nix (u16), structs.h
+
+def _olc_indices(cells):
+    pre, post = set(), set()
+    term = False
+    for c in cells:
+        if c[0] == 'C':
+            if c[1] in TERMINATORS: term = True
+            continue
+        (post if term else pre).add(c[1]['olc'] >> 4)
+    return pre, post
+
+def emitted_olc_indices(ci):
+    """(pre-terminator, post-terminator) sets of `olc >> 4` over every L cell in
+    every script of the character's ten arcade tables."""
+    tabs = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+    pre, post = set(), set()
+    for sec in KOC2SEC.values():
+        for si in range(len(tabs[sec])):
+            a, b = _olc_indices(arc_parse(ci, sec, si, tabs)[1])
+            pre |= a; post |= b
+    return pre, post
+
+def ps2_olc_indices(ci):
+    blob, bsd = ps2_tail(ci)
+    offs, sp = ps2_spans(blob)
+    pre, post = set(), set()
+    for sec in KOC2SEC.values():
+        b, z = sp[SECTIONS.index(sec)]
+        ents = ps2_offsets(blob, b)
+        for si in range(len(ents)):
+            a, c = _olc_indices(ps2_parse(blob, b, z, ents, si)[1])
+            pre |= a; post |= c
+    return pre, post
+
+def arc_ovix(ci):
+    off, size = LOC[ci]['ovix']
+    return [struct.unpack_from('>4h', ROM, off + i * OVIX_ELEM) for i in range(size // OVIX_ELEM)]
+
+def arc_ovct_nix(ci):
+    off, size = LOC[ci]['ovct']
+    return [struct.unpack_from('>H', ROM, off + i * OVCT_ELEM + OVCT_NIX_OFF)[0] for i in range(size // OVCT_ELEM)]
+
+def ps2_ovix_nix(ci):
+    blob, bsd = ps2_tail(ci)
+    offs, sp = ps2_spans(blob)
+    b, z = sp[SECTIONS.index('ovix')]
+    ovix = [struct.unpack_from('<4h', blob, b + i * OVIX_ELEM) for i in range(z // OVIX_ELEM)]
+    b, z = sp[SECTIONS.index('ovct')]
+    nix = [struct.unpack_from('<H', blob, b + i * OVCT_ELEM + OVCT_NIX_OFF)[0] for i in range(z // OVCT_ELEM)]
+    return ovix, nix
+
+def parse_exdm_olc_ix():
+    """plpdm.c exdm_ix_data[2][20][5]: column [3] is written straight into
+    cg_olc_ix (unshifted) with the CHARACTER as the middle subscript
+    (plcnt.c: wk->player_number = My_char[ix]). Returns {character: set}."""
+    s = src("src/sf33rd/Source/Game/engine/plpdm.c")
+    i = s.index("const u16 exdm_ix_data[2][20][5] = {"); j = s.index("};", i)
+    rows = re.findall(r'\{\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\}', s[i:j])
+    assert len(rows) == 40, len(rows)
+    out = {ci: set() for ci in range(20)}
+    for n, row in enumerate(rows):
+        out[n % 20].add(int(row[3]))
+    return out
+
+EXDM_OLC_IX = parse_exdm_olc_ix()
+
+def _closure(ovix, nix, olc_indices):
+    ovix_oob = sorted(e for e in olc_indices if e >= len(ovix))
+    seeds = set()
+    for e in olc_indices:
+        if 0 <= e < len(ovix):
+            for v in ovix[e]:
+                if v != 0: seeds.add(v)
+    reach, past_end, stack = set(), set(), sorted(seeds)
+    while stack:
+        p = stack.pop()
+        if p in reach or p in past_end: continue
+        if p < 0 or p >= len(nix): past_end.add(p); continue
+        reach.add(p)
+        stack.append(nix[p] if nix[p] else p + 1)
+    return dict(seeds=sorted(seeds), reach=sorted(reach), past_end=sorted(past_end), ovix_oob=ovix_oob)
+
+_REACH_CACHE = {}
+
+def ovct_reachability(ci):
+    """Arcade-data reachable OVCT part set for character ci, plus the same
+    model run over the PS2 data as the §6.1 control. Cached per character."""
+    if ci in _REACH_CACHE: return _REACH_CACHE[ci]
+    pre, post = emitted_olc_indices(ci)
+    idx = pre | post | {0} | EXDM_OLC_IX[ci]
+    a = _closure(arc_ovix(ci), arc_ovct_nix(ci), idx)
+    a['ovix_oob_pre'] = sorted(e for e in pre if e >= len(arc_ovix(ci)))
+    a['ovix_oob_post'] = sorted(e for e in post if e >= len(arc_ovix(ci)))
+    ppre, ppost = ps2_olc_indices(ci)
+    povix, pnix = ps2_ovix_nix(ci)
+    p = _closure(povix, pnix, ppre | ppost | {0} | EXDM_OLC_IX[ci])
+    r = dict(arcade=a, ps2=p, arcade_entries=len(arc_ovct_nix(ci)), ps2_entries=len(pnix))
+    _REACH_CACHE[ci] = r
+    return r
+
 # ---------------------------------------------------------------- SA naming for saca scripts
 def sa_labels(ci):
     """map saca script index -> list of SA-table slots that select it (asstbl.c 9900_g/_a arcade rows)."""
@@ -432,9 +552,37 @@ def audit(cgmap_override=None, quiet=False):
                 over.append(dict(table=sec2, declared=size2, max_script_offset=mx, slack=size2 - mx,
                                  ps2_span=sp[SECTIONS.index(sec2)][1]))
         rec['over_declared_sections'] = over
+        # OVCT reachability (doc §24). `ovct_unpatched_tail` is the COUNT of
+        # parts past common_count (kept raw by Apply3SXRenderingConventions);
+        # `ovct_reach_unpatched` is how many of those any writer can index.
+        # The tail is a hazard only when the second number is nonzero.
+        rr = ovct_reachability(ci)
+        common = min(a_ovct, p_ovct)
+        reach = rr['arcade']['reach']
+        # Part sets are stored as [lo, hi] runs so the JSON stays readable
+        # (Ibuki's reachable set alone is 2,285 indices).
+        def runs(xs):
+            out = []
+            for x in xs:
+                if out and x == out[-1][1] + 1: out[-1][1] = x
+                else: out.append([x, x])
+            return ["%d" % a if a == b else "%d-%d" % (a, b) for a, b in out]
+        rec['ovct_reachability'] = dict(
+            arcade=dict(entries=rr['arcade_entries'], seeds=runs(rr['arcade']['seeds']),
+                        reach=runs(reach), past_end=rr['arcade']['past_end'],
+                        ovix_oob_pre_terminator=rr['arcade']['ovix_oob_pre'],
+                        ovix_oob_post_terminator=rr['arcade']['ovix_oob_post']),
+            ps2=dict(entries=rr['ps2_entries'], seeds=runs(rr['ps2']['seeds']),
+                     reach=runs(rr['ps2']['reach']), past_end=rr['ps2']['past_end'],
+                     ovix_oob=rr['ps2']['ovix_oob']))
         rec['stats'] = dict(cells=cells_seen, ovct_arcade=a_ovct, ovct_ps2=p_ovct,
                             ovix_arcade=a_ovix, ovix_ps2=p_ovix,
                             ovct_unpatched_tail=max(0, a_ovct - p_ovct),
+                            ovct_reach_max=(max(reach) if reach else -1),
+                            ovct_reach_unpatched=len([p for p in reach if p >= common]),
+                            ovct_walk_past_end=rr['arcade']['past_end'],
+                            ovct_walk_past_end_ps2=rr['ps2']['past_end'],
+                            ovix_oob_pre_terminator=rr['arcade']['ovix_oob_pre'],
                             ovix_arcade_shorter_by=max(0, p_ovix - a_ovix), **cls)
         result[NAMES[ci]] = rec
     CGMAP = saved
@@ -458,17 +606,26 @@ if __name__ == "__main__":
     res = audit()
     json.dump(res, open(os.path.join(HERE, "cg_audit.json"), "w"), indent=1)
     hdr = ("%-7s %5s | %4s %4s %5s %5s %5s %5s | %5s %5s %5s %5s %5s %5s %5s | %s"
-           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra","se","eff","tama","sasi","code","koc","sidx","ovct a/p  ovix a/p"))
+           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra","se","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p"))
     print(hdr); print("-"*len(hdr))
     T = {}
+    def ovct_flag(s):
+        # doc §24: the tail is a hazard only if a reachable part index lands in it.
+        if s['ovct_reach_unpatched']:
+            return "TAIL-REACHED(%d)!" % s['ovct_reach_unpatched']
+        if s['ovct_walk_past_end']:
+            return "walk>end%s%s" % (s['ovct_walk_past_end'], "(ps2 too)" if s['ovct_walk_past_end_ps2'] else "(arcade-only)")
+        if s['ovct_unpatched_tail']:
+            return "tail-unreached(%d)" % s['ovct_unpatched_tail']
+        return "ok"
     for n in NAMES:
         r = res[n]; s = r['stats']
         for k, v in s.items(): T[k] = T.get(k, 0) + (v if isinstance(v, int) else 0)
-        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d | %d/%d %s  %d/%d %s"
+        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d | %d/%d r<=%d %s  %d/%d %s"
               % (n, s['cells'], s['a_oob'], s['b_gap'], s['c_wrong_group'], s['c_same_group'], s['needs_manual'],
                  s['extra_script'],
                  s['se_oob'], s['eff_oob'], s['tama_oob'], s['sasign_oob'], s['code_oob'], s['koc_oob'], s['idx_oob'],
-                 s['ovct_arcade'], s['ovct_ps2'], "UNPATCHED-TAIL!" if s['ovct_unpatched_tail'] else "ok",
+                 s['ovct_arcade'], s['ovct_ps2'], s['ovct_reach_max'], ovct_flag(s),
                  s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok"))
     print("-"*len(hdr))
     print("TOTAL         | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d"
