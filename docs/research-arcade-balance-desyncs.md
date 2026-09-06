@@ -1013,6 +1013,138 @@ frame 7 (D6, D3). None of their frames or asserts moved.
   (§23.6); neither effect 8 nor effect 74 does, and neither port module tests
   it. Nothing here suggests it should.
 
+### E7 — `Win_01000()` clamps the winner to the screen edge; the arcade does not (FIXED and GATED, 2026-09-06)
+
+**This is the 2026-09-06 corpus's divergence D4** — 3 of its 4 remaining
+`rc=1` failures, all three in one 19-match session
+(`1788572346231-3523`), all three the same assert:
+
+    src/test/statcheck_compare.c:240: pos_3sx.x (520) != pos_cps3.x (526)
+
+#### The defect
+
+Our `Win_01000()` (`animation/win_pl.c`) calls a `set_field_hosei_flag` pair
+between `bg_app_stop = 1` and `switch (wk->wu.routine_no[3])`. The arcade
+routine has nothing between those two statements.
+
+`Win_01000` is reached as `win_jp_tbl[winner_type_tbl[player_number]]`.
+`win_player` (`0x060C2DDC`) copies the 16-entry table at `0x061A38C0` onto its
+own stack — the arcade counterpart of the port's local
+`void (*win_jp_tbl[16])(PLW*)` — and indexes it with the 21-entry `s16` table
+at `0x061A3890`, whose Oro entry is `1`, giving `0x060C2E8C`. Both tables occur
+**exactly once** in the image, and `0x061A3890` has **exactly one** literal
+referrer, `0x060C2ED4`, inside `win_player`'s own pool.
+
+The arcade body goes from the store straight into the dispatch:
+
+    060c2ea2  mov.b r3,@r2       ; bg_app_stop = 1  (r3 = 1, r2 = 0x0202802A)
+    060c2ea4  mov.l 0x60c2edc,r13
+    060c2ea6  mov.w @(r0,r14),r0 ; r0 = 42 -> wk->wu.routine_no[3]
+    060c2ea8  cmp/eq #0,r0 / bt  -> case 0
+    060c2eae  cmp/eq #1,r0 / bt  -> 0x060C2F94  } case 1 and case 9 share a
+    060c2eb2  cmp/eq #9,r0 / bt  -> 0x060C2F94  } target, exactly as the port's
+    060c2eb6  bra   0x060C3022                    `case 1: case 9:` does
+
+Two independent cross-checks fall out of that listing and neither was arranged:
+`WORK_ROUTINE_NO_OFFSET 0x24` (`arcade_constants.h`) puts `routine_no[3]` at
+`0x2A` = **42**, the arcade's own displacement; and `case 1` and `case 9`
+sharing one target is a shape the port already had.
+
+The negative is established over the whole routine — `0x060C2E8C..0x060C33B2`,
+1,318 bytes, with all three `jijii_*` inlined into it:
+
+- **No `jsr` can reach it.** No 4-byte-aligned word in that range equals
+  `&set_field_hosei_flag` (`0x0611DFB8`), so the address is never loaded.
+- **No `bsr` can reach it either.** The target sits `0x5AC06` past the end of
+  the function, against a `bsr` displacement reach of `±0x1000`. The only two
+  `bsr` targets in range are `0x060C260E` and `0x060C271E`.
+- **The scan has a positive control.** The same pool *does* carry
+  `0x0611E0EE` (`random_16`), which is `0x136` from `set_field_hosei_flag`.
+  A scan that can find the neighbour and not the thing is not a scan that
+  missed it.
+
+#### The mechanism, and the archive agrees frame for frame
+
+`set_field_hosei_flag(&plw[id], scrr, 1)` pins the winner at
+`scrr - satse[]` — screen centre + 164. `Win_01000` case 9 dispatches
+`win_rno[0] == 2` to `jijii_jump`, whose flight case leaves only on
+
+    wk->wu.xyz[0].disp.pos > bg_w.bgw[1].xy[0].disp.pos + 320
+
+Pinned at +164, that test can never be true, so the leap does not terminate.
+
+Read straight out of the archive (`game_8`, XOR-accumulated, P1 is the winner),
+`routine_no[3] == 9` and `win_rno == 2/1` — `jijii_jump`'s flight arm — hold
+across the whole window, and the arcade's winner simply keeps going:
+
+| archive frame | winner `xyz[0].disp.pos` | `win_rno` |
+|---|---|---|
+| 3,271 | **526** (ours: 520 — the assert) | 2/1 |
+| 3,289 | 666 | 2/1 |
+| **3,290** | **674** | **2/2** |
+| 3,291 | 674 | 2/3 |
+| 3,292+ | 674 (frozen) | 2/3 |
+
+The camera (`bg_w.bgw[1].xy[0].disp.pos`) is at 348, so the threshold is 668.
+At 3,289 the winner is at 666 and below it; at 3,290 he is at 674 and
+`win_rno[1]` steps 1 -> 2, which is `jijii_jump`'s
+`win_rno[1]++; effect_work_kill(3, 13);` firing. The next frame steps 2 -> 3
+(case 2 sets `win_free[id] = 48`) and X freezes for the countdown. That is the
+exit our clamp made unreachable, observed happening.
+
+`win_rno` was not assumed: `0x020281AC` is the pool word `0x060C2EDC` loaded
+into `r13` at the head of the arcade routine, and the two `s16` there run
+`2/1 -> 2/2 -> 2/3` exactly as `jijii_jump`'s state machine does.
+
+#### The fix, and where it is gated
+
+`animation/win_pl.c` -> `Win_01000()`: the `set_field_hosei_flag` pair is now
+inside `if (!ArcadeBalance_IsEnabled())`. PS2 keeps the clamp — this was proven
+against the CPS3 program and **not** against the PS2 binary, which is the rule
+settled in `2d74225d` and applied again in `192291a4`.
+
+This also retires a candidate left open under **E3**, which guessed "the
+`set_field_hosei_flag` clamp against an unimported camera" as the unidentified
+`+32` writer. That guess was about the right function; E3 itself stays
+retracted, and the write it was looking for is still unidentified.
+
+#### Result
+
+| gate | before | after |
+|---|---|---|
+| corpus 2026-09-06 (185 segments) | 178 PASS / 4 `rc=1` / 1 `rc=4` / 2 `rc=3` | **181 PASS / 1 `rc=1` / 1 `rc=4` / 2 `rc=3`** |
+| corpus 2026-09-05 (143 segments) | 143 PASS / 0 FAIL | **143 PASS / 0 FAIL**, zero verdict lines changed |
+| frame-data suite (`--check-golden`) | 99 GREEN, zero drift | **99 GREEN, zero drift** |
+
+Exactly **3** verdict lines changed, all `divergent -> pass`, all in session
+`1788572346231-3523`; every seed verdict and field count is unchanged.
+
+#### Still open
+
+- **Device test.** Host-only, as with E4, E5 and E6.
+  `plw[1].wu.xyz[0].disp.pos` is field 9 of the viewer's checkpoint hash
+  window, so unlike a purely internal fix this one *can* change what the
+  on-device viewer sees.
+- **The other 47 `set_field_hosei_flag` sites in `win_pl.c`, and 12 in
+  `lose_pl.c`, are UNADJUDICATED.** This is the important caveat and it is not
+  a formality: the port carries the clamp in two shapes — unguarded at the top
+  of the function (`Win_01000`, `Win_03000`, `Win_04000`,
+  `Normal_normal_Winner`, `Judge_normal_winner`, `Win_05000`, `Win_07000`,
+  `Win_09000`, `Win_14000`) and guarded inside `case 0` of the
+  `routine_no[3]` switch (`Win_02000`, `Win_06000`, `Win_08000`, `Win_10000`,
+  `Win_11000`, `Win_12000`, `Win_13000`, `Win_15000`). Only Oro's routine was
+  read out of the arcade program. The survey that was meant to generalise this
+  indexed a function cluster that never contained Oro's routine at all, so it
+  is not evidence about any of the others either. `Normal_normal_Winner` is
+  the nearest neighbour — its first ten lines are byte-identical to
+  `Win_01000`'s, which is how this edit first matched two sites — and it is
+  reached by far more characters than Oro. Nothing here says the other sites
+  are wrong; nothing here says they are right.
+- **Whether any other character's win routine can strand the same way.** The
+  `± 320` exit is `jijii_jump`'s, i.e. Oro's. Other win routines have other
+  exits, and a clamp that is harmless in one may not be in another. Not
+  examined.
+
 ## Harness false positives — fix these before trusting a statcheck sweep
 
 **All eleven** observed failures turned out not to be engine bugs. Each had a
@@ -2140,6 +2272,7 @@ never converted at all, which is a deploy question, not a re-conversion one.
 | E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **FIXED and GATED, one misassociated `/ 2`** (arcade only; PS2 keeps the decompiled association) — `cal_move_dir_forecast()` (`engine/caldir.c`) wrote `(d.sp * (tm * tm)) / 2` where the arcade computes `d.sp * ((tm * tm) / 2)`; every caller passes `tm == 5`, so `tm * tm` is odd and the two differ by half a unit of acceleration. CPS3 `0x06090E40`-`0x06090E58` halves the square with `cmp/gt`/`addc`/`shar` **before** either `mul.l`. Ruled out first, by measurement: every input byte-identical to the archive, `dir_sel_table` all 16,384 bytes identical to `0x0618F664`, `dir32_skydm`/`dir32_grddm` byte-exact, `caldir_pos_256`/`_032` faithful. Corpus **142/1 -> 143/0**, and the E4 segment is the only verdict line that changed. Character-agnostic (11 bucket flips in 764 calls span 4 victims and 5 attackers); only 1 of the 11 lands on a table edge, which is why 142 segments passed with it in place. **Device-visible**: pre-fix, `plw[1].wu.xyz[0].disp.pos` — checkpoint field 9 — diverges 14 frames later, at archive frame 3104 |
 | E5 | stage quake debris draws `random_16()` where CPS3 does not | **FIXED and GATED, two port defects in the quake writers** (arcade only; PS2 keeps the `bg_w.quake_y_index` write and `gqdt` rows 7/8 at `{6,0}`, via `gqdt_active()`) — (1) `effect_A7_move`/`effect_02_move`'s `tad->hits == 0` early-out wrote `bg_w.quake_y_index` where the arcade's branch only does the SE and tail-calls `push_effect_work` (CPS3 `0x060F91EC`/`0x060DC918`); the write is now `pp_screen_quake(gqdt[tad->quake][1])`, keeping the PS2 rumble and dropping the state. (2) `gqdt` rows 7 and 8 were `{6,0}`, arcade `0x061B941A` has `{6,4}`/`{6,2}`. Corpus 135/8 -> **142/1** and zero residual `bg_w.quake_y_index` divergence, down from 48 of 143 segments. **NOT** an unimported-state defect — both sides enter every segment at 0, so `BG_W_QUAKE_Y_INDEX_OFFSET 0x26BD8` is asserted, never seeded |
 | E6 | `effect_C08_move` routine 2 ran ungated — the 2026-09-06 corpus's D2 | **FIXED and GATED** — two changes, both arcade-side. (1) `effect/effc08.c` `case 2` is now `if (!EXE_flag && !Game_pause)`, matching `case 1` and CPS3 `0x060DDA84`, whose gate is the byte-for-byte twin of routine 1's at `0x060DD918`; the function carries **two** `0x0201136E` pool slots (`0x060DD98C`, `0x060DDBD8`), one per routine. Ungated, the port ticked the `4 x v` pause through hit-stop and pause frames on which the arcade freezes, re-entered routine 1 early and drew one cycle sooner — `delta=+1`, ours ahead, on **26 of 26 stage-3 segments**, 10 quarks, frames 1,325-6,473, with a within-session control (`1788133423462-3110`: same two players and characters throughout, 4/4 stage-3 fail, 4/4 stage-13 pass). (2) `bg030.c`/`bg190.c` now spawn C08/C74 behind `ArcadeBalance_IsEnabled()` — `afc16ad2` predated the gating rule and had PS2 mode running two effects with no PS2 counterpart at all (§23.8). `effc74.c` does **NOT** share the defect: CPS3 `0x060F1390` dispatches only routines 0 and 1, one `0x0201136E` reference, and all **13** stage-19 corpus segments pass before and after. Corpus 151/32 -> **177 PASS / 6 FAIL** (the 6 are D3-D6, no frame or assert moved); old corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. §23.10's acceptance was 60 frames and could not have seen this |
+| E7 | `Win_01000()` clamps the winner where the arcade does not — the 2026-09-06 corpus's D4 | **FIXED and GATED** — `animation/win_pl.c` -> `Win_01000()` called a `set_field_hosei_flag` pair between `bg_app_stop = 1` and `switch (routine_no[3])`; the arcade routine has **nothing** between them (`060c2ea2 mov.b r3,@r2` -> `060c2ea6 mov.w @(r0,r14),r0`, r0 = 42 = `routine_no[3]`, then `cmp/eq #0/#1/#9` with 1 and 9 sharing a target as the port's `case 1: case 9:` does). Reached as `win_jp_tbl[winner_type_tbl[player_number]]` — `win_player` (`0x060C2DDC`) copies the 16-entry table at `0x061A38C0` to stack and indexes it by the 21-entry table at `0x061A3890` (Oro -> 1 -> `0x060C2E8C`); both tables unique in the image, `0x061A3890` has exactly one literal referrer. Negative established over the whole 1,318-byte routine with all three `jijii_*` inlined: no aligned word equals `&set_field_hosei_flag` (`0x0611DFB8`) so no `jsr` reaches it, and `bsr` cannot either (`0x5AC06` away vs `±0x1000` reach) — with `random_16` (`0x0611E0EE`, `0x136` distant) found by the same scan as the positive control. The clamp pins Oro at screen centre + 164, so `jijii_jump`'s `xyz[0].disp.pos > bgw[1].xy[0].disp.pos + 320` exit is unreachable and the win leap never ends. Archive agrees frame for frame: `routine_no[3] == 9`, `win_rno == 2/1` throughout, winner X climbing to **674 at f3,290** against a 668 threshold (camera 348), where `win_rno[1]` steps 1 -> 2 — the exit firing — then freezes. Corpus 178/4 -> **181 PASS / 1 `rc=1`**, exactly 3 verdicts moved, all one session; 143-corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. **The other 47 `win_pl.c` sites and 12 in `lose_pl.c` are UNADJUDICATED** — only Oro's routine was read out of the arcade program, and `Normal_normal_Winner`'s first ten lines are byte-identical to `Win_01000`'s |
 | M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures were E5, and fixing E5 took it back to 142/1 with the assert standing. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
 | M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |
 | M2 | the viewer repaired `Random_ix16` at every checkpoint | **GATED to v1** — `check_checkpoint()` repairs only when `!has_players_timer`; a v2 file fails an ix16-only mismatch and names the field (D1). v1 kept because an A/B twin desyncs at checkpoint 18/189 without it, against ~23,300 shipped v1 files |

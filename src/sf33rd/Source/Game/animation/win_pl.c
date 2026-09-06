@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/animation/win_pl.h"
+#include "arcade/arcade_balance.h"
 #include "common.h"
 #include "sf33rd/Source/Game/effect/eff30.h"
 #include "sf33rd/Source/Game/effect/eff31.h"
@@ -93,8 +94,48 @@ void Win_01000(PLW* wk) {
 
     bg_app_stop = 1;
 
-    if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
-        set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+    /* ARCADE: the CPS3 routine makes NO screen-edge correction here.
+     *
+     * Reached as win_jp_tbl[winner_type_tbl[player_number]]: win_player
+     * (0x060C2DDC) copies the 16-entry table at 0x061A38C0 onto its stack and
+     * indexes it by the s16 table at 0x061A3890, whose Oro entry is 1 ->
+     * 0x060C2E8C, this function. Both tables are unique in the image, and
+     * 0x061A3890 has exactly one literal referrer (0x060C2ED4, in win_player's
+     * own pool).
+     *
+     * The arcade body goes from the bg_app_stop store STRAIGHT into the
+     * dispatch, with nothing between them:
+     *
+     *   060c2ea2  mov.b r3,@r2       ; bg_app_stop = 1 (r3=1, r2=0x0202802A)
+     *   060c2ea4  mov.l 0x60c2edc,r13
+     *   060c2ea6  mov.w @(r0,r14),r0 ; r0=42 -> wk->wu.routine_no[3]
+     *   060c2ea8  cmp/eq #0,r0 / bt  -> case 0
+     *   060c2eae  cmp/eq #1,r0 / bt  -> 0x060C2F94  } case 1 and case 9 share
+     *   060c2eb2  cmp/eq #9,r0 / bt  -> 0x060C2F94  } a target, as they do here
+     *   060c2eb6  bra   0x060C3022                    (default -> tail)
+     *
+     * Corroborating the negative over the whole routine
+     * (0x060C2E8C..0x060C33B2, 1318 bytes, with all three jijii_* inlined): no
+     * 4-byte-aligned word in it equals &set_field_hosei_flag (0x0611DFB8), so
+     * no `jsr @rn` can reach it, and neither can bsr -- the target is 0x5AC06
+     * past the end against a +-0x1000 displacement reach. The pool does carry
+     * the neighbouring 0x0611E0EE (random_16), which is the control: an
+     * address 0x136 away was found by the same scan that found no
+     * set_field_hosei_flag.
+     *
+     * The port's unconditional call pins Oro at scrr - satse[] (screen centre
+     * + 164) for the whole win leap, so jijii_jump's exit test --
+     * xyz[0].disp.pos > bg_w.bgw[1].xy[0].disp.pos + 320 -- is never reached
+     * and the leap does not terminate. See E7 in
+     * docs/research-arcade-balance-desyncs.md.
+     *
+     * PS2 keeps the clamp: this was proven against the CPS3 program and NOT
+     * against the PS2 binary, so it is gated (the rule settled in 2d74225d,
+     * applied again in 192291a4). */
+    if (!ArcadeBalance_IsEnabled()) {
+        if (set_field_hosei_flag(&plw[wk->wu.id], scrr, 1)) {
+            set_field_hosei_flag(&plw[wk->wu.id], scrl, 0);
+        }
     }
 
     switch (wk->wu.routine_no[3]) {
