@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/stage/bg030.h"
+#include "arcade/arcade_balance.h"
 #include "common.h"
 #include "sf33rd/Source/Game/effect/eff05.h"
 #include "sf33rd/Source/Game/effect/eff06.h"
@@ -55,7 +56,18 @@ void bg0301_init00() {
     // precede effect 71 — both draw from `random_16()`, so their order inside
     // class 4 decides which index each one gets. See
     // docs/research-arcade-cg-data-accuracy.md §23.10.
-    effect_C08_init();
+    //
+    // GATED. `effc08.c` has no PS2 counterpart at all: the PS2 re-authoring
+    // dropped this stage effect and gave id 8 to `eff08.c` (§23.8), so running
+    // it under PS2 balance made the port's "PS2" engine consume an index the
+    // PS2 engine never consumed, on this stage, from frame 1 of every round.
+    // §23.10 landed before the gating rule was settled; this is the same
+    // correction `2d74225d` applied to E4 and E5. The gate is on the SPAWN,
+    // not inside the effect — `effc08.c` exists only to reproduce CPS3, so
+    // there is no PS2 arm for its body to select.
+    if (ArcadeBalance_IsEnabled()) {
+        effect_C08_init();
+    }
     effect_71_init();
     effect_L2_init();
 }

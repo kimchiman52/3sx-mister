@@ -879,6 +879,140 @@ and nothing else's.
   them now need re-conversion. Not decided here.
 - **The device test.** Everything above is host-only.
 
+### E6 — `effect_C08_move`'s routine 2 ran ungated (FIXED and GATED, 2026-09-06)
+
+**This is the 2026-09-06 corpus's divergence D2, and it is an incomplete fix we
+landed ourselves.** Not to be confused with this document's own "D2" under
+*Detection coverage* below — that namespace is the on-device detection list; the
+corpus numbers its divergences separately in
+`/Volumes/KimchDrive/3sarm-corpus-2026-09-06/divergences/`.
+
+**26 of the widened corpus's 32 `rc=1` failures**, and **every stage-3 segment
+in it — 26 of 26** — across 10 quarks, 10 player pairs and 8 character
+pairings, at archive frames 1,325 to 6,473. All 26 carry the same line:
+
+    statcheck-rng: frame N delta=+1 (ours ix16=XX cps3=XX)
+    statcheck-rng:   [ 0] random_16    <- effect_C08_move (0x...)
+    src/test/statcheck_compare.c:331: Random_ix16 (a) != random_ix16_cps3 (a-1)
+
+`delta=+1` on every one: the port is one draw **ahead** of CPS3, and the RNG
+backtrace names our own module.
+
+#### The within-session control
+
+Quark `1788133423462-3110` (Kaisark vs [SEBA], `num_matches` 8) is the whole
+argument in one session. All eight segments are the **same two players as the
+same two characters** (P1 Urien, P2 Yun), two human operators, `start_index` 1.
+Only the stage varies:
+
+| segment | frames | stage (`bg_w.stage`) | statcheck |
+|---|---|---|---|
+| game_0 | 4,770  | **Yun (3)**  | **rc=1** @ 2,581 |
+| game_1 | 6,328  | Urien (13)   | rc=0 |
+| game_2 | 8,266  | **Yun (3)**  | **rc=1** @ 3,755 |
+| game_3 | 10,736 | **Yun (3)**  | **rc=1** @ 3,565 |
+| game_4 | 10,937 | Urien (13)   | rc=0 |
+| game_5 | 5,078  | Urien (13)   | rc=0 |
+| game_6 | 6,139  | **Yun (3)**  | **rc=1** @ 2,443 |
+| game_7 | 7,309  | Urien (13)   | rc=0 |
+
+**4/4 stage-3 fail; 4/4 stage-13 pass.** Players, characters, engine build,
+harness, ROM and balance mode are all held constant. The stage is the variable,
+and Hong Kong (`bg030`) is where `effect_C08_init()` spawns.
+
+#### The defect, measured from the arcade program
+
+`effect/effc08.c` is our transcription of CPS3 `0x060DD888`, landed `afc16ad2`
+for §23.10 of `research-arcade-cg-data-accuracy.md`. **The spawn is right and
+the routine-1 cadence is right; the routine-2 gate was missing.** Our own
+comment said the flags had been *assumed* zero, which over a full round they are
+not — `EXE_flag` and `Game_pause` are set through hit-stop, super freezes and
+pauses.
+
+Read out of the `sfiii3nr1` SH-2 program (`CS_MODE_SH2 | CS_MODE_BIG_ENDIAN`,
+decryption pipeline in §23.4), the arcade **gates both routines, identically**:
+
+| | routine 1 | routine 2 |
+|---|---|---|
+| entry | `0x060DD918` | `0x060DDA84` |
+| `EXE_flag` (`0x0200EECC`) | `mov.w @r4,r0` / `tst` / `bra 0x060DDA4E` | `mov.w @r4,r0` / `tst` / `bf 0x060DDB6C` |
+| `Game_pause` (`0x0201136E`) | `mov.l 0x060DD98C,r3` / `mov.w @r3,r0` / `tst` / `bra 0x060DDA4E` | `mov.l 0x060DDBD8,r3` / `mov.w @r3,r0` / `tst` / `bf 0x060DDB6C` |
+| first counter touch | `timer--` at `0x060DD92E` | `timer--` at `0x060DDA92` |
+
+`r4` holds `0x0200EECC` from the prologue (`mov.l 0x060DD974,r4` at
+`0x060DD890`) and stays live across the dispatch, which is why only *one*
+`EXE_flag` literal appears in the function. `Game_pause` needs a pool slot per
+use, and the function has **two** — `0x060DD98C` and `0x060DDBD8`, one per
+routine. Both skip targets (`0x060DDA4E`, `0x060DDB6C`) are palette-request
+tails: they draw nothing and touch no counter.
+
+**Mechanism.** Ungated, our routine 2 counted down through frames on which the
+arcade freezes, so the port left the `4 x v` pause early, re-entered routine 1
+early, and reached its next every-8th-frame draw one cycle sooner. That is
+`delta=+1`, ours ahead — the observed direction, on all 26.
+
+#### `effc74.c` does NOT share it, and that was checked two ways
+
+`effect/effc74.c` (Club Metro, CPS3 `0x060F1384`) was validated the same way and
+was the obvious co-suspect. It is clean:
+
+- **Disassembly.** The arcade dispatch at `0x060F1390` has only `routine_no` 0,
+  1 and a default that tail-calls the release path — there is no routine 2 to
+  gate. `0x060F1384..0x060F1652` references `0x0201136E` **exactly once**
+  (`0x060F1488`), against effect 8's two.
+- **Corpus.** The widened corpus carries **13 stage-19 (Remy) segments**, and
+  all 13 pass both before and after this change. The old corpus has neither a
+  stage-3 nor a stage-19 segment, so it is not evidence about either effect.
+
+#### The fix, and where it is gated
+
+Two changes, both arcade-side:
+
+1. `effect/effc08.c` -> `effect_C08_move`, `case 2`: wrapped in
+   `if (!EXE_flag && !Game_pause)`, matching `case 1` and CPS3 `0x060DDA84`.
+2. `stage/bg030.c` -> `bg0301_init00` and `stage/bg190.c` -> `bg1902_init00`:
+   the `effect_C08_init()` / `effect_C74_init()` calls now sit inside
+   `if (ArcadeBalance_IsEnabled())`.
+
+**Why (2) is part of this fix and not scope creep.** `afc16ad2` landed on
+2026-09-03, two days before the gating rule was settled, and its two spawn calls
+were unconditional — so PS2 mode was running two effects that have **no PS2
+counterpart at all** (the PS2 re-authoring dropped both and reused ids 8 and 74
+for different effects, §23.8), consuming `Random_ix16` indices the PS2 engine
+never consumes, on those two stages, from frame 1 of every round. That is the
+same condition `2d74225d` corrected for E4 and E5. Gating the **spawn** rather
+than the body is the right shape here: `effc08.c` and `effc74.c` exist only to
+reproduce CPS3, so there is no PS2 arm for their bodies to select — under PS2
+balance the correct behaviour is for the work not to exist.
+
+#### Result
+
+| gate | before | after |
+|---|---|---|
+| corpus 2026-09-06 (185 segments) | 151 PASS / 32 FAIL / 2 cpu-player | **177 PASS / 6 FAIL / 2 cpu-player** |
+| corpus 2026-09-05 (143 segments) | 143 PASS / 0 FAIL | **143 PASS / 0 FAIL**, zero verdict lines changed |
+| frame-data suite (`--check-golden`) | 99 GREEN, zero drift | **99 GREEN, zero drift** |
+
+Exactly 26 verdict lines changed, all of them stage 3, all of them
+`divergent -> pass`. The 6 that remain are the corpus's D3-D6 and are separate
+defects: 3 x `pos_3sx.x` (D4, one 19-match session), 1 x `Random_ix16` at
+**delta=-1** with no caller (D5 — CPS3 drew where we did not, the opposite
+direction and not this defect), 1 x `w_type` and 1 x `w_int`, both at archive
+frame 7 (D6, D3). None of their frames or asserts moved.
+
+#### Still open
+
+- **Device test.** Host-only, as with E4 and E5.
+- **The `4 x v` pause length itself is still only corroborated to frame 60.**
+  What this pass proves is that routine 2 must not tick while the game is
+  frozen. The `& 3` wrap and the `x98` decrement inside it are §23.6's reading
+  and are unchanged; the corpus now exercises them for thousands of frames per
+  segment and finds no residual drift, which is much stronger evidence than
+  §23.10 had, but it is corpus evidence, not a second disassembly pass.
+- **`EXE_obroll`.** CPS3 `effect_71_move` reads it alongside the other two
+  (§23.6); neither effect 8 nor effect 74 does, and neither port module tests
+  it. Nothing here suggests it should.
+
 ## Harness false positives — fix these before trusting a statcheck sweep
 
 **All eleven** observed failures turned out not to be engine bugs. Each had a
@@ -1850,6 +1984,7 @@ never converted at all, which is a deploy question, not a re-conversion one.
 | E2b | ~~a `random_32` consumer the port never runs~~ | **RETRACTED** — it is the CPU player's `Com_Initialize()`; same cause as H4b, not an engine defect. All six instances now exit 3 |
 | E4 | Dudley `routine_no[2]` 23 vs 20 @3090 | **FIXED and GATED, one misassociated `/ 2`** (arcade only; PS2 keeps the decompiled association) — `cal_move_dir_forecast()` (`engine/caldir.c`) wrote `(d.sp * (tm * tm)) / 2` where the arcade computes `d.sp * ((tm * tm) / 2)`; every caller passes `tm == 5`, so `tm * tm` is odd and the two differ by half a unit of acceleration. CPS3 `0x06090E40`-`0x06090E58` halves the square with `cmp/gt`/`addc`/`shar` **before** either `mul.l`. Ruled out first, by measurement: every input byte-identical to the archive, `dir_sel_table` all 16,384 bytes identical to `0x0618F664`, `dir32_skydm`/`dir32_grddm` byte-exact, `caldir_pos_256`/`_032` faithful. Corpus **142/1 -> 143/0**, and the E4 segment is the only verdict line that changed. Character-agnostic (11 bucket flips in 764 calls span 4 victims and 5 attackers); only 1 of the 11 lands on a table edge, which is why 142 segments passed with it in place. **Device-visible**: pre-fix, `plw[1].wu.xyz[0].disp.pos` — checkpoint field 9 — diverges 14 frames later, at archive frame 3104 |
 | E5 | stage quake debris draws `random_16()` where CPS3 does not | **FIXED and GATED, two port defects in the quake writers** (arcade only; PS2 keeps the `bg_w.quake_y_index` write and `gqdt` rows 7/8 at `{6,0}`, via `gqdt_active()`) — (1) `effect_A7_move`/`effect_02_move`'s `tad->hits == 0` early-out wrote `bg_w.quake_y_index` where the arcade's branch only does the SE and tail-calls `push_effect_work` (CPS3 `0x060F91EC`/`0x060DC918`); the write is now `pp_screen_quake(gqdt[tad->quake][1])`, keeping the PS2 rumble and dropping the state. (2) `gqdt` rows 7 and 8 were `{6,0}`, arcade `0x061B941A` has `{6,4}`/`{6,2}`. Corpus 135/8 -> **142/1** and zero residual `bg_w.quake_y_index` divergence, down from 48 of 143 segments. **NOT** an unimported-state defect — both sides enter every segment at 0, so `BG_W_QUAKE_Y_INDEX_OFFSET 0x26BD8` is asserted, never seeded |
+| E6 | `effect_C08_move` routine 2 ran ungated — the 2026-09-06 corpus's D2 | **FIXED and GATED** — two changes, both arcade-side. (1) `effect/effc08.c` `case 2` is now `if (!EXE_flag && !Game_pause)`, matching `case 1` and CPS3 `0x060DDA84`, whose gate is the byte-for-byte twin of routine 1's at `0x060DD918`; the function carries **two** `0x0201136E` pool slots (`0x060DD98C`, `0x060DDBD8`), one per routine. Ungated, the port ticked the `4 x v` pause through hit-stop and pause frames on which the arcade freezes, re-entered routine 1 early and drew one cycle sooner — `delta=+1`, ours ahead, on **26 of 26 stage-3 segments**, 10 quarks, frames 1,325-6,473, with a within-session control (`1788133423462-3110`: same two players and characters throughout, 4/4 stage-3 fail, 4/4 stage-13 pass). (2) `bg030.c`/`bg190.c` now spawn C08/C74 behind `ArcadeBalance_IsEnabled()` — `afc16ad2` predated the gating rule and had PS2 mode running two effects with no PS2 counterpart at all (§23.8). `effc74.c` does **NOT** share the defect: CPS3 `0x060F1390` dispatches only routines 0 and 1, one `0x0201136E` reference, and all **13** stage-19 corpus segments pass before and after. Corpus 151/32 -> **177 PASS / 6 FAIL** (the 6 are D3-D6, no frame or assert moved); old corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. §23.10's acceptance was 60 frames and could not have seen this |
 | M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures were E5, and fixing E5 took it back to 142/1 with the assert standing. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
 | M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |
 | M2 | the viewer repaired `Random_ix16` at every checkpoint | **GATED to v1** — `check_checkpoint()` repairs only when `!has_players_timer`; a v2 file fails an ix16-only mismatch and names the field (D1). v1 kept because an A/B twin desyncs at checkpoint 18/189 without it, against ~23,300 shipped v1 files |

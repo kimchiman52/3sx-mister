@@ -4054,7 +4054,53 @@ does not have, and two wrong rows in `gqdt` -- and it is fixed.) For every other
 frame 60 in 37/37 replays (previous pass) — there is no evidence of a third
 affected stage, but see §23.11.
 
-### 23.10 The fix — APPLIED 2026-09-03
+### 23.10 The fix — APPLIED 2026-09-03, CORRECTED 2026-09-06
+
+**CORRECTION FIRST, because the acceptance below is the part that failed.**
+This fix shipped with a real defect in `effc08.c` and the acceptance criterion
+could not have caught it. **The validation window was 60 frames. That was too
+short, and it is the reusable lesson of this section.**
+
+`effect_C08_move`'s routine 2 — the `4 x v` frame pause a non-zero draw buys —
+was transcribed **without** the `!EXE_flag && !Game_pause` gate that item 1
+below correctly asks for; only routine 1 got it. The arcade gates both, at CPS3
+`0x060DDA84` exactly as at `0x060DD918` (the function carries two `0x0201136E`
+pool slots, `0x060DD98C` and `0x060DDBD8`, one per routine). `EXE_flag` and
+`Game_pause` are zero for essentially all of the first 60 frames of a round —
+that is *why* §23.11's "assumed zero" bullet was harmless for the model — so
+every one of the four `sim.py` rows, and all 44 replays at checkpoint 2, were
+blind to it by construction. A round only starts freezing once players connect
+hits, super-freeze and pause; the drift then accumulates until it crosses a
+whole 8-frame draw cycle.
+
+Measured on a widened 185-segment corpus a fortnight of engine work later
+(`docs/research-arcade-balance-desyncs.md` §E6, the corpus's divergence D2):
+**every stage-3 segment failed — 26 of 26**, over 10 quarks, 10 player pairs
+and 8 character pairings, at archive frames **1,325 to 6,473**, all with
+`delta=+1` and `effect_C08_move` named in the RNG backtrace. The nearest frame
+to the old acceptance window was more than twenty times past it. With the gate
+added the corpus goes 151 PASS / 32 FAIL -> **177 PASS / 6 FAIL**, and the 26
+that changed are exactly the stage-3 set.
+
+**`effc74.c` was checked for the same defect and does not have it**: CPS3
+`0x060F1390` dispatches only routines 0 and 1 plus a release default, so its one
+gate is the only one there is, and the corpus's **13 stage-19 segments** pass
+before and after.
+
+**What to take from it.** A cadence fix cannot be accepted on a window shorter
+than the period of the state it is supposed to reproduce. Effect 8's routine 2
+is only *entered* on a non-zero `vt` draw and only *matters* once the game
+freezes; 60 frames of round intro contains neither reliably. Where a full-length
+oracle exists, spend it.
+
+**Also corrected 2026-09-06: the spawns were not gated.** `bg0301_init00` and
+`bg1902_init00` called `effect_C08_init()` / `effect_C74_init()`
+unconditionally, so PS2 mode ran two effects that have **no PS2 counterpart at
+all** (§23.8) and consumed `Random_ix16` indices the PS2 engine never consumes.
+Both calls now sit inside `if (ArcadeBalance_IsEnabled())`, the correction
+`2d74225d` applied to E4 and E5. The gate is on the spawn, not in the effect
+bodies: these two modules exist only to reproduce CPS3, so under PS2 balance the
+correct behaviour is for the work not to exist.
 
 **Status: implemented and green.** `effect/effc74.c` (`effect_C74_init/move`,
 id 87) and `effect/effc08.c` (`effect_C08_init/move`, id 88) carry the §23.6
@@ -4096,6 +4142,10 @@ effect works spawned where CPS3 spawns them, with the visual part optional:
    "Random_ix16-only divergence" lines at checkpoint 2 on stages 3 and 19**.
    `sim.py` predicts the exact archive values, so a mismatch is a bug in the
    port of the state machine, not in the theory.
+   **INSUFFICIENT, established 2026-09-06 — checkpoint 2 is frame 60.** It was
+   met on the first run and it still missed a missing gate whose first
+   consequence lands around frame 1,300. See the correction at the head of this
+   section.
 4. Rollback safety: effect works live in `frw[]`, which `netplay/game_state.c`
    saves and restores (`SDL_copya(es->frw, frw)`), so the stubs' state is
    rolled back with everything else. Both peers run the same code, so the
@@ -4139,6 +4189,17 @@ is the natural next experiment (§23.11).
   `effect_71` cadence is table-exact), and a wrong assumption would have
   broken the 7092 and 6292 rows; but a round that opens with a pause or a
   hit-stop before frame 60 was not modelled.
+  **RESOLVED 2026-09-06, and it cost a defect.** The assumption held for the
+  model — but it was carried into the *implementation* as a comment in
+  `effc08.c` and `effc74.c` saying the flags "were assumed zero for the frames
+  the reproduction covers", and `effect_C08_move`'s routine 2 shipped ungated
+  behind it. The arcade gates both of effect 8's routines (CPS3 `0x060DDA84`
+  mirrors `0x060DD918`; two `0x0201136E` pool slots in the one function) and
+  gates effect 74's only routine (one pool slot at `0x060F1488`). Both modules
+  now say so with the addresses instead of recording an assumption, and the
+  fix is §E6 of `research-arcade-balance-desyncs.md`. `EXE_obroll` remains the
+  genuinely open third of the trio: CPS3 `effect_71_move` reads it, neither
+  effect 8 nor effect 74 does, and neither port module tests it.
 - **What effects 74 and 8 look like** on hardware (§23.8) is inferred from
   their palette-request writes, not observed. MAME/FBNeo with a watchpoint on
   `0x020155E8` would settle both this and the previous two bullets in one

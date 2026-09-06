@@ -45,8 +45,10 @@ void effect_C08_move(WORK_Other* ewk) {
         break;
 
     case 1:
-        // §23.6 records the gate on this routine only; §23.11 notes the flags
-        // were assumed zero for the frames the reproduction covers.
+        // CPS3 `0x060DD918`: `mov.w @r4,r0` / `tst` / `bra 0x060DDA4E` on
+        // `EXE_flag` (`0x0200EECC`, held in r4 from the prologue), then the
+        // same on `Game_pause` (`0x0201136E`). Routine 2 repeats it — see
+        // there, and §23.6.
         if (!EXE_flag && !Game_pause) {
             ewk->wu.old_rno[0]--;
 
@@ -74,21 +76,42 @@ void effect_C08_move(WORK_Other* ewk) {
     case 2:
         // The 4 x v frame pause a non-zero draw buys. Returns to routine 1 with
         // the 8-step counter at 0, so the next draw is 8 steps later.
-        ewk->wu.old_rno[0]--;
+        //
+        // GATED, and the gate is load-bearing over a round
+        // (docs/research-arcade-balance-desyncs.md §E6, the 2026-09-06
+        // corpus's divergence D2). CPS3 `0x060DDA84` opens
+        // routine 2 with the byte-for-byte twin of routine 1's test —
+        // `mov.w @r4,r0` / `tst r0,r0` / `bf 0x060DDB6C` on `EXE_flag`
+        // (`0x0200EECC`), then `mov.l 0x060DDBD8,r3` (= `0x0201136E`,
+        // `Game_pause`) / `mov.w @r3,r0` / `tst` / `bf 0x060DDB6C` — and only
+        // then reaches the `timer--` at `0x060DDA92`. `0x060DDB6C` is the
+        // palette-request tail, which draws nothing and touches no counter.
+        // Corroboration at the literal-pool level: effect 8's move routine
+        // references `0x0201136E` TWICE (pool slots `0x060DD98C` and
+        // `0x060DDBD8`), one per routine, where effect 74's — which has no
+        // routine 2 — references it once.
+        //
+        // Ungated, this counted down through hit-stop and pause frames on
+        // which the arcade freezes, so the port re-entered routine 1 early and
+        // reached its next 8-step draw one cycle sooner: `delta=+1`, ours
+        // ahead, which is exactly what 26 of 26 stage-3 corpus segments show.
+        if (!EXE_flag && !Game_pause) {
+            ewk->wu.old_rno[0]--;
 
-        if (ewk->wu.old_rno[0] <= 0) {
-            ewk->wu.old_rno[1] = (ewk->wu.old_rno[1] + 1) & 3;
+            if (ewk->wu.old_rno[0] <= 0) {
+                ewk->wu.old_rno[1] = (ewk->wu.old_rno[1] + 1) & 3;
 
-            if (ewk->wu.old_rno[1] != 0) {
-                ewk->wu.old_rno[0] = EFFC08_TIMER_B;
-            } else {
-                ewk->wu.old_rno[2]--;
-
-                if (ewk->wu.old_rno[2] > 0) {
+                if (ewk->wu.old_rno[1] != 0) {
                     ewk->wu.old_rno[0] = EFFC08_TIMER_B;
                 } else {
-                    ewk->wu.routine_no[0] = 1;
-                    ewk->wu.old_rno[0] = EFFC08_TIMER_A;
+                    ewk->wu.old_rno[2]--;
+
+                    if (ewk->wu.old_rno[2] > 0) {
+                        ewk->wu.old_rno[0] = EFFC08_TIMER_B;
+                    } else {
+                        ewk->wu.routine_no[0] = 1;
+                        ewk->wu.old_rno[0] = EFFC08_TIMER_A;
+                    }
                 }
             }
         }

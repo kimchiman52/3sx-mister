@@ -65,9 +65,19 @@ void effect_C74_move(WORK_Other* ewk) {
         break;
 
     case 1:
-        // §23.6 records the gate on this routine only; the spawn frame runs
-        // ungated. §23.11 notes the flags were assumed zero for the frames the
-        // reproduction covers.
+        // CPS3 `0x060F13D4`: `EXE_flag` (`0x0200EECC`) then `Game_pause`
+        // (`0x0201136E`), both `bf`/`bra 0x060F14D6` past the whole body. The
+        // spawn frame runs ungated — the arcade dispatch at `0x060F1390` tests
+        // `routine_no` before either flag is read.
+        //
+        // This effect has no second routine: `0x060F1390` dispatches 0, 1 and
+        // a default that tail-calls the release path, so the gate this routine
+        // carries is the ONLY one the arcade has, and the literal pool proves
+        // it — `0x060F1384..0x060F1652` references `0x0201136E` exactly once,
+        // where effect 8 (which does have a routine 2) references it twice.
+        // So `effc74.c` does NOT share effect 8's routine-2 defect
+        // (docs/research-arcade-balance-desyncs.md §E6); this was checked, not
+        // assumed.
         if (!EXE_flag && !Game_pause) {
             ewk->wu.old_rno[0]--;
 

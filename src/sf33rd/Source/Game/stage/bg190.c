@@ -4,6 +4,7 @@
  */
 
 #include "sf33rd/Source/Game/stage/bg190.h"
+#include "arcade/arcade_balance.h"
 #include "common.h"
 #include "sf33rd/Source/Game/effect/eff05.h"
 #include "sf33rd/Source/Game/effect/eff06.h"
@@ -58,7 +59,14 @@ void bg1902_init00() {
     // 12). Ordering inside class 4 is load-bearing: it fixes the frame on
     // which each work's move routine draws. See
     // docs/research-arcade-cg-data-accuracy.md §23.10.
-    effect_C74_init();
+    //
+    // GATED, for the reason spelled out at the `effect_C08_init()` call in
+    // `bg030.c`: `effc74.c` has no PS2 counterpart (the PS2 build gave id 74
+    // to a select-screen effect, §23.8), so under PS2 balance this was an RNG
+    // consumer the PS2 engine does not have.
+    if (ArcadeBalance_IsEnabled()) {
+        effect_C74_init();
+    }
     effect_L4_init();
     effect_44_init(6);
     effect_12_init(3);
