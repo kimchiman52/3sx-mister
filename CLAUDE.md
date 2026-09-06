@@ -1,4 +1,14 @@
-Read [AGENTS.md](AGENTS.md) for project conventions, build commands, safety rules, and the memory index.
+Read [AGENTS.md](AGENTS.md) for project conventions, build commands, safety
+rules, gating scope, and the memory index.
+
+## Gating (full text in AGENTS.md)
+
+- **Run the gates the change can reach; skip the rest and say which you skipped.**
+  A tooling-only change does not need the builds. A change outside the engine
+  does not need the frame-data corpus. A full battery on every change is a
+  re-run, not thoroughness.
+- **Never re-run a gate a subagent already ran** — read its numbers and verify
+  only what would change the decision to commit.
 
 ## Documentation rules (full text in AGENTS.md)
 

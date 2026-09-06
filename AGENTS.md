@@ -45,6 +45,31 @@
   loud which gates you skipped and why.
 - FPGA core builds (Quartus) run in the Colima `quartus2` VM, not Docker. See [docs/agent-memory/mister-wrapper-quartus.md](docs/agent-memory/mister-wrapper-quartus.md).
 
+## Gating
+
+**Run the gates the change can reach. Skip the rest, and say which you skipped
+and why.** A full battery on every change is not thoroughness — it is a re-run
+that costs wall-clock and tokens and trains people to stop reading the output.
+
+Pick by blast radius, not by habit:
+
+| the change touches | run | do not run |
+|---|---|---|
+| tooling, data, docs only — no `.c`/`.h` | the affected Python suites and their `--check` modes | every build, the texture baseline, every gate |
+| one leaf module (e.g. `src/training/*`) | the builds, that module's unit harness, its own tool suites, the texture baseline if it can reach an allocation path | `netplay-harnesses`, `rendezvous-protocol`, `constant-time-compare`, `key-rate-budget`, `reclaim-window`, the frame-data corpus |
+| menu / UI (`menu.c`, `sc_sub.c`, panels) | the above plus `quick-training` and `--test-ui-text-units` | the frame-data corpus |
+| the game engine (`pls03.c`, `hitcheck.c`, `charset.c`, `plmain.c`) | the above plus the **frame-data corpus**, plus `tools/rollback-determinism/run.sh` if any `GS_SAVE` field is in reach | — |
+| the wrapper, `menu.sv`, or the RBF | the ARM wrapper build and an on-device pass | host gates prove nothing about this surface |
+
+Two checks are unconditional because they are a grep and they catch the class of
+mistake that has actually landed here: `git diff -- src/netplay/` must be empty
+unless netplay is the work, and `EXPECTED_GAME_STATE_SIZE` must still be its
+pinned value.
+
+**Do not re-run a gate a subagent already ran.** Read its reported numbers and
+verify only what would change your decision to commit. A second full battery is
+duplication, not verification.
+
 ## Workflow
 
 - For implementation tasks, use the `/implement` skill (three-agent implement → review → fix loop).
