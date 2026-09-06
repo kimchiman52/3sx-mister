@@ -1741,7 +1741,9 @@ The 13 round-settle globals (`Winner_id`, `Loser_id`, `Conclusion_Type`,
 in the same match, so they are only worth taking if a divergence is traced to a
 round transition.
 
-One new item came out of the measurement and is **not** closed: **`Break_Into`**
+One new item came out of the measurement and is **not** closed: **`Break_Into` — CLOSED (2026-09-05).** Scanned across every frame of all 143 archives: 106 segments hold 1, but every run sits **entirely after the last compared frame** (min gap 264 frames, max 639; 0 of 106 inside the window). It is the next match's break-in, and `game.c` clears it before the compared window opens on both sides. Not a defect. Superseded text follows:
+
+**`Break_Into`**
 (CPS3 `0x02011386`, established at the same three `plcnt_*_move` sites as
 `No_Death` — it is the very next guarded block in each). It is read exactly like
 `No_Death` (`if (Break_Into) { plw[0].wu.dm_vital = plw[1].wu.dm_vital = 0; }`)
@@ -1819,6 +1821,23 @@ they stay gated.
 Note this is not academic: `caldir.c` feeds `dir_sel_table` -> `dir32_skydm` ->
 `dm_reaction_table`, i.e. knockdown and juggle behaviour a player can feel — so
 PS2 mode and arcade mode now genuinely differ there, deliberately.
+
+## CORRECTION: pre-fix `.3sr` files do NOT need re-conversion (2026-09-05)
+
+Earlier revisions of §E4 and §E5 — and commit `edf7b8c3`'s message — said a
+`.3sr` recorded by the pre-fix engine encodes the wrong `Random_ix16` stream and
+would mismatch on a post-fix build, implying a re-conversion campaign over
+~22,682 v1 files. **That is backwards.**
+
+`compute_checksum(frame)` (`tools/fcade-replays/make_3sr.py`) unpacks its 13
+fields big-endian **from the CPS3 RAM archive frame**, via `CHECKSUM_FIELDS` read
+in `extract_scrd_game`. It never hashes engine output. So a `.3sr`'s checkpoints
+are arcade ground truth regardless of which engine converted the file, and a
+post-fix engine matches them **better**, not worse.
+
+Existing files are correct and need nothing. The genuinely open item is the
+opposite one: segments the eligibility gate *rejected* before `3f04f0bb` were
+never converted at all, which is a deploy question, not a re-conversion one.
 
 ## Worklist
 
