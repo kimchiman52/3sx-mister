@@ -38,7 +38,13 @@ column `ovct a/p reach`, verdicts `ok` / `tail-unreached(n)` /
 the dangling-walk **hold** model (`ovct_dangling_hold()`, doc §25) and the
 X.C.O.P.Y. **reverse-swap gate** (`k7_swap_gate()` / `k7_foreign_cells()`,
 doc §26; trailing `xcopy:` column, verdicts `none` / `gated(n)` /
-`unmodelled(n,in-range)` / `FOREIGN-OOB(k/n)!`). `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
+`unmodelled(n,in-range)` / `FOREIGN-OOB(k/n)!`) and the **shape-mismatch
+gate** (`manu_delta_gate()`, doc §29; trailing `manu:` column). That last one
+re-asks the class-(c) question for the scripts whose shape mismatch made
+`audit()` skip it, per raw `cg_number` rather than per cell index — verdicts
+`manu:C/N(dD+bB+zZ)` (confirmed direct / bracketed / nothing to adjudicate),
+`?n` for the unconfirmed residue, and `DIVERGENT(s,c)!` where the PS2 oracle
+contradicts a remap delta. `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
 RICT HIIT BODA HANA CATA CAUA ATTA HOSA ATIT PROT — where hitboxes, throw
 placement and attack properties live (upstream issue #325). It imports
 `cg_audit.py` for the shared constants and does not modify it. Its invariant:
@@ -116,6 +122,21 @@ cells audited: 133901
 `(a)` is the crash class — remapped CG >= 37664, past the end of
 `obj_group_table` (`src/sf33rd/Source/Game/rendering/chren3rd.c:8`). All 66 are
 Elena's; see the doc, §8.A. **A fix for that item should drive `(a)` to 0.**
+
+`manu` is **not** a violation count — it counts scripts whose shape mismatch
+made `audit()` skip class (c), i.e. cells nothing looked at. `manu_delta_gate()`
+(doc §29) is what looks at them, and its two summary lines are the invariant:
+
+```
+shape-mismatched (manu) scripts: 316 = 225 direct + 60 bracketed + 20 no-live-cells + 4 unresolved + 7 DIVERGENT
+  their live L-cells: 3320 = 2710 direct + 465 bracketed + 94 bracket-disagree + 0 unbracketed + 51 DIVERGENT
+```
+
+The five script classes sum to `manu` by construction. The 51 divergent cells
+are Twelve's 44 (doc §8.S — a hole in `twelve_cg_ranges`, reported not fixed),
+Remy's 5 (§8.N) and Akuma's 2 (§8.P); the last two groups were already
+enumerated by hand, and the gate rediscovering exactly them is what validates
+it. **A fix for §8.S should drive `DIVERGENT` to 7 cells / 4 scripts.**
 
 ## Inputs
 

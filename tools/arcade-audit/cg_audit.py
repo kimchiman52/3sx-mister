@@ -20,7 +20,7 @@ Data sources:
   rom.bin                     decrypted CPS3 sfiii3nr1 (decrypt.py; SIMM sha256 == rom_load.c:41-45)
   SF33RD.AFS                  PS2 game data (AFS entry apfn, tail at to_chd)
 """
-import json, re, struct, sys, os
+import bisect, collections, json, re, struct, sys, os
 
 import os as _os
 
@@ -1503,6 +1503,105 @@ def caua_hosa_fit(ci):
                         tail_reached=(mx >= ps2), fits=(mx == ps2 - 1))
     return out
 
+# ---------------------------------------------------------------- shape-mismatched scripts: is the CG remap confirmed? (doc §29)
+_MANU_CACHE = {}
+def manu_delta_gate(ci):
+    """Adjudicate `cg_number` for every shape-mismatched script -- the `manu` column.
+
+    A shape mismatch means `audit()` cannot pair arcade cell i with PS2 cell i, so it SKIPS the
+    class-(c) wrong-sprite check for every cell of that script (`shape_ok` gates `ps2num`).  That
+    is the whole content of the "316 shape-divergent scripts" item: not that anything was found,
+    but that nothing was looked at.  This asks the same question without needing the pairing.
+
+    What class (c) really tests is the ADAPTATION -- `remap()` must send an arcade raw cg_number
+    to the index the PS2 tables use for that sprite.  `remap` is a pure function of the raw value
+    (a piecewise range shift, `arcade_char_data.c`), so that is a per-RAW-VALUE property, not a
+    per-cell one: a raw value appearing anywhere in a SHAPE-OK script of the same character is
+    pinned by that script's PS2 counterpart, whichever script later asks for it.  Cells are
+    therefore adjudicated by raw value, against an oracle built from the shape-ok scripts alone:
+
+      direct            the raw is itself observed, and our delta equals the observed one
+      bracketed         the raw is unobserved, but the nearest observed raw below AND above both
+                        measure the SAME delta and ours equals it -- the value sits strictly
+                        inside a band the oracle pins on both sides
+      bracket_disagree  the two bracketing observations measure different deltas: the band is not
+                        uniform across the gap, so nothing is confirmed
+      unbracketed       no observation below, or none above
+      divergent         an observation -- direct, or a bracketing agreement -- CONTRADICTS our
+                        delta.  This is the class-(c) finding the shape mismatch was hiding.
+
+    Fails toward divergence throughout, per the house rule that nothing unmodelled may land on
+    "benign": `bracket_disagree` and `unbracketed` are NOT benign verdicts, and a raw observed
+    with two different deltas is DROPPED from the oracle (`conflict`) rather than settled by a
+    majority -- so an ambiguous raw can never confirm anything, only fail to.  Reachability comes
+    from `k7_entry_walk` alone: §26.10.2 withdrew "past the first terminator" as a reachability
+    test, so this gate does not use it, and adjudicates every cell the entry-point closure leaves
+    live -- including post-terminator ones, which is the stricter choice.
+    """
+    if ci in _MANU_CACHE: return _MANU_CACHE[ci]
+    arc = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+    blob, bsd = ps2_tail(ci); offs, sp = ps2_spans(blob)
+    pt = {}
+    for sec in KOC2SEC.values():
+        b, z = sp[SECTIONS.index(sec)]
+        pt[sec] = (b, z, ps2_offsets(blob, b))
+    parsed, obs, conflict = [], {}, set()
+    for sec in KOC2SEC.values():                     # KOC2SEC is insertion-ordered: deterministic
+        pn = len(pt[sec][2])
+        for si in range(len(arc[sec])):
+            a = arc_parse(ci, sec, si, arc)[1]
+            p = ps2_parse(blob, pt[sec][0], pt[sec][1], pt[sec][2], si)[1] if si < pn else None
+            ok = (p is not None and len(p) == len(a) and all(x[0] == y[0] for x, y in zip(a, p)))
+            parsed.append((sec, si, a, p, ok))
+            if not ok: continue
+            for x, y in zip(a, p):
+                if x[0] != 'L': continue
+                r, d = x[1]['num'], y[1]['num'] - x[1]['num']
+                if r in obs and obs[r] != d: conflict.add(r)   # two deltas for one raw: unusable
+                obs[r] = d
+    for r in conflict: obs.pop(r, None)
+    keys = sorted(obs)
+    dead_all = k7_entry_walk(ci)
+    scripts, rows = {}, []
+    cellcls = dict(direct=0, bracketed=0, bracket_disagree=0, unbracketed=0, divergent=0)
+    for sec, si, a, p, ok in parsed:
+        if p is None or ok or not a: continue        # exactly audit()'s `needs_manual_diff` set
+        dead = dead_all[(sec, si)]
+        vs = []
+        for i, c in enumerate(a):
+            if c[0] != 'L' or i in dead: continue
+            raw = c[1]['num']; rm = remap(raw, ci); ours = rm - raw
+            if raw in obs:
+                want = obs[raw]; lo = hi = raw
+                v = 'direct' if want == ours else 'divergent'
+            else:
+                k = bisect.bisect_left(keys, raw)
+                lo = keys[k - 1] if k > 0 else None
+                hi = keys[k] if k < len(keys) else None
+                if lo is None or hi is None: want, v = None, 'unbracketed'
+                elif obs[lo] != obs[hi]:     want, v = None, 'bracket_disagree'
+                else:
+                    want = obs[lo]
+                    v = 'bracketed' if want == ours else 'divergent'
+            vs.append(v); cellcls[v] += 1
+            if v == 'divergent':
+                rows.append(dict(cls='manu_cg_delta_divergent', table=sec, script=si, cell=i,
+                                 raw=raw, remapped=rm, group=(OGT[rm] if rm < OGT_N else None),
+                                 delta=ours, oracle_delta=want, oracle_remapped=raw + want,
+                                 oracle_group=(OGT[raw + want] if 0 <= raw + want < OGT_N else None),
+                                 witness_lo=lo, witness_hi=hi, dead=False))
+        if not vs:                                                    k = 'no_live_cells'
+        elif 'divergent' in vs:                                       k = 'divergent'
+        elif 'unbracketed' in vs or 'bracket_disagree' in vs:         k = 'unresolved'
+        elif 'bracketed' in vs:                                       k = 'bracketed'
+        else:                                                         k = 'direct'
+        scripts[(sec, si)] = k
+    out = dict(scripts=scripts, rows=rows, cells=cellcls,
+               oracle_raws=len(obs), oracle_conflicts=len(conflict),
+               script_cls=collections.Counter(scripts.values()))
+    _MANU_CACHE[ci] = out
+    return out
+
 # ---------------------------------------------------------------- SA naming for saca scripts
 def sa_labels(ci):
     """map saca script index -> list of SA-table slots that select it (asstbl.c 9900_g/_a arcade rows)."""
@@ -1665,6 +1764,11 @@ def audit(cgmap_override=None, quiet=False):
                         else:
                             cls['c_same_group'] += 1; v['cls'] = 'c_mismatch_own_group'
                         rec['violations'].append(v)
+        # doc §29: re-ask the class-(c) question for the shape-mismatched (`manu`) scripts, which
+        # the cell-index diff above skipped entirely.  Rows are emitted in the gate's own
+        # (section, script, cell) order, which is deterministic, so the JSON stays byte-stable.
+        mg = manu_delta_gate(ci)
+        rec['violations'].extend(mg['rows'])
         # OVCT / OVIX counts
         a_ovct = LOC[ci]['ovct'][1] // 16; a_ovix = LOC[ci]['ovix'][1] // 8
         p_ovct = sp[SECTIONS.index('ovct')][1] // 16; p_ovix = sp[SECTIONS.index('ovix')][1] // 8
@@ -1794,6 +1898,19 @@ def audit(cgmap_override=None, quiet=False):
                             span_gate_xcopy_reasons=len(span_why_x),
                             caua_hosa_over_declared=chf['caua']['over_declared'] + chf['hosa']['over_declared'],
                             caua_hosa_tail_reached=int(chf['caua']['tail_reached'] or chf['hosa']['tail_reached']),
+                            # doc §29: the `manu` scripts, adjudicated per raw cg_number instead of
+                            # per cell index.  `manu_divergent` counts scripts carrying at least one
+                            # cell whose remap delta the oracle contradicts -- the class-(c) finding
+                            # the shape mismatch was hiding.  `manu_unresolved` is the honest
+                            # residue: no confirmation either way, never read as benign.
+                            manu_direct=mg['script_cls'].get('direct', 0),
+                            manu_bracketed=mg['script_cls'].get('bracketed', 0),
+                            manu_no_live_cells=mg['script_cls'].get('no_live_cells', 0),
+                            manu_unresolved=mg['script_cls'].get('unresolved', 0),
+                            manu_divergent=mg['script_cls'].get('divergent', 0),
+                            manu_oracle_raws=mg['oracle_raws'],
+                            manu_oracle_conflicts=mg['oracle_conflicts'],
+                            **{'manu_cells_' + k: v for k, v in sorted(mg['cells'].items())},
                             **cls)
         result[NAMES[ci]] = rec
     CGMAP = saved
@@ -1821,7 +1938,7 @@ if __name__ == "__main__":
     # columns used to carry, so a row that used to read `31` reads `0+31` and nothing was dropped.
     hdr = ("%-7s %5s | %4s %4s %5s %5s %5s %5s | %6s %6s %6s %6s %6s %6s %6s | %s"
            % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra",
-              "se l+d","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p  xcopy  slack"))
+              "se l+d","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p  xcopy  slack  manu"))
     print(hdr); print("-"*len(hdr))
     T = {}
     OOB_COLS = ('se_oob', 'eff_oob', 'tama_oob', 'sasign_oob', 'code_oob', 'koc_oob', 'idx_oob')
@@ -1864,20 +1981,48 @@ if __name__ == "__main__":
         g = ("closed" if s['span_gate'] == 'closed' else "unmodelled(%d)" % s['span_gate_reasons'])
         gx = ("closed" if s['span_gate_xcopy'] == 'closed' else "unmodelled(%d)" % s['span_gate_xcopy_reasons'])
         return "slack:%s%s%s+xc:%s" % ("none " if not tag else tag + " ", g, "", gx)
+    def manu_flag(s):
+        # doc §29: the `manu` scripts adjudicated per raw cg_number.  `ok(d+b)` means every live
+        # cell's remap delta is confirmed -- d directly observed, b bracketed by agreeing
+        # neighbours.  `?n` is the unconfirmed residue (never benign); `DIVERGENT` is a contradiction.
+        if not s['needs_manual']: return "manu:none"
+        t = "manu:%d/%d" % (s['manu_direct'] + s['manu_bracketed'] + s['manu_no_live_cells'], s['needs_manual'])
+        t += "(d%d+b%d+z%d)" % (s['manu_direct'], s['manu_bracketed'], s['manu_no_live_cells'])
+        if s['manu_unresolved']: t += " ?%d" % s['manu_unresolved']
+        if s['manu_divergent']:
+            t += " DIVERGENT(%d scripts,%d cells)!" % (s['manu_divergent'], s['manu_cells_divergent'])
+        return t
     for n in NAMES:
         r = res[n]; s = r['stats']
         for k, v in s.items(): T[k] = T.get(k, 0) + (v if isinstance(v, int) else 0)
-        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %s | %d/%d r<=%d %s  %d/%d %s  %s  %s"
+        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %s | %d/%d r<=%d %s  %d/%d %s  %s  %s  %s"
               % ((n, s['cells'], s['a_oob'], s['b_gap'], s['c_wrong_group'], s['c_same_group'], s['needs_manual'],
                   s['extra_script'], oob_cols(s))
                  + (s['ovct_arcade'], s['ovct_ps2'], s['ovct_reach_max'], ovct_flag(s),
                     s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok",
-                    xcopy_flag(s), slack_flag(s))))
+                    xcopy_flag(s), slack_flag(s), manu_flag(s))))
     print("-"*len(hdr))
     print("TOTAL         | %4d %4d %5d %5d %5d %5d | %s"
           % (T['a_oob'], T['b_gap'], T['c_wrong_group'], T['c_same_group'], T['needs_manual'], T['extra_script'],
              oob_cols(T)))
     print("cells audited:", T['cells'])
+    # doc §29: the 316 shape-mismatched scripts, adjudicated per raw cg_number.  The five script
+    # classes sum to `manu`; the cell classes sum to every live L-cell in those scripts.
+    print("shape-mismatched (manu) scripts: %d = %d direct + %d bracketed + %d no-live-cells + %d unresolved + %d DIVERGENT"
+          % (T['needs_manual'], T['manu_direct'], T['manu_bracketed'], T['manu_no_live_cells'],
+             T['manu_unresolved'], T['manu_divergent']))
+    print("  their live L-cells: %d = %d direct + %d bracketed + %d bracket-disagree + %d unbracketed + %d DIVERGENT"
+          % (sum(T['manu_cells_' + k] for k in ('direct', 'bracketed', 'bracket_disagree', 'unbracketed', 'divergent')),
+             T['manu_cells_direct'], T['manu_cells_bracketed'], T['manu_cells_bracket_disagree'],
+             T['manu_cells_unbracketed'], T['manu_cells_divergent']))
+    for n in NAMES:
+        d = [v for v in res[n]['violations'] if v['cls'] == 'manu_cg_delta_divergent']
+        for (sec, si) in sorted(set((v['table'], v['script']) for v in d)):
+            g = [v for v in d if v['table'] == sec and v['script'] == si]
+            print("  %s %s[%d]: %d cell(s) where the oracle contradicts the remap -- raw 0x%04X..0x%04X, "
+                  "ours delta %+d -> group %s, oracle %+d -> group %s"
+                  % (n, sec, si, len(g), min(v['raw'] for v in g), max(v['raw'] for v in g),
+                     g[0]['delta'], g[0]['group'], g[0]['oracle_delta'], g[0]['oracle_group']))
     # doc §27: the over-declared spans, and what the digest hashes past the real data
     digest_in = sum(LOC[ci][sec][1] for ci in range(20) for sec in SECTIONS)
     junk = T['span_junk_bytes'] + sum(res[n]['stats']['caua_hosa_over_declared'] * 8 for n in NAMES)
