@@ -373,6 +373,16 @@ static void audit_service(SDL_IOStream* io) {
  * four mvxy components differ on 4-368 segment-halves each; every one of those
  * segments passes end to end.
  *
+ * AND THE REWRITE CLAIM IS NOW CHECKED, NOT TRUSTED, for every scalar in this
+ * group that the oracle also compares live -- `routine_no`, `pos.x`, `pos.y`,
+ * `vital_new`, the four `mvxy` components and, since 2026-09-06, `wu.cg_ix`
+ * (`compare_main_values()`, statcheck_compare.c). That matters because an
+ * allowlist entry whose rewrite claim is FALSE is not missed, it is
+ * misattributed: the oracle catches it hundreds of frames later and the
+ * audit's silence promotes a harness gap (rc 4) into an engine divergence
+ * (rc 1). That is exactly what H5 was. `cg_ix` was the last member of this
+ * group that was allowlisted here with no live compare anywhere.
+ *
  * `wu_operator` is the exception and stays STRICT. It is not previous-match
  * residue: our side gets it from the harness's own synthetic character select
  * (`Entry_Mark_Set` -> `Operator_Status[]`, entry.c -> `set_base_data()`), so

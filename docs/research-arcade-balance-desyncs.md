@@ -1560,6 +1560,118 @@ argument that the PS2 pause has no arcade counterpart.
   arcade drives it is unknown and needs a disassembly pass, not more corpus.
 - **Device test.** Host-only, as with E4-E8.
 
+## CG — `wu.cg_ix` is now compared: which SPRITE is drawn, not just which state (2026-09-06)
+
+`routine_no` tells you a work is in damage reaction 43. It does not tell you
+which cell of it is on screen. The Elena electric-shock defect — a wrong sprite
+under a right reaction, visible only in specific matchups such as Elena vs
+Denjin Ryu — lived entirely in that gap, and until this change nothing in
+`statcheck_compare.c` mentioned `cg_ix` at all (`grep -c cg_ix
+src/test/statcheck_compare.c` returned **0**).
+
+**It was the last field with H5's shape.** `wu.cg_ix` was allowlisted in
+`statcheck_seed_audit.c` (`audit_players()`) as battle residue, on the claim
+that the animation system rewrites it before the oracle looks — and there was no
+per-frame compare anywhere to catch that claim being wrong. That is precisely
+the configuration that hid `waza_work[][48..55]` (§H5): an allowlist entry whose
+rewrite claim is false is not *missed*, it is *misattributed* — the oracle
+catches the consequence hundreds of frames later and reports a harness gap as an
+engine divergence. Every other field `audit_players()` allowlists — `hit_stop`,
+`dm_stop`, `vital_new`, `cg_add_xy`, `pos.x`, `pos.y`, the four `mvxy`
+components, `sa_stop_flag`, `caution_flag`, `cat_break_ok_timer`,
+`cat_break_reserve`, `hazusenai_flag`, `do_not_move`, `piyori_type.now.h`,
+`routine_no[]` — already had one. `cg_ix` did not.
+
+### Why it is comparable at all
+
+`cg_ix` is a **word offset into the current character's own script**
+(`set_char_ad`), not a pointer and not a global sprite id. `charset.c` writes it
+as `(ip - 1) * cgd_type - cgd_type`; the arcade's `comm_ixfw` — the routine
+whose `wk->cg_ix += (ctc->pat - 1) * wk->cgd_type` at the literal `0x0204` is
+what established `WORK_CG_IX_OFFSET` in the first place (see the
+`TEST_FLAG_OFFSET` block comment in `arcade/arcade_constants.h`) — advances it
+the same way. So the two sides share an index space by construction, and the
+port's `CHAR_ARCADE_TO_3SX` character remap (`research-arcade-cg-data-accuracy.md`
+§8.A) does not enter it: it renumbers *characters*, while `cg_ix` is relative to
+whichever character's script is already loaded.
+
+That is the explanation, not the evidence. The evidence is below, and the
+question was left genuinely open until it was run.
+
+### What it showed: `447 / 447`, and nothing moved
+
+`assert_equals(plw[i].wu.cg_ix, read_s16(io, plw_offset + WORK_CG_IX_OFFSET))`
+in `compare_main_values()`. Three corpora, `--headless`, same binary tree:
+
+| | 2026-09-05 (143) | 2026-09-06 (185) | 2026-09-06b (135) |
+|---|---|---|---|
+| HEAD `783166d5`, before | 143 PASS | 183 PASS / 2 `rc=3` | 121 PASS / 12 `rc=3` / 2 `rc=2` |
+| with the `cg_ix` compare | **143 PASS** | **183 PASS / 2 `rc=3`** | **121 PASS / 12 `rc=3` / 2 `rc=2`** |
+
+**447 of 447 eligible segments PASS, and 0 of 463 result lines changed** — same
+exit code, same seed verdict, same `PASS — compared archive frames a..b of n`
+on every segment, so no run was shortened and no other assert moved. The
+compared windows hold **2,683,431** archive frames, two players each.
+
+### The controls, because a clean sweep proves nothing about a dead assert
+
+Two, on the standard `91ad2da1` set.
+
+**Liveness.** Change the line to
+`assert_equals((s16)(cg_ix_3sx + 1), cg_ix_cps3)` and rebuild: **447 of 447**
+eligible segments FAIL, every one at **archive frame 11**, every one on the
+identical line
+
+```
+src/test/statcheck_compare.c:253: (s16)(cg_ix_3sx + 1) (1) != cg_ix_cps3 (0)
+```
+
+so the assert is reached on the first battle frame of every segment in all three
+corpora.
+
+**Non-degeneracy.** A field that is 0 on both sides forever also "passes".
+Read straight out of the `.scrd` frames, with no engine involved
+(`WORK +0x204`, XOR-accumulated per frame), on the seven Elena-vs-Ryu segments:
+
+| segment | characters | distinct `cg_ix`, P1 / P2 | range |
+|---|---|---|---|
+| `1787465465457-1220` g0 | Ryu / Elena | 46 / 84 | 0..138, 0..342 |
+| `1787465465457-1220` g1 | Ryu / Elena | 35 / 78 | 0..138, 0..318 |
+| `1787465465457-1220` g2 | Ryu / Elena | 41 / 89 | 0..138, 0..372 |
+| `1785351236656-3223` g0 | Elena / Ryu | 80 / 44 | 0..318, 0..138 |
+| `1785351236656-3223` g1 | Elena / Ryu | 110 / 40 | 0..522, 0..138 |
+| `1785351236656-3223` g2 | Elena / Ryu | 112 / 43 | 0..522, 0..138 |
+| `1785351236656-3223` g3 | Elena / Ryu | 75 / 20 | 0..318, -4..60 |
+
+### The scenario that broke last time is inside the compared window
+
+Ryu is SA3 (Denjin) in all seven — `supers` is `[2, 1]` on the three
+`1787465465457-1220` segments and `[1, 2]` / `[2, 2]` on the four
+`1785351236656-3223` ones. Scanning the archives for `routine_no[2] ∈ {43, 68}`
+— the special reaction ids, distinct from every ordinary-hit reaction — gives
+**24 single-frame events on Elena across five of the seven segments** (4, 6, 5,
+0, 5, 4, 0), at archive frames 1207-6715, with `cg_ix` on those frames taking
+0, 4, 8, 16, 18, 20 and 28. Every one of the 24 falls inside its segment's
+`PASS` range (the tightest is `1785351236656-3223` g2's frame 6160 against a
+window ending at 6162). So the oracle now compares the drawn cell on the exact
+frames the previous defect would have shown on, and they match.
+
+*(The review that opened this item counted "Denjin landed on Elena 8 times in 6
+of the 7". The measurement here, on `routine_no[2]`, is 24 frames in 5 of 7;
+the two are not the same statistic — 43/68 are one-frame request values that
+`get_damage_reaction_data()` resolves immediately, and one Denjin super lands
+several hits. What matters for coverage is unchanged either way.)*
+
+### What this does NOT establish
+
+- **`cg_ix` is the index, not the picture.** It says which cell of the loaded
+  script is selected. It does not check the CG *data* behind that cell — that
+  is `research-arcade-cg-data-accuracy.md`'s scope, and `cg_audit.py`'s class
+  (c) still stands at 89 cells there.
+- **Host-only.** No device run, as with E4-E8.
+- **`cg_att_ix`, `cg_number`, `cg_zoom`, `cg_effect` are still uncompared.**
+  Only `cg_ix` and `cg_add_xy` are.
+
 ## Harness false positives — fix these before trusting a statcheck sweep
 
 **All eleven** observed failures turned out not to be engine bugs. Each had a
@@ -2964,6 +3076,7 @@ unobtainable), **18/20 stages** (Gill, Q — both excluded by code),
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
 | H5 | seed audit allowlisted `waza_work[]` wholesale; carried entries 48-55 read as engine divergence | **FIXED, 2026-09-06** — the 2026-09-06 corpus's D3 and D6, both `rc=1` at archive frame 7 on a CLEAN seed. `cmd_init()` clears only entries 0..47 under `ArcadeBalance_IsEnabled()` ("CPS3 clears 0x540 bytes of each 0x620-byte command-state block"), so 48..55 carry across the match boundary — arcade residue vs a synthetic session that has never played a match. Two fixes, both in `src/test/`: `compare_waza_work()` now skips entries with `waza_flag[j] == -1`, the test `compare_wcp()` already applied and which `cmd_main.c` gates every `waza_work` access on; and the audit is now strict for `j >= 48 && j < pl_cmd_num[My_char[i]][6]`. `CHAR_TWELVE` is the only character whose live range reaches 48. Judged not seedable at the time — **that half is superseded by H5b**, which shows the blocking `WAZA_WORK::w_ptr` is always `&tbl[16]`. Corpus 177/6 -> **178 pass / 4 rc=1 / 1 rc=4**, exactly 2 verdicts moved; 143-segment corpus **143/143 unchanged**; frame-data suite 99 GREEN. Corrects D3's 29-vs-21 allowlist-count inference — `s_expected` counts `waza_work[]` as **one** |
+| CG | `wu.cg_ix` was allowlisted in the seed audit as battle residue and compared NOWHERE per frame — the same shape that hid H5, over the field that says which SPRITE is drawn | **CLOSED, 2026-09-06** — `assert_equals(plw[i].wu.cg_ix, read_s16(io, plw_offset + WORK_CG_IX_OFFSET))` added to `compare_main_values()` (`statcheck_compare.c`). It **holds**: 2026-09-05 143/143, 2026-09-06 183/183, 2026-09-06b 121/121 — **447 of 447 eligible PASS**, and **0 of 463** result lines changed against the same sweep without it (same rc, same seed verdict, same `PASS — compared archive frames a..b of n`), over **2,683,431** archive frames x2 players. Comparable because `cg_ix` is a word offset into the CURRENT character's `set_char_ad` script (`charset.c`'s `(ip - 1) * cgd_type - cgd_type`, the arcade's `comm_ixfw` `+= (pat - 1) * cgd_type` at literal `0x0204`), not a global cell id, so `CHAR_ARCADE_TO_3SX` never enters it. **Liveness control**: perturb to `cg_ix_3sx + 1` and **447/447 FAIL**, all at archive frame **11**, all on that line. **Non-degeneracy control**: the archives' own `cg_ix` takes **20-112 distinct values** per player per segment (ranges 0..522) on the seven Elena-vs-Ryu segments, so this is not agreement on a constant. **Coverage of the scenario that broke before**: Ryu is SA3/Denjin in all seven, `routine_no[2] in {43, 68}` fires on Elena on **24 frames across five of them** (archive frames 1,207-6,715), and every one is inside its segment's PASS window — the tightest by 2 frames. Does NOT check the CG *data* behind the cell (that is `research-arcade-cg-data-accuracy.md`), and `cg_att_ix`/`cg_number`/`cg_zoom`/`cg_effect` remain uncompared. Host-only |
 | H5b | the carried `waza_work[][48..49]` residue was left unseeded, so a Twelve segment could never report rc=1 | **FIXED, 2026-09-06** — the last non-PASS class in the corpora: **5** `rc=4`, all Twelve, all `wu_operator = [1,1]`, all failing `compare_waza_work()` at archive frame 7 naming the **same seven fields with the same seven values**. Constants repeating across five unrelated matches are not residue: every one is a `arcade_cmd_data.c` table constant for Twelve's entries 48 (`unk_cmd_186`) / 49 (`unk_cmd_187`). An idle entry runs a closed cycle — `check_init()` reloads `w_type`/`w_int`/`free1`/`free2`/`w_lvr` from `tbl[12..15]`, sets `w_ptr = &tbl[16]` and dispatches in the same frame; the handler then decrements `w_int` and drops `w_type` to 0 when it goes negative. Entry 48's `tbl[13] == 0` makes it a fixed point at `(0,-1)`; entry 49's `tbl[13] == 1` gives it **period 2**, and the phase is the whole defect. **`waza_work[S][49].w_type` at the seed frame predicts the verdict on 16 of 16 Twelve segments** — the eleven populated ones split into two DIRTY signatures differing in exactly one line. **Seedable after all**: H5 read `w_ptr` as an unmappable CPS3 address, but the four measured values `0x0619BDF8`/`0x0619BE32`/`0x0619BE64`/`0x0619BE96` have gaps `0x3A`/`0x32`/`0x32` = the byte sizes of `unk_cmd_184`/`185`/`186` exactly, so all four sit at the one offset `check_init()` produces — and the value we need is what **our** `check_init()` would write, `&tbl[16]`, not the CPS3 address. `sync_waza_work_carried()` (`statcheck_compare.c`) imports the twelve scalar fields and RECONSTRUCTS `w_ptr`, behind a guard that admits only states the idle cycle can produce; anything else stays unseeded and still exits 4, so H5's protection is intact. Unreachable for 19 characters (`pl_cmd_num[c][6] <= 48`). Corpora **143/143 -> 143/143**, **182+1rc4 -> 183 PASS**, **117+4rc4 -> 121 PASS** — **447 of 447 eligible segments PASS**, 11 verdict lines moved (5 rc=4->0, 6 DIRTY->CLEAN); the five clear over 3,657-7,410 compared frames each. Nothing else moved, on split evidence: PASS ranges captured on both binaries for all 16 Twelve segments (none changed), and the loop is STATICALLY UNREACHABLE for the other 447 (`pl_cmd_num[c][6] <= 48` for all nineteen non-Twelve characters), with their verdict lines measured identical on top. Frame-data suite 99 GREEN, zero drift. Controls: forcing the guard false returns all 16 segments to the pre-fix line exactly; and `w_ptr` is **never dereferenced** from the seeded state on this corpus — replacing it with a pointer of all-`28` `command_ok()` sentinels changes **0 of 16**, so the reconstruction rests on `check_init()`'s arithmetic, not on a passing sweep |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |

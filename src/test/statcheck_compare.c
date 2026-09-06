@@ -248,6 +248,53 @@ static void compare_main_values(SDL_IOStream* io) {
         const s16 vital_new_cps3 = read_s16(io, plw_offset + WORK_VITAL_NEW_OFFSET);
         assert_equals(vital_new_3sx, vital_new_cps3);
 
+        /* wu.cg_ix -- WHICH SPRITE CELL IS DRAWN, as opposed to which reaction
+         * state machine is running. `routine_no` above says a work is in
+         * damage reaction 43; `cg_ix` says which cell of it. The two can
+         * disagree: the Elena electric-shock defect was a wrong cell under a
+         * right reaction, and nothing in this file could have seen it.
+         *
+         * It is an OFFSET IN WORDS INTO `set_char_ad`, not a pointer and not a
+         * global sprite id -- `charset.c` writes it as
+         * `(ip - 1) * cgd_type - cgd_type`, and the arcade's `comm_ixfw`, the
+         * function whose `wk->cg_ix += (ctc->pat - 1) * wk->cgd_type` at the
+         * literal 0x0204 is what identified WORK_CG_IX_OFFSET in the first
+         * place (see arcade_constants.h on TEST_FLAG_OFFSET), advances it the
+         * same way. So both sides express it in the SAME space -- cells of the
+         * current character's own script, relative to that character's
+         * `set_char_ad` -- rather than in any global cell numbering the port's
+         * character remap could shift. That is WHY it turns out to be
+         * comparable; it is not the evidence THAT it is. The evidence is the
+         * measurement.
+         *
+         * MEASURED, all three corpora at once, --headless:
+         *   - 447 of 447 eligible segments PASS with this assert in, and all
+         *     463 result lines (rc, seed verdict, `PASS -- compared archive
+         *     frames a..b of n`) are byte-identical to the sweep without it.
+         *     2,683,431 archive frames inside those windows, x2 players.
+         *   - LIVENESS CONTROL, because a clean sweep proves nothing about a
+         *     dead assert (the standard 91ad2da1 set): change it to
+         *     `assert_equals((s16)(cg_ix_3sx + 1), cg_ix_cps3)` and every one
+         *     of the 447 fails, all at archive frame 11, all on that line.
+         *   - NON-DEGENERATE, straight out of the .scrd frames: on the seven
+         *     Elena-vs-Ryu segments the archive's own cg_ix takes 20-112
+         *     DISTINCT values per player per segment (ranges 0..522), so
+         *     agreement on every frame is not agreement on a constant.
+         *   - The scenario that broke last time IS in the compared window:
+         *     Ryu is SA3/Denjin in all seven, and `routine_no[2]` takes the
+         *     special-reaction values 43/68 on Elena on 24 frames across five
+         *     of them -- every one inside that segment's PASS range, with
+         *     cg_ix 0/4/8/16/18/20/28 on those frames.
+         *
+         * This closes the shape that hid `waza_work` (H5): allowlisted in
+         * `statcheck_seed_audit.c` as battle residue on a rewrite claim, with
+         * no per-frame compare to catch the claim being wrong. Same treatment
+         * as Game_pause's allowlist -- the audit still allowlists the seed
+         * value, and this line checks the rewrite actually happened. */
+        const s16 cg_ix_3sx = plw[i].wu.cg_ix;
+        const s16 cg_ix_cps3 = read_s16(io, plw_offset + WORK_CG_IX_OFFSET);
+        assert_equals(cg_ix_3sx, cg_ix_cps3);
+
         const s16 stun_3sx = piyori_type[i].now.quantity.h;
         const s16 stun_cps3 = read_s16(io, PIYORI_TYPE_OFFSET + i * sizeof(PiyoriType) + offsetof(PiyoriType, now));
         assert_equals(stun_3sx, stun_cps3);
