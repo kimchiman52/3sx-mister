@@ -27,6 +27,7 @@
 - For implementation tasks, use the `/implement` skill (three-agent implement → review → fix loop).
 - For planning tasks, use the `/plan` skill (three-agent plan → review → fix loop).
 - For mature MiSTer perf queues, use [docs/agent-memory/mister-ralph-loop-v2.md](docs/agent-memory/mister-ralph-loop-v2.md) to choose the right loop type (`runtime`, `measurement`, or `workload-fidelity`) before starting another Ralph pass.
+- For anything that needs to read the arcade (CPS3) program, use the `/compare-cps3-code` skill and `tools/cps3-disasm/cps3.py`. **Do not write another throwaway Capstone script** — that is how the same addresses got re-derived by hand in lane after lane. [tools/cps3-disasm/README.md](tools/cps3-disasm/README.md) has the method, the four traps it encodes, and the measured reason this is not Ghidra.
 
 ## Documentation
 
