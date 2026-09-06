@@ -34,8 +34,11 @@ PASS
 `cg_audit.py` covers sprite indices in the 10 script tables, plus OVCT/OVIX
 coverage, the OVCT **reachability** model (`ovct_reachability()`; table
 column `ovct a/p reach`, verdicts `ok` / `tail-unreached(n)` /
-`walk>end-unreached[exit:hold<=H/N]` / `walk>end[...]` / `TAIL-REACHED(n)!`)
-and the dangling-walk **hold** model (`ovct_dangling_hold()`, doc §25). `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
+`walk>end-unreached[exit:hold<=H/N]` / `walk>end[...]` / `TAIL-REACHED(n)!`),
+the dangling-walk **hold** model (`ovct_dangling_hold()`, doc §25) and the
+X.C.O.P.Y. **reverse-swap gate** (`k7_swap_gate()` / `k7_foreign_cells()`,
+doc §26; trailing `xcopy:` column, verdicts `none` / `gated(n)` /
+`unmodelled(n,in-range)` / `FOREIGN-OOB(k/n)!`). `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
 RICT HIIT BODA HANA CATA CAUA ATTA HOSA ATIT PROT — where hitboxes, throw
 placement and attack properties live (upstream issue #325). It imports
 `cg_audit.py` for the shared constants and does not modify it. Its invariant:
@@ -87,6 +90,21 @@ and the ATITs — against the frames the walk needs, so the row reads
 `walk>end-unreached[178:hold<=179/297]` (item **R**, CLOSED 2026-09-06, doc
 §25). A run the model cannot read (a C cell inside it, or a script boundary)
 is reported `unmodelled` and keeps the exit flagged `walk>end[...]`.
+
+The `xcopy:` column is the cross-character question (doc §26): `effk7.c`
+rebinds a morphed Twelve's tables back to his own on a `cg_type 30` cell, and
+a cell that also selects a live `olc` would hand the *target's* part index to
+Twelve's OVCT. `k7_swap_gate()` re-derives, per target, that the rebind is
+armed only by a path that ends on the rebirth script's own `olc 0` marker
+three frames later — cell types, hit indices and cancel bits before the
+marker, `hiit[0]`'s box rows, and the cells that can be current at arming —
+and reports every reason it cannot close the gate as `unmodelled`, which
+keeps it open. `k7_foreign_cells()` lists the protected cells and what a swap
+there would consume on Twelve's tables (arcade and PS2), so a character reads
+`FOREIGN-OOB(...)!` only when the gate is open **and** the consequence leaves
+the table. At the time of writing the gate is closed for the five targets
+with live foreign cells (Gill, Dudley, Hugo, Ibuki, Remy); Ken is
+`unmodelled(6,in-range)` and Yang's four are post-terminator data.
 
 Expected at the time of writing (`fix/arcade-cg-mapping` branch point):
 

@@ -59,6 +59,13 @@ command and its observed output, or a named primary source. Things that were
   hold is bounded by enumerating every writer of the master's `hit_stop` and
   every freeze that is asymmetric between player and overlay, and the bound
   is re-derived by `cg_audit.py` on every run.
+- **Wondering whether Twelve's X.C.O.P.Y. can hand one character's part
+  index to another character's OVCT?** §26 — the reverse swap (`effk7.c`
+  case 4) is armed only by a path that ends on the rebirth script's own
+  marker three frames later, and every way out of that window is enumerated
+  and closed; `cg_audit.py` re-derives it (`xcopy:` column) and also computes
+  what a swap *would* consume, so a gate it cannot prove is reported, not
+  assumed.
 - **Worried the parse itself is truncating data?** §19.
 - **Worried about hitboxes / throw ranges / attack properties?** §15 — the other
   13 sections (the ones a CG audit cannot see). This is upstream issue **#325**.
@@ -4563,7 +4570,8 @@ them is below `common_count`, so it holds a PS2-patched `parts_char`;
   window) was checked only at the 40 `cg_type == 20` markers and their
   predecessors, which is where the swap happens; `cg_audit.py` does not
   model the swap generically. **§25.5 extends the check to every cell after
-  every marker: all `olc 0`.**
+  every marker: all `olc 0`. §26 closes the reverse swap (`cg_type 30`) for
+  every character and puts both in `cg_audit.py`.**
 
 ---
 
@@ -4808,6 +4816,278 @@ DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     
   not analysed. If it can, the effect restarts on Twelve's 133-entry table
   with Dudley's OVIX[26] part index — in range, and a Twelve-table question,
   not this exit.
+  **CLOSED 2026-09-06 (§26):** it cannot be armed there — case 4 is consumed
+  on `saca[1]` cell 1, three frames after arming, and no writer can move the
+  master off `saca[1]` first; had it fired, part 26 on Twelve's table
+  self-loops in range on both data sides.
 - The `unmodelled` verdict is deliberately blunt: a C cell inside a run is
   reported, not decoded. No run in the cast currently needs it (Dudley's two
   are the only dangling-exit runs).
+
+---
+
+## 26. The X.C.O.P.Y. reverse swap: CLOSED — case 4 fires only on the rebirth script's own marker, and the audit now checks it (tenth pass, 2026-09-06)
+
+**Citation style for this section.** As in §21-§25: this document is not in
+`tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line. Code was read at
+`new-stuff` @ `34a54e83`. Every number marked **measured** was produced by
+`tools/arcade-audit/cg_audit.py` (`k7_swap_gate()` and `k7_foreign_cells()`,
+added in this pass) against the same `rom.bin` (md5
+`909f5abec4b6b21bf7d2a452a03fdfcc`) and `SF33RD.AFS` the rest of this document
+uses, or by the scratch sweeps that preceded them and that the functions
+reproduce.
+
+**Headline.** §25.8 asked whether `effk7.c` -> `K7_move_type_0` case 4 — the
+rebind of a morphed Twelve's tables back to his own — can be armed while
+Dudley's `saca[71]`/`saca[72]` play, because those scripts carry `cg_type 30`
+cells that select `olc 26`, and case 4 fires on the first `cg_type 30` cell it
+sees with whatever selection that cell decoded against *Dudley's* OVIX. It
+cannot. Case 4 is written only by case 3, and case 3 forces the master into
+`Att_METAMOR_REBIRTH`, whose script (`saca[1]`) reaches its own `cg_type 30`
+cell **three frames** later with `olc 0`; every writer that could move the
+master off `saca[1]` in those three frames was enumerated (§26.3) and each is
+closed by the code or by the shipped data. The same argument holds for **all
+20** characters as X.C.O.P.Y. targets, and for five of them (Gill, Dudley,
+Hugo, Ibuki, Remy) it is the only thing standing between a live `cg_type 30`
+cell and a foreign part index; for Gill and Ibuki that index would leave
+Twelve's 133-entry table. Two characters (Ken, Yang) have a gate the model
+declines to close (§26.6) — Ken's foreign parts are in range on both data
+sides, Yang's cells are post-terminator data. Had Dudley's case fired, the
+consumed index is **part 26 on Twelve's OVCT**, `parts_nix[26] == 26`, timer
+255: a self-loop, in range, and byte-for-byte the same structure on the PS2
+side (§26.5) — by §6.1 not an adaptation defect either way. **No code
+change**; the model is code in `cg_audit.py` (new `xcopy:` column, §26.7) and
+fails toward *open* wherever it has not read the data.
+
+### 26.1 The mechanism, and the frame order it depends on
+
+`effk7.c` -> `K7_move_type_0` is a five-state walk on `ewk->wu.routine_no[1]`:
+
+| case | waits for | does |
+|---|---|---|
+| 0 | `mwk->wu.cg_type == 20` on Twelve's X.C.O.P.Y. cell | `player_number`/`charset_id` := the target's; `set_base_data_metamorphose` -> `plcnt.c` -> `set_char_base_data` rebinds every table to the target's (`charid.c`: `char_table[]`, `overlap_char_tbl = cdat->ovct`, `olc_ix_table = cdat->ovix`, `hit_ix_table = cdat->hiit`, …) |
+| 1 | `cg_type == 30` | `metamorphose = 1`, colours |
+| 2 | `mwk->sa->ok != -1` | `metamor_over = 1` (`plmain.c` -> `Player_move`: `if (wk->metamor_over) sw_lvbt = 0` — input dead from here) |
+| 3 | `K7_mt0_rebirth_check`: `routine_no[1] == 0`, `guard_flag != 3`, `!hit_stop` (demo arm: `routine_no[2] == 1 && routine_no[3] != 0`), then `pcon_rno[0] == 1` (else state 9, never case 4) | **`mwk->wu.routine_no[1] = 4; [2] = 33; [3] = 0; cg_type = 0; cg_hit_ix = 0; cg_ja = hit_ix_table[0]; set_jugde_area`** — and `ewk->wu.routine_no[1] = 4` |
+| 4 | `cg_type == 30` | `player_number`/`charset_id` := Twelve's; `set_base_data_metamorphose` rebinds everything back |
+| 5 | — | `routine_no[0] = 2` -> restore colours, `push_effect_work` (K7 freed) |
+
+The order inside one frame is what makes the swap a cross-table read at all
+(`game.c` -> `Game2_1`): `Player_control` (both players decode their cells;
+`charset.c` -> `check_cgd_patdat` writes `cg_olc = olc_ix_table[olc >> 4]`
+against the *current* OVIX), then `reqPlayerDraw` -> `move_effect_work(6)`
+(K7 lives on list 6: `effect_K7_init` -> `pull_effect_work(6)`, id 207), then
+`Basic_Sub_Ex` -> `move_effect_work(0..5)` (the overlays are list 1:
+`eff01.c` -> `pull_effect_work(1)`), then `hit_check_main_process`. So on the
+frame case 4 fires, the master's `cg_olc` was decoded against the *target's*
+OVIX, K7 rebinds `overlap_char_tbl` to Twelve's, and `effect_01_move`'s
+restart (`cg_ix = mwk->cg_olc.olc_ix[type]`, `get_new_parts_data`:
+`overlap_char_tbl = mwk->wu.overlap_char_tbl + now_koc`) indexes Twelve's
+table with the target's part index. That is the hazard §25.8 named. It needs
+a `cg_type 30` cell whose `olc >> 4` is nonzero **and** K7 sitting in case 4
+when that cell is decoded.
+
+### 26.2 How case 4 is armed, and what the master is doing when it is
+
+1. `ewk->wu.routine_no[1] = 4` has exactly one writer: case 3 (grep
+   `routine_no[1] = 4` in `effk7.c`).
+2. Case 3 writes the master's routine **(4, 33, 0)**. `plmain.c` ->
+   `plmain_lv_02[4]` = `plpat.c` -> `Player_attack`; `routine_no[2] > 15` ->
+   `plxx_extra_attack_table[wk->player_number]` -> `plNN_extra_attack` ->
+   `plNN_exatt_table[33 - 16]`. **Measured** from the source: all **20**
+   `plNN_exatt_table[18]` tables carry `Att_METAMOR_REBIRTH` at index 17, so
+   the dispatch does not depend on which character the master is bound to.
+3. `plpatuni.c` -> `Att_METAMOR_REBIRTH` case 0: `set_char_move_init(&wk->wu,
+   5, 1)` — `char_table[5]` is `saca` (`charid.c`) — and **`metamor_over =
+   0`**. `charset.c` -> `set_char_move_init` ends with `char_move(wk)`, so
+   cell 0 is decoded on the install frame.
+4. The rebirth script, all 20 characters — **measured**: cell 0 is `type 0,
+   ctr 2, att 0, hit 0, canc 0, olc 0`; cell 1 is `type 30, ctr 1, olc 0`;
+   cells 2-11 are `olc 0` (hit index 452); cell 12 is `comm_jmp` (`5, 53`).
+   Twelve's own `saca[1]` is the same shape with five `ctr 2` cells before
+   the marker (22 cells).
+
+So, with case 3 firing at frame **N** (after `Player_control`): N+1 installs
+`saca[1]` (cell 0, `cg_ctr` 2); N+2 counts down; N+3 decodes cell 1 (`cg_type
+30`) in `Player_control`, K7 sees it in `reqPlayerDraw` the same frame and
+rebinds, and N+4 frees K7. **Case 4 exists for four frames**, and the master
+is on `saca[1]` for three of them. The only question is whether anything can
+take the master off `saca[1]` (or keep it from getting there) inside that
+window.
+
+### 26.3 Every way off the rebirth script, enumerated and closed
+
+For a player whose routine is being driven by `plmain.c` -> `player_mv_4000`
+(`check_lever_data` -> `pls00.c` -> `process_attack`; then `check_hit_stop`;
+then `Player_attack`), the writers of `routine_no[1..3]` and of the current
+script, over the four frames:
+
+| # | Path | Window | Why it cannot fire here |
+|---|---|---|---|
+| 1 | Contact — `hitcheck.c` -> `plef_at_vs_player_damage_union` (`ds->wu.routine_no[1] = 1`), `catch_hit_check` | N+1..N+3 | `hitcheck.c` -> `hit_push_request`: `if (hpq_in < 31 && hpr_wk->cg_hit_ix != 0)` — the master is **not in the queue**. Cells 0 and 1 decode to hit index 0: `check_cgd_patdat` case 4 computes `cg_hit_ix = ((att << 16 \| hit) * 8) >> 16 & 0x1FF` from `att 0, hit 0` (**measured**, 20/20). Both checks iterate `q_hit_push[]` only. |
+| 2 | Contact at frame N itself (the master was queued during `Player_control`, before K7 ran) | N | Case 3 set `cg_ja = hit_ix_table[0]` and called `set_jugde_area`, which re-points `h_bod`, `h_han`, `h_att`, `h_hos`, `h_cau` — the pointers `attack_hit_check` (`sh = sad->h_bod->body_dm[0]`, `dmdat_adrs[0..10]`, `if (dmdat_adrs[lp2][1] == 0) continue`) and `catch_hit_check` (`sh = &sad->h_cau->cau_box[0]; if (sh[1] == 0) continue`) read at check time. **Measured**: `hiit[0]` is `{0,0,0,0,0,0,0,0}` for all 20 characters and every row it selects (`boda[0]` ×4, `hana[0]` ×4, `atta[0]` rows 2-3, `hosa[0]`, `caua[0]`) has `[1] == 0`. |
+| 3 | `process_attack` cancel block (`check_full_gauge_attack`, `check_super_arts_attack`, `check_special_attack`, `check_chouhatsu`, `check_catch_attack`, `check_leap_attack`) | N+2, N+3 | Gated on `wk->cancel_timer`. Its only nonzero writer is `plpat.c` -> `get_cancel_timer` (8 call sites, all `Attack_0x000` handlers); `plpnm.c` -> `setup_normal_process_flags` zeroes it on **every** normal-state frame (`Player_normal` calls it first), case 3 requires normal state at N, and neither `Player_attack` nor `Att_METAMOR_REBIRTH` sets it. |
+| 4 | `process_attack` -> `check_ashimoto_ex` (`routine_no[1] = 0; [2] = 55`) | N+2, N+3 | Needs `pls01.c` -> `check_floor_2`: `if (wk->bs2_on_car == 0) return 0`. `bs2_on_car = 1` has one writer, `jumping_union_process` under `Bonus_Game_Flag == 20`; `plpat19.c` -> `Att_METAMORPHOSE` creates K7 only `if ((Bonus_Game_Flag != 20) && (effect_K7_init(wk) != -1))`. |
+| 5 | `process_attack` -> `routine_no[2] < 16 && check_full_gauge_attack(wk, 1)`; `routine_no[2] == 3 && check_sankaku_tobi` | N+2, N+3 | `routine_no[2]` is 33. |
+| 6 | `process_attack` -> `check_cg_cancel_data` | N+2, N+3 | `if (wk->wu.cg_cancel == 0) return 0;` — `cg_cancel` is the cell's `canc` byte for a cgd-4 script (`setupCharTableData` copies `cgd_type` words from `cg_type`; `structs.h` puts `cg_cancel` in the fourth), and cell 0's is **0** (measured, 20/20). |
+| 7 | `process_attack` -> `jumping_cg_type_check` | N+2, N+3 | Acts on `cg_type` 0xFF, 64, 2, 3, 7; cell 0 is type 0 (measured, 20/20). `Att_METAMOR_REBIRTH` case 1's own branches need 31 or 40, also absent before the marker. |
+| 8 | The N+1 pre-empt: `process_attack` runs at N+1 **before** `Att_METAMOR_REBIRTH` installs `saca[1]`, on whatever cell was current when case 3 fired, with `routine_no[1] == 4`, `routine_no[3] == 0` | N+1 | Rows 3-5 and 7 are off (`routine_no[3] == 0` skips the block; `jumping_cg_type_check` is behind it). Row 6 remains. Input is dead this frame: `metamor_over` is still 1 when `Player_move` forces `sw_lvbt = 0`, and `cmd_main.c` -> `pl_lvr_set` builds `sw_0` from `sw_lvbt` (the only bits it can add are the release-derived 0x80/0x800, which `pls03.c` `shot_prio` does not list), so `check_nm_attack` (`shot_data_convert(sw_now) < 0 -> return 0`) is off and `check_renda_cancel` at most rewinds the current script without a routine write. What is left are the paths that fire from a **buffered** command and a **stale** `meoshi_hit_flag`: bits 0x40 (`check_super_arts_attack`), 0x20 (`check_special_attack`/`check_chouhatsu`), 0x08 (`check_meoshi_cancel`). They need the current cell's `canc` to carry one of them. Which cell can be current at N: case 3 needs `routine_no[1] == 0` — normal state runs `nmca` (all 43 `set_char_move_init` sites in `plpnm.c`/`pls00-02.c` use table 0); a transition *into* normal written inside a state handler leaves that state's script current for the frame, which from attack is possible only on a `cg_type` 0xFF/64/2/3/7 cell (`Player_attack` sets `guard_flag = 3` first and `pls00.c` -> `jumping_guard_type_check` is the only clear inside it — case 3 needs `!= 3`), never from catch/caught (`plpca.c`/`plpcu.c` set 3), and from damage on any `dmca`/`btca` cell (`Damage_04000` and others set 0). A transition written outside `Player_control` (`hitcheck.c` parry, `routine_no[1] = 0`) gets its `nmca` install in the next `Player_control`, before K7. **Measured for Dudley**: no `nmca`/`dmca`/`btca` cell carries any of 0x40/0x20/0x08 (the OR of every `canc` in those three tables is 0x00), and no attack-table cell of type 0xFF/64/2/3/7 does either. |
+| 9 | Round settle — `plcnt.c` -> `settle_type_00000/20000/40000` (`routine_no[1] = 0; [2] = 40/41; [3] = 0`) | any | Each write sits behind `footwork_check` (`routine_no[1] == 0 && routine_no[2] == 1` — normal **and standing**) or `nekorobi_check` (damage state, lying down); `settle_type_30000` and `init_app_30000` start from a fresh player init (`K7_muriyari_metamor_rebirth`). Meanwhile `plcnt_die` -> `move_player_work` keeps `Player_move` running, so the rebirth completes first; `time_over_check`'s early return skips one `Player_move` and nothing else. If the round has already ended when rebirth-check passes, `pcon_rno[0] != 1` sends K7 to state 9, not case 4. |
+| 10 | `Game_pause`, `EXE_flag`, the opponent's SA flash | any | Pause/slow freeze `effect_K7_move` on the same two flags. `comm_stop` gives the master a positive `hit_stop`; `check_hit_stop` withholds `Player_attack`, K7 keeps polling `cg_type`: the cells are delayed, not reordered. |
+| 11 | Round init, training reset, rollback | any | `plcnt.c` -> `erase_extra_plef_work` -> `effect_work_list_init(6, -1)` frees list 6 (K7) and `setup_any_data` -> `set_base_data_tiny` restores `My_char`; both run from `game.c` (round transition) and `menu.c` (`Tr_Reset`). `game_state.c` restores the effect pool wholesale. K7 and the morph end together; no case 4 survives. |
+| 12 | K7 itself aborting (`effect_K7_move` case 1: `dead_f`, or `metamor_index != myself`) | any | `dead_f` has no writer for K7 (every `dead_f = 1` is an effect writing its own); `metamor_index` is written only by `effect_K7_init`, reachable only through Twelve's `pl19_exatt_table` — not dispatched while `player_number` is the target's. An abort would free K7 *without* rebinding, i.e. no case 4 at all. |
+
+Nothing else writes a live player's routine or script between `Player_control`
+and the next one. Therefore the master decodes `saca[1]` cell 1 at N+3, case 4
+fires on it, and **the selection it consumes is `olc 0`** — `ovix[0] = {0, 0,
+0, 0}` for every character (§24.2 #2), so all four overlays go dormant at the
+rebind. The cells after the marker, which are decoded against *Twelve's* OVIX
+once the tables are rebound, are `olc 0` up to the `comm_jmp` (measured, 20/20;
+the jump then goes through the rebound `char_table` into Twelve's own
+`saca[53]`, whose cells §24's per-character sweep already covers).
+
+### 26.4 So when do `saca[71]`/`saca[72]` play, and what are they
+
+`saca[65..68]` are Dudley's Cross Counter (§25.3: the only `comm_atmf`
+scripts besides Remy's). **Measured**: each opens with `comm_rmja (5, 69..72,
+1)`, which `charset.c` -> `comm_rmja` stores in `cmms`; when the absorbed hit
+lands, `plpdm.c` -> `damage_atemi_setup` -> `char_move_cmms` installs it. So
+`saca[69..72]` are the four counter-punch follow-ups (`saca[75..77]`,
+`9900_g[36..38]`, also `comm_rmja` into 69-71), reachable only through a
+Cross Counter that absorbs a hit. Their `cg_type 30` cells — `saca[71]` cell
+14, `saca[72]` cells 14 and 33, all `olc 26` — are the engine's generic
+phase marker: `cg_type == 30` is read by some thirty attack handlers in
+`plpat*.c`/`plpatuni.c` for their own state changes, and by
+`K7_move_type_0` in cases 1 (sets `metamorphose`, nothing else) and 4. So a
+`cg_type 30` cell is harmless to the tables unless K7 is in case 4, and K7 is
+in case 4 only during §26.2's window, during which the master is on
+`saca[1]`. `saca[72]` cell 33 sits after
+an unconditional `comm_jpss` (`5, 72, 37`) at cell 18 and is classed
+post-terminator by the audit's §19 convention; the gate covers it regardless.
+
+### 26.5 Had it fired: part 26 on Twelve's table, in range, and pre-existing
+
+The question §25.8 deferred, answered for completeness and as the §6.1
+control — **measured**:
+
+| | arcade | PS2 |
+|---|---|---|
+| Dudley `saca[71]` c14 / `saca[72]` c14, c33 | `type 30, olc 26` | `type 30, olc 26` (same cells) |
+| Dudley `ovix[26]` | `{26, 0, 0, 0}` | `{26, 0, 0, 0}` |
+| Twelve OVCT / OVIX entries | 133 / 133 | 135 / 135 |
+| Twelve `ovct[26]` | `timer 255, nix 26` (self-loop) | in range |
+| cell after the marker | `olc 0` | `olc 0` |
+
+A swap there would restart overlay type 0 at part 26 of Twelve's table — the
+wrong sprite, not an out-of-bounds read — and the PS2 data carries the same
+cell, the same OVIX entry and a larger Twelve table. Nothing the port
+adapted is on that path.
+
+### 26.6 The same gate for the other nineteen targets
+
+`k7_foreign_cells()` lists every `cg_type 30` cell outside `saca[1]` that
+selects a live `olc` — the cells the gate protects — and what a swap there
+would consume; `k7_swap_gate()` applies §26.2-§26.3 per character.
+**Measured**:
+
+| target | foreign cells (live + dead) | gate | if case 4 fired there |
+|---|---|---|---|
+| Gill | 5 (`saca[29..32]` c3 `olc 105` -> part 206; `saca[59]` c6 `olc 142` -> parts 291, 292) | closed | **past** Twelve's 133 entries; PS2 identical |
+| Dudley | 2 + 1 (§26.4) | closed | part 26, in range; PS2 identical |
+| Hugo | 2 (`caca[33]`/`[42]` c19 `olc 50` -> part 59) | closed | in range; `caca[42]` has no PS2 twin |
+| Ibuki | 19 + 5 (`saca[24..31]`, `[44..47]`, `[60..63]`, `caca[10]`; `olc` 1030-1225 -> parts 1089-1284) | closed | **past** Twelve's OVIX and OVCT; 18 of 19 PS2 identical, `caca[10]` c31 arcade-only |
+| Remy | 5 + 2 (`saca[28..31]`, `olc` 26-28 -> parts 28, 29, 34) | closed | in range; PS2 identical |
+| Ken | 6 (`saca[30]` c11, `saca[36..39]` c32, `saca[64]` c12; `olc` 19-21 -> parts 37-39) | **unmodelled** — `nmca[4]` cells 6-7 (`canc 0x21`) and `dmca[64]` cell 17 (`canc 0x60`) can be current at arming | in range; PS2 identical |
+| Yang | 0 + 4 (`saca[44..47]` c41 `olc 1264`) | **unmodelled** — nine `atca` type-64 cells with `canc 0x24` | the four cells are post-terminator, and `olc 1264` is already past Yang's own 20-entry OVIX (`ovix_oob_post_terminator`, §24.4's decoder-artefact class) |
+| Alex, Necro, Elena, Oro, Urien, Twelve | 0 | closed | — |
+| Ryu, Yun, Sean, Akuma, Chun-Li, Makoto, Q | 0 | unmodelled (`nmca[4]`/`dmca[64]`-class cells, Yun's `atca` type-64 cells) | nothing to protect |
+
+Two things follow. First, the gate is **load-bearing** for Gill and Ibuki:
+their foreign selections would leave Twelve's tables on both data sides, so
+a future data or code change that opens the window — a `canc` byte on a
+normal-state cell, a hit box on `saca[1]` cell 0, a new writer of the routine
+inside the window — is a real hazard there, and the audit will say so
+(`xcopy:FOREIGN-OOB(...)!`). Second, the `unmodelled` verdicts are the honest
+edge of the model: they say a cell with a buffered-command cancel bit *can*
+be current when case 3 fires, not that the cancel then succeeds (it still
+needs the buffered command, `meoshi_hit_flag` from a previous hit, and for
+0x40 an SA stock). Ken's consequence is in range either way; Yang's cells are
+dead data.
+
+### 26.7 The defence, in code
+
+- `tools/arcade-audit/cg_audit.py` -> `parse_k7_rebirth()`: reads the case-3
+  routine and the case-4 marker from `effk7.c`, the install from
+  `Att_METAMOR_REBIRTH`, and asserts all 20 `plNN_exatt_table[18]` dispatch
+  that routine to `Att_METAMOR_REBIRTH`. `k7_swap_gate(ci)`: the rebirth
+  script's marker index, the cells before it (type, hit index via
+  `check_cgd_patdat`'s arithmetic, `canc`), `hiit[0]` and every box row it
+  selects (`hiit0_boxes`), the marker's `olc`, the post-marker cells against
+  Twelve's OVIX/OVCT, and the §26.3 row-8 census (`K7_ENTRY_TABLES` =
+  nmca/dmca/btca on any cell; `K7_ATTACK_TABLES` on `K7_END_TYPES` cells;
+  bits `K7_CANCEL_BITS` = 0x68). Anything it cannot close is a reason in
+  `unmodelled`, which keeps the gate **open**. `k7_foreign_cells(ci)`:
+  every protected cell with its target-OVIX parts, the following cells'
+  `olc`, and both consequences on Twelve's tables (`_k7_consequence`),
+  arcade and PS2, with post-terminator cells marked `dead`.
+- Per character the JSON gains `xcopy_case4` (`gate`, `foreign_cells`) and
+  the stats `k7_foreign_cells`, `k7_foreign_dead`, `k7_gate`,
+  `k7_foreign_oob`, `k7_foreign_oob_ps2`, `k7_foreign_ps2_differs`. The
+  table gains a trailing `xcopy:` column: `none`, `gated(n)`,
+  `unmodelled(n,in-range)`, or `FOREIGN-OOB(k/n)!` — the last only when the
+  gate is open **and** a live foreign cell's consequence leaves Twelve's
+  tables. **No pre-existing JSON value changed** (measured: field-by-field
+  diff against `34a54e83`'s file, 0 changed, 0 removed, 460 added — six
+  stats keys × 20 plus the `xcopy_case4` records). `arc_parse`/`ps2_parse`
+  now keep the cell's `ext`/`canc` bytes; nothing that was emitted before
+  reads them.
+
+DUDLEY row, `cg_audit.py`, before (`34a54e83`) and after:
+
+```
+DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     0    33     0 | 178/180 r<=177 walk>end-unreached[178:hold<=179/297]  41/43 short
+DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     0    33     0 | 178/180 r<=177 walk>end-unreached[178:hold<=179/297]  41/43 short  xcopy:gated(3)(1 dead)
+```
+
+`residual_audit.py` after: output and `residual_audit.json` byte-identical to
+before; R2b `on a REACHABLE part : 0`.
+
+### 26.8 Corrections to §24 and §25 (recorded, not silently edited)
+
+- **§25.5** says the reverse swap "is reached through `Att_METAMOR_REBIRTH`'s
+  `set_char_move_init(&wk->wu, 5, 1)`" and that Dudley's `saca[1]` marker is
+  at cell 1 with `olc 0`. Both right; what it did not say is *why* no other
+  `cg_type 30` cell can be the one case 4 sees — §26.3 is that argument, and
+  it does not rest on `saca[1]` alone but on the master being unable to
+  leave it.
+- **§25.8**'s "in range, and a Twelve-table question" was a guess; §26.5
+  measures it (in range, self-loop, PS2-identical).
+- **§24.7** said `cg_audit.py` "does not model the swap generically". It now
+  models both directions; the forward one (§25.5's all-`olc 0` sweep) is
+  still a per-marker data fact rather than a function, and is listed below.
+
+### 26.9 What this does not establish
+
+- The **forward** swap (case 0) is closed by §25.5's sweep, not by code in
+  the audit; a Twelve cell after a `cg_type 20` marker acquiring a nonzero
+  `olc` would not move a row. Same class of gap as §25.8's last bullet.
+- Tables other than OVIX/OVCT after a rebind — the post-marker cells'
+  **hit indices** (452 for all 20) are read against Twelve's 503-entry
+  `hiit`, and the `comm_jmp (5, 53)` lands in Twelve's 75-entry `saca` —
+  were checked only by inspection here, not by the audit.
+- The `unmodelled` verdicts for Ken and Yang (and the seven characters with
+  nothing to protect) are not closed: the model reports that a cell with a
+  buffered-command cancel bit can be current at arming, and stops. Closing
+  them means tracing `check_cg_cancel_data`'s 0x40/0x20/0x08 paths at N+1
+  through `meoshi_hit_flag` (set by `hitcheck.c` on the master's own hit,
+  cleared only by an attack setup) and the command buffer — or showing those
+  cells cannot be current with `guard_flag != 3` and `hit_stop == 0`.
+- `effect.c` -> `pull_effect_work` does not clear the work it hands out and
+  `effect_K7_init` does not write `dead_f`; a slot whose previous occupant
+  left `dead_f = 1` would make K7 abort on its first frame (case 1, no
+  rebind, morph fizzles). Engine-side and identical on both arms; noted, not
+  analysed.
+- The CPS3's own overlay engine was not disassembled (§24.7); the port runs
+  `eff01.c`/`effk7.c` on arcade data, and those are the only engines whose
+  arming order matters here.

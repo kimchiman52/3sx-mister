@@ -453,6 +453,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 5,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 5,
+   "k7_foreign_oob_ps2": 5,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -691,6 +697,251 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": [
+    {
+     "table": "saca",
+     "script": 29,
+     "cell": 3,
+     "olc": 105,
+     "parts": [
+      206,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      106,
+      106
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 3,
+     "olc": 105,
+     "parts": [
+      206,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      106,
+      106
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 31,
+     "cell": 3,
+     "olc": 105,
+     "parts": [
+      206,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      106,
+      106
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 32,
+     "cell": 3,
+     "olc": 105,
+     "parts": [
+      206,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      106,
+      106
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        206
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 59,
+     "cell": 6,
+     "olc": 142,
+     "parts": [
+      0,
+      291,
+      292,
+      0
+     ],
+     "tail_olc": [
+      142
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        291
+       ],
+       [
+        "part",
+        292
+       ],
+       [
+        "tail-olc",
+        142
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        291
+       ],
+       [
+        "part",
+        292
+       ],
+       [
+        "tail-olc",
+        142
+       ]
+      ]
+     }
+    }
+   ]
   }
  },
  "ALEX": {
@@ -927,6 +1178,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -994,6 +1251,55 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": []
   }
  },
  "RYU": {
@@ -1131,6 +1437,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -1219,6 +1531,79 @@
     "per_renewal": 52
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 6,
+      "type": 2,
+      "canc": 33
+     },
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 7,
+      "type": 64,
+      "canc": 33
+     },
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 17,
+      "type": 0,
+      "canc": 96
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 3"
+    ]
+   },
+   "foreign_cells": []
   }
  },
  "YUN": {
@@ -1665,6 +2050,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -1723,6 +2114,100 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "atca",
+      "script": 218,
+      "cell": 4,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 219,
+      "cell": 4,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 220,
+      "cell": 4,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 224,
+      "cell": 12,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 225,
+      "cell": 12,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 226,
+      "cell": 12,
+      "type": 64,
+      "canc": 36
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 6"
+    ]
+   },
+   "foreign_cells": []
   }
  },
  "DUDLEY": {
@@ -2145,6 +2630,12 @@
    ],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 2,
+   "k7_foreign_dead": 1,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -2332,6 +2823,131 @@
      "reachable": false
     }
    }
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": [
+    {
+     "table": "saca",
+     "script": 71,
+     "cell": 14,
+     "olc": 26,
+     "parts": [
+      26,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 72,
+     "cell": 14,
+     "olc": 26,
+     "parts": [
+      26,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 72,
+     "cell": 33,
+     "olc": 26,
+     "parts": [
+      26,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      0
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    }
+   ]
   }
  },
  "NECRO": {
@@ -2515,6 +3131,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -2577,6 +3199,55 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": []
   }
  },
  "HUGO": {
@@ -2754,6 +3425,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 2,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 1,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -2818,6 +3495,103 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": [
+    {
+     "table": "caca",
+     "script": 33,
+     "cell": 19,
+     "olc": 50,
+     "parts": [
+      59,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      51
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "caca",
+     "script": 42,
+     "cell": 19,
+     "olc": 50,
+     "parts": [
+      59,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      51
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": false,
+     "ps2_twelve": null
+    }
+   ]
   }
  },
  "IBUKI": {
@@ -3010,6 +3784,12 @@
     2277
    ],
    "ovix_arcade_shorter_by": 5,
+   "k7_foreign_cells": 19,
+   "k7_foreign_dead": 5,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 19,
+   "k7_foreign_oob_ps2": 18,
+   "k7_foreign_ps2_differs": 1,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -3230,6 +4010,2420 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": [
+    {
+     "table": "caca",
+     "script": 10,
+     "cell": 31,
+     "olc": 44,
+     "parts": [
+      57,
+      40,
+      0,
+      0
+     ],
+     "tail_olc": [
+      0,
+      45,
+      0,
+      46,
+      0,
+      47,
+      48,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      294,
+      295,
+      296,
+      297,
+      298,
+      298
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "tail-olc",
+        294
+       ],
+       [
+        "tail-olc",
+        295
+       ],
+       [
+        "tail-olc",
+        296
+       ],
+       [
+        "tail-olc",
+        297
+       ],
+       [
+        "tail-olc",
+        298
+       ],
+       [
+        "tail-olc",
+        298
+       ]
+      ]
+     },
+     "ps2_same_cell": false,
+     "ps2_twelve": null
+    },
+    {
+     "table": "saca",
+     "script": 24,
+     "cell": 17,
+     "olc": 1188,
+     "parts": [
+      1247,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1247
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1247
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 25,
+     "cell": 17,
+     "olc": 1188,
+     "parts": [
+      1247,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1187,
+      1188,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1247
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1247
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 26,
+     "cell": 18,
+     "olc": 1187,
+     "parts": [
+      1246,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1188,
+      1187,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1246
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1246
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 27,
+     "cell": 22,
+     "olc": 1187,
+     "parts": [
+      1246,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1188,
+      1187,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1246
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1246
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 27,
+     "cell": 33,
+     "olc": 1187,
+     "parts": [
+      1246,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1187,
+      1188,
+      1187,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1246
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1246
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 28,
+     "cell": 19,
+     "olc": 1216,
+     "parts": [
+      1275,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1217,
+      1218,
+      1219,
+      1220,
+      1221
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1275
+       ],
+       [
+        "tail-olc",
+        1217
+       ],
+       [
+        "tail-olc",
+        1218
+       ],
+       [
+        "tail-olc",
+        1219
+       ],
+       [
+        "tail-olc",
+        1220
+       ],
+       [
+        "tail-olc",
+        1221
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1275
+       ],
+       [
+        "tail-olc",
+        1217
+       ],
+       [
+        "tail-olc",
+        1218
+       ],
+       [
+        "tail-olc",
+        1219
+       ],
+       [
+        "tail-olc",
+        1220
+       ],
+       [
+        "tail-olc",
+        1221
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 28,
+     "cell": 26,
+     "olc": 1222,
+     "parts": [
+      1281,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1223,
+      1224
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1281
+       ],
+       [
+        "tail-olc",
+        1223
+       ],
+       [
+        "tail-olc",
+        1224
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1281
+       ],
+       [
+        "tail-olc",
+        1223
+       ],
+       [
+        "tail-olc",
+        1224
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 28,
+     "cell": 30,
+     "olc": 1225,
+     "parts": [
+      1284,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1226,
+      1235,
+      1236,
+      1237,
+      1238,
+      1239,
+      1240,
+      1241,
+      1242,
+      1243,
+      1244,
+      1245,
+      1227,
+      1228,
+      1229
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1284
+       ],
+       [
+        "tail-olc",
+        1226
+       ],
+       [
+        "tail-olc",
+        1235
+       ],
+       [
+        "tail-olc",
+        1236
+       ],
+       [
+        "tail-olc",
+        1237
+       ],
+       [
+        "tail-olc",
+        1238
+       ],
+       [
+        "tail-olc",
+        1239
+       ],
+       [
+        "tail-olc",
+        1240
+       ],
+       [
+        "tail-olc",
+        1241
+       ],
+       [
+        "tail-olc",
+        1242
+       ],
+       [
+        "tail-olc",
+        1243
+       ],
+       [
+        "tail-olc",
+        1244
+       ],
+       [
+        "tail-olc",
+        1245
+       ],
+       [
+        "tail-olc",
+        1227
+       ],
+       [
+        "tail-olc",
+        1228
+       ],
+       [
+        "tail-olc",
+        1229
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1284
+       ],
+       [
+        "tail-olc",
+        1226
+       ],
+       [
+        "tail-olc",
+        1235
+       ],
+       [
+        "tail-olc",
+        1236
+       ],
+       [
+        "tail-olc",
+        1237
+       ],
+       [
+        "tail-olc",
+        1238
+       ],
+       [
+        "tail-olc",
+        1239
+       ],
+       [
+        "tail-olc",
+        1240
+       ],
+       [
+        "tail-olc",
+        1241
+       ],
+       [
+        "tail-olc",
+        1242
+       ],
+       [
+        "tail-olc",
+        1243
+       ],
+       [
+        "tail-olc",
+        1244
+       ],
+       [
+        "tail-olc",
+        1245
+       ],
+       [
+        "tail-olc",
+        1227
+       ],
+       [
+        "tail-olc",
+        1228
+       ],
+       [
+        "tail-olc",
+        1229
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 29,
+     "cell": 19,
+     "olc": 1216,
+     "parts": [
+      1275,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1217,
+      1218,
+      1219,
+      1220,
+      1221
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1275
+       ],
+       [
+        "tail-olc",
+        1217
+       ],
+       [
+        "tail-olc",
+        1218
+       ],
+       [
+        "tail-olc",
+        1219
+       ],
+       [
+        "tail-olc",
+        1220
+       ],
+       [
+        "tail-olc",
+        1221
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1275
+       ],
+       [
+        "tail-olc",
+        1217
+       ],
+       [
+        "tail-olc",
+        1218
+       ],
+       [
+        "tail-olc",
+        1219
+       ],
+       [
+        "tail-olc",
+        1220
+       ],
+       [
+        "tail-olc",
+        1221
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 29,
+     "cell": 26,
+     "olc": 1222,
+     "parts": [
+      1281,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1223,
+      1224
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1281
+       ],
+       [
+        "tail-olc",
+        1223
+       ],
+       [
+        "tail-olc",
+        1224
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1281
+       ],
+       [
+        "tail-olc",
+        1223
+       ],
+       [
+        "tail-olc",
+        1224
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 29,
+     "cell": 30,
+     "olc": 1225,
+     "parts": [
+      1284,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1226,
+      1235,
+      1236,
+      1237,
+      1238,
+      1239,
+      1240,
+      1241,
+      1242,
+      1243,
+      1244,
+      1245,
+      1227,
+      1228,
+      1229
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1284
+       ],
+       [
+        "tail-olc",
+        1226
+       ],
+       [
+        "tail-olc",
+        1235
+       ],
+       [
+        "tail-olc",
+        1236
+       ],
+       [
+        "tail-olc",
+        1237
+       ],
+       [
+        "tail-olc",
+        1238
+       ],
+       [
+        "tail-olc",
+        1239
+       ],
+       [
+        "tail-olc",
+        1240
+       ],
+       [
+        "tail-olc",
+        1241
+       ],
+       [
+        "tail-olc",
+        1242
+       ],
+       [
+        "tail-olc",
+        1243
+       ],
+       [
+        "tail-olc",
+        1244
+       ],
+       [
+        "tail-olc",
+        1245
+       ],
+       [
+        "tail-olc",
+        1227
+       ],
+       [
+        "tail-olc",
+        1228
+       ],
+       [
+        "tail-olc",
+        1229
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1284
+       ],
+       [
+        "tail-olc",
+        1226
+       ],
+       [
+        "tail-olc",
+        1235
+       ],
+       [
+        "tail-olc",
+        1236
+       ],
+       [
+        "tail-olc",
+        1237
+       ],
+       [
+        "tail-olc",
+        1238
+       ],
+       [
+        "tail-olc",
+        1239
+       ],
+       [
+        "tail-olc",
+        1240
+       ],
+       [
+        "tail-olc",
+        1241
+       ],
+       [
+        "tail-olc",
+        1242
+       ],
+       [
+        "tail-olc",
+        1243
+       ],
+       [
+        "tail-olc",
+        1244
+       ],
+       [
+        "tail-olc",
+        1245
+       ],
+       [
+        "tail-olc",
+        1227
+       ],
+       [
+        "tail-olc",
+        1228
+       ],
+       [
+        "tail-olc",
+        1229
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 19,
+     "olc": 1216,
+     "parts": [
+      1275,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1217,
+      1218,
+      1219,
+      1220,
+      1221
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1275
+       ],
+       [
+        "tail-olc",
+        1217
+       ],
+       [
+        "tail-olc",
+        1218
+       ],
+       [
+        "tail-olc",
+        1219
+       ],
+       [
+        "tail-olc",
+        1220
+       ],
+       [
+        "tail-olc",
+        1221
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1275
+       ],
+       [
+        "tail-olc",
+        1217
+       ],
+       [
+        "tail-olc",
+        1218
+       ],
+       [
+        "tail-olc",
+        1219
+       ],
+       [
+        "tail-olc",
+        1220
+       ],
+       [
+        "tail-olc",
+        1221
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 26,
+     "olc": 1222,
+     "parts": [
+      1281,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1223,
+      1224
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1281
+       ],
+       [
+        "tail-olc",
+        1223
+       ],
+       [
+        "tail-olc",
+        1224
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1281
+       ],
+       [
+        "tail-olc",
+        1223
+       ],
+       [
+        "tail-olc",
+        1224
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 30,
+     "olc": 1225,
+     "parts": [
+      1284,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1226,
+      1235,
+      1236,
+      1237,
+      1238,
+      1239,
+      1240,
+      1241,
+      1242,
+      1243,
+      1244,
+      1245,
+      1227,
+      1228,
+      1229
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1284
+       ],
+       [
+        "tail-olc",
+        1226
+       ],
+       [
+        "tail-olc",
+        1235
+       ],
+       [
+        "tail-olc",
+        1236
+       ],
+       [
+        "tail-olc",
+        1237
+       ],
+       [
+        "tail-olc",
+        1238
+       ],
+       [
+        "tail-olc",
+        1239
+       ],
+       [
+        "tail-olc",
+        1240
+       ],
+       [
+        "tail-olc",
+        1241
+       ],
+       [
+        "tail-olc",
+        1242
+       ],
+       [
+        "tail-olc",
+        1243
+       ],
+       [
+        "tail-olc",
+        1244
+       ],
+       [
+        "tail-olc",
+        1245
+       ],
+       [
+        "tail-olc",
+        1227
+       ],
+       [
+        "tail-olc",
+        1228
+       ],
+       [
+        "tail-olc",
+        1229
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1284
+       ],
+       [
+        "tail-olc",
+        1226
+       ],
+       [
+        "tail-olc",
+        1235
+       ],
+       [
+        "tail-olc",
+        1236
+       ],
+       [
+        "tail-olc",
+        1237
+       ],
+       [
+        "tail-olc",
+        1238
+       ],
+       [
+        "tail-olc",
+        1239
+       ],
+       [
+        "tail-olc",
+        1240
+       ],
+       [
+        "tail-olc",
+        1241
+       ],
+       [
+        "tail-olc",
+        1242
+       ],
+       [
+        "tail-olc",
+        1243
+       ],
+       [
+        "tail-olc",
+        1244
+       ],
+       [
+        "tail-olc",
+        1245
+       ],
+       [
+        "tail-olc",
+        1227
+       ],
+       [
+        "tail-olc",
+        1228
+       ],
+       [
+        "tail-olc",
+        1229
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 31,
+     "cell": 5,
+     "olc": 1204,
+     "parts": [
+      1263,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1205,
+      1206,
+      1207,
+      1208,
+      1209,
+      1210,
+      1211,
+      1212
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1263
+       ],
+       [
+        "tail-olc",
+        1205
+       ],
+       [
+        "tail-olc",
+        1206
+       ],
+       [
+        "tail-olc",
+        1207
+       ],
+       [
+        "tail-olc",
+        1208
+       ],
+       [
+        "tail-olc",
+        1209
+       ],
+       [
+        "tail-olc",
+        1210
+       ],
+       [
+        "tail-olc",
+        1211
+       ],
+       [
+        "tail-olc",
+        1212
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1263
+       ],
+       [
+        "tail-olc",
+        1205
+       ],
+       [
+        "tail-olc",
+        1206
+       ],
+       [
+        "tail-olc",
+        1207
+       ],
+       [
+        "tail-olc",
+        1208
+       ],
+       [
+        "tail-olc",
+        1209
+       ],
+       [
+        "tail-olc",
+        1210
+       ],
+       [
+        "tail-olc",
+        1211
+       ],
+       [
+        "tail-olc",
+        1212
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 44,
+     "cell": 14,
+     "olc": 1185,
+     "parts": [
+      1244,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1187,
+      1188,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 45,
+     "cell": 14,
+     "olc": 1185,
+     "parts": [
+      1244,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1187,
+      1188,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 46,
+     "cell": 14,
+     "olc": 1185,
+     "parts": [
+      1244,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1187,
+      1188,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 47,
+     "cell": 14,
+     "olc": 1185,
+     "parts": [
+      1244,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1187,
+      1188,
+      1189,
+      1190,
+      1191,
+      1192,
+      1193
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1244
+       ],
+       [
+        "tail-olc",
+        1187
+       ],
+       [
+        "tail-olc",
+        1188
+       ],
+       [
+        "tail-olc",
+        1189
+       ],
+       [
+        "tail-olc",
+        1190
+       ],
+       [
+        "tail-olc",
+        1191
+       ],
+       [
+        "tail-olc",
+        1192
+       ],
+       [
+        "tail-olc",
+        1193
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 60,
+     "cell": 17,
+     "olc": 1030,
+     "parts": [
+      1089,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1031,
+      1032,
+      1033,
+      1034,
+      1035,
+      1036,
+      1037,
+      1038
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 61,
+     "cell": 17,
+     "olc": 1030,
+     "parts": [
+      1089,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1031,
+      1032,
+      1033,
+      1034,
+      1035,
+      1036,
+      1037,
+      1038
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 62,
+     "cell": 17,
+     "olc": 1030,
+     "parts": [
+      1089,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1031,
+      1032,
+      1033,
+      1034,
+      1035,
+      1036,
+      1037,
+      1038
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     }
+    },
+    {
+     "table": "saca",
+     "script": 63,
+     "cell": 17,
+     "olc": 1030,
+     "parts": [
+      1089,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      1031,
+      1032,
+      1033,
+      1034,
+      1035,
+      1036,
+      1037,
+      1038
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "part",
+        1089
+       ],
+       [
+        "tail-olc",
+        1031
+       ],
+       [
+        "tail-olc",
+        1032
+       ],
+       [
+        "tail-olc",
+        1033
+       ],
+       [
+        "tail-olc",
+        1034
+       ],
+       [
+        "tail-olc",
+        1035
+       ],
+       [
+        "tail-olc",
+        1036
+       ],
+       [
+        "tail-olc",
+        1037
+       ],
+       [
+        "tail-olc",
+        1038
+       ]
+      ]
+     }
+    }
+   ]
   }
  },
  "ELENA": {
@@ -3426,6 +6620,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 0,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -3497,6 +6697,55 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": []
   }
  },
  "ORO": {
@@ -3638,6 +6887,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -3702,6 +6957,55 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": []
   }
  },
  "YANG": {
@@ -4880,6 +8184,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 4,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -4942,6 +8252,214 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "atca",
+      "script": 200,
+      "cell": 3,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 201,
+      "cell": 3,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 202,
+      "cell": 3,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 218,
+      "cell": 4,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 219,
+      "cell": 4,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 220,
+      "cell": 4,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 224,
+      "cell": 12,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 225,
+      "cell": 12,
+      "type": 64,
+      "canc": 36
+     },
+     {
+      "table": "atca",
+      "script": 226,
+      "cell": 12,
+      "type": 64,
+      "canc": 36
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 9"
+    ]
+   },
+   "foreign_cells": [
+    {
+     "table": "saca",
+     "script": 44,
+     "cell": 41,
+     "olc": 1264,
+     "parts": null,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "target-ovix-oob",
+        null
+       ]
+      ]
+     },
+     "ps2_same_cell": false,
+     "ps2_twelve": null
+    },
+    {
+     "table": "saca",
+     "script": 45,
+     "cell": 41,
+     "olc": 1264,
+     "parts": null,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "target-ovix-oob",
+        null
+       ]
+      ]
+     },
+     "ps2_same_cell": false,
+     "ps2_twelve": null
+    },
+    {
+     "table": "saca",
+     "script": 46,
+     "cell": 41,
+     "olc": 1264,
+     "parts": null,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "target-ovix-oob",
+        null
+       ]
+      ]
+     },
+     "ps2_same_cell": false,
+     "ps2_twelve": null
+    },
+    {
+     "table": "saca",
+     "script": 47,
+     "cell": 41,
+     "olc": 1264,
+     "parts": null,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": true,
+      "detail": [
+       [
+        "target-ovix-oob",
+        null
+       ]
+      ]
+     },
+     "ps2_same_cell": false,
+     "ps2_twelve": null
+    }
+   ]
   }
  },
  "KEN": {
@@ -5036,6 +8554,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 6,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -5090,6 +8614,277 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 6,
+      "type": 7,
+      "canc": 33
+     },
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 7,
+      "type": 64,
+      "canc": 33
+     },
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 17,
+      "type": 0,
+      "canc": 96
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 3"
+    ]
+   },
+   "foreign_cells": [
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 11,
+     "olc": 20,
+     "parts": [
+      38,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      21,
+      22,
+      23,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 36,
+     "cell": 32,
+     "olc": 21,
+     "parts": [
+      39,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      22,
+      23,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 37,
+     "cell": 32,
+     "olc": 21,
+     "parts": [
+      39,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      22,
+      23,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 38,
+     "cell": 32,
+     "olc": 21,
+     "parts": [
+      39,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      22,
+      23,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 39,
+     "cell": 32,
+     "olc": 21,
+     "parts": [
+      39,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      22,
+      23,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 64,
+     "cell": 12,
+     "olc": 19,
+     "parts": [
+      37,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      20,
+      21,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    }
+   ]
   }
  },
  "SEAN": {
@@ -5184,6 +8979,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -5250,6 +9051,79 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 6,
+      "type": 2,
+      "canc": 33
+     },
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 7,
+      "type": 64,
+      "canc": 33
+     },
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 17,
+      "type": 0,
+      "canc": 96
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 3"
+    ]
+   },
+   "foreign_cells": []
   }
  },
  "URIEN": {
@@ -5653,6 +9527,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -5749,6 +9629,55 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": []
   }
  },
  "AKUMA": {
@@ -5977,6 +9906,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -6045,6 +9980,86 @@
     "per_renewal": 32
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 6,
+      "type": 2,
+      "canc": 33
+     },
+     {
+      "table": "nmca",
+      "script": 4,
+      "cell": 7,
+      "type": 64,
+      "canc": 33
+     },
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 17,
+      "type": 0,
+      "canc": 96
+     },
+     {
+      "table": "saca",
+      "script": 61,
+      "cell": 16,
+      "type": 255,
+      "canc": 96
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 4"
+    ]
+   },
+   "foreign_cells": []
   }
  },
  "CHUNLI": {
@@ -7219,6 +11234,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -7275,6 +11296,65 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 25,
+      "type": 0,
+      "canc": 96
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 1"
+    ]
+   },
+   "foreign_cells": []
   }
  },
  "MAKOTO": {
@@ -7417,6 +11497,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -7521,6 +11607,100 @@
     "per_renewal": 34
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 13,
+      "type": 0,
+      "canc": 96
+     },
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 14,
+      "type": 0,
+      "canc": 96
+     },
+     {
+      "table": "dmca",
+      "script": 65,
+      "cell": 13,
+      "type": 0,
+      "canc": 96
+     },
+     {
+      "table": "dmca",
+      "script": 65,
+      "cell": 14,
+      "type": 0,
+      "canc": 96
+     },
+     {
+      "table": "dmca",
+      "script": 66,
+      "cell": 13,
+      "type": 0,
+      "canc": 96
+     },
+     {
+      "table": "dmca",
+      "script": 66,
+      "cell": 14,
+      "type": 0,
+      "canc": 96
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 6"
+    ]
+   },
+   "foreign_cells": []
   }
  },
  "Q": {
@@ -7663,6 +11843,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "unmodelled",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -7721,6 +11907,72 @@
     "per_renewal": 24
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [
+     {
+      "table": "dmca",
+      "script": 64,
+      "cell": 19,
+      "type": 0,
+      "canc": 96
+     },
+     {
+      "table": "dmca",
+      "script": 71,
+      "cell": 20,
+      "type": 0,
+      "canc": 96
+     }
+    ],
+    "unmodelled": [
+     "cells that can be current at arming and carry a script-installing cancel bit: 2"
+    ]
+   },
+   "foreign_cells": []
   }
  },
  "TWELVE": {
@@ -7839,6 +12091,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 0,
+   "k7_foreign_dead": 0,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -7905,6 +12163,67 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 5,
+     "cells_before": 5,
+     "frames_before": 10,
+     "hit_ix_before": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "canc_before": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": []
   }
  },
  "REMY": {
@@ -8285,6 +12604,12 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
+   "k7_foreign_cells": 5,
+   "k7_foreign_dead": 2,
+   "k7_gate": "closed",
+   "k7_foreign_oob": 0,
+   "k7_foreign_oob_ps2": 0,
+   "k7_foreign_ps2_differs": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -8366,6 +12691,257 @@
     "per_renewal": 23
    },
    "exits": {}
+  },
+  "xcopy_case4": {
+   "gate": {
+    "rebirth": {
+     "table": "saca",
+     "script": 1,
+     "routine": 33,
+     "marker": 30,
+     "marker_cell": 1,
+     "cells_before": 1,
+     "frames_before": 2,
+     "hit_ix_before": [
+      0
+     ],
+     "canc_before": [
+      0
+     ],
+     "marker_olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "frame_n": {
+     "entry": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "rows_live": [],
+     "empty": true
+    },
+    "preempt_cells": [],
+    "unmodelled": null
+   },
+   "foreign_cells": [
+    {
+     "table": "saca",
+     "script": 28,
+     "cell": 8,
+     "olc": 27,
+     "parts": [
+      29,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      27,
+      27,
+      27,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 28,
+     "cell": 19,
+     "olc": 28,
+     "parts": [
+      34,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      28,
+      28,
+      28,
+      0
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 29,
+     "cell": 10,
+     "olc": 27,
+     "parts": [
+      29,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      27,
+      27,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 29,
+     "cell": 18,
+     "olc": 28,
+     "parts": [
+      34,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      28,
+      28,
+      0
+     ],
+     "dead": true,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 10,
+     "olc": 27,
+     "parts": [
+      29,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      27,
+      27,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 21,
+     "olc": 28,
+     "parts": [
+      34,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      28,
+      28,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    },
+    {
+     "table": "saca",
+     "script": 31,
+     "cell": 8,
+     "olc": 26,
+     "parts": [
+      28,
+      0,
+      0,
+      0
+     ],
+     "tail_olc": [
+      27,
+      27,
+      27,
+      27,
+      0,
+      0,
+      0
+     ],
+     "dead": false,
+     "twelve": {
+      "oob": false,
+      "detail": []
+     },
+     "ps2_same_cell": true,
+     "ps2_twelve": {
+      "oob": false,
+      "detail": []
+     }
+    }
+   ]
   }
  }
 }

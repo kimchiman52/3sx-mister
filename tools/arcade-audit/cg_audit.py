@@ -13,6 +13,9 @@ Constants are PARSED FROM SOURCE (no hand-copied tables):
   src/sf33rd/Source/Game/sound/se_data.c        sound_effect_request[1024]
   src/sf33rd/Source/Game/engine/plpdm.c         exdm_ix_data[2][20][5]  (OVCT reachability, doc §24)
   src/sf33rd/Source/Game/engine/hitcheck.c      sel_hs_add_tbl[6] + 16  (dangling-walk hold model, doc §25)
+  src/sf33rd/Source/Game/effect/effk7.c         K7_move_type_0 case 3 routine / case 4 marker  (X.C.O.P.Y. reverse swap, doc §26)
+  src/sf33rd/Source/Game/engine/plpatuni.c      Att_METAMOR_REBIRTH -> set_char_move_init(koc, ix)
+  src/sf33rd/Source/Game/engine/plpatNN.c       plNN_exatt_table[18] (all 20 dispatch the rebirth routine to Att_METAMOR_REBIRTH)
 Data sources:
   rom.bin                     decrypted CPS3 sfiii3nr1 (decrypt.py; SIMM sha256 == rom_load.c:41-45)
   SF33RD.AFS                  PS2 game data (AFS entry apfn, tail at to_chd)
@@ -201,7 +204,7 @@ def arc_parse(ci, sec, idx, tabs):
             if cgd >= 4:
                 att, hit = struct.unpack_from('>hH', ROM, q2)
                 ext, canc, eff, eft = ROM[q2+4], ROM[q2+5], ROM[q2+6], ROM[q2+7]
-                r.update(att=att, hit=hit, eff=eff, eftype=eft); q2 += 8
+                r.update(att=att, hit=hit, ext=ext, canc=canc, eff=eff, eftype=eft); q2 += 8
             if cgd == 6: q2 += 8
             out.append(('L', r)); q = q2
     return cgd, out
@@ -259,7 +262,7 @@ def ps2_parse(blob, base, size, ents, idx):
             if cgd >= 4:
                 hit, att = struct.unpack_from('<Hh', blob, q2)
                 ext, canc, eff, eft = blob[q2+4], blob[q2+5], blob[q2+6], blob[q2+7]
-                r.update(att=att, hit=hit, eff=eff, eftype=eft); q2 += 8
+                r.update(att=att, hit=hit, ext=ext, canc=canc, eff=eff, eftype=eft); q2 += 8
             if cgd == 6: q2 += 8
             out.append(('L', r)); q = q2
     return cgd, out
@@ -538,6 +541,262 @@ def ovct_dangling_hold(ci, rr):
     return dict(hit_stop=hs, exits=exits)
 
 
+# ---------------------------------------------------------------- X.C.O.P.Y. reverse swap (doc §26)
+# effk7.c K7_move_type_0 rebinds the master's tables to the TARGET's on a
+# `cg_type 20` cell (case 0) and back to Twelve's on a `cg_type 30` cell
+# (case 4).  At either swap the master's cg_olc still holds the selection its
+# current cell decoded against the OLD character's OVIX, and eff01.c consumes
+# it against the NEW overlap_char_tbl the same frame (Game2_1: Player_control,
+# then reqPlayerDraw -> move_effect_work(6) is K7, then Basic_Sub_Ex ->
+# move_effect_work(1) is the overlay, then hit_check_main_process).  §25.5
+# closed the forward swap by data.  This closes the reverse one:
+#
+#   arming   case 4 is written only by case 3, which forces the master to
+#            routine (4, RNO, 0), cg_type 0, cg_hit_ix 0, cg_ja = hit_ix_table[0].
+#            plpat.c Player_attack -> plxx_extra_attack_table[player_number] ->
+#            plNN_exatt_table[RNO - 16] == Att_METAMOR_REBIRTH in all 20 tables
+#            (whatever character the master is bound to) -> set_char_move_init
+#            (KOC, IX): the target's saca[1], decoded from cell 0 at once.
+#   window   case 3 fires at frame N.  saca[1] goes in at N+1; its own
+#            `cg_type 30` cell decodes at N+1+sum(ctr before it) and case 4
+#            fires that frame and frees K7 (case 5 -> routine 2).  For case 4
+#            to fire on ANY OTHER cell the master must leave saca[1] first.
+#            Every writer of a live player's routine/script, from the code:
+#            - contact (hitcheck.c): the master must be in the hit queue --
+#              hit_push_request skips cg_hit_ix == 0, so the cells before the
+#              marker must decode to hit index 0 (check_cgd_patdat case 4:
+#              ((att<<16 | hit) * 8) >> 16 & 0x1FF).  At frame N it was queued
+#              with its old cg_hit_ix, but case 3 already re-pointed
+#              h_bod/h_han/h_att/h_hos/h_cau at hit_ix_table[0]
+#              (set_jugde_area), so hiit[0]'s rows must all be empty
+#              (attack_hit_check: dmdat_adrs[i][1] == 0 -> continue;
+#              catch_hit_check: sh[1] == 0 -> continue).
+#            - process_attack (pls00.c, run by check_lever_data BEFORE the
+#              state handler every frame): the cancel_timer block needs
+#              cancel_timer != 0 (zeroed every normal-state frame by
+#              setup_normal_process_flags, set only by plpat.c
+#              get_cancel_timer, which Att_METAMOR_REBIRTH never calls);
+#              check_ashimoto_ex needs bs2_on_car (set only under
+#              Bonus_Game_Flag == 20, where Att_METAMORPHOSE never creates
+#              K7); check_cg_cancel_data needs cg_cancel != 0 -- the cells
+#              before the marker must carry canc 0; jumping_cg_type_check
+#              leaves the state on cg_type 0xFF/64/2/3/7, and 31/40 are
+#              Att_METAMOR_REBIRTH's own branches -- the cells before the
+#              marker must be type 0.
+#            - the N+1 pre-empt: at N+1 process_attack runs on the cell that
+#              was current when case 3 fired (saca[1] is not in yet), with
+#              sw_lvbt forced 0 by metamor_over (plmain.c Player_move, cleared
+#              only later that frame by Att_METAMOR_REBIRTH case 0).
+#              check_cg_cancel_data can still install a script from a
+#              buffered command and a stale meoshi_hit_flag if that cell's
+#              canc has a bit in K7_CANCEL_BITS.  Which cell can be current:
+#              case 3 needs routine_no[1] == 0, guard_flag != 3, hit_stop == 0.
+#              Normal state runs nmca.  A transition INTO normal written inside
+#              a state handler leaves that state's script current for the
+#              frame: from attack only on a K7_END_TYPES cell (Player_attack
+#              sets guard_flag 3 first; jumping_guard_type_check is the only
+#              clear inside it), never from catch/caught (plpca.c/plpcu.c set
+#              3), from damage on any dmca/btca cell (Damage_04000 etc. set 0).
+#              A transition written outside Player_control (hitcheck.c parry)
+#              gets its nmca install in the next Player_control, before K7.
+#              yuca is win/lose only (animation/*.c), where pcon_rno[0] == 2
+#              sends case 3 to state 9 instead.
+#            - settle (plcnt.c): every routine write is behind footwork_check
+#              (normal AND standing) or nekorobi_check (damage) or a fresh
+#              init_app_30000; move_player_work keeps the rebirth moving.
+#            - Game_pause/EXE_flag freeze K7 too; the opponent's SA stop
+#              (comm_stop -> hit_stop > 0) withholds char_move while K7 waits
+#              on cg_type: nothing reorders the cells.
+#            - round init / training reset: erase_extra_plef_work frees list 6
+#              (K7 is id 207 on list 6) and set_base_data(_tiny) restores
+#              My_char.  Netplay rollback restores the whole pool.
+#   marker   the saca[1] marker cell must select olc 0 (every overlay dormant
+#            at the rebind); the cells after it up to the first C cell are
+#            decoded against TWELVE's OVIX once the tables are rebound and must
+#            stay inside Twelve's OVIX/OVCT (the C cell then jumps through the
+#            rebound char_table into Twelve's own scripts).
+#
+# Anything the model has not read is reported `unmodelled` and keeps the gate
+# OPEN.  Independently, k7_foreign_cells() computes for every `cg_type 30`
+# cell with a live selection outside saca[1] what a swap there WOULD consume:
+# the target's OVIX entry's parts on Twelve's OVCT and the following cells'
+# olc on Twelve's OVIX, with the PS2 data as the §6.1 control.  A foreign
+# cell is a hazard only if the gate is open AND the consequence leaves
+# Twelve's tables.
+K7_CANCEL_BITS = 0x68          # check_cg_cancel_data: 0x40 SA, 0x20 special/taunt, 0x08 meoshi -- the paths that can
+                               # install a script from a buffered command / stale meoshi_hit_flag.  0x04 (check_nm_attack)
+                               # cannot: it needs shot_data_convert(sw_now) >= 0, i.e. one of shot_prio's six buttons,
+                               # and with sw_lvbt forced 0 the only bits pl_lvr_set (cmd_main.c) can put in sw_0 are the
+                               # release-derived 0x80/0x800, which shot_prio does not list.  0x10 (renda) rewinds the
+                               # current script without a routine write; 0x02/0x01 need meoshi_hit_flag AND a lever.
+K7_END_TYPES = (0xFF, 64, 2, 3, 7)   # pls00.c jumping_guard_type_check: the only cg_types that clear guard_flag in Player_attack
+K7_ENTRY_TABLES = ('nmca', 'dmca', 'btca')      # scripts that can be current when case 3 fires (see above)
+K7_ATTACK_TABLES = ('atca', 'saca', 'exca', 'cbca')
+K7_HIT_IX_MASK = 0x1FF
+K7_BOX_STRIDE = dict(boda=32, hana=32, cata=8, caua=8, atta=32, hosa=8)   # structs.h UNK_1..UNK_6
+TWELVE = NAMES.index('TWELVE')
+
+_K7_CACHE = {}
+def parse_k7_rebirth():
+    """effk7.c K7_move_type_0: case 3 writes the master's routine (4, RNO, 0) and case 4 waits for
+    `cg_type != MARKER`; plpatuni.c Att_METAMOR_REBIRTH installs (KOC, IX); every plNN_exatt_table
+    must dispatch RNO - 16 to Att_METAMOR_REBIRTH (plpat.c Player_attack indexes it by player_number,
+    i.e. by whichever character the master is bound to)."""
+    if 'v' in _K7_CACHE: return _K7_CACHE['v']
+    k7 = src("src/sf33rd/Source/Game/effect/effk7.c")
+    body = k7[k7.index("void K7_move_type_0(WORK_Other* ewk, PLW* mwk) {"):]
+    m3 = re.search(r'case 3:.*?mwk->wu\.routine_no\[1\] = (\d+);\s*mwk->wu\.routine_no\[2\] = (\d+);\s*mwk->wu\.routine_no\[3\] = (\d+);', body, re.S)
+    m4 = re.search(r'case 4:\s*if \(mwk->wu\.cg_type != (\d+)\)', body)
+    assert m3 and m4 and m3.group(1) == '4' and m3.group(3) == '0', "effk7.c K7_move_type_0 case 3/4 not found"
+    rno, marker = int(m3.group(2)), int(m4.group(1))
+    uni = src("src/sf33rd/Source/Game/engine/plpatuni.c")
+    fb = uni[uni.index("void Att_METAMOR_REBIRTH(PLW* wk) {"):]
+    mi = re.search(r'set_char_move_init\(&wk->wu, (\d+), (\d+)\);', fb)
+    assert mi, "Att_METAMOR_REBIRTH install not found"
+    koc, ix = int(mi.group(1)), int(mi.group(2))
+    ok = 0
+    for f in sorted(os.listdir(os.path.join(REPO, "src/sf33rd/Source/Game/engine"))):
+        if not re.match(r'plpat\d\d\.c$', f): continue
+        t = re.sub(r'//[^\n]*', '', src("src/sf33rd/Source/Game/engine/" + f))
+        m = re.search(r'exatt_table\[(\d+)\]\)\(PLW\*\s*\w*\)\s*=\s*\{(.*?)\};', t, re.S)
+        if not m: continue
+        ents = [e.strip() for e in m.group(2).split(',') if e.strip()]
+        assert len(ents) == int(m.group(1)), f
+        if ents[rno - 16] == 'Att_METAMOR_REBIRTH': ok += 1
+    assert ok == 20, "Att_METAMOR_REBIRTH is not entry %d of all 20 exatt tables (%d)" % (rno - 16, ok)
+    v = dict(rno=rno, marker=marker, table=KOC2SEC[koc], script=ix, tables=ok)
+    _K7_CACHE['v'] = v
+    return v
+
+def k7_hit_ix(r):
+    """charset.c check_cgd_patdat case 4: st.w.h = cg_att_ix; st.w.l = cg_hit_ix; st.l *= 8; cg_hit_ix = st.w.h & 0x1FF."""
+    return ((((r['att'] & 0xFFFF) << 16) | r['hit']) * 8 >> 16) & K7_HIT_IX_MASK
+
+def hiit0_boxes(ci):
+    """hit_ix_table[0] (charid.c: wk->hit_ix_table = cdat->hiit; structs.h UNK_0: boix bhix haix mf caix
+    cuix atix hoix, 8 x u16) and every box row a DEFENDER is tested on through it: body_dm[boix] and
+    hand_dm[bhix + haix] (4 rows each), att_box[atix] rows 2-3, hos_box[hoix] (attack_hit_check's
+    dmdat_adrs[0..10]) and cau_box[cuix] (catch_hit_check).  A row whose [1] is 0 is skipped."""
+    off, size = LOC[ci]['hiit']
+    h = struct.unpack_from('>8H', ROM, off)
+    boix, bhix, haix, mf, caix, cuix, atix, hoix = h
+    def row(sec, idx):
+        o, z = LOC[ci][sec]; st = K7_BOX_STRIDE[sec]
+        assert (idx + 1) * st <= z, (NAMES[ci], sec, idx)
+        return struct.unpack_from('>%dh' % (st // 2), ROM, o + idx * st)
+    body, hand, att = row('boda', boix), row('hana', bhix + haix), row('atta', atix)
+    hos, cau = row('hosa', hoix), row('caua', cuix)
+    live = [body[i * 4 + 1] for i in range(4)] + [hand[i * 4 + 1] for i in range(4)] + [att[9], att[13], hos[1], cau[1]]
+    return dict(entry=list(h), rows_live=[v for v in live if v], empty=not any(live))
+
+def k7_swap_gate(ci):
+    """Can K7_move_type_0 case 4 fire on any cell other than the rebirth script's own marker while the
+    master is bound to character ci?  Returns the facts the model rests on and `unmodelled` = the list
+    of reasons it cannot close the gate (None when it can)."""
+    reb = parse_k7_rebirth()
+    tabs = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+    cgd, cells = arc_parse(ci, reb['table'], reb['script'], tabs)
+    why = []
+    k = next((i for i, c in enumerate(cells) if c[0] == 'L' and c[1]['type'] == reb['marker']), None)
+    pre = cells[:k] if k is not None else cells
+    if k is None: why.append("rebirth script has no cg_type %d cell" % reb['marker'])
+    if cgd < 4: why.append("rebirth script cgd %d carries no hit/canc words" % cgd)
+    preC = [c[1] for c in pre if c[0] == 'C']
+    if preC: why.append("C cells before the marker: %s" % preC)
+    preL = [c[1] for c in pre if c[0] == 'L']
+    bad = [(i, r['type']) for i, r in enumerate(preL) if r['type'] != 0]
+    if bad: why.append("non-zero cg_type before the marker: %s" % bad)
+    hix = [k7_hit_ix(r) for r in preL] if cgd >= 4 else []
+    if any(hix): why.append("hit index before the marker: %s" % hix)
+    canc = [r['canc'] for r in preL] if cgd >= 4 else []
+    if any(canc): why.append("cancel bits before the marker: %s" % canc)
+    boxes = hiit0_boxes(ci)
+    if not boxes['empty']: why.append("hit_ix_table[0] selects live box rows: %s" % boxes['rows_live'])
+    marker_olc = (cells[k][1]['olc'] >> 4) if k is not None else None
+    if marker_olc: why.append("marker cell selects olc %d" % marker_olc)
+    tw_ovix, tw_nix = arc_ovix(TWELVE), arc_ovct_nix(TWELVE)
+    tail = []
+    if k is not None:
+        for c in cells[k + 1:]:
+            if c[0] == 'C': break
+            tail.append(c[1]['olc'] >> 4)
+    tail_bad = [e for e in tail if e >= len(tw_ovix) or any(p and not (0 <= p < len(tw_nix)) for p in tw_ovix[e])]
+    if tail_bad: why.append("cells after the marker select outside Twelve's tables: %s" % tail_bad)
+    preempt = []
+    for sec in K7_ENTRY_TABLES:
+        for si in range(len(tabs[sec])):
+            for i, c in enumerate(arc_parse(ci, sec, si, tabs)[1]):
+                if c[0] == 'L' and c[1].get('canc', 0) & K7_CANCEL_BITS:
+                    preempt.append(dict(table=sec, script=si, cell=i, type=c[1]['type'], canc=c[1]['canc']))
+    for sec in K7_ATTACK_TABLES:
+        for si in range(len(tabs[sec])):
+            for i, c in enumerate(arc_parse(ci, sec, si, tabs)[1]):
+                if c[0] == 'L' and c[1]['type'] in K7_END_TYPES and c[1].get('canc', 0) & K7_CANCEL_BITS:
+                    preempt.append(dict(table=sec, script=si, cell=i, type=c[1]['type'], canc=c[1]['canc']))
+    if preempt: why.append("cells that can be current at arming and carry a script-installing cancel bit: %d" % len(preempt))
+    return dict(rebirth=dict(table=reb['table'], script=reb['script'], routine=reb['rno'], marker=reb['marker'],
+                             marker_cell=k, cells_before=len(preL), frames_before=sum(r['ctr'] for r in preL),
+                             hit_ix_before=hix, canc_before=canc, marker_olc=marker_olc, tail_olc=tail),
+                frame_n=boxes, preempt_cells=preempt, unmodelled=(why or None))
+
+def _k7_consequence(parts, tail, t_ovix, t_nix):
+    """What a swap consumes on Twelve's tables: `parts` (the target's OVIX entry, restarted on Twelve's
+    OVCT) and `tail` (the following cells' olc, decoded against Twelve's OVIX)."""
+    if parts is None: return dict(oob=True, detail=[["target-ovix-oob", None]])
+    oob = []
+    for p in parts:
+        if not p: continue
+        if not (0 <= p < len(t_nix)): oob.append(["part", p])
+        elif _walk_frames(t_nix, [1] * len(t_nix), p) is not None: oob.append(["walk-exit", p])
+    for e in tail:
+        if e >= len(t_ovix): oob.append(["tail-olc", e])
+        else:
+            for p in t_ovix[e]:
+                if p and not (0 <= p < len(t_nix)): oob.append(["tail-part", p])
+    return dict(oob=bool(oob), detail=oob)
+
+def k7_foreign_cells(ci):
+    """Every `cg_type 30` cell outside the rebirth script that selects a live olc -- the cells the gate
+    protects -- with what case 4 WOULD consume there, arcade and PS2 (§6.1 control)."""
+    reb = parse_k7_rebirth()
+    tw_ovix, tw_nix = arc_ovix(TWELVE), arc_ovct_nix(TWELVE)
+    ptw_ovix, ptw_nix = ps2_ovix_nix(TWELVE)
+    ovix = arc_ovix(ci); povix, pnix = ps2_ovix_nix(ci)
+    blob, bsd = ps2_tail(ci); offs, sp = ps2_spans(blob)
+    out = []
+    for sec, si, cgd, cells in _all_cells(ci):
+        if sec == reb['table'] and si == reb['script']: continue
+        # cells past a terminating C command never execute (doc §19/§24.5:
+        # decoder artefacts such as Yang's olc 1264); they are reported `dead`.
+        term, dead = False, set()
+        for i, c in enumerate(cells):
+            if c[0] == 'C' and c[1] in TERMINATORS: term = True
+            elif term: dead.add(i)
+        hits = [i for i, c in enumerate(cells) if c[0] == 'L' and c[1]['type'] == reb['marker'] and (c[1]['olc'] >> 4)]
+        if not hits: continue
+        b, z = sp[SECTIONS.index(sec)]; ents = ps2_offsets(blob, b)
+        pcells = ps2_parse(blob, b, z, ents, si)[1] if si < len(ents) else None
+        for i in hits:
+            e = cells[i][1]['olc'] >> 4
+            parts = list(ovix[e]) if e < len(ovix) else None
+            tail = []
+            for c2 in cells[i + 1:]:
+                if c2[0] == 'C': break
+                tail.append(c2[1]['olc'] >> 4)
+            same = (pcells is not None and i < len(pcells) and pcells[i][0] == 'L'
+                    and pcells[i][1]['type'] == reb['marker'] and (pcells[i][1]['olc'] >> 4) == e)
+            ptail = []
+            if same:
+                for c2 in pcells[i + 1:]:
+                    if c2[0] == 'C': break
+                    ptail.append(c2[1]['olc'] >> 4)
+            out.append(dict(table=sec, script=si, cell=i, olc=e, parts=parts, tail_olc=tail, dead=(i in dead),
+                            twelve=_k7_consequence(parts, tail, tw_ovix, tw_nix),
+                            ps2_same_cell=same,
+                            ps2_twelve=(_k7_consequence(list(povix[e]) if e < len(povix) else None, ptail, ptw_ovix, ptw_nix) if same else None)))
+    return out
+
+
 # ---------------------------------------------------------------- SA naming for saca scripts
 def sa_labels(ci):
     """map saca script index -> list of SA-table slots that select it (asstbl.c 9900_g/_a arcade rows)."""
@@ -737,6 +996,13 @@ def audit(cgmap_override=None, quiet=False):
         # that the model cannot bound).
         hold = ovct_dangling_hold(ci, rr)
         rec['ovct_dangling_hold'] = hold
+        # X.C.O.P.Y. reverse swap (doc §26): can K7 case 4 fire on a cell that
+        # selects a live olc, so that a part index decoded against THIS
+        # character's OVIX is consumed against Twelve's table?  `k7_gate` is
+        # the arming/window model ('closed' or 'unmodelled'); the foreign-cell
+        # consequences are computed regardless of it.
+        gate = k7_swap_gate(ci); foreign = k7_foreign_cells(ci)
+        rec['xcopy_case4'] = dict(gate=gate, foreign_cells=foreign)
         rec['stats'] = dict(cells=cells_seen, ovct_arcade=a_ovct, ovct_ps2=p_ovct,
                             ovix_arcade=a_ovix, ovix_ps2=p_ovix,
                             ovct_unpatched_tail=max(0, a_ovct - p_ovct),
@@ -749,7 +1015,13 @@ def audit(cgmap_override=None, quiet=False):
                                              min(d['need'] for d in v['seeds'].values()))
                                             for e, v in hold['exits'].items() if not v['reachable']],
                             ovix_oob_pre_terminator=rr['arcade']['ovix_oob_pre'],
-                            ovix_arcade_shorter_by=max(0, p_ovix - a_ovix), **cls)
+                            ovix_arcade_shorter_by=max(0, p_ovix - a_ovix),
+                            k7_foreign_cells=len([f for f in foreign if not f['dead']]),
+                            k7_foreign_dead=len([f for f in foreign if f['dead']]),
+                            k7_gate=('closed' if gate['unmodelled'] is None else 'unmodelled'),
+                            k7_foreign_oob=len([f for f in foreign if not f['dead'] and f['twelve']['oob']]),
+                            k7_foreign_oob_ps2=len([f for f in foreign if not f['dead'] and f['ps2_same_cell'] and f['ps2_twelve']['oob']]),
+                            k7_foreign_ps2_differs=len([f for f in foreign if not f['dead'] and not f['ps2_same_cell']]), **cls)
         result[NAMES[ci]] = rec
     CGMAP = saved
     return result
@@ -772,7 +1044,7 @@ if __name__ == "__main__":
     res = audit()
     json.dump(res, open(os.path.join(HERE, "cg_audit.json"), "w"), indent=1)
     hdr = ("%-7s %5s | %4s %4s %5s %5s %5s %5s | %5s %5s %5s %5s %5s %5s %5s | %s"
-           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra","se","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p"))
+           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra","se","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p  xcopy"))
     print(hdr); print("-"*len(hdr))
     T = {}
     def ovct_flag(s):
@@ -788,15 +1060,26 @@ if __name__ == "__main__":
         if s['ovct_unpatched_tail']:
             return "tail-unreached(%d)" % s['ovct_unpatched_tail']
         return "ok"
+    def xcopy_flag(s):
+        # doc §26: a `cg_type 30` cell outside the rebirth script that selects a
+        # live olc is a hazard only if K7 case 4 can fire there (gate open) AND
+        # what it would consume leaves Twelve's tables.
+        n, dead = s['k7_foreign_cells'], s['k7_foreign_dead']
+        tag = "(%d dead)" % dead if dead else ""
+        if n + dead == 0: return "xcopy:none"
+        if s['k7_gate'] == 'closed': return "xcopy:gated(%d)%s" % (n + dead, tag)
+        if s['k7_foreign_oob']:
+            return "xcopy:FOREIGN-OOB(%d/%d)%s!" % (s['k7_foreign_oob'], n, "(ps2 too)" if s['k7_foreign_oob_ps2'] else "(arcade-only)")
+        return "xcopy:unmodelled(%d,in-range)%s" % (n, tag)
     for n in NAMES:
         r = res[n]; s = r['stats']
         for k, v in s.items(): T[k] = T.get(k, 0) + (v if isinstance(v, int) else 0)
-        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d | %d/%d r<=%d %s  %d/%d %s"
+        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d | %d/%d r<=%d %s  %d/%d %s  %s"
               % (n, s['cells'], s['a_oob'], s['b_gap'], s['c_wrong_group'], s['c_same_group'], s['needs_manual'],
                  s['extra_script'],
                  s['se_oob'], s['eff_oob'], s['tama_oob'], s['sasign_oob'], s['code_oob'], s['koc_oob'], s['idx_oob'],
                  s['ovct_arcade'], s['ovct_ps2'], s['ovct_reach_max'], ovct_flag(s),
-                 s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok"))
+                 s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok", xcopy_flag(s)))
     print("-"*len(hdr))
     print("TOTAL         | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d"
           % (T['a_oob'], T['b_gap'], T['c_wrong_group'], T['c_same_group'], T['needs_manual'], T['extra_script'],
