@@ -65,6 +65,10 @@
 - Load [docs/mister-wrapper.md](docs/mister-wrapper.md) when working on the `3S-ARM.rbf` + `MiSTer_3S-ARM` wrapper-core path, wrapper packaging, or wrapper deploy/smoke commands.
 - Load [docs/config.md](docs/config.md) when changing config keys, defaults, or user-facing scale/software-frame behavior.
 - Load [docs/training-select-reset.md](docs/training-select-reset.md) when touching the training-mode SELECT reset (the centre / swap / corner presets), or any in-round teardown that calls `erase_extra_plef_work` / `setup_any_data` / the `Suicide[0]` pulse. It records the defects that path hits and eight corrections to the external design doc.
+- Load [docs/arcade-accuracy-method.md](docs/arcade-accuracy-method.md) before claiming this fork's
+  arcade-accuracy approach differs from upstream's, or before treating a clean corpus run as
+  evidence. It records that the gate, Statcheck and the whole replay pipeline are upstream's,
+  that `statcheck_compare.c` is a port, and that the oracle's blind spot is shared.
 - Load [docs/research-arcade-balance-desyncs.md](docs/research-arcade-balance-desyncs.md) when investigating an arcade-balance desync, changing `pow_pow.c`/`Round_Level`, touching the statcheck harness (`statcheck_compare.c`, `ScrdGame_Init`), or reading a "replays ran clean" result. It records three confirmed engine divergences from CPS3, six harness false positives with their mechanisms, and why a clean on-device log can be meaningless (the viewer never rescans). Kept separate from the ROM-data doc on purpose — that scope is why one of these defects went unfound.
 - Load [docs/rollback-determinism-harness.md](docs/rollback-determinism-harness.md) when changing the rollback save/load whitelist (src/netplay/game_state.c), triaging a desync report, or running `tools/rollback-determinism/run.sh`. Any GameState/GS_SAVE change should be re-validated with the harness's fast mode.
 - Load [docs/design-fpga-native-video.md](docs/design-fpga-native-video.md) when working on the FPGA native video DDR3 reader, timing generator, or ARM↔FPGA shared memory protocol.
