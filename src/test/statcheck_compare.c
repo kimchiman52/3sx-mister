@@ -795,8 +795,45 @@ void Statcheck_CompareValues(SDL_IOStream* io, Uint64 frame) {
  * So every frame-boundary state of an idle entry is `w_type == tbl[12]` with
  * `0 <= w_int < tbl[13]`, or the expired `w_type == 0, w_int == -1` -- with
  * w_lvr/free1/free2 at their table values, the tame/shot fields zero, and
- * `w_ptr` at `&tbl[16]` throughout, because nothing in the cycle calls
- * `check_next()`. Measured over all 16 Twelve segments in the three corpora:
+ * `w_ptr` at `&tbl[16]` throughout.
+ *
+ * CORRECTED 2026-09-06. This used to end "because nothing in the cycle calls
+ * `check_next()`", which is true of the NO-INPUT cycle only, and the guard's
+ * soundness does not rest on it. With real input `check_1` reaches
+ * `check_next()` in TWO frames from the post-init state, and the second of
+ * them DEREFERENCES `w_ptr`:
+ *   - entry 48 (`unk_cmd_186`, `tbl[12..15] = {1, 0, 0, -32766}`): -32766 has
+ *     bit 15 set, so `check_1` takes the exact-match arm, and one frame of
+ *     `sw_lever == 2` walks `free2` 0 -> -1 and sets `tame.flag = 1`;
+ *   - entry 49 (`unk_cmd_187`, `tbl[12..15] = {1, 1, 0, 8}`): bit 15 clear, so
+ *     one frame of `sw_lever & 8` walks `free1` 0 -> -1 and sets `tame.flag`;
+ *   - the RELEASE frame then runs
+ *     `if (*waza_ptr->w_ptr == 0x1C) command_ok(); else check_next();`
+ *     and `tbl[16]` is 1 on both tables, so it advances.
+ * From a seeded post-init state the window is one frame of the right lever.
+ *
+ * WHY THE GUARD IS STILL SOUND, and it is worth being precise because the
+ * reason is not the one the old sentence gave. `waza_carried_is_idle()`
+ * rejects every state `check_next()` can leave, on `w_lvr == tbl[15]`:
+ *   - `unk_cmd_186`'s later quads carry `w_lvr` -32758 and -32760 against
+ *     `tbl[15] == -32766`;
+ *   - `unk_cmd_187`'s carry 0, -32760 and -32760 against `tbl[15] == 8`.
+ * It also rejects the charging frame itself twice over (`tame.flag != 0`, and
+ * `free1`/`free2` walked below `tbl[14]`).
+ *
+ * But note WHICH clause does the work. For `unk_cmd_187` the post-`check_next`
+ * state (`w_type == 1`, `w_int` counting down from 6, `free1 == free2 == 0 ==
+ * tbl[14]`) satisfies EVERY OTHER CLAUSE of the guard; `w_lvr` is the only
+ * field rejecting it. Same for `unk_cmd_186`'s expired-after-advance state.
+ * That discrimination is therefore a property of these two tables' CONTENTS,
+ * not something the code checks: a table whose later quad repeated `tbl[15]`
+ * would let a mid-command state through and `w_ptr` would be reconstructed to
+ * the wrong quad. Only two tables are reachable here (`pl_cmd_num[c][6] <= 48`
+ * for the other nineteen characters), both are checked above, and H5b's
+ * sentinel control measured that the seeded `w_ptr` is never dereferenced on
+ * this corpus at all -- but a third table would need the same check by hand.
+ *
+ * Measured over all 16 Twelve segments in the three corpora:
  * every populated entry 48/49 is in exactly one of those two states, and the
  * archived `w_ptr` is 0x0619BE64 / 0x0619BE96 on every one of them -- constant,
  * and 32 bytes past the entry's table base (consecutive gaps 0x3A/0x32/0x32
