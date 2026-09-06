@@ -125,7 +125,8 @@
     "script": 15,
     "cell": 27,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -133,14 +134,16 @@
     "script": 15,
     "cell": 28,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "atca",
     "script": 15,
     "cell": 30,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -156,7 +159,8 @@
     "script": 16,
     "cell": 27,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -164,14 +168,16 @@
     "script": 16,
     "cell": 28,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "atca",
     "script": 16,
     "cell": 30,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -187,7 +193,8 @@
     "script": 17,
     "cell": 27,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -195,14 +202,16 @@
     "script": 17,
     "cell": 28,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "atca",
     "script": 17,
     "cell": 30,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "extra_script_no_oracle",
@@ -481,13 +490,20 @@
    "needs_manual": 8,
    "extra_script": 43,
    "extra_cells": 570,
-   "se_oob": 3,
+   "se_oob": 0,
    "eff_oob": 0,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 6,
-   "idx_oob": 0
+   "koc_oob": 0,
+   "idx_oob": 0,
+   "se_oob_dead": 3,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 6,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -1343,7 +1359,8 @@
     "table": "atca",
     "script": 7,
     "cell": 17,
-    "se": 1024
+    "se": 1024,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -1398,7 +1415,8 @@
     "script": 56,
     "cell": 11,
     "koc": 48,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -1414,7 +1432,8 @@
     "script": 57,
     "cell": 11,
     "koc": 48,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -1430,7 +1449,8 @@
     "script": 58,
     "cell": 11,
     "koc": 48,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -1446,7 +1466,8 @@
     "script": 59,
     "cell": 11,
     "koc": 48,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    }
   ],
   "stats": {
@@ -1492,13 +1513,20 @@
    "needs_manual": 21,
    "extra_script": 0,
    "extra_cells": 0,
-   "se_oob": 1,
+   "se_oob": 0,
    "eff_oob": 0,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 4,
-   "idx_oob": 0
+   "koc_oob": 0,
+   "idx_oob": 0,
+   "se_oob_dead": 1,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 4,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -1976,7 +2004,7 @@
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
-   "span_gate_xcopy_reasons": 4,
+   "span_gate_xcopy_reasons": 5,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "a_oob": 0,
@@ -1992,7 +2020,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -2334,7 +2369,9 @@
     "KEN cg_rival 4320 row 4298 for caught RYU outside its 1080-row RICT"
    ],
    "xcopy": {
-    "unmodelled": null,
+    "unmodelled": [
+     "X.C.O.P.Y. donor jump to saca[69] beyond the 69-entry pointer table"
+    ],
     "donor_notes": [
      "from TWELVE -- cmbk: 5 consumer(s) reachable without a setter (e.g. cbca[14] cell 2) can see TWELVE's any position (C-side setter)"
     ],
@@ -2389,6 +2426,7 @@
     "ps2_group": 4,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -2549,7 +2587,8 @@
     "table": "atca",
     "script": 30,
     "cell": 25,
-    "se": 1224
+    "se": 1224,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2564,7 +2603,8 @@
     "table": "atca",
     "script": 31,
     "cell": 25,
-    "se": 1224
+    "se": 1224,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2579,7 +2619,8 @@
     "table": "atca",
     "script": 32,
     "cell": 25,
-    "se": 1224
+    "se": 1224,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2594,7 +2635,8 @@
     "table": "atca",
     "script": 118,
     "cell": 8,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2609,7 +2651,8 @@
     "table": "atca",
     "script": 119,
     "cell": 8,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2624,7 +2667,8 @@
     "table": "atca",
     "script": 130,
     "cell": 8,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2639,7 +2683,8 @@
     "table": "atca",
     "script": 131,
     "cell": 8,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2654,7 +2699,8 @@
     "table": "atca",
     "script": 142,
     "cell": 8,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2669,7 +2715,8 @@
     "table": "atca",
     "script": 143,
     "cell": 8,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2702,21 +2749,24 @@
     "table": "saca",
     "script": 31,
     "cell": 30,
-    "se": 1024
+    "se": 1024,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "saca",
     "script": 31,
     "cell": 95,
-    "se": 1024
+    "se": 1024,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "saca",
     "script": 31,
     "cell": 180,
-    "se": 1024
+    "se": 1024,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2770,21 +2820,24 @@
     "table": "saca",
     "script": 98,
     "cell": 59,
-    "se": 1024
+    "se": 1024,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "saca",
     "script": 98,
     "cell": 60,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "saca",
     "script": 98,
     "cell": 61,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -2838,13 +2891,20 @@
    "needs_manual": 31,
    "extra_script": 7,
    "extra_cells": 93,
-   "se_oob": 15,
+   "se_oob": 0,
    "eff_oob": 0,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 15,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -3242,7 +3302,8 @@
     "script": 32,
     "cell": 10,
     "koc": 6144,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -3346,7 +3407,8 @@
     "script": 61,
     "cell": 30,
     "koc": -32768,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3354,7 +3416,8 @@
     "script": 61,
     "cell": 32,
     "koc": -16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3362,7 +3425,8 @@
     "script": 61,
     "cell": 33,
     "koc": -16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3370,7 +3434,8 @@
     "script": 61,
     "cell": 34,
     "koc": -8192,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3378,7 +3443,8 @@
     "script": 61,
     "cell": 35,
     "koc": -8192,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3386,7 +3452,8 @@
     "script": 61,
     "cell": 40,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3394,7 +3461,8 @@
     "script": 61,
     "cell": 41,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3402,7 +3470,8 @@
     "script": 61,
     "cell": 42,
     "koc": 24576,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3410,7 +3479,8 @@
     "script": 61,
     "cell": 43,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3418,7 +3488,8 @@
     "script": 61,
     "cell": 44,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3426,7 +3497,8 @@
     "script": 61,
     "cell": 45,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3434,7 +3506,8 @@
     "script": 61,
     "cell": 46,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3442,7 +3515,8 @@
     "script": 61,
     "cell": 50,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3450,7 +3524,8 @@
     "script": 61,
     "cell": 51,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3458,7 +3533,8 @@
     "script": 61,
     "cell": 52,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3466,7 +3542,8 @@
     "script": 61,
     "cell": 53,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -3482,7 +3559,8 @@
     "script": 62,
     "cell": 30,
     "koc": -32768,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3490,7 +3568,8 @@
     "script": 62,
     "cell": 32,
     "koc": -16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3498,7 +3577,8 @@
     "script": 62,
     "cell": 33,
     "koc": -16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3506,7 +3586,8 @@
     "script": 62,
     "cell": 34,
     "koc": -8192,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3514,7 +3595,8 @@
     "script": 62,
     "cell": 35,
     "koc": -8192,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3522,7 +3604,8 @@
     "script": 62,
     "cell": 40,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3530,7 +3613,8 @@
     "script": 62,
     "cell": 41,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3538,7 +3622,8 @@
     "script": 62,
     "cell": 42,
     "koc": 24576,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3546,7 +3631,8 @@
     "script": 62,
     "cell": 43,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3554,7 +3640,8 @@
     "script": 62,
     "cell": 44,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3562,7 +3649,8 @@
     "script": 62,
     "cell": 45,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3570,7 +3658,8 @@
     "script": 62,
     "cell": 46,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3578,7 +3667,8 @@
     "script": 62,
     "cell": 50,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3586,7 +3676,8 @@
     "script": 62,
     "cell": 51,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3594,7 +3685,8 @@
     "script": 62,
     "cell": 52,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -3602,7 +3694,8 @@
     "script": 62,
     "cell": 53,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    }
   ],
   "stats": {
@@ -3628,8 +3721,8 @@
    ],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
-   "k7_foreign_cells": 2,
-   "k7_foreign_dead": 1,
+   "k7_foreign_cells": 3,
+   "k7_foreign_dead": 0,
    "k7_gate": "closed",
    "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
@@ -3661,8 +3754,15 @@
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 33,
-   "idx_oob": 0
+   "koc_oob": 0,
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 33,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -3980,7 +4080,7 @@
      "tail_olc": [
       0
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": false,
       "detail": []
@@ -4396,6 +4496,7 @@
     "ps2_group": 6,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -4412,7 +4513,8 @@
     "script": 49,
     "cell": 24,
     "koc": 6144,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -4572,7 +4674,7 @@
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
-   "span_gate_xcopy_reasons": 7,
+   "span_gate_xcopy_reasons": 8,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "a_oob": 0,
@@ -4587,8 +4689,15 @@
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 1,
-   "idx_oob": 0
+   "koc_oob": 0,
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 1,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -4883,7 +4992,8 @@
     "unmodelled": [
      "X.C.O.P.Y. donor jump to saca[68] beyond the 67-entry pointer table",
      "X.C.O.P.Y. donor jump to exca[45] beyond the 43-entry pointer table",
-     "X.C.O.P.Y. donor jump to exca[44] beyond the 43-entry pointer table"
+     "X.C.O.P.Y. donor jump to exca[44] beyond the 43-entry pointer table",
+     "X.C.O.P.Y. donor jump to saca[69] beyond the 67-entry pointer table"
     ],
     "donor_notes": [
      "from TWELVE -- cmlp: 2 consumer(s) reachable without a setter (e.g. yuca[33] cell 22) can see TWELVE's 31 position"
@@ -4950,7 +5060,8 @@
     "script": 49,
     "cell": 24,
     "koc": 6144,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -5073,6 +5184,7 @@
     "ps2_group": 7,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    }
   ],
@@ -5109,7 +5221,7 @@
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
-   "span_gate_xcopy_reasons": 4,
+   "span_gate_xcopy_reasons": 5,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "a_oob": 0,
@@ -5124,8 +5236,15 @@
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 1,
-   "idx_oob": 0
+   "koc_oob": 0,
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 1,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [
    {
@@ -5468,7 +5587,8 @@
    ],
    "xcopy": {
     "unmodelled": [
-     "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table"
+     "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
+     "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table"
     ],
     "donor_notes": [],
     "stale_consumers": {
@@ -5723,7 +5843,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -8550,7 +8677,7 @@
      "cmja2": 1,
      "cmja3": 3,
      "cmja4": 8,
-     "cmja7": 3
+     "cmja7": 7
     }
    },
    "caua_hosa": {
@@ -8801,7 +8928,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [
    {
@@ -9103,8 +9237,8 @@
      "decode_overrun": 0
     }
    },
-   "reachable_cells": 9370,
-   "reachable_cells_xcopy": 9398,
+   "reachable_cells": 9428,
+   "reachable_cells_xcopy": 9456,
    "unmodelled": [
     "saca[10] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
     "saca[11] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
@@ -9160,12 +9294,12 @@
      "saca[9] cell 1: jump to yuca[3072] beyond the 91-entry pointer table"
     ],
     "donor_notes": [
-     "from TWELVE -- cmb2: 2 consumer(s) reachable without a setter (e.g. cbca[66] cell 0) can see TWELVE's any position (C-side setter)",
+     "from TWELVE -- cmb2: 4 consumer(s) reachable without a setter (e.g. cbca[66] cell 0) can see TWELVE's any position (C-side setter)",
      "from TWELVE -- cmlp: 4 consumer(s) reachable without a setter (e.g. yuca[11] cell 6) can see TWELVE's 31 position"
     ],
     "stale_consumers": {
      "cmlp": 4,
-     "cmb2": 2,
+     "cmb2": 4,
      "cmja1": 54,
      "cmja2": 1,
      "cmja3": 1
@@ -9364,7 +9498,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -9667,7 +9808,7 @@
      "cmja1": 12,
      "cmja2": 1,
      "cmja3": 1,
-     "cmja4": 4
+     "cmja4": 5
     }
    },
    "caua_hosa": {
@@ -9827,7 +9968,8 @@
     "table": "atca",
     "script": 14,
     "cell": 24,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -9842,7 +9984,8 @@
     "table": "atca",
     "script": 118,
     "cell": 44,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -9857,7 +10000,8 @@
     "table": "atca",
     "script": 119,
     "cell": 44,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -9872,7 +10016,8 @@
     "table": "atca",
     "script": 130,
     "cell": 44,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -9887,7 +10032,8 @@
     "table": "atca",
     "script": 131,
     "cell": 44,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -9902,7 +10048,8 @@
     "table": "atca",
     "script": 142,
     "cell": 44,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -9917,7 +10064,8 @@
     "table": "atca",
     "script": 143,
     "cell": 44,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "extra_script_no_oracle",
@@ -10628,7 +10776,8 @@
     "script": 44,
     "cell": 28,
     "eff": 64,
-    "data": 72
+    "data": 72,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10636,7 +10785,8 @@
     "script": 44,
     "cell": 31,
     "eff": 64,
-    "data": 74
+    "data": 74,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10644,7 +10794,8 @@
     "script": 44,
     "cell": 34,
     "eff": 64,
-    "data": 75
+    "data": 75,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10652,7 +10803,8 @@
     "script": 44,
     "cell": 37,
     "eff": 64,
-    "data": 76
+    "data": 76,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10660,7 +10812,8 @@
     "script": 44,
     "cell": 43,
     "eff": 64,
-    "data": 79
+    "data": 79,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -10678,7 +10831,8 @@
     "script": 45,
     "cell": 28,
     "eff": 64,
-    "data": 72
+    "data": 72,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10686,7 +10840,8 @@
     "script": 45,
     "cell": 31,
     "eff": 64,
-    "data": 74
+    "data": 74,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10694,7 +10849,8 @@
     "script": 45,
     "cell": 34,
     "eff": 64,
-    "data": 75
+    "data": 75,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10702,7 +10858,8 @@
     "script": 45,
     "cell": 37,
     "eff": 64,
-    "data": 76
+    "data": 76,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10710,7 +10867,8 @@
     "script": 45,
     "cell": 43,
     "eff": 64,
-    "data": 79
+    "data": 79,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -10729,7 +10887,8 @@
     "script": 46,
     "cell": 28,
     "eff": 64,
-    "data": 72
+    "data": 72,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10737,7 +10896,8 @@
     "script": 46,
     "cell": 31,
     "eff": 64,
-    "data": 74
+    "data": 74,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10745,7 +10905,8 @@
     "script": 46,
     "cell": 34,
     "eff": 64,
-    "data": 75
+    "data": 75,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10753,7 +10914,8 @@
     "script": 46,
     "cell": 37,
     "eff": 64,
-    "data": 76
+    "data": 76,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10761,7 +10923,8 @@
     "script": 46,
     "cell": 43,
     "eff": 64,
-    "data": 79
+    "data": 79,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -10777,7 +10940,8 @@
     "script": 47,
     "cell": 28,
     "eff": 64,
-    "data": 72
+    "data": 72,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10785,7 +10949,8 @@
     "script": 47,
     "cell": 31,
     "eff": 64,
-    "data": 74
+    "data": 74,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10793,7 +10958,8 @@
     "script": 47,
     "cell": 34,
     "eff": 64,
-    "data": 75
+    "data": 75,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10801,7 +10967,8 @@
     "script": 47,
     "cell": 37,
     "eff": 64,
-    "data": 76
+    "data": 76,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -10809,7 +10976,8 @@
     "script": 47,
     "cell": 43,
     "eff": 64,
-    "data": 79
+    "data": 79,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -10894,13 +11062,20 @@
    "needs_manual": 30,
    "extra_script": 99,
    "extra_cells": 1524,
-   "se_oob": 7,
-   "eff_oob": 20,
+   "se_oob": 0,
+   "eff_oob": 0,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 7,
+   "eff_oob_dead": 20,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -11342,8 +11517,8 @@
      "decode_overrun": 0
     }
    },
-   "reachable_cells": 9998,
-   "reachable_cells_xcopy": 10136,
+   "reachable_cells": 10060,
+   "reachable_cells_xcopy": 10198,
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16370 for caught YANG outside its 1080-row RICT",
@@ -11353,10 +11528,10 @@
    "xcopy": {
     "unmodelled": null,
     "donor_notes": [
-     "from TWELVE -- cmb2: 10 consumer(s) reachable without a setter (e.g. cbca[79] cell 0) can see TWELVE's any position (C-side setter)"
+     "from TWELVE -- cmb2: 14 consumer(s) reachable without a setter (e.g. cbca[79] cell 0) can see TWELVE's any position (C-side setter)"
     ],
     "stale_consumers": {
-     "cmb2": 10,
+     "cmb2": 14,
      "cmja1": 18,
      "cmja2": 1,
      "cmja3": 2,
@@ -11493,7 +11668,7 @@
    "span_gate": "unmodelled",
    "span_gate_reasons": 4,
    "span_gate_xcopy": "unmodelled",
-   "span_gate_xcopy_reasons": 6,
+   "span_gate_xcopy_reasons": 7,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "a_oob": 0,
@@ -11509,7 +11684,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -12019,6 +12201,7 @@
    "xcopy": {
     "unmodelled": [
      "X.C.O.P.Y. donor jump to saca[68] beyond the 65-entry pointer table",
+     "X.C.O.P.Y. donor jump to saca[69] beyond the 65-entry pointer table",
      "saca[44] cell 81: jump to koc 5641"
     ],
     "donor_notes": [
@@ -12178,7 +12361,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [
    {
@@ -12568,7 +12758,8 @@
     "script": 15,
     "cell": 25,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -12576,14 +12767,16 @@
     "script": 15,
     "cell": 26,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "atca",
     "script": 15,
     "cell": 28,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -12599,7 +12792,8 @@
     "script": 16,
     "cell": 25,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -12607,14 +12801,16 @@
     "script": 16,
     "cell": 26,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "atca",
     "script": 16,
     "cell": 28,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -12630,7 +12826,8 @@
     "script": 17,
     "cell": 25,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_koc_oob",
@@ -12638,14 +12835,16 @@
     "script": 17,
     "cell": 26,
     "koc": 16384,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "atca",
     "script": 17,
     "cell": 28,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -12661,7 +12860,8 @@
     "script": 24,
     "cell": 34,
     "eff": 78,
-    "data": 208
+    "data": 208,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -12677,7 +12877,8 @@
     "script": 25,
     "cell": 34,
     "eff": 78,
-    "data": 208
+    "data": 208,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -12693,7 +12894,8 @@
     "script": 26,
     "cell": 34,
     "eff": 78,
-    "data": 208
+    "data": 208,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -12794,6 +12996,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12807,6 +13010,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12820,6 +13024,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12833,6 +13038,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12846,6 +13052,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12859,6 +13066,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12872,6 +13080,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12885,6 +13094,7 @@
     "ps2_group": 14,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -12955,13 +13165,20 @@
    "needs_manual": 21,
    "extra_script": 0,
    "extra_cells": 0,
-   "se_oob": 3,
-   "eff_oob": 3,
+   "se_oob": 0,
+   "eff_oob": 0,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 6,
-   "idx_oob": 0
+   "koc_oob": 0,
+   "idx_oob": 0,
+   "se_oob_dead": 3,
+   "eff_oob_dead": 3,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 6,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [
    {
@@ -13333,6 +13550,7 @@
     "ps2_group": 15,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13346,6 +13564,7 @@
     "ps2_group": 15,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13359,6 +13578,7 @@
     "ps2_group": 15,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13372,6 +13592,7 @@
     "ps2_group": 15,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13385,6 +13606,7 @@
     "ps2_group": 15,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13414,6 +13636,7 @@
     "ps2_group": 15,
     "confidence": "high",
     "sa": null,
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13578,7 +13801,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -13898,8 +14128,8 @@
      "decode_overrun": 0
     }
    },
-   "reachable_cells": 7450,
-   "reachable_cells_xcopy": 7545,
+   "reachable_cells": 7451,
+   "reachable_cells_xcopy": 7546,
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16374 for caught AKUMA outside its 1080-row RICT",
@@ -14027,6 +14257,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14042,6 +14273,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14057,6 +14289,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14072,6 +14305,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14087,6 +14321,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14102,6 +14337,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14117,6 +14353,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14132,6 +14369,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14147,6 +14385,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14162,6 +14401,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14177,6 +14417,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14192,6 +14433,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14207,6 +14449,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14222,6 +14465,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14237,6 +14481,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14252,6 +14497,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14267,6 +14513,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14282,6 +14529,7 @@
     "sa": [
      "9900_g[0]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14297,6 +14545,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14312,6 +14561,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14327,6 +14577,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14342,6 +14593,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14357,6 +14609,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14372,6 +14625,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14387,6 +14641,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14402,6 +14657,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14417,6 +14673,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14432,6 +14689,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14447,6 +14705,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14462,6 +14721,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14477,6 +14737,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14492,6 +14753,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14507,6 +14769,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14522,6 +14785,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14537,6 +14801,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14552,6 +14817,7 @@
     "sa": [
      "9900_g[1]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14567,6 +14833,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14582,6 +14849,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14597,6 +14865,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14612,6 +14881,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14627,6 +14897,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14642,6 +14913,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14657,6 +14929,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14672,6 +14945,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14687,6 +14961,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14702,6 +14977,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14717,6 +14993,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14732,6 +15009,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14747,6 +15025,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14762,6 +15041,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14777,6 +15057,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14792,6 +15073,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14807,6 +15089,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14822,6 +15105,7 @@
     "sa": [
      "9900_g[2]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14837,6 +15121,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14852,6 +15137,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14867,6 +15153,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14882,6 +15169,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14897,6 +15185,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14912,6 +15201,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14927,6 +15217,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14942,6 +15233,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14957,6 +15249,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14972,6 +15265,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14987,6 +15281,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15002,6 +15297,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15017,6 +15313,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15032,6 +15329,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15047,6 +15345,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15062,6 +15361,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15077,6 +15377,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15092,6 +15393,7 @@
     "sa": [
      "9900_g[3]"
     ],
+    "dead": false,
     "cls": "c_mismatch_own_group"
    }
   ],
@@ -15144,7 +15446,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -15649,7 +15958,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -16019,8 +16335,8 @@
      "decode_overrun": 0
     }
    },
-   "reachable_cells": 8268,
-   "reachable_cells_xcopy": 8416,
+   "reachable_cells": 8274,
+   "reachable_cells_xcopy": 8422,
    "unmodelled": [
     "atca[108] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
     "atca[109] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
@@ -16293,7 +16609,7 @@
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
-   "span_gate_xcopy_reasons": 5,
+   "span_gate_xcopy_reasons": 6,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "a_oob": 0,
@@ -16309,7 +16625,14 @@
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -16615,7 +16938,8 @@
    ],
    "xcopy": {
     "unmodelled": [
-     "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table"
+     "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
+     "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table"
     ],
     "donor_notes": [
      "from TWELVE -- cmsw: 2 consumer(s) reachable without a setter (e.g. saca[46] cell 14) can see TWELVE's 111 position"
@@ -16683,7 +17007,8 @@
     "script": 46,
     "cell": 30,
     "koc": 6144,
-    "ix": 0
+    "ix": 0,
+    "dead": true
    },
    {
     "cls": "needs_manual_diff",
@@ -16798,8 +17123,15 @@
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 1,
-   "idx_oob": 0
+   "koc_oob": 0,
+   "idx_oob": 0,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 1,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [
    {
@@ -17202,7 +17534,7 @@
      "tail_olc": [
       0
      ],
-     "dead": true
+     "dead": false
     },
     {
      "table": "saca",
@@ -17550,8 +17882,8 @@
      "dead": false
     }
    ],
-   "live": 32,
-   "dead": 8,
+   "live": 33,
+   "dead": 7,
    "unmodelled": null
   },
   "span_reach": {
@@ -17707,8 +18039,8 @@
      "decode_overrun": 0
     }
    },
-   "reachable_cells": 8909,
-   "reachable_cells_xcopy": 9676,
+   "reachable_cells": 8936,
+   "reachable_cells_xcopy": 9727,
    "unmodelled": [
     "yuca[16] cell 2: jump to koc 9728"
    ],
@@ -17738,8 +18070,8 @@
      "X.C.O.P.Y. donor jump to atca[248] beyond the 162-entry pointer table",
      "X.C.O.P.Y. donor jump to atca[224] beyond the 162-entry pointer table",
      "X.C.O.P.Y. donor jump to exca[100] beyond the 47-entry pointer table",
-     "X.C.O.P.Y. donor jump to exca[87] beyond the 47-entry pointer table",
      "X.C.O.P.Y. donor jump to exca[76] beyond the 47-entry pointer table",
+     "X.C.O.P.Y. donor jump to exca[87] beyond the 47-entry pointer table",
      "X.C.O.P.Y. donor jump to caca[19] beyond the 13-entry pointer table",
      "X.C.O.P.Y. donor jump to saca[80] beyond the 75-entry pointer table",
      "X.C.O.P.Y. donor jump to exca[49] beyond the 47-entry pointer table",
@@ -17749,9 +18081,9 @@
      "X.C.O.P.Y. donor jump to saca[87] beyond the 75-entry pointer table",
      "X.C.O.P.Y. donor jump to atca[201] beyond the 162-entry pointer table",
      "X.C.O.P.Y. donor jump to saca[102] beyond the 75-entry pointer table",
+     "X.C.O.P.Y. donor jump to atca[205] beyond the 162-entry pointer table",
      "X.C.O.P.Y. donor jump to atca[216] beyond the 162-entry pointer table",
      "X.C.O.P.Y. donor jump to atca[227] beyond the 162-entry pointer table",
-     "X.C.O.P.Y. donor jump to atca[205] beyond the 162-entry pointer table",
      "X.C.O.P.Y. donor jump to exca[68] beyond the 47-entry pointer table",
      "X.C.O.P.Y. donor jump to saca[106] beyond the 75-entry pointer table",
      "X.C.O.P.Y. donor jump to exca[72] beyond the 47-entry pointer table",
@@ -18025,14 +18357,16 @@
     "table": "saca",
     "script": 63,
     "cell": 30,
-    "se": 1024
+    "se": 1024,
+    "dead": true
    },
    {
     "cls": "a_se_oob",
     "table": "saca",
     "script": 63,
     "cell": 72,
-    "se": 1536
+    "se": 1536,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18040,7 +18374,8 @@
     "script": 63,
     "cell": 82,
     "eff": 116,
-    "data": 65
+    "data": 65,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18048,7 +18383,8 @@
     "script": 63,
     "cell": 83,
     "eff": 116,
-    "data": 66
+    "data": 66,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18056,7 +18392,8 @@
     "script": 63,
     "cell": 84,
     "eff": 116,
-    "data": 67
+    "data": 67,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18064,7 +18401,8 @@
     "script": 63,
     "cell": 85,
     "eff": 116,
-    "data": 68
+    "data": 68,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18072,7 +18410,8 @@
     "script": 63,
     "cell": 86,
     "eff": 116,
-    "data": 70
+    "data": 70,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18080,7 +18419,8 @@
     "script": 63,
     "cell": 87,
     "eff": 116,
-    "data": 71
+    "data": 71,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18088,7 +18428,8 @@
     "script": 63,
     "cell": 88,
     "eff": 116,
-    "data": 72
+    "data": 72,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18096,7 +18437,8 @@
     "script": 63,
     "cell": 89,
     "eff": 116,
-    "data": 73
+    "data": 73,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18104,7 +18446,8 @@
     "script": 63,
     "cell": 90,
     "eff": 116,
-    "data": 74
+    "data": 74,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18112,7 +18455,8 @@
     "script": 63,
     "cell": 91,
     "eff": 116,
-    "data": 75
+    "data": 75,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18120,7 +18464,8 @@
     "script": 63,
     "cell": 92,
     "eff": 116,
-    "data": 76
+    "data": 76,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18128,7 +18473,8 @@
     "script": 63,
     "cell": 93,
     "eff": 116,
-    "data": 77
+    "data": 77,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18136,7 +18482,8 @@
     "script": 63,
     "cell": 94,
     "eff": 116,
-    "data": 78
+    "data": 78,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18144,7 +18491,8 @@
     "script": 63,
     "cell": 95,
     "eff": 116,
-    "data": 79
+    "data": 79,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18152,7 +18500,8 @@
     "script": 63,
     "cell": 96,
     "eff": 116,
-    "data": 80
+    "data": 80,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18160,7 +18509,8 @@
     "script": 63,
     "cell": 97,
     "eff": 116,
-    "data": 81
+    "data": 81,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18168,7 +18518,8 @@
     "script": 63,
     "cell": 98,
     "eff": 116,
-    "data": 82
+    "data": 82,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18176,7 +18527,8 @@
     "script": 63,
     "cell": 99,
     "eff": 116,
-    "data": 83
+    "data": 83,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18184,7 +18536,8 @@
     "script": 63,
     "cell": 100,
     "eff": 116,
-    "data": 84
+    "data": 84,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18192,7 +18545,8 @@
     "script": 63,
     "cell": 101,
     "eff": 116,
-    "data": 85
+    "data": 85,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18200,7 +18554,8 @@
     "script": 63,
     "cell": 102,
     "eff": 116,
-    "data": 86
+    "data": 86,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18208,7 +18563,8 @@
     "script": 63,
     "cell": 103,
     "eff": 116,
-    "data": 87
+    "data": 87,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18216,7 +18572,8 @@
     "script": 63,
     "cell": 104,
     "eff": 116,
-    "data": 88
+    "data": 88,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18224,7 +18581,8 @@
     "script": 63,
     "cell": 105,
     "eff": 116,
-    "data": 89
+    "data": 89,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18232,7 +18590,8 @@
     "script": 63,
     "cell": 106,
     "eff": 117,
-    "data": 149
+    "data": 149,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18240,7 +18599,8 @@
     "script": 63,
     "cell": 107,
     "eff": 117,
-    "data": 150
+    "data": 150,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18248,7 +18608,8 @@
     "script": 63,
     "cell": 108,
     "eff": 117,
-    "data": 151
+    "data": 151,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18256,7 +18617,8 @@
     "script": 63,
     "cell": 109,
     "eff": 117,
-    "data": 152
+    "data": 152,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18264,7 +18626,8 @@
     "script": 63,
     "cell": 110,
     "eff": 117,
-    "data": 153
+    "data": 153,
+    "dead": true
    },
    {
     "cls": "a_effinit_oob",
@@ -18272,7 +18635,8 @@
     "script": 63,
     "cell": 111,
     "eff": 117,
-    "data": 154
+    "data": 154,
+    "dead": true
    }
   ],
   "stats": {
@@ -18290,8 +18654,8 @@
    "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
-   "k7_foreign_cells": 5,
-   "k7_foreign_dead": 2,
+   "k7_foreign_cells": 7,
+   "k7_foreign_dead": 0,
    "k7_gate": "closed",
    "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
@@ -18308,7 +18672,7 @@
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
-   "span_gate_xcopy_reasons": 4,
+   "span_gate_xcopy_reasons": 5,
    "caua_hosa_over_declared": 1699,
    "caua_hosa_tail_reached": 0,
    "a_oob": 0,
@@ -18318,13 +18682,20 @@
    "needs_manual": 13,
    "extra_script": 0,
    "extra_cells": 0,
-   "se_oob": 2,
-   "eff_oob": 30,
+   "se_oob": 0,
+   "eff_oob": 0,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
-   "idx_oob": 0
+   "idx_oob": 0,
+   "se_oob_dead": 2,
+   "eff_oob_dead": 30,
+   "tama_oob_dead": 0,
+   "sasign_oob_dead": 0,
+   "code_oob_dead": 0,
+   "koc_oob_dead": 0,
+   "idx_oob_dead": 0
   },
   "over_declared_sections": [
    {
@@ -18517,7 +18888,7 @@
       28,
       0
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": false,
       "detail": []
@@ -18571,7 +18942,7 @@
       28,
       0
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": false,
       "detail": []
@@ -18838,7 +19209,8 @@
    ],
    "xcopy": {
     "unmodelled": [
-     "X.C.O.P.Y. donor jump to saca[68] beyond the 64-entry pointer table"
+     "X.C.O.P.Y. donor jump to saca[68] beyond the 64-entry pointer table",
+     "X.C.O.P.Y. donor jump to saca[69] beyond the 64-entry pointer table"
     ],
     "donor_notes": [],
     "stale_consumers": {

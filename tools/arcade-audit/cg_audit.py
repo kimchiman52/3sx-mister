@@ -853,8 +853,12 @@ def k7_entry_walk(ci):
     So a jump can land AFTER a terminator and revive the cells behind it (measured: Ibuki's
     `saca[27]` c33 and `saca[60..62]` c17, entered by a `comm_rja7`/`comm_jmp` past the terminator).
     This walks instead: entry points are cell 0 plus every landing any C cell in the character's own
-    tables names, and each walk runs forward until a terminator.  Fail-open in both directions -- a
-    landing outside the script, or a koc this model does not map, marks the whole script live."""
+    tables names, and each walk runs the SUCCESSOR GRAPH (`_k7_succ`) rather than a straight line --
+    a script is not a line either, because six writers of `cg_ix` carry an index that can move the
+    cursor backwards or forwards inside the same script (§27.1, restricted to same-frame edges).
+    Fail-open everywhere -- a landing outside the script, a koc this model does not map, a command
+    code past `decode_chcmd`, or a same-frame edge leaving the parsed cells, marks the whole script
+    live.  `dead` therefore never rests on something the model declined to follow."""
     if ci in _K7_DEAD_CACHE: return _K7_DEAD_CACHE[ci]
     allc = list(_all_cells(ci))
     lens = {(sec, si): len(cells) for sec, si, _, cells in allc}
@@ -871,16 +875,69 @@ def k7_entry_walk(ci):
     for sec, si, cgd, cells in allc:
         key = (sec, si)
         if key in unknown: out[key] = set(); continue
-        live = set()
-        for e in sorted(entries[key]):
-            i = e
-            while i < len(cells):
-                live.add(i)
-                if cells[i][0] == 'C' and cells[i][1] in TERMINATORS: break
-                i += 1
-        out[key] = set(range(len(cells))) - live
+        live, stack, opened = set(), sorted(entries[key]), False
+        while stack:
+            i = stack.pop()
+            if not (0 <= i < len(cells)): opened = True; continue   # an edge left the parsed script
+            if i in live: continue
+            live.add(i)
+            succ, unmod = _k7_succ(cells, i, cgd)
+            opened = opened or unmod
+            stack += succ
+        out[key] = set() if opened else set(range(len(cells))) - live
     _K7_DEAD_CACHE[ci] = out
     return out
+
+K7_OPND = {'koc': 2, 'ix': 3, 'pat': 4}     # arc_parse's C tuple is ('C', code, koc, ix, pat)
+
+def _k7_succ(cells, i, cgd):
+    """Cells of the SAME script the executor can be on next, given it is on cell `i`.  Six writers of
+    `cg_ix` besides `+= cgd_type` stay inside the frame (`charset.c` unless noted), and each one can
+    revive a cell a linear scan calls dead:
+
+      comm_end (code 2)       `cg_ix = (pat - 2) * cgd_type`, then the dispatch loop's `+= cgd_type`
+      comm_ixfw/ixbw (49/50)  `+= (pat - 1) * cgd_type` / `-= (pat + 1) * cgd_type`, then `+=`
+      decord_if_jump          32 `decode_chcmd` slots (`parse_decord_slots`): 0x4000 relative forward,
+                              0x8000 relative back, 0x2000 `decode_if_lever` (cross-script; the `wca`
+                              leg is the edge added below), else `(w - 2) * cgd_type` absolute
+      cg_wca_ix               `check_cgd_patdat`: `cg_type & 0x80` sets it, `char_move_wca` /
+                              `decode_if_lever[13]` rewinds to `(cg_type & 0x7F) - 1`
+      cg_extdat               `hitcheck.c` cases 0x1/0x41/0x81: `((cg_extdat & 0x3F) - 1) * cgd_type`
+      cg_eftype               `pls03.c` -> `check_renda_cancel`: `cg_eftype * cgd_type - cgd_type * 2`,
+                              guarded by `pls00.c` -> `check_cg_cancel_data`'s `cg_cancel & 16`
+
+    The last three live in the cell word `cg_extdat|cg_cancel|cg_effect|cg_eftype`, which is word 3 of
+    the cell and so is only copied for `cgd_type >= 4` (`setupCharTableData`: `cgd_type` u32s from
+    `&wk->cg_type`); below that they hold the zero `set_char_move_init` wrote on entry.  For
+    `cgd_type 1` the executor's grid (4 B) is finer than the one `arc_parse` decodes on (8 B), so no
+    index in such a script is expressible here at all and the whole script returns `unmodelled`
+    (23 scripts cast-wide, all `yuca`).
+    Returns (same-script successors, unmodelled?) -- unmodelled marks the whole script live."""
+    c = cells[i]
+    if cgd == 1: return [i + 1], True        # every index in the script is off this grid
+    if c[0] == 'L':
+        r, out = c[1], [i + 1]
+        if cgd >= 4:
+            if r['type'] != 0xFF and (r['type'] & 0x80): out.append((r['type'] & 0x7F) - 1)
+            if r['ext'] & 0x3F: out.append((r['ext'] & 0x3F) - 1)
+            if r['canc'] & 0x10: out.append(r['eftype'] - 1)
+        return out, False
+    code = c[1]
+    if code >= N_CHCMD: return [], True                  # past decode_chcmd: nothing to model
+    if code in SPAN_TERMINAL: return [], False           # returns 0, no same-frame successor
+    if code == 2: return [c[4] - 1], False               # comm_end
+    if code == 49: return [i + c[4]], False              # comm_ixfw
+    if code == 50: return [i - c[4]], False              # comm_ixbw
+    if code in SPAN_TRIPLE_JUMP or code in SPAN_TRIPLE_STORE:   # cross-script; the entry sweep has it
+        return ([i + 1] if (code in SPAN_TRIPLE_STORE or SPAN_TRIPLE_JUMP[code]) else []), False
+    if code in SPAN_DECORD:
+        out, fall, unmod = [], code in SPAN_DECORD_FALL, False
+        for nm in SPAN_DECORD[code]:
+            t, f2, bad = _decord(i, c[K7_OPND[nm]])
+            out += t; fall = fall or f2; unmod = unmod or bool(bad)
+        if fall: out.append(i + 1)
+        return out, unmod
+    return [i + 1], False                                # every other handler returns 1, cg_ix untouched
 
 def _k7_consequence(parts, tail, t_ovix, t_nix):
     """What a swap consumes on Twelve's tables: `parts` (the target's OVIX entry, restarted on Twelve's
@@ -979,13 +1036,38 @@ def k7_foreign_cells(ci):
 SPAN_TERMINAL = {1, 6, 17, 19, 21, 23, 25, 27, 29, 31, 69, 102, 115, 120}   # return 0, no same-frame successor
 SPAN_TRIPLE_JUMP = {3: False, 4: False, 5: True, 54: True, 55: True, 85: True, 86: True}  # code -> falls through too
 SPAN_TRIPLE_STORE = {16, 18, 20, 22, 24, 26, 28, 30, 119}                  # rja..rja7, rmja, rhsja
-SPAN_DECORD = {10: ('ix', 'pat'), 11: ('koc', 'ix', 'pat'), 46: ('ix', 'pat'), 47: ('koc', 'ix', 'pat'),
-               53: ('ix', 'pat'), 65: ('ix', 'pat'), 71: ('ix',), 76: ('pat',), 77: ('pat',), 78: ('pat',),
-               79: ('pat',), 81: ('pat',), 82: ('pat',), 83: ('pat',), 84: ('pat',), 87: ('pat',),
-               101: ('pat', 'ix'), 109: ('ix', 'pat'), 111: ('ix', 'pat'), 113: ('ix', 'pat'),
-               114: ('ix', 'pat'), 121: ('ix', 'pat'), 122: ('koc', 'ix', 'pat'), 123: ('koc', 'ix', 'pat'),
-               124: ('ix', 'pat')}
-SPAN_DECORD_FALL = {47, 71, 76, 77, 78, 79, 81, 82, 83, 84, 87}            # return 1 when the branch is not taken
+def parse_decord_slots():
+    """`decode_chcmd` slots whose handler reaches `charset.c` -> `decord_if_jump`, with the operand fields
+    it passes (in source order) and whether the handler can also `return 1` without jumping.  Derived from
+    `charset.c` rather than listed by hand: the hand-written table this replaced named 25 slots and the
+    source has **32** -- `comm_rngc` (44), `comm_mpcy` (88), `comm_epcy` (89), `comm_myhp` (96),
+    `comm_emhp` (97), `comm_s_chg` (117) and `comm_schg2` (118) were missing, and missing a jump edge
+    removes reach, which is the direction that fails toward "closed"."""
+    s = src("src/sf33rd/Source/Game/engine/charset.c")
+    names = [x.strip() for x in re.search(r's32 \(\*const decode_chcmd\[125\]\)\(\) = \{(.*?)\};', s, re.S)
+             .group(1).replace('\n', ' ').split(',') if x.strip()]
+    slot = {n: i for i, n in enumerate(names)}
+    bodies, cur, buf = {}, None, []
+    for ln in s.split("\n"):                     # top-level function bodies: a `name(...) {` in column 0
+        m = re.match(r'^(?:static\s+)?[A-Za-z_][\w \*]*?([A-Za-z_]\w*)\(.*\)\s*\{\s*(?://.*)?$', ln)
+        if m and not ln[:1].isspace():
+            if cur: bodies[cur] = "\n".join(buf)
+            cur, buf = m.group(1), []
+        elif cur is not None:
+            buf.append(ln)
+    if cur: bodies[cur] = "\n".join(buf)
+    opnd, fall = {}, set()
+    for n, b in bodies.items():
+        if n == 'decord_if_jump' or 'decord_if_jump(' not in b or n not in slot: continue
+        seen = []
+        for m in re.finditer(r'decord_if_jump\([^,]+, *ctc, *(?:ctc->)?(\w+)\)', b):
+            if m.group(1) not in seen: seen.append(m.group(1))
+        opnd[slot[n]] = tuple(seen)
+        if re.search(r'\breturn 1;', b): fall.add(slot[n])
+    assert len(opnd) == 32, len(opnd)
+    return opnd, fall
+
+SPAN_DECORD, SPAN_DECORD_FALL = parse_decord_slots()                       # FALL: returns 1 when not taken
 SPAN_LEVER_FALL = {0, 11, 12}                                             # decode_if_lever: dummy, nex, nex2
 N_IF_LEVER = 16
 # set_char_move_init2 literal entries on a player's tables (koc 9 = yuca, 5 = saca), as (sec, ix, ip)
@@ -1470,13 +1552,21 @@ def audit(cgmap_override=None, quiet=False):
             ps2_tabs[sec] = (b, z, ps2_offsets(blob, b))
         salab = sa_labels(ci)
         cells_seen = 0
+        # Every OOB-index class is split live/dead: `se_oob` counts the violations on a cell some
+        # entry point can reach, `se_oob_dead` the ones no entry point can (doc §26.10.2's
+        # `k7_entry_walk`, which fails toward live for anything it cannot follow).  Dead rows are
+        # NOT suppressed -- a data change that revives one has to be visible as a live row appearing,
+        # which it cannot be if the row was never emitted.
         cls = dict(a_oob=0, b_gap=0, c_wrong_group=0, c_same_group=0, needs_manual=0,
                    extra_script=0, extra_cells=0,
-                   se_oob=0, eff_oob=0, tama_oob=0, sasign_oob=0, code_oob=0, koc_oob=0, idx_oob=0)
+                   se_oob=0, eff_oob=0, tama_oob=0, sasign_oob=0, code_oob=0, koc_oob=0, idx_oob=0,
+                   se_oob_dead=0, eff_oob_dead=0, tama_oob_dead=0, sasign_oob_dead=0,
+                   code_oob_dead=0, koc_oob_dead=0, idx_oob_dead=0)
         for koc, sec in KOC2SEC.items():
             an, pn = len(arc_tabs[sec]), len(ps2_tabs[sec][2])
             for si in range(an):
                 acgd, acells = arc_parse(ci, sec, si, arc_tabs)
+                dead = k7_entry_walk(ci)[(sec, si)]   # cells no entry point reaches (cached per character)
                 pcells = None
                 if si < pn:
                     pcgd, pcells = ps2_parse(blob, ps2_tabs[sec][0], ps2_tabs[sec][1], ps2_tabs[sec][2], si)
@@ -1512,37 +1602,35 @@ def audit(cgmap_override=None, quiet=False):
                         if pcell[0] == 'C' and idx is not None: return pcell[idx] == field
                         if pcell[0] == 'L' and isinstance(idx, str): return pcell[1].get(idx) == field
                         return False
+                    def viol(counter, kind, **kw):
+                        """Record one OOB-index violation on this cell and count it under the live or the
+                        dead half of `counter` -- never suppress the dead one (see `cls` above)."""
+                        d = cidx in dead
+                        cls[counter + '_dead' if d else counter] += 1
+                        rec['violations'].append(dict(cls=kind, table=sec, script=si, cell=cidx, **kw, dead=d))
                     if c[0] == 'C':
                         code, kc, ix, pat = c[1], c[2], c[3], c[4]
                         pre = (pcell is not None and pcell[0] == 'C'
                                and pcell[1] == code and pcell[2] == kc and pcell[3] == ix)
                         if pre: continue
                         if code >= N_CHCMD:
-                            cls['code_oob'] += 1
-                            rec['violations'].append(dict(cls='a_code_oob', table=sec, script=si, cell=cidx, code=code))
+                            viol('code_oob', 'a_code_oob', code=code)
                         if code in (3, 4, 5):   # jmp/jpss/jsr
                             if kc < 0 or kc >= 12:
-                                cls['koc_oob'] += 1
-                                rec['violations'].append(dict(cls='a_koc_oob', table=sec, script=si, cell=cidx, koc=kc, ix=ix))
+                                viol('koc_oob', 'a_koc_oob', koc=kc, ix=ix)
                             elif kc in KOC2SEC:
                                 nn = len(arc_tabs[KOC2SEC[kc]])
                                 if ix < 0 or ix >= nn:
-                                    cls['idx_oob'] += 1
-                                    rec['violations'].append(dict(cls='a_script_idx_oob', table=sec, script=si, cell=cidx,
-                                                                  dest=KOC2SEC[kc], ix=ix, dest_entries=nn))
+                                    viol('idx_oob', 'a_script_idx_oob', dest=KOC2SEC[kc], ix=ix, dest_entries=nn)
                             else:
-                                cls['koc_oob'] += 1
-                                rec['violations'].append(dict(cls='a_koc_unset', table=sec, script=si, cell=cidx, koc=kc))
+                                viol('koc_oob', 'a_koc_unset', koc=kc)
                         if code == 43:          # comm_exec
                             if kc < 0 or kc >= N_EFFINIT:
-                                cls['eff_oob'] += 1
-                                rec['violations'].append(dict(cls='a_effinit_oob', table=sec, script=si, cell=cidx, eff=kc, data=ix))
+                                viol('eff_oob', 'a_effinit_oob', eff=kc, data=ix)
                             elif kc == 2 and ix >= N_TAMA:
-                                cls['tama_oob'] += 1
-                                rec['violations'].append(dict(cls='a_tama_oob', table=sec, script=si, cell=cidx, tama=ix))
+                                viol('tama_oob', 'a_tama_oob', tama=ix)
                             elif kc == 13 and ix >= N_SASIGN:
-                                cls['sasign_oob'] += 1
-                                rec['violations'].append(dict(cls='a_sasign_oob', table=sec, script=si, cell=cidx, idx=ix))
+                                viol('sasign_oob', 'a_sasign_oob', idx=ix)
                         continue
                     r = c[1]; cells_seen += 1
                     pr = pcell[1] if (pcell is not None and pcell[0] == 'L') else None
@@ -1551,26 +1639,22 @@ def audit(cgmap_override=None, quiet=False):
                     # table (charset.c:2721-2727); only the non-random path indexes
                     # sound_effect_request[] directly.
                     if (se & 0x800) == 0 and se >= N_SE and not (pr and pr['se'] == r['se']):
-                        cls['se_oob'] += 1
-                        rec['violations'].append(dict(cls='a_se_oob', table=sec, script=si, cell=cidx, se=se))
+                        viol('se_oob', 'a_se_oob', se=se)
                     ef, eft = r.get('eff', 0), r.get('eftype', 0)
                     if ef and not (pr and pr.get('eff') == ef and pr.get('eftype') == eft):
                         if ef >= N_EFFINIT:
-                            cls['eff_oob'] += 1
-                            rec['violations'].append(dict(cls='a_effinit_oob', table=sec, script=si, cell=cidx, eff=ef, data=eft))
+                            viol('eff_oob', 'a_effinit_oob', eff=ef, data=eft)
                         elif ef == 2 and eft >= N_TAMA:
-                            cls['tama_oob'] += 1
-                            rec['violations'].append(dict(cls='a_tama_oob', table=sec, script=si, cell=cidx, tama=eft))
+                            viol('tama_oob', 'a_tama_oob', tama=eft)
                         elif ef == 13 and eft >= N_SASIGN:
-                            cls['sasign_oob'] += 1
-                            rec['violations'].append(dict(cls='a_sasign_oob', table=sec, script=si, cell=cidx, idx=eft))
+                            viol('sasign_oob', 'a_sasign_oob', idx=eft)
                     raw = r['num']; rm = remap(raw, ci)
                     grp = OGT[rm] if rm < OGT_N else None
                     ps2num = pcells[cidx][1]['num'] if (shape_ok and pcells[cidx][0] == 'L') else None
                     v = dict(table=sec, script=si, cell=cidx, raw=raw, remapped=rm, group=grp,
                              ps2=ps2num, ps2_group=(OGT[ps2num] if (ps2num is not None and ps2num < OGT_N) else None),
                              confidence=('high' if shape_ok else 'low-shape-differs'),
-                             sa=salab.get(si) if sec == 'saca' else None)
+                             sa=salab.get(si) if sec == 'saca' else None, dead=(cidx in dead))
                     if rm >= OGT_N:
                         cls['a_oob'] += 1; v['cls'] = 'a_ogt_oob'; rec['violations'].append(v)
                     elif grp == 0 and rm != 0:
@@ -1726,10 +1810,19 @@ if __name__ == "__main__":
 
     res = audit()
     json.dump(res, open(os.path.join(HERE, "cg_audit.json"), "w"), indent=1)
-    hdr = ("%-7s %5s | %4s %4s %5s %5s %5s %5s | %5s %5s %5s %5s %5s %5s %5s | %s"
-           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra","se","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p  xcopy  slack"))
+    # The seven OOB-index columns read live+dead: `0+31` is 31 violations, none of them on a cell
+    # any entry point can reach (doc §21.6, §26.10.2).  The two halves sum to the single number these
+    # columns used to carry, so a row that used to read `31` reads `0+31` and nothing was dropped.
+    hdr = ("%-7s %5s | %4s %4s %5s %5s %5s %5s | %6s %6s %6s %6s %6s %6s %6s | %s"
+           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra",
+              "se l+d","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p  xcopy  slack"))
     print(hdr); print("-"*len(hdr))
     T = {}
+    OOB_COLS = ('se_oob', 'eff_oob', 'tama_oob', 'sasign_oob', 'code_oob', 'koc_oob', 'idx_oob')
+    def oob_cols(s):
+        # live+dead per class. Dead means no entry point reaches the cell (k7_entry_walk); the row is
+        # still emitted and still counted, so a data change that revives one shows up as live.
+        return " ".join("%6s" % ("%d+%d" % (s[k], s[k + '_dead'])) for k in OOB_COLS)
     def ovct_flag(s):
         # doc §24: the tail is a hazard only if a reachable part index lands in it.
         if s['ovct_reach_unpatched']:
@@ -1768,16 +1861,16 @@ if __name__ == "__main__":
     for n in NAMES:
         r = res[n]; s = r['stats']
         for k, v in s.items(): T[k] = T.get(k, 0) + (v if isinstance(v, int) else 0)
-        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d | %d/%d r<=%d %s  %d/%d %s  %s  %s"
-              % (n, s['cells'], s['a_oob'], s['b_gap'], s['c_wrong_group'], s['c_same_group'], s['needs_manual'],
-                 s['extra_script'],
-                 s['se_oob'], s['eff_oob'], s['tama_oob'], s['sasign_oob'], s['code_oob'], s['koc_oob'], s['idx_oob'],
-                 s['ovct_arcade'], s['ovct_ps2'], s['ovct_reach_max'], ovct_flag(s),
-                 s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok", xcopy_flag(s), slack_flag(s)))
+        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %s | %d/%d r<=%d %s  %d/%d %s  %s  %s"
+              % ((n, s['cells'], s['a_oob'], s['b_gap'], s['c_wrong_group'], s['c_same_group'], s['needs_manual'],
+                  s['extra_script'], oob_cols(s))
+                 + (s['ovct_arcade'], s['ovct_ps2'], s['ovct_reach_max'], ovct_flag(s),
+                    s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok",
+                    xcopy_flag(s), slack_flag(s))))
     print("-"*len(hdr))
-    print("TOTAL         | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d"
+    print("TOTAL         | %4d %4d %5d %5d %5d %5d | %s"
           % (T['a_oob'], T['b_gap'], T['c_wrong_group'], T['c_same_group'], T['needs_manual'], T['extra_script'],
-             T['se_oob'], T['eff_oob'], T['tama_oob'], T['sasign_oob'], T['code_oob'], T['koc_oob'], T['idx_oob']))
+             oob_cols(T)))
     print("cells audited:", T['cells'])
     # doc §27: the over-declared spans, and what the digest hashes past the real data
     digest_in = sum(LOC[ci][sec][1] for ci in range(20) for sec in SECTIONS)

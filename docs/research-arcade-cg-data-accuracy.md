@@ -66,6 +66,13 @@ command and its observed output, or a named primary source. Things that were
   and closed; `cg_audit.py` re-derives it (`xcopy:` column) and also computes
   what a swap *would* consume, so a gate it cannot prove is reported, not
   assumed.
+- **Reading an out-of-range-index count in the audit, or about to call a cell
+  dead?** §28 — every `*_oob` column is split `live+dead` and the dead half is
+  an entry-point closure over the six intra-script writers of `cg_ix`, not a
+  scan; whole cast, every OOB-index class is 100% dead and the wrong-sprite
+  class is 100% live. Do not use §19's "after the first terminator" as a
+  reachability test — it is not one (§26.10.2), and neither is a
+  forward-only walk (§28.2).
 - **Worried the parse itself is truncating data?** §19.
 - **Worried about hitboxes / throw ranges / attack properties?** §15 — the other
   13 sections (the ones a CG audit cannot see). This is upstream issue **#325**.
@@ -3349,8 +3356,49 @@ Three independent arguments that they are dead data:
    walker considered them non-cell data**.
 
 Same verdict for all 31 arcade cells carrying a non-random `se >= 0x400`
-(`0x600`, `0x4C8`, …): 100% of them sit inside these dead regions, zero occur
-in a shape-ok script.
+(`0x400`, `0x4C8`, `0x600` — the only three values that occur).
+
+> **The verdict stands; the proof recorded here does not, and has been
+> replaced.** What this paragraph originally argued was "100% of them sit
+> inside these dead regions, zero occur in a shape-ok script" — i.e. it
+> inherited the 781-cell census above *and* argument 1's criterion, "past the
+> script's first terminator". Both supports have since gone: §22.10 reproduced
+> only **258** of the 781, and §26.10.2 showed the terminator criterion is a
+> LINEAR scan of a format whose jumps carry a cell index, so it is not a
+> reachability test at all. A verdict resting on two withdrawn supports is not
+> a verdict, however right it turns out to be. It was re-derived from scratch
+> (§28), and the sentence above is what survives.
+
+**Re-derived, and now re-derived on every run.** `cg_audit.py` computes the
+`dead` flag on each `a_se_oob` row from `k7_entry_walk` — an entry-point
+closure over the successor graph, not a linear scan — and splits the `se`
+column into live and dead. The column reads `0+31` for the whole cast: **31
+violations, 0 of them on a cell any entry point can reach.** The closure was
+first run this way at `db9c8b02` and is strictly stronger now that §28 has
+added the six intra-script writers of `cg_ix`, which can revive a cell from
+behind; the 31 stay dead under both.
+
+Three facts about the same 31 rows, each measured rather than inherited:
+
+- They occupy **15 distinct ROM byte locations** — 8 in `saca` and 7 in
+  `atca`, so this is not the all-`atca` set the original write-up implies.
+  The 31 rows exceed the 15 locations because several scripts share one body
+  (Yun `atca[118]`/`[119]`/`[130]`/`[131]`/`[142]`/`[143]` are six entries onto
+  one cell).
+- **PS2 mirror audit: 0 cells.** Running the identical predicate over the PS2
+  side of all 20 characters finds nothing, so this is *not* the §6.1
+  "identical on both sides, therefore out of scope" case.
+- The asymmetry is **grid, not content.** Aligning by `(table, script, cell)`
+  — the PS2 script's own entry offset plus the same cell index and stride —
+  and comparing the arcade **BE** u32 against the PS2 **LE** u32: **7 of the 15
+  are bit-identical**, e.g. Gill `atca[15]` c30 is `02 C4 60 00` on the arcade
+  side and `00 60 C4 02` on the PS2 side, the same four bytes reversed, which
+  is exactly the blanket-u32 converter signature this section is about. The
+  **8 that differ are all Yun's**, whose PS2 spans do not line up.
+
+So the verdict no longer depends on the 781 census or on the terminator
+convention, and it is checkable from `cg_audit.json` (`"cls": "a_se_oob"`,
+`"dead": true`) rather than from prose.
 
 ### 21.7 Results: six live divergences, 29 cells
 
@@ -5674,3 +5722,225 @@ DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     
 - Whether the arcade engine's own reader (not disassembled here) treats cgd-1
   cells the way `charset.c` does was not checked; the port runs `charset.c`,
   and that is the reader whose reach matters.
+
+---
+
+## 28. The `*_oob` classes adjudicate themselves — and `check_renda_cancel` cannot fire in a Super Art (twelfth pass, 2026-09-06)
+
+§21.6's last paragraph ruled 31 out-of-range sound codes harmless on the
+strength of two things that have since been withdrawn (§22.10's 258-of-781,
+§26.10.2's linear-scan convention). Re-deriving that verdict by hand would
+have left the *next* one resting on prose again, so the reachability test was
+moved into the audit instead: every out-of-range-index violation now carries
+the answer with it.
+
+### 28.1 The split, and what it shows
+
+`cg_audit.py` computes `dead = k7_entry_walk(ci)[(sec, si)]` once per script
+and writes `"dead": true|false` onto every per-cell violation record. Each of
+the seven OOB-index counters became two, and the summary table's columns read
+`live+dead`. **Measured**, whole cast:
+
+| class | live | dead |
+|---|---|---|
+| `a_se_oob` (`sound_effect_request[1024]`) | **0** | 31 |
+| `a_effinit_oob` (`effinitjptbl[59]`) | **0** | 53 |
+| `a_koc_oob` / `a_koc_unset` | **0** | 52 |
+| `a_tama_oob`, `a_sasign_oob`, `a_code_oob`, `a_script_idx_oob` | 0 | 0 |
+| `c_mismatch_own_group` (wrong sprite) | **89** | **0** |
+
+The separation is total and it runs the right way: **every class that is an
+out-of-range *index* is 100% dead, and the class that is a wrong *value* on a
+cell that plays is 100% live.** That is the shape you would predict — an index
+nobody can form is data nobody decodes — but it had never been measured, and
+it is now a property the audit re-derives rather than a sentence someone wrote.
+
+**Dead rows are counted, not suppressed.** A future data change that revives
+one has to show up as a live row appearing, and it cannot appear if the row was
+never emitted. The `+31` half of a column is as load-bearing as the `0+`.
+
+### 28.2 `k7_entry_walk` under-approximated liveness — six writers, now modelled
+
+§26.10.2 replaced §19's linear terminator scan with an entry-point closure, but
+the closure it built still walked each script *forwards in a straight line*
+from its entry points. A script is not a straight line either: six writers of
+`cg_ix` besides the dispatch loop's `+= cgd_type` carry an index that stays
+inside the same `(table, script)` frame, and each can move the cursor backwards
+over a terminator. §27.1 had already enumerated them for the slack closure;
+`k7_entry_walk` did not use them, so it could call a cell dead that a
+same-script index revives. All six are now edges in `_k7_succ`:
+
+| writer | site | edge from cell `k` |
+|---|---|---|
+| `comm_end` (code 2) | `charset.c` -> `comm_end`: `cg_ix = (pat - 2) * cgd_type`, then the dispatch loop's `+= cgd_type` | `pat - 1` |
+| `comm_ixfw` / `comm_ixbw` (49/50) | `charset.c`: `+= (pat - 1) * cgd_type` / `-= (pat + 1) * cgd_type`, then `+=` | `k ± pat` |
+| `decord_if_jump` | 32 `decode_chcmd` slots (§28.5) | `k + (w & 0xFF)` for `0x4000`, `k - (w & 0xFF)` for `0x8000`, `w - 1` otherwise |
+| `cg_wca_ix` | `charset.c` -> `check_cgd_patdat` sets it from `cg_type & 0x80`; `char_move_wca` / `decode_if_lever[13]` rewind | `(cg_type & 0x7F) - 1` |
+| `cg_extdat` | `hitcheck.c` cases `0x1`/`0x41`/`0x81`: `((cg_extdat & 0x3F) - 1) * cgd_type - cgd_type` | `(ext & 0x3F) - 1` |
+| `cg_eftype` | `pls03.c` -> `check_renda_cancel`: `cg_eftype * cgd_type - cgd_type * 2`, gated by `pls00.c` -> `check_cg_cancel_data`'s `cg_cancel & 16` | `eftype - 1`, **only where the cell's `canc` carries `0x10`** |
+
+The last three read `cg_extdat`, `cg_cancel` and `cg_eftype`, which share word
+3 of the cell. `setupCharTableData` copies `cgd_type` u32s from `&wk->cg_type`,
+so word 3 exists only for `cgd_type >= 4`; below that the fields hold the zero
+`set_char_move_init` wrote through `setupCharTableData(wk, 1, 1)` on entry, and
+no edge is added.
+
+Nothing among the six is left unmodelled. What still fails **open** — marking
+the whole script live rather than risking a wrong `dead` — is: a command code
+past `decode_chcmd[125]`; a `decode_if_lever` sub-index out of range; an entry
+landing or a same-frame edge outside the parsed cells; a `koc` the model does
+not map; and every `cgd_type 1` script (23 cast-wide, all `yuca`), where the
+executor's 4-byte grid is finer than the 8-byte one `arc_parse` decodes on so
+no index in the script is even expressible.
+
+**Effect on the counts**: three cells the previous walk called dead are live
+under the six-writer model, all revived by the `cg_extdat` rewind jumping over
+a terminator — Dudley `saca[72]` c33 (from c14, `ext 145` -> `&0x3F` 17 -> cell
+16, then the `comm_hjmp` at c17, then sequentially), Remy `saca[28]` c19 and
+Remy `saca[29]` c18 (both from their c5, `ext 145`/`144`). All three sit behind
+a `closed` X.C.O.P.Y. gate, so they raise no hazard; they move
+`k7_foreign_dead` 1 -> 0 for Dudley and 2 -> 0 for Remy, and
+`k7_foreign_cells` 2 -> 3 and 5 -> 7. Twelve's forward-swap census moves 32
+live / 8 dead to 33 / 7 and `k7_fwd_gate` stays `closed` — the newly live
+`cg_type 20` marker still selects `olc 0`. **Yang's `saca[44..47]` c41 stay
+dead**, so §26.10.2's verdict survives a strictly stronger model.
+
+### 28.3 `check_renda_cancel` in a Super Art script: closed by enumerating every writer of `cg_cancel`
+
+The renda edge is the one that could have turned `a_effinit_oob` live, so its
+gate was read out rather than assumed. `check_renda_cancel` has exactly one
+call site — `pls00.c` -> `check_cg_cancel_data`:
+`if ((wk->wu.cg_cancel & 16) && check_renda_cancel(wk))` — so the question is
+what can make bit `0x10` of `cg_cancel` true.
+
+**Every writer of `cg_cancel` in `src/sf33rd/`** (grep `cg_cancel *(=|\|=|&=)`
+outside `Game/ui/`, which only snapshots it — 45 statements, plus the two
+structural ones):
+
+- the per-cell copy — `charset.c` -> `setupCharTableData(wk, 0, 0)`, `cgd_type`
+  u32s from the cell into `&wk->cg_type`, which refreshes `cg_cancel` and
+  `cg_eftype` **together, from the same cell**;
+- the clear on script entry — `setupCharTableData(wk, 1, 1)` zeroes six words
+  from `&wk->cg_type`, so a freshly entered script starts at `cg_cancel == 0`;
+- nine plain assignments, all of them `wk->wu.cg_cancel = 0` (`pls03.c`);
+- thirty-six read-modify-writes, whose complete operator set is masks
+  (`&= 0`, `&= 0x40`, `&= 0x60`, `&= 0x9F`, `&= 0xBF`, `&= 0xE0`, `&= 0xF7`,
+  `&= 0xF8`) and ORs of bits `0x01`, `0x02`, `0x08`, `0x40` and `0x60` — in
+  `charset.c`, `hitcheck.c`, `pls00.c` and `pls03.c`.
+
+**No writer anywhere sets bit `0x10`.** So `cg_cancel & 16` is true if and only
+if the cell currently being decoded carries `canc & 0x10` in its data — a pure
+data property — and because `canc` and `eftype` are refreshed by the same word
+of the same copy, the bit and the index it forms always come from one cell.
+
+**The census.** 334 cells cast-wide carry `canc & 0x10`:
+
+| table | cells |
+|---|---|
+| `atca` (KOC 4) | 329 |
+| `saca` (KOC 5) | **5** |
+| every other table | 0 |
+
+All five `saca` cells are Yun's, in `saca[31]` — a Super Art script, named by
+row 43 of `asstbl_lv_9900_g_arcade`, the table `pls03.c` ->
+`check_full_gauge_attack` and `check_super_arts_attack` dispatch from — at
+cells 92, 94, 177, 178 and 179. **All five are dead** by entry-point closure,
+and all five carry `cg_eftype = 0`, so the index they would form is cell `-1` —
+outside the script even if one of them ran.
+
+**Verdict: `check_renda_cancel` cannot fire on any live Super Art cell in the
+shipped arcade data.** Yang's `saca[44..47]` c37 stay dead, `a_effinit_oob`
+stays 0-live, and `effinitjptbl[59]`-OOB is not a reachable finding.
+
+A second, independent argument was available and is recorded but not relied on:
+`wk->current_attack`, which `check_renda_cancel`'s third condition compares
+against `sw_now & 0x770`, is written at exactly one site in the whole tree —
+`pls03.c` -> `check_nm_attack`: `wk->current_attack = shot_data_refresh(kos)` —
+so a Super Art never sets it. The data gate closes first, which is why this is
+a footnote.
+
+### 28.4 The reported Yang revival was a too-weak model, not a property of the data
+
+The report this pass was asked to settle was that enabling all six writers flips Yang
+`saca[44..47]` c37 (`eff 64`, past `effinitjptbl[59]`) from dead to live, via
+`check_renda_cancel` on a live c5 with `eftype 37`. It does not reproduce.
+Yang `saca[44]` c5 reads `type 20, ctr 1, ext 151, canc 0, eff 30, eftype 37` —
+**`canc` is 0**, so the cell carries no renda-cancel bit and the edge does not
+exist there.
+
+Dropping the `cg_cancel & 0x10` guard — treating every cell's `eftype - 1` as
+an edge — reproduces the reported result exactly: c37 goes live in all four
+scripts and Yang's dead-cell count falls from 1,463 to 868. With the guard the
+six-writer model leaves c37 dead in all four. The flip was an artefact of an
+unguarded edge; it is recorded here because the guard is one `&`-test away from
+being dropped again, and because "the model got stronger and a finding
+appeared" is exactly the shape a real finding also has.
+
+### 28.5 §27.1's `decord_if_jump` slot list was 25 of 32 — now derived from source
+
+`SPAN_DECORD`, the hand-written map of `decode_chcmd` slots that reach
+`decord_if_jump`, named **25** slots. `charset.c` has **32**. Missing:
+`comm_rngc` (44), `comm_mpcy` (88), `comm_epcy` (89), `comm_myhp` (96),
+`comm_emhp` (97), `comm_s_chg` (117), `comm_schg2` (118) — and `comm_mpcy`,
+`comm_epcy`, `comm_myhp`, `comm_emhp` were also missing from
+`SPAN_DECORD_FALL`. A missing jump edge *removes* reach, which is the direction
+that fails toward "closed", so this was the unsafe kind of gap.
+
+Both tables are now derived by `parse_decord_slots()`, which reads the
+`decode_chcmd[125]` initialiser and each handler's body out of `charset.c` and
+asserts it finds 32 — so adding a `decord_if_jump` caller updates the model
+instead of silently escaping it.
+
+**Effect on the audit**: reach grows and nothing closes. `span_reach` gains
+cells for five characters (Elena +58, Yang +62, Twelve +27, Makoto +6, Akuma
++1), six characters gain one X.C.O.P.Y. donor-jump `unmodelled` reason each,
+and Elena's and Yang's `cmb2` stale-consumer counts rise (2 -> 4 and 10 -> 14).
+No gate changed state, `span_past_terminator_bad` is still 0 for all 20, and
+the violation totals are untouched.
+
+### 28.6 Corrections to earlier sections (recorded, not silently edited)
+
+- **§21.6**'s closing verdict on the 31 `se >= 0x400` cells is unchanged; its
+  stated proof is replaced in place, because both supports (the 781 census, the
+  terminator criterion) had been withdrawn by §22.10 and §26.10.2. Its example
+  list `(0x600, 0x4C8, …)` is now complete at the three values that occur:
+  `0x400`, `0x4C8`, `0x600`. Where the 31 live is new information, not a
+  correction: 15 distinct ROM byte locations, 8 of them `saca` and 7 `atca`.
+- **§26.10.2**'s table row "Dudley `saca[72]` c33 — dead" is **wrong** under
+  the six-writer model: c33 is live, reached over the terminator by the
+  `cg_extdat` rewind at c14 (§28.2). Its neighbouring conclusion — that
+  §26.4's `comm_jpss (5, 72, 37)` lands at c36 and does not revive c33 — is
+  still true; it simply was not the only way in. Dudley's gate is `closed`, so
+  the correction changes a label and no verdict.
+- **§26.10.2**'s Yang rows are confirmed, not corrected: `saca[44]` c41 and
+  `saca[45..47]` c41 stay dead under a strictly stronger closure.
+- **§27.1**'s writer list is right; the `decord_if_jump` slot table that
+  implemented it was not (§28.5).
+- **§19**'s terminator convention now has a second consumer that no longer uses
+  it. Its remaining uses in `cg_audit.py` (`arc_parse`'s last-script cut, the
+  `term_end` scan in `span_closure`) are unchanged and were not re-derived.
+
+### 28.7 What this does not establish
+
+- **No condition is ever evaluated.** All six writers are modelled as edges
+  with every branch of every conditional taken and no timing anywhere. That is
+  an over-approximation of liveness, which is the direction a `dead` verdict
+  needs; it says nothing about whether a given cell is reached *in play*.
+- **The entry sweep is still own-tables-only** (§26.10.6): `k7_entry_walk`
+  collects landings from C cells in the character's own ten tables. An entry
+  written by C code rather than by a script command, or a jump from another
+  character's script, would not be seen. `span_closure` models the C-side
+  entries; the two models were not unified, and their node spaces differ for
+  `cgd_type 1` (4-byte vs 8-byte grid).
+- **The renda verdict is about the shipped data, not the engine.** No live
+  `saca` cell carries `canc & 0x10` today. Nothing in `charset.c` or `pls00.c`
+  forbids one — which is precisely why the edge is in `_k7_succ` rather than
+  the verdict being in prose: a data change that sets the bit on a live `saca`
+  cell turns the affected `a_effinit_oob` rows live by itself, on the next run.
+- `check_renda_cancel`'s other two conditions (`rl_flag == rl_waza`, and
+  `pat_status == renda_status_table[sw_new & 3]`) were read but not closed;
+  they were not needed.
+- **`cgd_type 1` scripts are unmodelled and therefore fully live.** Whether the
+  arcade's own reader strides 4 or 8 bytes there is unchecked — the same gap
+  §27.8 records — and no violation of any class falls in one, so nothing turns
+  on it either way.
