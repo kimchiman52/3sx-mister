@@ -631,9 +631,9 @@ so "per window" and "per second" are the same number. What charges this
 bucket, from the shipped client: the joiner's REGISTER resend inside the
 punch race at 500 ms ⇒ **2/s per joiner**, for the signalling budget
 (`CFG_KEY_NETPLAY_DIRECT_P2P_SIGNAL_BUDGET_MS`, 8 s default,
-`src/port/config/config.c:105`); the host's re-REGISTER worker at
+`src/port/config/config.c:132`); the host's re-REGISTER worker at
 `CFG_KEY_NETPLAY_DIRECT_P2P_REGISTER_INTERVAL_MS`, default 5000 ms
-(`config.c:111`) with a 1000 ms floor ⇒ **1/s worst case**, 0.2/s at the
+(`config.c:138`) with a 1000 ms floor ⇒ **1/s worst case**, 0.2/s at the
 default — and this leg must never be starved, because losing it is
 precisely what reclaims a live room; plus one challenge-triggered
 immediate resend per side per cookie rotation (≥ 60 s). The session key
@@ -1103,7 +1103,7 @@ Why it went:
   through to it therefore pays ~229 ms end-to-end, **about 14 frames at
   60 fps**, against an `input_prediction_window` default of **8**
   (`CFG_KEY_NETPLAY_INPUT_PREDICTION_WINDOW`,
-  `src/port/config/config.c:130`). The relay could not have been
+  `src/port/config/config.c:157`). The relay could not have been
   covered by rollback prediction; it would have been visible as constant
   delay. For a parry-timing rollback game that is a different game, not
   a degraded one.
@@ -1378,7 +1378,7 @@ for the joiner's two attempts. Verified headroom against the callers:
 
 - `CONNECT_TIMEOUT_CONNECTING_MS` (15 000 ms, `connect_fail.h:394`) does
   **not** bound the race: it is armed on entry to
-  `NETPLAY_SESSION_CONNECTING` (`netplay.c:2575-2579`), i.e. *after* the
+  `NETPLAY_SESSION_CONNECTING` (`netplay.c:2593-2597`), i.e. *after* the
   handoff, and bounds GekkoNet's sync, not establishment.
 - The bound that does apply is nav's NAV_WAIT_ORCHESTRATOR deadline
   (`nav_orch_timeout_frames` at `netplay_nav.c:169`, enforced at
