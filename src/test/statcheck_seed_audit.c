@@ -467,19 +467,58 @@ static void audit_lvr(SDL_IOStream* io) {
     }
 }
 
-/* wcp / waza_work -- the command-recogniser working set. AGGREGATE ONLY, and
- * allowlisted: `Statcheck_CompareValues` itself declines to compare these for
- * the first 5 archive frames ("Wait a bit so that the game has time to clear
- * garbage values"), because they are driven by the button history the harness
- * does not reproduce and they self-correct once `read_input_buff` is feeding
- * both sides the same word. That is the documented contrast with `t_pl_lvr`,
- * which does NOT self-correct and is therefore seeded and audited strictly
- * (H3, docs/research-arcade-balance-desyncs.md).
+/* wcp / waza_work -- the command-recogniser working set.
  *
- * So a per-field report here would be noise the oracle has already decided to
- * ignore. What IS worth printing is the two counts: they are a stable
- * fingerprint of "the warm-up window is doing its job", and a swing in them
- * is a cheap signal that something about the entry state changed. */
+ * `wcp[]` and `waza_work[][0..47]` are AGGREGATE ONLY and allowlisted, because
+ * our own match-start path provably rewrites them before the oracle ever
+ * compares them: `cmd_init()` (`cmd_main.c`, reached from `set_base_data()`)
+ * zeroes `wcp[cmd_id].waza_flag`, `wcp[cmd_id].waza_r` and -- under
+ * `ArcadeBalance_IsEnabled()` -- `waza_work[cmd_id][0..47]`, and
+ * `waza_compel_all_init()` then rebuilds `reset`/`btix`/`exdt`/`w_dead`/
+ * `w_dead2` for every live index from the command table. What is left
+ * (`sw_new`, `sw_now`, `sw_chg`, ...) self-corrects once `read_input_buff` is
+ * feeding both sides the same button word, which is why
+ * `Statcheck_CompareValues` skips all three groups for 5 archive frames
+ * ("Wait a bit so that the game has time to clear garbage values"). A per-field
+ * report for that set would be noise the oracle has already decided to ignore;
+ * the two counts are still printed, because a swing in them is a cheap signal
+ * that something about the entry state changed.
+ *
+ * `waza_work[][48..55]` IS AUDITED STRICTLY, and that is a correction. The
+ * allowlist used to cover all 56 entries with the self-correction argument
+ * above, and for entries 48..55 that argument is simply false: `cmd_init()`
+ * clears 0x540 of the 0x620-byte block -- "leaving entries 48-55 intact",
+ * deliberately, to match CPS3 -- so those eight entries CARRY ACROSS THE MATCH
+ * BOUNDARY on both sides. The archive enters a segment with the previous
+ * match's residue in them; a statcheck run enters it with zeros, because its
+ * synthetic session has never played a match. That is the imported-state shape
+ * this whole audit exists to catch, and the wholesale allowlist was hiding it:
+ * two 2026-09-06 corpus segments failed `compare_waza_work` at archive frame 7
+ * -- the second frame that loop runs at all -- and were graded rc=1, an engine
+ * divergence, on a seed the audit called CLEAN. See Class C in
+ * docs/research-arcade-balance-desyncs.md.
+ *
+ * ONLY THE LIVE ENTRIES ARE STRICT. `waza_compel_all_init()` sets
+ * `waza_flag[i] = -1` for every index at or above `pl_cmd_num[char][6]`, and
+ * `cmd_main.c` gates every read and write of `waza_work[cmd_id][j]` on
+ * `waza_flag[j] != -1`, so a dead entry's residue is unreachable for the whole
+ * match -- it cannot be an initial condition, and `compare_waza_work()` no
+ * longer compares it either. `pl_cmd_num[][6]` reaches 48 for exactly one of
+ * the twenty characters (`CHAR_TWELVE`, 50), so on nineteen characters this
+ * adds zero comparisons and on Twelve it adds entries 48 and 49. The character
+ * is `My_char[i]` -- `plcnt_init()` (`plcnt.c`) assigns
+ * `wk->player_number = My_char[wk->wu.id]` -- and `My_char` is itself audited
+ * strictly a few lines above, so this index is not taken on trust.
+ *
+ * NOT SEEDABLE, and that is why this is an audit and not an import. Closing
+ * the gap the way H3 closed `t_pl_lvr` would mean copying the residue out of
+ * the archive, and `WAZA_WORK::w_ptr` is a CPS3 address into the command table
+ * (measured: 0x0619BDF8, 0x0619BE32, 0x0619BE64, 0x0619BE96 on the seed frame
+ * of `1784875995078-5749_game_1`) with no map to a host pointer -- and the
+ * residual `w_type` on that segment is 1, i.e. `chk_move_jp[1] == check_1`,
+ * which dereferences `*waza_ptr->w_ptr`. Importing `w_type` without `w_ptr`
+ * would make the port follow a pointer it does not have. So rc=4 is the honest
+ * verdict for such a segment, not a repaired PASS. */
 static void audit_wcp_waza(SDL_IOStream* io) {
     WORK_CP wcp_cps3[2];
     SDL_SeekIO(io, WCP_OFFSET, SDL_IO_SEEK_SET);
@@ -522,6 +561,10 @@ static void audit_wcp_waza(SDL_IOStream* io) {
     SDL_SeekIO(io, WAZA_WORK_OFFSET, SDL_IO_SEEK_SET);
 
     for (int i = 0; i < 2; i++) {
+        /* Live index bound for this player's character: waza_compel_all_init()
+         * (cmd_main.c) sets waza_flag[i] = -1 for every i >= pl_cmd_num[c][6]. */
+        const int live_end = (My_char[i] < 20) ? (int)pl_cmd_num[My_char[i]][6] : 0;
+
         for (int j = 0; j < 56; j++) {
             WAZA_WORK b;
             SDL_zero(b);
@@ -552,6 +595,23 @@ static void audit_wcp_waza(SDL_IOStream* io) {
                                      b.w_lvr,           b.free2,         b.w_dead,
                                      b.w_dead2,         b.uni0.tame.flag, b.uni0.tame.shot_flag,
                                      b.uni0.tame.shot_flag2, b.free3,    b.shot_ok };
+
+            /* Entries 48..55 that this character actually uses are carried
+             * state, not warm-up scratch -- audit them strictly. */
+            if ((j >= WAZA_WORK_CARRIED_FIRST) && (j < live_end)) {
+                static const char* const kFieldNames[12] = {
+                    "w_type", "w_int",     "free1",     "w_lvr",     "free2", "w_dead",
+                    "w_dead2", "tame.flag", "tame.shot_flag", "tame.shot_flag2", "free3", "shot_ok"
+                };
+
+                for (int k = 0; k < 12; k++) {
+                    char name[64];
+                    SDL_snprintf(name, sizeof(name), "waza_work[%d][%d].%s", i, j, kFieldNames[k]);
+                    seed_cmp(name, ours[k], theirs[k]);
+                }
+
+                continue;
+            }
 
             for (int k = 0; k < 12; k++) {
                 waza_total += 1;

@@ -80,7 +80,7 @@ void cmd_init(PLW* pl) {
 
     if (ArcadeBalance_IsEnabled()) {
         // CPS3 clears 0x540 bytes of each 0x620-byte command-state block, leaving entries 48-55 intact.
-        SDL_memset(waza_work[cmd_id], 0, sizeof(WAZA_WORK) * 48);
+        SDL_memset(waza_work[cmd_id], 0, sizeof(WAZA_WORK) * WAZA_WORK_CARRIED_FIRST);
     } else {
         SDL_zeroa(waza_work[cmd_id]);
     }

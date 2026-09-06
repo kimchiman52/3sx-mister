@@ -19,6 +19,14 @@ extern s16 lvr_chk_tbl[2][4];
 
 extern WORK_CP wcp[2];
 extern T_PL_LVR t_pl_lvr[2];
+/* First `waza_work[]` entry that CPS3 does NOT clear at battle start: it clears
+ * 0x540 bytes of each 0x620-byte (56 x 28) command-state block, so entries
+ * 48..55 CARRY ACROSS THE MATCH BOUNDARY. `cmd_init()` (cmd_main.c) reproduces
+ * that under `ArcadeBalance_IsEnabled()`, and the statcheck oracle and seed
+ * audit key off this same boundary -- see Class C in
+ * docs/research-arcade-balance-desyncs.md. */
+#define WAZA_WORK_CARRIED_FIRST 48
+
 extern WAZA_WORK waza_work[2][56];
 
 // MARK: - Unhandled

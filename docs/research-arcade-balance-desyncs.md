@@ -1318,6 +1318,143 @@ decides how the whole segment should have been replayed. It gives the exact
 
 No segment that passed starts failing, and the sweep now reports **zero** rc=1.
 
+### H5 — `waza_work[][48..55]` is carried state, and the seed audit allowlisted it wholesale (FIXED, 2026-09-06)
+
+**This is the 2026-09-06 corpus's D3 and D6, and it is a false-negative class in
+the seed audit itself** — the instrument the rest of this document now leans on.
+Neither of the two segments is an engine divergence; both were graded `rc=1` on
+a seed the audit called CLEAN.
+
+    1785912751200-1008 game_2   Ryu / Twelve     statcheck_compare.c  w_int  (0) != (-1)   @ archive frame 7
+    1784875995078-5749 game_1   Twelve / Elena   statcheck_compare.c  w_type (0) != (1)    @ archive frame 7
+
+Two unrelated quarks, different players, characters and stages, failing in the
+same loop at the **same** archive frame 7 — which is the second frame
+`compare_waza_work()` runs at all (`Statcheck_CompareValues` gates the three
+input-history groups on `frame - start_frame > 5`). A frame index that does not
+depend on the gameplay is a property of the harness's warm-up window, not of a
+match.
+
+#### The mechanism
+
+`cmd_init()` (`cmd_main.c`), reached from `set_base_data()` at match start,
+clears the command-recogniser working set — but under
+`ArcadeBalance_IsEnabled()` it clears only the first 48 of the 56 entries:
+
+    // CPS3 clears 0x540 bytes of each 0x620-byte command-state block, leaving entries 48-55 intact.
+    SDL_memset(waza_work[cmd_id], 0, sizeof(WAZA_WORK) * WAZA_WORK_CARRIED_FIRST);
+
+0x540 is 48 × 28 and 0x620 is 56 × 28. **So `waza_work[][48..55]` carries across
+the match boundary, deliberately, on both sides.** That is the exact shape of
+every defect the seed audit was built for: the archive enters a segment with the
+previous match's residue in those eight entries, and a statcheck run enters it
+with zeros, because its synthetic session has never played a match.
+
+Measured directly. Decoding the archive (`WAZA_WORK_OFFSET 0x256C4`, 28 B per
+entry, big-endian) over `1785912751200-1008_game_2`, entries 0..47 show a clean
+period-2 oscillation from archive frame 2 onward — `(w_type, w_int)` alternating
+`(1,0)` / `(0,-1)`, which is `check_init` and `check_1` taking turns through
+`chk_move_jp[]` — while P1's entries 48 and 49 sit frozen at `(0,-1)` from frame
+0 to the end. A per-frame dump of our own table against the archive's, over
+frames 7-12, gives **two** differing fields on either segment and nothing else:
+
+| segment | player | entry | ours | CPS3 |
+|---|---|---|---|---|
+| `1785912751200-1008 g2` | P1 (Ryu) | 48, 49 | `(0, 0)` frozen | `(0, -1)` frozen |
+| `1784875995078-5749 g1` | P1 (Twelve) | 49 | `(0,-1)`/`(1,0)` | `(1,0)`/`(0,-1)` — **antiphase** |
+
+`(0, 0)` is the freshly-zeroed state; the arcade's `(0, -1)` is what `check_0`
+leaves behind (`w_int--; if (w_int < 0) { w_type = 0; }`). The Twelve case is
+not frozen but **one frame out of phase**, because the 2-cycle's phase is fixed
+by the entry state and nothing resets it.
+
+#### The two sub-cases, and why they get different verdicts
+
+`waza_compel_all_init()` (`cmd_main.c`) sets `waza_flag[i] = -1` for every index
+outside the character's six live ranges, the last of which ends at
+`pl_cmd_num[player_number][6]` (`cmd_data.c`); `plcnt_init()` (`plcnt.c`) sets
+`wk->player_number = My_char[wk->wu.id]`. Reading that column:
+
+    46 46 47 46 46 46 46 47 46 48 46 47 46 46 48 46 47 46 50 46
+
+**`CHAR_TWELVE` (18) is the only one of the twenty that reaches 48** — its live
+range ends at 50, so entries 48 and 49 are real commands for Twelve and dead for
+everyone else. Entries 50..55 are dead for every character.
+
+- **Dead entries (19 of 20 characters).** `cmd_main.c` gates *every* access to
+  `waza_work[cmd_id][j]` on `waza_flag[j] != -1`: both loops in `cmd_move()`,
+  `waza_compel_all_init2()`, and `cmd_data_set()` (called only for live
+  indices). The residue is unreachable state for the whole match. The oracle
+  compared it anyway — while `compare_wcp()` right next to it already skips
+  `reset`/`btix`/`waza_r`/`exdt` on exactly this test. **Fix: `compare_waza_work()`
+  now skips entries with `waza_flag[j] == -1` too.** Nothing is masked by using
+  our own `waza_flag`: if the two sides disagreed about which entries are live,
+  `compare_wcp()` asserts `waza_flag[j]` for all 56 indices on the same frame,
+  immediately after.
+- **Live entries (Twelve's 48 and 49).** The residue *is* behavioural — it is
+  what put `1784875995078-5749 g1` in antiphase. That is a genuine imported-state
+  gap. **Fix: the seed audit now audits `waza_work[i][j]` strictly for
+  `j >= 48 && j < pl_cmd_num[My_char[i]][6]`**, so such a segment exits **4**,
+  not 1.
+
+#### Why it is not seeded, which is the honest limit
+
+Closing this the way H3 closed `t_pl_lvr` — copy the residue out of the archive
+in `Statcheck_SyncValues` — **does not work, and the reason is concrete.**
+`WAZA_WORK::w_ptr` is a CPS3 address into the character's command table; on
+`1784875995078-5749 g1`'s seed frame P1's entries 46-49 hold `0x0619BDF8`,
+`0x0619BE32`, `0x0619BE64`, `0x0619BE96`. There is no map to a host pointer
+(the same reason `WORK_CURR_RCA_OFFSET` is excluded from the audit). And the
+residual `w_type` there is **1**, i.e. `chk_move_jp[1] == check_1`, which
+dereferences `*waza_ptr->w_ptr`. Importing `w_type` without `w_ptr` would make
+the port follow a pointer it does not have. So `rc=4` is the correct verdict for
+a Twelve segment with dirty carried state, not a repaired PASS.
+
+**The cost, stated:** a Twelve segment can no longer report `rc=1`. Three of the
+185 segments in the 2026-09-06 corpus are affected (five contain Twelve; three
+of those five have differing residue). That is the price of the rule H1/H4b
+established — a segment the harness could not set up correctly must never be
+reported as an engine divergence.
+
+#### A correction to the corpus's own D3 write-up
+
+D3 argued from "29 allowlisted seed differences on the failing segment against
+21 on a passing one". That inference does not hold: `s_expected` counts
+`wcp[]` and `waza_work[]` as **one** each, whatever their field counts, so
+`waza_work` contributes exactly 1 to both totals. Run at
+`STATCHECK_SEED_AUDIT_VERBOSE=1` the two segments report `waza_work[] 188 of
+1344` and `180 of 1344` differing fields respectively; the 29-vs-21 gap is
+entirely the per-player WORK/PLW residue group plus `Scene_Cut` and `C_No[0]`.
+The conclusion D3 reached was right; the number it reached it with was not.
+
+#### Result
+
+`--headless`, both corpora swept per-segment with the same binaries, before and
+after:
+
+| | 2026-09-06 (185) | 2026-09-05 (143) |
+|---|---|---|
+| before | 177 pass / 6 rc=1 / 2 rc=3 | 143 pass |
+| after | **178 pass / 4 rc=1 / 1 rc=4 / 2 rc=3** | **143 pass** |
+| segments whose rc, fail frame or assert changed | **2** | **0** |
+
+`1785912751200-1008 g2` moves 1 -> 0 (its residue was on Ryu's dead entries);
+`1784875995078-5749 g1` moves 1 -> 4 (Twelve's live entry 49). No other verdict,
+frame or assert line moves anywhere in either corpus. Seed verdicts go DIRTY on
+**3 of 185** and 0 of 143 — the audit stays quiet except where it now has
+something true to say. Frame-data suite: 99 GREEN, zero drift.
+
+**No engine behaviour changed.** `cmd_init()`'s literal 48 became
+`WAZA_WORK_CARRIED_FIRST` (`cmd_data.h`) so the harness keys off the engine's own
+boundary instead of duplicating a magic number. Proven a textual no-op rather
+than argued: preprocessing `cmd_main.c` with the host build's own flags emits
+
+    __builtin___memset_chk (waza_work[cmd_id], 0, sizeof(WAZA_WORK) * 48, ...)
+
+— the macro is gone by the time the compiler sees the translation unit, and it
+is the only engine edit. The two real changes are both in `src/test/`, which
+needs no `ArcadeBalance_IsEnabled()` gate.
+
 ---
 
 ## The seed audit (2026-09-05)
@@ -1387,13 +1524,22 @@ it at the seed frame. It is allowlisted when our own match-start path provably
 rewrites it before the oracle ever compares it — the seed value is then not an
 initial condition at all. Every entry carries its reason in the code.
 
+**Everything on this list is compared by the oracle later**, which is what makes
+the "provably rewrites it" half load-bearing rather than decorative: an
+allowlist entry whose rewrite claim is false does not go unnoticed, it goes
+*misattributed* — the oracle still catches the difference, hundreds or thousands
+of frames on, and the audit's silence promotes it from a harness gap (rc 4) to
+an engine divergence (rc 1). That is exactly what H5 was, and it is the failure
+mode to check for whenever an entry is added here: not "will this be missed?"
+but "if the rewrite claim is wrong, who gets the blame?".
+
 | allowlisted | reason |
 |---|---|
 | `Game_timer`, `C_No[0..3]`, `G_No[2]`, `Allow_a_battle_f` | `Game2_0()` (`game.c`) writes `Game_timer = 0; C_No[0..3] = 0; G_No[2] = 3; Allow_a_battle_f = 0` in one frame, on both sides, on the frame **after** the seed frame — that is H1's predicate, so it is true by construction. The carried-in `Game_timer` here is H1's diagnostic law (it equals `len(previous segment) - 2`) |
 | `G_No[0]` | `compare_service_values()` excludes it too (`if (i != 0)`); auditing it would report a difference the oracle itself declines to make |
 | `Scene_Cut` | `Game02()` (`game.c`) recomputes it as its **first** statement every frame — `Scene_Cut = Cut_Cut_Cut();` (`sys_sub.c`), a pure function of the current buttons — before dispatching `Game02_Jmp_Tbl[G_No[2]]` |
 | `waza_type[0..1]` | scratch, not state: its only writer is `waza_type[cmd_id] = j` inside `cmd_move()`'s 56-entry loop (`cmd_main.c`), every frame |
-| `wcp[]`, `waza_work[]` (aggregate) | `Statcheck_CompareValues` itself skips them for 5 archive frames ("Wait a bit so that the game has time to clear garbage values"); they self-correct from the injected button word, and `cmd_init()` (`cmd_main.c`, called by `set_base_data()`) zeroes them at battle start. Reported as two counts, not per field |
+| `wcp[]`, `waza_work[][0..47]` (aggregate) | `Statcheck_CompareValues` itself skips them for 5 archive frames ("Wait a bit so that the game has time to clear garbage values"); they self-correct from the injected button word, and `cmd_init()` (`cmd_main.c`, called by `set_base_data()`) zeroes them at battle start. Reported as two counts, not per field. **`waza_work[][48..55]` is NOT in this group** — `cmd_init()` deliberately leaves those eight entries intact under `ArcadeBalance_IsEnabled()`, so they are carried state and the live ones are audited strictly. See H5 |
 | the per-player WORK/PLW battle group | structural: at the seed frame the archive holds the **previous match's** players while our synthetic session has never played one (`plw` reads all-zero, measured on all 143). "Fresh vs residue" cannot say whether the harness reproduced anything — and cannot hide a defect either, because `set_base_data()` (`plcnt.c`), `plcnt_init()` and `appear_data_set()` (`appear.c`) rebuild all of it, and the oracle only reaches this group when `G_No[1] == 2 && G_No[2] == 1`, strictly later |
 
 `wu.wu_operator` is the **exception inside that last group and stays strict**: it
@@ -1503,6 +1649,15 @@ their absence is what the last seven defects were made of.
 - The oracle still does not **compare** `t_pl_lvr[].waza_no` frame by frame; the
   audit only checks it at the seed frame. Adding it to `compare_lvr()` would
   change verdicts and was left out of this change deliberately.
+- **The wholesale `waza_work[]` allowlist was a false-negative class, and it
+  fired twice.** Closed 2026-09-06 — see H5. The mirror question this section
+  posed for `waza_no` ("the audit checks it strictly, the oracle never compares
+  it") turned out to have a twin running the other way: for `waza_work` the
+  oracle compared what the audit had agreed not to check. Both halves of that
+  pair are worth checking for any group added here in future.
+- A Twelve segment whose carried `waza_work[][48..49]` differs can now only
+  report rc=0 or rc=4, never rc=1. Seeding it is blocked on `WAZA_WORK::w_ptr`
+  being a CPS3 address (H5).
 - `Round_Level` and `bg_w.stage` have no ground truth that exercises them. The
   fix is more corpus (a 2P break-in recording, and a session whose stage does
   not follow from the two characters), not more analysis.
@@ -1992,6 +2147,7 @@ never converted at all, which is a deploy question, not a re-conversion one.
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
+| H5 | seed audit allowlisted `waza_work[]` wholesale; carried entries 48-55 read as engine divergence | **FIXED, 2026-09-06** — the 2026-09-06 corpus's D3 and D6, both `rc=1` at archive frame 7 on a CLEAN seed. `cmd_init()` clears only entries 0..47 under `ArcadeBalance_IsEnabled()` ("CPS3 clears 0x540 bytes of each 0x620-byte command-state block"), so 48..55 carry across the match boundary — arcade residue vs a synthetic session that has never played a match. Two fixes, both in `src/test/`: `compare_waza_work()` now skips entries with `waza_flag[j] == -1`, the test `compare_wcp()` already applied and which `cmd_main.c` gates every `waza_work` access on; and the audit is now strict for `j >= 48 && j < pl_cmd_num[My_char[i]][6]`. `CHAR_TWELVE` is the only character whose live range reaches 48. Not seedable — `WAZA_WORK::w_ptr` is a CPS3 address (measured `0x0619BDF8`..`0x0619BE96`) and the residual `w_type` 1 is `check_1`, which dereferences it. Corpus 177/6 -> **178 pass / 4 rc=1 / 1 rc=4**, exactly 2 verdicts moved; 143-segment corpus **143/143 unchanged**; frame-data suite 99 GREEN. Corrects D3's 29-vs-21 allowlist-count inference — `s_expected` counts `waza_work[]` as **one** |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 | CAB | **the seven cabinet / service globals** — `Max_vitality`, `No_Death`, `test_flag`, `ixbfw_cut`, `Country`, `CC_Value`, `Limit_Time` | **RESOLVED, 2026-09-05** — all seven addressed by disassembly and recorded with their evidence chains in `arcade_constants.h`, then measured over every frame of all 143 corpus segments. Four are **identical on both sides** (`Max_vitality` 160, `No_Death` 0, `test_flag` 0, `ixbfw_cut` 0) and are **asserted**, not seeded — a negative result that closes four of the forty hand-verified carried globals. `Country` is the one real difference (ours 4, arcade 1) and is **seeded**; `CC_Value` and `Limit_Time` are then **re-derived** by `Setup_Difficult_V()` / `Setup_Limit_Time()` and asserted, so one address resolves three and the import self-tests its own derivation. Latent, not fatal: the difference gates `effb8_normal_or_senyou()`'s `random_16()` draw, which the honest `Random_ix16` assert proves is never reached in a compared frame on this corpus. Sweep **143/143 -> 143/143**, zero PASS lines changed; detection control (seed removed) goes **143/143 DIRTY** naming all four. `save_w.Difficulty` / `.Damage_Level` came on the same trip and also agree |

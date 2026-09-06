@@ -459,12 +459,42 @@ static void compare_lvr(SDL_IOStream* io) {
     }
 }
 
+/* Entries the command recogniser never reads are not compared -- the same rule
+ * `compare_wcp()` below already applies to `reset`/`btix`/`waza_r`/`exdt`, for
+ * the same reason and now for a second one.
+ *
+ * REACHABILITY. Every access to `waza_work[cmd_id][j]` in `cmd_main.c` is
+ * gated on `wcp[cmd_id].waza_flag[j] != -1`: both loops in `cmd_move()`
+ * (`if (wcp[cmd_id].waza_flag[j] != -1)`), `waza_compel_all_init2()`, and
+ * `cmd_data_set()` which `waza_compel_all_init()` calls only for live indices.
+ * `waza_compel_all_init()` sets `waza_flag[i] = -1` for every index outside the
+ * character's six live ranges (`pl_cmd_num[player_number][0..6]`), so a dead
+ * entry is unreachable state for the whole match.
+ *
+ * WHY IT MATTERS HERE (Class C, docs/research-arcade-balance-desyncs.md).
+ * Under `ArcadeBalance_IsEnabled()` `cmd_init()` (`cmd_main.c`) clears only the
+ * first 48 entries -- "CPS3 clears 0x540 bytes of each 0x620-byte command-state
+ * block, leaving entries 48-55 intact" -- so entries 48..55 CARRY ACROSS THE
+ * MATCH BOUNDARY on both sides. The archive enters a segment with the previous
+ * match's residue there; a statcheck run enters it with zeros, because its
+ * synthetic session has never played a match. For a character whose live range
+ * stops below 48 (19 of the 20 -- only `pl_cmd_num[CHAR_TWELVE][6] == 50`
+ * reaches 48 and 49) that residue is dead state, and comparing it reported an
+ * imported-state gap as an engine divergence.
+ *
+ * NOTHING IS MASKED BY USING OUR OWN `waza_flag`. If the two sides disagreed
+ * about which entries are live, `compare_wcp()` asserts `waza_flag[j]` for all
+ * 56 indices on this same frame, immediately after this function returns. */
 static void compare_waza_work(SDL_IOStream* io) {
     WAZA_WORK waza_work_cps3[2][56];
     read_waza_work(io, waza_work_cps3);
 
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 56; j++) {
+            if (wcp[i].waza_flag[j] == -1) {
+                continue;
+            }
+
             const WAZA_WORK* w_3sx = &waza_work[i][j];
             const WAZA_WORK* w_cps3 = &waza_work_cps3[i][j];
 
