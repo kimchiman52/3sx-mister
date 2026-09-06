@@ -70,6 +70,23 @@ pinned value.
 verify only what would change your decision to commit. A second full battery is
 duplication, not verification.
 
+**This binds review and fix agents too, not just the orchestrator.** A review's
+job is to find defects, not to re-certify the implementer's run. Give a review
+agent only:
+
+- the builds and harnesses its own **mutations** need — usually one tree, not
+  three, since most mutations are validated by a single harness;
+- the specific numbers it has **reason to doubt** (a claim that looks
+  inconsistent, a count that moved, an assertion it suspects is vacuous);
+- anything its findings would **invalidate**.
+
+Not the whole battery. The same applies to the fix phase. Where a review does
+re-measure something, that should be because it is checking a claim, not
+because the list said so.
+
+One exception: a check the change could plausibly move, that the implementer
+did NOT run, is worth running once — that is coverage, not duplication.
+
 ## Workflow
 
 - For implementation tasks, use the `/implement` skill (three-agent implement → review → fix loop).
