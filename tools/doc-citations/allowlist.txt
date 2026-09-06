@@ -5,3 +5,7 @@
 # Before adding something, confirm it is genuinely not a symbol of this tree --
 # a real missing symbol added here is the exact defect the linter exists for.
 __builtin___snprintf_chk    # a clang builtin, not a symbol of this tree. tools/gates/fortify_blind_sweep.py must name it: it is what Darwin's <secure/_stdio.h> rewrites snprintf() into, which is the precise reason -Wformat-truncation cannot fire on the host (task #106).
+SDL_rand    # SDL3 library API (SDL_stdinc.h), not a symbol of this tree. docs/plan-netplay-connection.md §6.8 (L-3) and src/utils/csprng.h name it as the PRNG stun.c used to degrade to before csprng.c existed -- the whole point of the sentence is that we no longer call it.
+CONFIG_IPV6 # Linux kernel Kconfig symbol, an external fact about the MiSTer kernel. Named as the reason there is no v6 escape from NAT (docs/plan-netplay-connection.md §8.2, and the direct_p2p.c comment it mirrors); nothing in this tree defines or tests it.
+__be32      # Linux kernel type. docs/plan-netplay-connection.md §9.7 and natpmp.c cite the kernel's /proc/net/route printer (net/ipv4/fib_trie.c, v5.15) to justify parsing the hex fields without htonl; the identifier is the kernel's, not ours.
+PREFER_FAILURE # RFC 6887 (PCP) option name. Named ONLY as not implemented (docs/plan-netplay-connection.md §9.7, "PCP options are not implemented"); no revision of this tree has ever contained it, which is exactly what that sentence records.

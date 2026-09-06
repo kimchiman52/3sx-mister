@@ -1,14 +1,32 @@
 # Netplay connection-establishment program (S1–S8)
 
 Staged program to make direct-P2P connection establishment reliable,
-diagnosable, and safe. **This document accompanies the S1 "host
-liveness" commit series — S1 is IMPLEMENTED by the commits that land
-alongside this file; S2–S8 are planned.**
+diagnosable, and safe. **Status: S1–S4, S6 and S7 are implemented
+(§3–§6, §8, §9); S5 was built and then removed before it was ever
+deployed (§7, kept as a decision record); S8 is implemented as
+`tools/netplay/natmatrix/`, with its measured results in
+`docs/nat-matrix.md` (§10).** The stage table at the end is the index.
+(This paragraph used to say "S1 is IMPLEMENTED ... S2–S8 are planned";
+that was true when the file was created and had not been updated
+since.)
 
-Citation convention: `path:NNN` refers to the tree as of the S1
-series plus its adversarial-review fix commits (H1-H3/M1-M3/L1/L4). Pre-S1 baseline pointers are cited as `path@1b217758:NNN`
-(the `upstream-engine-fixes` tip this series branched from). Every
-constant below was read from the named line, not recalled.
+Citation convention: `path:NNN` refers to the CURRENT tree — this file
+is in `tools/doc-citations/baselines.txt` at ceiling 0, so a line
+citation that drifts fails the gate. Pre-S1 baseline pointers are
+cited as `path@1b217758:NNN` (the `upstream-engine-fixes` tip this
+series branched from); S5-era code that no longer exists is cited as
+`path@<commit>:NNN` or named as deleted in `2c63adc7`. Every constant
+below was read from the named line, not recalled.
+
+**Reading the S5-era record.** §7, §8.4, and the S6 review record in
+§8.8–§8.10 name constants, tests and wire types that were deleted with
+the relay in `2c63adc7` (2026-08-29). They existed on this branch from
+2026-08-24 until that commit and are named here as history, not as the
+shipped system; where anything replaced them, the section says what.
+The doc-citation checker reports them as "phantom" identifiers because
+its history index covers only files that no longer exist, so a symbol
+removed from a file that still exists looks to it like one that never
+existed. Do not "correct" those names to live symbols.
 
 ---
 
@@ -38,7 +56,7 @@ Joiner path (`join_thread_fn`, direct_p2p.c@1b217758:793-1091):
 | STUN discover | ≤ ~8.4 s | as above |
 | Direct hole-punch | 2 500 ms | direct_p2p.c@1b217758:842-843 |
 | Fallback signaling (REGISTER/DELIVER) | 8 000 ms | config.c@1b217758:90 |
-| Bilateral hole-punch | 3 000 ms | config.c@1b217758:91 (`BILATERAL_PUNCH_MS`) |
+| Bilateral hole-punch | 3 000 ms | config.c@1b217758:91 (`CFG_KEY_NETPLAY_DIRECT_P2P_BILATERAL_PUNCH_MS`) |
 
 Worst case join ≈ **22.1 s** to terminal failure.
 
@@ -231,13 +249,17 @@ post-S2 tree.
   (port intentionally unmatched — that is what recognizes a symmetric
   peer punching from a translated per-destination port) and learns the
   true endpoint, but every send — including the post-success
-  confirmations — still targeted the ORIGINAL port captured into
-  `local_peer_port` at function entry. The symmetric peer therefore
+  confirmations — still targeted the ORIGINAL port captured into a
+  function-local copy of the peer port at entry (`local_peer_port` in
+  the blocking `Stun_HolePunch` of the S2 tree; that local went away
+  when S6 split the punch into a stepper, §8.3, and the same value is
+  now `StunPunchLeg.target_port`). The symmetric peer therefore
   never saw a confirmation and its own punch timed out. Now the accept
-  path retargets `local_peer_port` + the send address (a ref on the
+  path retargets that port + the send address (a ref on the
   datagram's own source address) and keeps punching the confirmed
-  endpoint for ~600 ms at 50 ms cadence (stun.c:694-747; replaces the
-  old 3×50 ms burst to the stale port). Unblocks the bilateral-phase
+  endpoint for ~600 ms at 50 ms cadence (today the retarget branch in
+  `Stun_PunchOffer`, stun.c, and the `STUN_PUNCH_CONFIRM_MS` tail it
+  arms; replaces the old 3×50 ms burst to the stale port). Unblocks the bilateral-phase
   cells where a cone-family side pairs a symmetric side: the cone side
   now confirms to the symmetric side's real mapping, which that NAT
   accepts because it is the very mapping the symmetric side is punching
@@ -731,8 +753,8 @@ budget of at most 15 s). The split:
 
 | evidence | code | user text |
 |---|---|---|
-| challenged, then re-challenged after echoing | `COOKIE_REJECTED` | "Matchmaking refused us. Update, or host must forward." |
-| challenged once, cookie bound, zero DELIVERs | `RENDEZVOUS_NOPAIR` | "Matchmaking never paired you. Try again." |
+| challenged, then re-challenged after echoing | `CONNECT_FAIL_COOKIE_REJECTED` | "Matchmaking refused us. Update, or host must forward." |
+| challenged once, cookie bound, zero DELIVERs | `CONNECT_FAIL_RENDEZVOUS_NOPAIR` (log tag `P2P_FAIL_RENDEZVOUS_NOPAIR`) | "Matchmaking never paired you. Try again." |
 
 `COOKIE_REJECTED`'s text no longer names "update" as the *only* remedy:
 the cookie is bound to `(address, port)`, so a NAT that reassigns our
@@ -770,9 +792,10 @@ client can now positively observe, which is exactly what makes
 Task #105 narrows this residual rather than closing it. Those silent
 drops are still indistinguishable *from each other*, but they are no
 longer misfiled as an auth failure: once a cookie has bound without
-being re-challenged, the client reports `RENDEZVOUS_NOPAIR` ("try
-again") instead of `COOKIE_REJECTED` ("update the game"). The remaining
-honest gap is that `RENDEZVOUS_NOPAIR` cannot say *which* silent drop
+being re-challenged, the client reports `CONNECT_FAIL_RENDEZVOUS_NOPAIR`
+("try again") instead of `CONNECT_FAIL_COOKIE_REJECTED` ("update the
+game"). The remaining honest gap is that `CONNECT_FAIL_RENDEZVOUS_NOPAIR`
+cannot say *which* silent drop
 occurred — a lost DELIVER and a server-side slot refusal look the same
 on the wire, and separating them still needs the NACK.
 
@@ -1344,7 +1367,8 @@ relay rung could only begin after the direct punch had expired.
 The **arithmetic** worst case — a DELIVER arriving just before the
 signalling budget expires, so every phase runs at full length — was
 19 500 ms/attempt pre-S6 (including the now-removed relay rung) against
-a `RACE_BUDGET_MS`-bounded 8 000 ms post-S6. With the relay rung removed,
+a `race_budget_ms`-bounded 8 000 ms post-S6 (the
+`CFG_KEY_NETPLAY_DIRECT_P2P_RACE_BUDGET_MS` key, §8.6). With the relay rung removed,
 the current relay-free serial-equivalent is 15 500 ms/attempt (§8.1) —
 still bounded to 8 000 ms by the race. That case is stated from the
 code, **not** measured: neither probe scenario reproduces a late
@@ -1575,7 +1599,9 @@ Four `NETPLAY_TEST_HOOKS`-only seams make that possible:
 | **24** (second review, H-A: listen past send) | **N14**: the deferral deleted — `race_finish_punch` called at `punch_leg_ms` whether or not a relay leg is in play | *"test24: SPLIT BRAIN at skew=4850 ms (one owd BEFORE the punch send window ends)"* and the same at 5000 ms. Exit **1**, **3** failures. The relay-commit probe points stay GREEN: without this half the band does not close, it moves to `punch_leg_ms` |
 | **25** (second review, H-A follow-on) | **N3** re-run on the POST-H-A tree | the outcome assertion no longer fires — the re-anchor lets the punch win anyway — so this row would have gone vacuous. The surviving promise is rule 2b's *"a pair that can punch never requests a pool port"*: *"test25: the relay leg sent 1 RELAY_REQ(s) for a pair that punched successfully"*. Exit **1**, **exactly 1** failure, and it is that assertion |
 
-Notes on what each test is *for*:
+Notes on what each test is *for* (the notes for 20, 20C, 24 and 26 describe
+tests deleted with S5 in `2c63adc7`, §7 — kept as the record of what the
+two-transport race needed):
 
 - **18** is the timing regression net. Its scenario-B bound was
   **14 000 ms**, and the review measured the neutralised (serialised) run
@@ -1672,7 +1698,9 @@ Notes on what each test is *for*:
 #### 8.8.1 N10, exactly
 
 "The legs run serially again" is ambiguous on its own, so the patch that
-produced the N10 numbers above is recorded verbatim. It is **additive**:
+produced the N10 numbers above is recorded verbatim — against the S5-era
+tree (the parent of `2c63adc7`); the relay-arm block it modifies no longer
+exists (§7). It is **additive**:
 it keeps the existing arm delay and AND-s the serialisation on top,
 because replacing the delay outright also removes the
 `RACE_RELAY_ARM_MS` floor that test 29 pins, which reds tests that have
@@ -1716,6 +1744,13 @@ skipped, and two of them by a build configuration rather than by a test.
 The last entry is the adversarial review of this stage, which found
 four alpha blockers the stage's own tests could not see; §8.8 carries
 the neutralisation record.
+
+> **S5-era entries.** The abandoned-relay-leg entry and the review rows
+> H-3, H-4, H-7, L-1, H-A and H-B concern the relay leg deleted in
+> `2c63adc7` (§7); they are kept as the record of what the two-transport
+> race cost, and H-B's sizing rule survives as §8.4a. The rest — the
+> enum placement, the wrap-safety fix, H-1, H-2, M-1..M-4, H-C and the
+> second review's M-1 — are about code still in the tree.
 
 - **The punch-mode enum was inside the `NETPLAY_TEST_HOOKS` block.**
   `p2p_race` stores a `DirectP2PPunchOracleResult` on every candidate in
@@ -1834,7 +1869,8 @@ the neutralisation record.
 
 - **Scenario A is still 8 s/attempt**, because the 8 000 ms signalling
   budget is the longest single leg and racing cannot shorten it. Cutting
-  that number means cutting `SIGNAL_BUDGET_MS`, which is a separate
+  that number means cutting `CFG_KEY_NETPLAY_DIRECT_P2P_SIGNAL_BUDGET_MS`,
+  which is a separate
   judgement about how long to wait for a host that may simply be slow to
   register — not a racing problem.
 - **The S2 auto-retry still doubles everything.** One attempt is ~5-8 s;
@@ -1891,13 +1927,13 @@ the neutralisation record.
   *every* failing pair, on the connection path.
 
   **Measured on THIS tree, in both directions.** Test 34's four probe
-  points are `punch_leg - owd`, `punch_leg`, `punch_leg + owd` and
-  `punch_leg + 3*owd + 500`, and the residual band is
-  `(punch_leg + G - owd, punch_leg + owd]`. While `owd < G` the only
+  points are `punch_leg_ms - owd`, `punch_leg_ms`, `punch_leg_ms + owd`
+  and `punch_leg_ms + 3*owd + 500`, and the residual band is
+  `(punch_leg_ms + G - owd, punch_leg_ms + owd]`. While `owd < G` the only
   probe point that touches the band is its upper ENDPOINT, so a
   converging run there proves nothing about the interior; the probe at
-  `skew = punch_leg` falls strictly INSIDE the band exactly when
-  `owd > G`. Running both sides of that line (`punch_leg` 2 500,
+  `skew = punch_leg_ms` falls strictly INSIDE the band exactly when
+  `owd > G`. Running both sides of that line (`punch_leg_ms` 2 500,
   `G` 600, exit code of the whole suite):
 
   | `S6_SPLIT_OWD_MS` | `2*owd` vs `G` | predicted band | result |
@@ -1960,8 +1996,10 @@ the neutralisation record.
   generous than what shipped, but it is still a bound. Closing the gap
   entirely means letting the relay leg finish and then *upgrading* to a
   direct link mid-session, which needs a GekkoNet remote-address relearn
-  path that does not exist (`backend.h`; the remote is registered once
-  at configure time in `netplay.c`). Named here rather than hidden.
+  path that does not exist (GekkoNet's backend.h — an external
+  dependency built under `THIRD_PARTY_DIR`, not a file of this tree; the
+  remote is registered once at configure time in `netplay.c`). Named
+  here rather than hidden.
 - **A genuinely ASYMMETRIC punch path still splits the two peers.** If
   one side's datagrams traverse and the other's do not, one peer confirms
   and the other never can, so one punches and one relays no matter how
@@ -2608,17 +2646,34 @@ runs on Linux.
   request's local copy. Documented at the site (the THREADING comment's
   KNOWN HOLE / CLOSED record in `natpmp.c`).
 
-## 10. S8 — netns verification harness
+## 10. S8 — netns verification harness (IMPLEMENTED)
 
-Reproduce the matrix (§2) deterministically on Linux: network
-namespaces + nftables masquerade variants (full-cone via `fullconenat`
-or nft `masquerade persistent`, symmetric via random port masquerade),
-one namespace per peer + one for the rendezvous server; drive
-two headless builds with `--test-*`-style CLI entry points
-(pattern: src/args.c test flags block) and assert each cell's
-expected outcome. This is the regression net for S2–S4 and S6–S7 (S5,
-the relay, was removed before shipping — §7 — and is not part of this
-harness's scope).
+Landed as `tools/netplay/natmatrix/` (`fc37f6e7`, 2026-08-29). The
+measured results and their reading are in `docs/nat-matrix.md`, which
+is the permanent record for the harness; this section only says what
+was built. `natns.sh` stands up two hosts behind independent emulated
+NATs (fullcone / addr-restricted / port-restricted / symmetric / none)
+on a shared WAN namespace, plus a server namespace carrying
+`rig/stun_mock.py` and the rendezvous server, with netem one-way delay
+(asymmetric-capable), loss, and a DELIVER-specific dropper.
+`rig/nat_classify.py` MEASURES each side's NAT type instead of trusting
+the installed rules, and a mis-emulated cell is reported as such rather
+than scored. `probe/` builds `p2p_probe`, which drives the production
+cascade (`direct_p2p.c`, `stun.c`, `rendezvous.c`, `room_code.c`
+compiled unmodified) and reports the outcome and state transitions as
+JSON; `run_matrix.sh` runs every ordered pair of NAT types and emits one
+JSONL row per attempt, and `run_all.sh` runs the non-vacuity check
+first. There is no relay cell: S5 was removed before shipping (§7), and
+`run_matrix.sh` says so in its own header.
+
+*(As planned, before it was built: network namespaces + nftables
+masquerade variants — full-cone via `fullconenat` or nft `masquerade
+persistent`, symmetric via random port masquerade — one namespace per
+peer + one for the rendezvous server, driving two headless builds
+through `--test-*`-style CLI entry points and asserting each cell's
+expected outcome. The built harness uses a dedicated probe binary
+rather than the game's test flags, and NAT rules whose effect is
+measured rather than declared.)*
 
 ---
 
@@ -2633,4 +2688,4 @@ harness's scope).
 | S5 relay for symmetric-NAT pairs | **REMOVED before shipping** (see §7; built and adversarially reviewed as a custom '3SXR' relay, NOT coturn, closing the one §2 matrix cell that could not connect at all — but removed to delete the S6 split-brain failure class it caused. Never deployed to the live rendezvous server. The cell it closed is terminal again) |
 | S6 joiner candidate racing | **implemented + adversarially reviewed** (see §8; one interleaved race on the existing worker thread — no new threads, no new locks — over the punch legs and the rendezvous signal leg. A fourth, relay leg used to race alongside these and was removed with S5, §7, which also retired the H-3/H-4/H-7 relay-arbitration findings below (§8.4). Full-cascade worst case measured 9 677 -> 5 114 ms per attempt, though that specific measurement predates the relay's removal (§8.5). Review fixes as-built: H-1 the confirmation-tail budget exemption (survives removal, §8.5/§8.9), H-2 real-wire punch legs in the suite, M-1..M-4, L-1) |
 | S7 NAT-PMP / PCP | **implemented + adversarially reviewed** (see §9; hand-rolled RFC 6887 PCP client with RFC 6886 NAT-PMP downgrade, NO new library, as a third backend behind `UpnpMapping`. RFC 6886 §3.1's ~127 s retransmit ladder is deliberately truncated to 250/500/1000 ms per PHASE under an absolute ceiling — §9.3, and the PCP ladder's four §8.1.1 deviations are disclosed in §9.3.1. Review fixes as-built: H-5 the PCP Mapping Nonce is persisted so renewals and deletes are not NOT_AUTHORIZED'd (§9.4.1) and a mapping that cannot be renewed is dropped instead of advertised forever (§9.4.2); H-6 per-phase retransmit budgets plus §3.1's "do not overload it" rule, measured 700 ms gateway no-mapping → mapping (§9.3.2); H-7 five vacuous neutralisations replaced by tests 23a-23d with an inline patch-to-red table (§9.6); M-5.1 §3.6 epoch reboot detection implemented, M-5.2 lease-scaled renewal retry, M-5.3 §8.3 short error responses, M-5.4 the CGNAT gate fails closed on an absent external address, M-5.5 lost mappings stop being advertised. Residuals in §9.7, chiefly: gateway discovery is Linux-only, the client has never met real NAT-PMP/PCP hardware, and a gateway slower than ~1 s per request is still out of budget) |
-| S8 netns verification harness | planned above |
+| S8 netns verification harness | **implemented** (see §10; `tools/netplay/natmatrix/`, results in `docs/nat-matrix.md`) |
