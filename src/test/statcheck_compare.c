@@ -36,6 +36,7 @@
 #include "sf33rd/Source/Game/engine/cmb_win.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/engine/pls02.h"
+#include "sf33rd/Source/Game/engine/slowf.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
 #include "sf33rd/Source/Game/init3rd.h"
 #include "sf33rd/Source/Game/stage/bg.h"
@@ -344,6 +345,95 @@ static void compare_service_values(SDL_IOStream* io, bool compare_characters) {
      * fixed. */
     const s16 quake_y_index_cps3 = read_s16(io, BG_W_QUAKE_Y_INDEX_OFFSET);
     assert_equals(bg_w.quake_y_index, quake_y_index_cps3);
+
+    /* EXE_flag and Game_pause: the in-battle freeze pair every effect gates on.
+     * `EXE_flag` and `Game_pause` appear TOGETHER on 210 lines of
+     * `sf33rd/Source/Game/`, almost all of them the single conjunction
+     * `if (!EXE_flag && !Game_pause)`, spread over 114 files -- effects,
+     * `ui/count.c`, `engine/plcnt*.c`, `engine/vital.c`, `engine/stun.c`,
+     * `engine/spgauge.c`, `stage/bg.c`. Offsets and their disassembly
+     * provenance are on EXE_FLAG_OFFSET in arcade_constants.h.
+     *
+     * ASSERTED, NEVER SEEDED -- the same call E5 made for
+     * bg_w.quake_y_index two lines up, and the opposite of players_timer.
+     * Neither field is carried across a match boundary: `Game2_0()` (game.c)
+     * writes `Game_pause = 0` on the frame after the seed frame, and
+     * `set_EXE_flag()` (engine/slowf.c) recomputes EXE_flag from
+     * `Game_timer % (SLOW_flag + 1)` every unpaused frame with Game_timer
+     * itself zeroed by that same `Game2_0()`. So there is nothing for
+     * Statcheck_SyncValues to import, both sides should already agree on every
+     * compared frame, and a mismatch is an engine defect -- which is the point.
+     * Force-syncing them per frame would be the Random_ix16 mask all over
+     * again: it would repair the divergence and report it as a pass, and every
+     * effect gated on the pair would go on diverging invisibly.
+     *
+     * What they catch that the RNG assert cannot: a freeze window that drifts
+     * on a frame where no gated effect happened to draw. That frame passes the
+     * Random_ix16 check and then bites hundreds of frames later, which is
+     * exactly the shape E6 had. When a drift DOES move the RNG on the same
+     * frame, Random_ix16 asserts first (it is above) and its call-site
+     * backtrace is the more useful of the two reports -- that ordering is
+     * deliberate and matches the quake assert's.
+     *
+     * Game_pause needs ONE normalization, and only one. Measured over EVERY
+     * frame of both corpora -- 183 segments / 1,167,121 frames (2026-09-06)
+     * and 143 / 869,986 (2026-09-05) -- the field takes exactly three values,
+     * 0, 1 and -1, and NOTHING else (in particular, no 0x81). The arcade holds
+     * -1 through the 90-frame K.O. round-message window where our
+     * `effect_84_move` (effect/eff84.c) writes 1 -- 424 of 426 such runs are
+     * exactly 90 frames on the one corpus and 333 of 335 on the other, and
+     * every segment of both has at least one -- and holds 1 through the
+     * `Game_Manage_*` transitions where `engine/manage.c` writes 1 on both
+     * sides. Both engines consume the field only as a zero test, and the
+     * archive shows EXE_flag freezing across a -1 run exactly as it does
+     * across a 1 run -- so -1 and 1 are the same state, differently spelled by
+     * a port that narrowed the field to u8. Mapping that ONE value keeps the
+     * assert strict everywhere else: a window that opens or closes on the
+     * wrong frame still fires, and so does any value pair we have not seen.
+     *
+     * POSITIVE CONTROL, because a clean sweep proves nothing about a dead
+     * assert. Remove the substitution and rebuild: the corpora go from
+     * 182 PASS / 143 PASS to 182 FAIL / 143 FAIL, at archive frames 941-5,755
+     * (median 2,270) and 921-4,255 (median 2,200) respectively, and EVERY one
+     * of those 325 failures is the identical
+     * line `game_pause_3sx (1) != game_pause_cps3_norm (-1)` -- no other value
+     * pair occurs anywhere on either corpus. So (a) this assert is live, (b)
+     * the compared window reaches a K.O. freeze on every single segment, which
+     * is the coverage E6's 60-frame acceptance never had, and (c) the
+     * substitution masks exactly one difference with nothing hiding behind
+     * it. */
+    const s16 exe_flag_cps3 = read_s16(io, EXE_FLAG_OFFSET);
+    assert_equals(EXE_flag, exe_flag_cps3);
+
+    const s16 game_pause_cps3 = read_s16(io, GAME_PAUSE_OFFSET);
+    const s16 game_pause_cps3_norm = (game_pause_cps3 == -1) ? 1 : game_pause_cps3;
+    const s16 game_pause_3sx = (s16)Game_pause;
+
+    /* 0x81 is the PS2 START pause (`system/pause.c`, `menu/menu.c`); the
+     * arcade cannot produce it, so if it ever reached here the assert below
+     * would report a HARNESS fault as an engine divergence. It is unreachable
+     * in a STATCHECK build and this is not a mask, it is a label on the one
+     * report that would otherwise mislead. Every writer was traced:
+     * `Setup_Pause` / `Setup_Come_Out` (pause.c) run only off `PAUSE_X`, which
+     * only `Check_Pause_Term()` sets -- and that function returns 0
+     * unconditionally under `#if defined(STATCHECK)`, above both the
+     * SWK_START test and the controller-connection test (commit 3769c189);
+     * `Check_SoftReset` (system/reset.c) needs `Reset_Status == 0x63`, which
+     * needs `SWK_START | SWK_BACK` together and `read_input_buff`
+     * (statcheck_runner.c) never emits SWK_BACK; the five `menu.c` writers
+     * (`Setup_Tr_Pause`, `Reset_Training`, `Reset_Replay`, `Character_Change`,
+     * `End_Replay_Menu`) are training/replay-menu paths and the harness runs
+     * MODE_ARCADE; and `cpLoopTask`'s `Game_pause |= 0x80` (main.c) is
+     * `#if defined(DEBUG)`, which cannot be co-compiled with STATCHECK. */
+    if (Game_pause == GAME_PAUSE_TRAINING && game_pause_cps3 != GAME_PAUSE_TRAINING) {
+        fprintf(stderr,
+                "statcheck: Game_pause is 0x81 (the PS2 START pause) on our side at archive frame %llu. "
+                "The arcade has no such value, so this is a HARNESS fault -- the STATCHECK carve-out in "
+                "Check_Pause_Term() (system/pause.c) has regressed -- not an engine divergence.\n",
+                (unsigned long long)current_compare_frame);
+    }
+
+    assert_equals(game_pause_3sx, game_pause_cps3_norm);
 
     const u8 cmb_stock_0_cps3 = read_u8(io, CMB_STOCK_OFFSET);
     const u8 cmb_stock_1_cps3 = read_u8(io, CMB_STOCK_OFFSET + 1);

@@ -47,6 +47,7 @@
 #include "sf33rd/Source/Game/engine/cmb_win.h"
 #include "sf33rd/Source/Game/engine/cmd_data.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
+#include "sf33rd/Source/Game/engine/slowf.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
 #include "sf33rd/Source/Game/stage/bg.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
@@ -181,6 +182,38 @@ static void audit_service(SDL_IOStream* io) {
                 Game_timer,
                 read_u16(io, GAME_TIMER_OFFSET));
 
+    /* ALLOWLIST: Game_pause. Same proof as Game_timer above, from the same
+     * statement block -- `Game2_0()` (game.c) writes `Game_pause = 0` two
+     * lines after `Game_timer = 0`, on both sides, on the frame after the seed
+     * frame. MEASURED, and the measurement is why this entry is here at all:
+     * the archive carries `Game_pause == 1` INTO the seed frame on 50 of the
+     * 183 eligible 2026-09-06 segments and 38 of the 143 2026-09-05 ones (the
+     * tail of a `Game_Manage_*` screen transition), and holds 0 at
+     * `start_index` -- the first compared frame -- on 183 of 183 and 143 of
+     * 143. So the difference is real, frequent, and provably gone before the
+     * oracle looks. Strict would have made an rc-1 run report rc 4 on a third
+     * of the corpus for nothing.
+     *
+     * The rewrite claim is the load-bearing half (see "The allowlist" in
+     * docs/research-arcade-balance-desyncs.md): if it were false the oracle
+     * would still catch the difference, but the audit's silence would promote
+     * a harness gap to an engine divergence. Here it is checked directly --
+     * `compare_service_values()` asserts Game_pause on every compared frame,
+     * so a Game_pause that failed to reach 0 by `start_index` fails loudly on
+     * the first compared frame rather than going quiet. */
+    seed_expect("Game_pause",
+                "Game2_0() zeroes it on the next frame, on both sides (game.c)",
+                (s16)Game_pause,
+                read_s16(io, GAME_PAUSE_OFFSET));
+    /* STRICT: EXE_flag. Not carried state -- `set_EXE_flag()` (engine/slowf.c)
+     * recomputes it as `Game_timer % (SLOW_flag + 1)` on every unpaused frame,
+     * and `Game2_0()` zeroes Game_timer -- but it costs one comparison and the
+     * archive reads 0 at the seed frame on 183 of 183 and 143 of 143, so there
+     * is no allowlist argument to make and nothing to lose by checking. Its
+     * one live input, SLOW_flag, IS carried across the match boundary
+     * (`init_slow_flag()` is what clears it), and a stale SLOW_flag on either
+     * side would show up here first. */
+    seed_cmp("EXE_flag", EXE_flag, read_s16(io, EXE_FLAG_OFFSET));
     seed_cmp("Counter_hi", Counter_hi, read_s16(io, COUNTER_HI_OFFSET));
     seed_cmp("Counter_low", Counter_low, read_s16(io, COUNTER_LOW_OFFSET));
     /* ALLOWLIST: Allow_a_battle_f -- `Game2_0()` writes `Allow_a_battle_f = 0`

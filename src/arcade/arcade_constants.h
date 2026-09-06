@@ -25,7 +25,62 @@
  * everywhere cannot distinguish a correct offset from a wrong-but-zero one.
  * The address rests on the disassembly above, not on the corpus. */
 #define TEST_FLAG_OFFSET 0x94
+/* EXE_flag (CPS3 0x0200EECC, s16) and Game_pause (CPS3 0x0201136E, s16) -- the
+ * two in-battle freeze flags. Every `if (!EXE_flag && !Game_pause)` in
+ * `src/sf33rd/Source/Game/effect/` is one gate on this pair, and the arcade
+ * reads them in that order, EXE_flag first.
+ *
+ * Both addresses were established by disassembly of the sfiii3nr1 SH-2 program
+ * for E6 (docs/research-arcade-balance-desyncs.md); they are recorded in the
+ * two port modules that were transcribed from it, at three independent sites:
+ *   - `effect_C08_move` routine 1, CPS3 0x060DD918: `mov.w @r4,r0` / `tst` /
+ *     `bra 0x060DDA4E`, r4 holding 0x0200EECC from the prologue
+ *     (`mov.l 0x060DD974,r4` at 0x060DD890), then `mov.l 0x060DD98C,r3`
+ *     (= 0x0201136E) / `mov.w @r3,r0` / `tst` / `bra 0x060DDA4E`.
+ *   - `effect_C08_move` routine 2, CPS3 0x060DDA84: the byte-for-byte twin,
+ *     with `bf 0x060DDB6C` and the second Game_pause pool slot 0x060DDBD8.
+ *   - `effect_C74_move` routine 1, CPS3 0x060F13D4: the same pair, both
+ *     branching past the whole body to 0x060F14D6.
+ * See the comments in `effect/effc08.c` and `effect/effc74.c` for the full
+ * read-out, including the literal-pool argument that assigns TWO 0x0201136E
+ * slots to effect 8 and one to effect 74.
+ *
+ * Both are 16-bit: the arcade reads each with `mov.w`, and the surrounding
+ * fields at 0x02011370, 0x0201137A (Round_Level) and 0x0201137E are 16-bit at
+ * even addresses too. Our port narrowed Game_pause to `u8` (`workuser.c`);
+ * EXE_flag is `s16` on both sides (`slowf.h`).
+ *
+ * ARCHIVE CORROBORATION -- EVERY frame of both corpora (183 segments /
+ * 1,167,121 frames for 2026-09-06, 143 / 869,986 for 2026-09-05), read
+ * straight out of the .scrd frames, not inferred:
+ *   - EXE_flag holds only 0, 1, 2 and 3, which is exactly the range of our
+ *     `set_EXE_flag()`'s `EXE_flag = Game_timer % (SLOW_flag + 1)`
+ *     (`engine/slowf.c`) -- a slow-motion divider, not a boolean.
+ *   - Game_pause holds only 0, 1 and -1, and NOTHING else -- in particular no
+ *     0x81, which is the archive-side half of the argument that the PS2 START
+ *     pause has no arcade counterpart. It is 0 on ~95% of frames; the non-zero
+ *     bursts are of two kinds, and they are NOT the same value:
+ *       * -1 (0xFFFF), in runs of exactly 90 frames -- 424 of 426 runs on the
+ *         one corpus, 333 of 335 on the other, the exceptions truncated by the
+ *         segment boundary, and present on every segment of both. 90 is
+ *         `Time_Data[1]` in `effect/eff84.c`, the K.O. round-message window,
+ *         and our `effect_84_move` writes 1 there.
+ *       * 1, in runs of 1, 8 and ~163 frames -- the `Game_Manage_*` screen
+ *         transitions, where `engine/manage.c` writes 1 on both sides.
+ *     Across a whole segment, EXE_flag freezes at its last value for the whole
+ *     of every non-zero Game_pause run (measured frame by frame on
+ *     1788133423462-3110 game_0, frames 2462-2551), which is our own
+ *     `set_EXE_flag()`'s `if (!Game_pause)` guard -- i.e. the arcade treats -1
+ *     as "paused" exactly as it treats 1, and nothing reads the magnitude.
+ *   - Game_timer (0x0201136C, immediately below) keeps incrementing through
+ *     both kinds of run, which is our `Game2_1()`'s `Game_pause != 0x81` gate:
+ *     only the PS2-only START pause stalls it, and the arcade has no 0x81.
+ *
+ * See `compare_service_values()` (`src/test/statcheck_compare.c`) for what is
+ * asserted and the one normalization that -1 forces. */
+#define EXE_FLAG_OFFSET 0xEECC
 #define GAME_TIMER_OFFSET 0x1136C
+#define GAME_PAUSE_OFFSET 0x1136E
 #define COUNTER_HI_OFFSET 0x11376
 #define COUNTER_LOW_OFFSET 0x11378
 #define MY_CHAR_OFFSET 0x11387
