@@ -4,8 +4,10 @@
  */
 
 #include "sf33rd/Source/Game/effect/effl7.h"
+#include "arcade/arcade_balance.h"
 #include "bin2obj/char_table.h"
 #include "common.h"
+#include "sf33rd/AcrSDK/common/pad.h"
 #include "sf33rd/Source/Game/animation/win_pl.h"
 #include "sf33rd/Source/Game/effect/effect.h"
 #include "sf33rd/Source/Game/engine/caldir.h"
@@ -152,11 +154,57 @@ s32 effect_L7_init(WORK* wk, s32 /* unused */) {
         return 0;
     }
 
+    /* ARCADE: the CPS3 gate tests a different bit of the same word.
+     *
+     * effect_L7_init is CPS3 0x06113FC8, identified without reference to this
+     * file's contents: effl7_data_tbl {55,56,57,...} as big-endian s16 occurs
+     * exactly ONCE in the image, at 0x061CB064, and has exactly ONE literal
+     * referrer, 0x0611416C, which lies inside 0x06113FC8. effmovejptbl
+     * (0x061B883C) entry [217] -- this work's wu.id, set below -- is
+     * 0x06113D54, effect_L7_move, the same function pair.
+     *
+     * The first two gates transcribe correctly; the third does not:
+     *
+     *   06113ffc  mov.w 0x61140c0,r4   ; r4 = 0x1000
+     *   06113ffe  mov.w @(8,r13),r0    ; wk->id
+     *   06114000  tst r0,r0 / bt 0x6114016
+     *   06114004  mov.l 0x61140dc,r2   ; r2 = 0x0206AA90  (P2SW_0)
+     *   0611400a  tst r4,r3 / bf ...   ; continue iff P2SW_0 & 0x1000
+     *   06114016  mov.l 0x61140e0,r2   ; r2 = 0x0206AA8C  (P1SW_0)
+     *   0611401c  tst r4,r1 / bf ...   ; continue iff P1SW_0 & 0x1000
+     *
+     * so the arcade tests bit 12 of the raw P1SW_0/P2SW_0 register, and the
+     * port tested bit 0 -- SWK_UP. The surrounding anchors corroborate the
+     * addresses: 0x061140D8 is poison_flag (0x020281A8, matching gate 2's
+     * s16 index) and 0x061140E4 is pull_effect_work, called immediately after
+     * with r4 = 4 exactly as below.
+     *
+     * WHICH BIT THAT IS, IN PORT COORDINATES. SWK_START is used here as "the
+     * bit this pipeline carries arcade P1SW_0 bit 12 in", which is a
+     * conversion identity, not a claim about what the arcade button IS. The
+     * port's own raw-arcade -> SWK converter, src/test/replay_game.c ->
+     * read_input_buff(), maps it that way and says so:
+     *
+     *     buff |= (raw_buff & (1 << 12)) << 2; // start
+     *
+     * 1 << 12 shifted left 2 is 1 << 14 == SWK_START. So whatever the cabinet
+     * called that line, a p*sw_0 word produced by this port's conversion layer
+     * carries arcade bit 12 at SWK_START, and testing SWK_START here is the
+     * faithful transcription of `& 0x1000`. That bit 12 is physically START is
+     * likely but NOT proven, and nothing here depends on it.
+     *
+     * PS2 keeps `& 1`: proven against the CPS3 program and not against the PS2
+     * binary, so it is gated (2d74225d, 192291a4). SWK_UP is 1 << 0, so the
+     * PS2 arm is bit-identical to what this function has always done.
+     *
+     * See Class B / E8 in docs/research-arcade-balance-desyncs.md. */
+    const u16 gag_sw = ArcadeBalance_IsEnabled() ? (u16)SWK_START : (u16)SWK_UP;
+
     if (wk->id) {
-        if (!(p2sw_0 & 1)) {
+        if (!(p2sw_0 & gag_sw)) {
             return 0;
         }
-    } else if (!(p1sw_0 & 1)) {
+    } else if (!(p1sw_0 & gag_sw)) {
         return 0;
     }
 

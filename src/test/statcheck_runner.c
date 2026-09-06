@@ -23,7 +23,14 @@
  * bit-tested mapping is ported verbatim from upstream test_runner.c:82-128
  * and emits SWK-layout words; every word written to p1sw_buff/p2sw_buff goes
  * through it. Do not "simplify" it into a raw copy and do not feed it
- * P1SW_0-style words. */
+ * P1SW_0-style words.
+ *
+ * The ONE exception, and it stays an exception: START is read as a single
+ * extra bit-test against the raw P1SW_0/P2SW_0 register, because the sw_lvbt
+ * mirror carries the lever and the six attack buttons and nothing else. It is
+ * bit 12 there, clear of the kicks that make the two layouts differ at all,
+ * and it is translated to SWK_START rather than copied. See the comment on
+ * that test below. Every other bit still comes from the mirror. */
 
 #include "test/statcheck_runner.h"
 #include "arcade/arcade_constants.h"
@@ -167,6 +174,32 @@ static Uint16 read_input_buff(SDL_IOStream* io, int player) {
 
     if (sw_lvbt_buff & (1 << 10)) {
         buff |= SWK_RIGHT_TRIGGER;
+    }
+
+    /* START comes from the RAW register, because the sw_lvbt mirror does not
+     * carry it. The mirror above is WORK_CP's engine-layout copy of the lever
+     * and the six attack buttons -- that is its whole content -- so every
+     * archived START press was invisible to this harness and no segment could
+     * reproduce an engine path gated on one. effect_L7_init (effl7.c) is such
+     * a path: the arcade spawns Hugo's Poison gag on `P1SW_0 & 0x1000` and
+     * draws a random_16() for it, which is the 2026-09-06 corpus's D5.
+     *
+     * This is one extra bit-test bolted onto the existing translator, NOT a
+     * raw copy, and it deliberately does not disturb the layout invariant
+     * documented at the top of this file: the two encodings differ only in
+     * where the kicks sit (raw 7-9, engine 8-10), and bit 12 is outside that
+     * disputed span in both. The mapping bit 12 -> SWK_START is the port's
+     * own, from src/test/replay_game.c -> read_input_buff(), which converts
+     * whole raw P1SW_0 words for replay playback:
+     *
+     *     buff |= (raw_buff & (1 << 12)) << 2; // start
+     *
+     * P1SW_0_OFFSET / P2SW_0_OFFSET are the raw registers (CPS3 0x0206AA8C /
+     * 0x0206AA90), as statcheck_seed_audit.c's header already records. */
+    const Sint64 sw_0_offset = (player == 0) ? P1SW_0_OFFSET : P2SW_0_OFFSET;
+
+    if (read_u16(io, sw_0_offset) & (1 << 12)) {
+        buff |= SWK_START;
     }
 
     return buff;

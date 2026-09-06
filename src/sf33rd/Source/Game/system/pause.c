@@ -208,13 +208,40 @@ s32 Check_Pause_Term(u16 sw, u8 PL_id) {
      * not distinguish "the taunt is reproduced" from "the taunt affects no
      * hashed field".
      *
-     * The STATCHECK carve-out below is deliberately left where it is:
-     * statcheck_runner.c -> read_input_buff never emits SWK_START (it maps
-     * only the direction and attack bits of the archived sw_lvbt mirror), so
-     * that path cannot reach the START branch at all. */
+     * The STATCHECK carve-out now sits ABOVE the SWK_START check too, for the
+     * identical reason. It used to sit below, and the comment here recorded
+     * why that was safe: statcheck_runner.c -> read_input_buff mapped only the
+     * direction and attack bits of the archived sw_lvbt mirror and never
+     * emitted SWK_START, so the START branch was unreachable from it. That
+     * precondition is GONE -- read_input_buff now also imports the raw
+     * P1SW_0/P2SW_0 START bit, because effect_L7_init's arcade gate tests it
+     * and no segment could reproduce that spawn without it. Leaving the
+     * carve-out below cost exactly what the replay player's did: measured on
+     * the 2026-09-06 corpus, two segments' t_pl_lvr counters fell one behind
+     * the archive's (left_cnt 35 vs 36, right_cnt 53 vs 54) and one segment's
+     * waza w_type did, all of them the pause stalling a frame the arcade ran.
+     * A statcheck archive is the same arcade recording a .3sr is, so it gets
+     * the same answer. */
     if (ReplayPlayer_GetStatus() == REPLAY_PLAYER_PLAYING) {
         return 0;
     }
+
+#if defined(STATCHECK)
+    /* A3b (docs/plan-fcade-replay-browser.md): statcheck replays inject
+     * inputs directly into p1sw_buff/p2sw_buff with no physical controller
+     * attached, so the connection check below would fire the Come_Out
+     * ("controller unplugged") pause on the first gameplay frame and freeze
+     * Game_timer, desyncing every replay at round start. Same carve-out as
+     * the DEBUG test-runner block below (upstream's statcheck input driver
+     * never hits this because its virtual pads report as connected). DEBUG
+     * and STATCHECK cannot be co-compiled, so exactly one gate exists per
+     * build.
+     *
+     * Placement: this returns before the SWK_START check on purpose -- see
+     * the block comment above. STATCHECK is a harness-only build flavor, so
+     * nothing here reaches the shipping binary. */
+    return 0;
+#endif
 
     if (sw & SWK_START) {
         Pause_Type = 1;
@@ -226,19 +253,6 @@ s32 Check_Pause_Term(u16 sw, u8 PL_id) {
     if (configuration.test.enabled) {
         return 0;
     }
-#endif
-
-#if defined(STATCHECK)
-    /* A3b (docs/plan-fcade-replay-browser.md): statcheck replays inject
-     * inputs directly into p1sw_buff/p2sw_buff with no physical controller
-     * attached, so the connection check below would fire the Come_Out
-     * ("controller unplugged") pause on the first gameplay frame and freeze
-     * Game_timer, desyncing every replay at round start. Same carve-out as
-     * the DEBUG test-runner block above (upstream's statcheck input driver
-     * never hits this because its virtual pads report as connected). DEBUG
-     * and STATCHECK cannot be co-compiled, so exactly one gate exists per
-     * build. */
-    return 0;
 #endif
 
     if (Present_Mode == 3) {
