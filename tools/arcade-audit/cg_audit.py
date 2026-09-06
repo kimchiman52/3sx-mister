@@ -1747,9 +1747,15 @@ def audit(cgmap_override=None, quiet=False):
                               past_terminator_bytes_xcopy=sx['tables'][sec]['reach_past_term_bytes'],
                               decode_overrun=t['decode_overrun'])
         chf = caua_hosa_fit(ci)
+        # Reason lists come out of span_closure() as sets, whose iteration order varies
+        # per process (PYTHONHASHSEED). Order carries no meaning here -- these are
+        # human-readable "why the gate stayed open" strings -- but an unsorted set made
+        # cg_audit.json non-byte-reproducible, which silently broke the "the JSON
+        # regenerates identically" check this file is verified with. Sort at emission.
+        _rs = lambda v: (sorted(v) if v else v)
         rec['span_reach'] = dict(tables=spans, reachable_cells=len(sb['nodes']), reachable_cells_xcopy=len(sx['nodes']),
-                                 unmodelled=sb['unmodelled'], throw_notes=sb['throw_notes'],
-                                 xcopy=dict(unmodelled=sx['unmodelled'], donor_notes=sx['donor_notes'],
+                                 unmodelled=_rs(sb['unmodelled']), throw_notes=_rs(sb['throw_notes']),
+                                 xcopy=dict(unmodelled=_rs(sx['unmodelled']), donor_notes=_rs(sx['donor_notes']),
                                             stale_consumers={k: len(v) for k, v in sx['stale'].items()}),
                                  caua_hosa=chf)
         span_why = list(sb['unmodelled'] or []) + list(sb['throw_notes'] or [])
