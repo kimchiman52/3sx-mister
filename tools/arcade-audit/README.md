@@ -45,6 +45,23 @@ re-asks the class-(c) question for the scripts whose shape mismatch made
 `manu:C/N(dD+bB+zZ)` (confirmed direct / bracketed / nothing to adjudicate),
 `?n` for the unconfirmed residue, and `DIVERGENT(s,c)!` where the PS2 oracle
 contradicts a remap delta. `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
+`unmodelled(n,in-range)` / `FOREIGN-OOB(k/n)!`). Every per-cell violation record also carries two independent verdict fields.
+`"dead"` is `cg_audit.py` -> `k7_entry_walk()`: no entry point can reach the
+cell (doc §28; the seven OOB columns read `live+dead`). `"grid"` is
+`grid_phase()` (doc §29): the two releases' bytes for a script are compared
+4-byte block by 4-byte block against the **per-field** cross-release transform
+(word 0/1/4/5 per-u16 byte swap, word 2 a full reversal because the releases
+store `cg_hit_ix`/`cg_att_ix` in opposite order, word 3's four `u8`s
+byte-identical), and the walk reports whether the decoder's cell boundary is
+the data's own. Verdicts: `aligned`, `phantom` (positively off-grid — the only
+one that excuses a finding), `unmodelled`, `past_prefix` (the arcade span
+outruns the PS2 one and the PS2 has no bytes there), `no_oracle`. The run
+prints the census, the shape-mismatch split, and by name every OOB row the
+grid does **not** explain; it exits non-zero if the u32 byte signature ever
+fires on a cell the walk calls `aligned`. This replaces §21.6's "PS2 converter
+artifact" class, which does not exist.
+
+`data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
 RICT HIIT BODA HANA CATA CAUA ATTA HOSA ATIT PROT — where hitboxes, throw
 placement and attack properties live (upstream issue #325). It imports
 `cg_audit.py` for the shared constants and does not modify it. Its invariant:

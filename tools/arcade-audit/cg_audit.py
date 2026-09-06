@@ -1601,7 +1601,165 @@ def manu_delta_gate(ci):
                script_cls=collections.Counter(scripts.values()))
     _MANU_CACHE[ci] = out
     return out
+# ---------------------------------------------------------------- decoder grid phase (doc §29)
+#
+# WHAT THIS SETTLES.  §21.6 recorded a class of "converter artifact" cells, identified by a u32
+# relation between the two releases' bytes at the same offset, and used it to explain away most
+# shape-mismatch findings and every phantom code.  The relation is real; the mechanism was not.
+# The two releases' cell record is NOT a uniform byte-swap of each other -- it is a per-FIELD
+# transform, and which permutation is "genuine" depends on which word of the record you are on
+# (`arc_parse` / `ps2_parse` above are the ground truth for the layout, and `include/structs.h`
+# for the field widths):
+#
+#   word 0  cg_type|cg_ctr (u16), cg_se (u16)      -> per-u16 byte swap        GEN[0] = (1,0,3,2)
+#   word 1  cg_olc_ix (u16), cg_number (u16)       -> per-u16 byte swap, and cg_number is
+#                                                     additionally remap_cg_number()d
+#   word 2  arcade att,hit  vs  PS2 hit,att        -> the PAIR is exchanged AND each u16 swapped,
+#                                                     i.e. all four bytes reversed  GEN[2] = (3,2,1,0)
+#   word 3  cg_extdat|cg_cancel|cg_effect|cg_eftype (four u8) -> bytes unchanged  GEN[3] = (0,1,2,3)
+#   word 4  cg_zoom (u16), cg_rival (u16)          -> per-u16 byte swap
+#   word 5  cg_add_xy (u16), cg_next_ix|cg_status  -> per-u16 byte swap -- MEASURED, and unlike
+#                                                     word 3 the u8 pair swaps too: the arcade
+#                                                     carries next_ix in the low byte of a BE u16
+#                                                     (Gill atca[15] c28, arcade `.. 00 DB`, PS2
+#                                                     `.. DB 00`, next_ix 0xDB on both)
+#
+# So "arcade BE u32 == PS2 LE u32, bit-identical" -- the signature §21.6's re-derivation used -- is
+# GEN[2].  It is the NORMAL relation for the att/hit word of every genuinely converted cell in the
+# game, and it is an anomaly only when it turns up at a word that is not word 2.  That happens when
+# the decoder's cell grid is not the grid the data is on: past a script's real end the bytes belong
+# to whatever follows, whose record boundary and record length need not be the ones this script's
+# 8-byte header declares.  A cell decoded there is a GRID PHANTOM -- every field the decoder reports
+# for it is a field of some other word -- which is why such cells manufacture out-of-range sound
+# codes, out-of-range effect indices and out-of-range `koc`s on both sides at once.
+#
+# HOW THE GRID IS ESTABLISHED.  For every script that exists in both releases with the SAME
+# cgd_type, over the COMMON PREFIX of the two spans (both start at the 8-byte header, so they are
+# aligned there whether or not the tails are), each 4-byte block gets the set of word-roles whose
+# transform explains the observed arcade-vs-PS2 bytes.  The walk starts on the grid the header declares
+# (period cgd, phase 0) and holds that grid until it is CONTRADICTED -- and even then only switches
+# if some other (period, phase) explains at least GRID_MIN_RECORDS whole records from that point.
+# A block no role explains is a content divergence, not a phase change: it leaves the grid alone.
+#
+# FAIL TOWARD "REAL FINDING".  `phantom` is the verdict that excuses a finding, so it is the one
+# that has to be earned: a cell is `phantom` only when some word of it is positively assigned a role
+# that is not its own.  No PS2 counterpart, a counterpart of a different length or cgd_type, a block
+# the walk could not place -- all of those come back `unmodelled` or `no_oracle`, never `phantom`.
+GRID_PERIODS = (2, 4, 6)
+GRID_GEN = {0: (1,0,3,2), 1: (1,0,3,2), 2: (3,2,1,0), 3: (0,1,2,3), 4: (1,0,3,2), 5: (1,0,3,2)}
+GRID_MIN_RECORDS = 4        # a phase switch must explain this many whole records.  Not a fitted
+                            # constant (doc §29.3 sweeps it): the aligned/phantom/unmodelled counts
+                            # are bit-identical for 4, 5 and 6, and the verdict on every violation
+                            # row -- and the assertion below -- is identical for every value 2..12.
 
+def _grid_perm(a, pm): return (a[pm[0]], a[pm[1]], a[pm[2]], a[pm[3]])
+
+def _grid_roles(a, p, ci):
+    """Word-roles whose genuine cross-release transform explains this 4-byte block."""
+    out = set()
+    for r, pm in GRID_GEN.items():
+        if p == _grid_perm(a, pm): out.add(r)
+    if 1 not in out:
+        # word 1's low half is cg_number, which the port remaps; olc must still match verbatim.
+        if ((a[0] << 8) | a[1]) == (p[0] | (p[1] << 8)) and remap((a[2] << 8) | a[3], ci) == (p[2] | (p[3] << 8)):
+            out.add(1)
+    return out
+
+def _grid_script_bytes(ci):
+    """(sec, si, cgd, arcade bytes, ps2 bytes) for every script whose two releases can be compared
+    byte for byte: present on both sides with the same cgd_type.  The spans are the ones
+    `arc_parse` / `ps2_parse` decode (entry offset - 8, i.e. the 8-byte header included); both start
+    at the header, so they are aligned over their COMMON PREFIX even when the two declared lengths
+    differ -- and they often do, because the last script of an over-declared table runs to
+    `location.size` (doc §27).  Only the prefix is returned; a cell past it has no oracle."""
+    arc_tabs = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+    blob, bsd = ps2_tail(ci)
+    offs, sp = ps2_spans(blob)
+    for sec in KOC2SEC.values():
+        b, z = sp[SECTIONS.index(sec)]
+        pents = ps2_offsets(blob, b)
+        aents = arc_tabs[sec]
+        aoff, asize = LOC[ci][sec]
+        aso, pso = sorted(set(aents)), sorted(set(pents))
+        for si in range(min(len(aents), len(pents))):
+            astart, pstart = aents[si] - 8, pents[si] - 8
+            an = [o for o in aso if o > aents[si]]
+            pn = [o for o in pso if o > pents[si]]
+            aend = (an[0] - 8) if an else asize
+            pend = (pn[0] - 8) if pn else z
+            if astart < 0 or pstart < 0 or aend <= astart or pend <= pstart: continue
+            if aoff + aend > len(ROM) or b + pend > len(blob): continue
+            L = min(aend - astart, pend - pstart)
+            if L <= 8: continue
+            acgd = struct.unpack_from('>h', ROM, aoff + astart)[0]
+            pcgd = struct.unpack_from('<h', blob, b + pstart)[0]
+            if acgd != pcgd or acgd not in (1, 2, 4, 6): continue
+            yield sec, si, acgd, ROM[aoff + astart:aoff + astart + L], blob[b + pstart:b + pstart + L]
+
+_GRID_CACHE = {}
+def grid_phase(ci):
+    """Per script: which decoded cells sit on the data's own record grid and which do not.
+    Returns {(sec, si): {'verdict': {cell: 'aligned'|'phantom'|'unmodelled'},
+                         'switches': [[block, period, phase], ...],
+                         'signature': [cells whose word 0 is bit-identical BE-vs-LE],
+                         'prefix_cells': cells covered by the compared prefix}}.
+    Scripts with no byte-comparable counterpart are absent from the map entirely (`no_oracle`);
+    read a cell's verdict through `grid_cell_verdict`, which handles both that and `past_prefix`."""
+    if ci in _GRID_CACHE: return _GRID_CACHE[ci]
+    out = {}
+    for sec, si, cgd, ab, pb in _grid_script_bytes(ci):
+        nb = (len(ab) - 8) // 4
+        S = [_grid_roles(tuple(ab[8+4*j:12+4*j]), tuple(pb[8+4*j:12+4*j]), ci) for j in range(nb)]
+        role = [None] * nb
+        P, f, j, switches = cgd, 0, 0, []
+        while j < nb:
+            if ((j + f) % P) in S[j]:
+                role[j] = (j + f) % P; j += 1; continue
+            best = None
+            for P2 in GRID_PERIODS:
+                for f2 in range(P2):
+                    if (P2, f2) == (P, f): continue
+                    k = j
+                    while k < nb and ((k + f2) % P2) in S[k]: k += 1
+                    if best is None or k > best[0]: best = (k, P2, f2)
+            if best is not None and (best[0] - j) >= min(GRID_MIN_RECORDS * cgd, nb - j):
+                _, P, f = best
+                switches.append([j, P, f])
+                role[j] = (j + f) % P; j += 1
+            else:
+                role[j] = None; j += 1          # a content divergence: the grid is unchanged
+        verdict, sig = {}, []
+        for k in range(nb // cgd):
+            v = 'aligned'
+            for w in range(cgd):
+                j = cgd * k + w
+                r = role[j]
+                if r == w: continue
+                if r is not None: v = 'phantom'; break
+                # The walk declined to place this block.  If nothing explains it at all it is a plain
+                # content divergence and says nothing about the grid; if some OTHER role explains it,
+                # the declared grid is contradicted here and this cell cannot be called aligned --
+                # but neither is it positively off-grid, so it is `unmodelled`, not `phantom`.
+                if w in S[j] or not S[j]: continue
+                v = 'unmodelled'; break
+            verdict[k] = v
+            o = 8 + 4 * cgd * k
+            a32 = struct.unpack_from('>I', ab, o)[0]
+            p32 = struct.unpack_from('<I', pb, o)[0]
+            if a32 == p32 and a32 != (((p32 << 16) | (p32 >> 16)) & 0xFFFFFFFF): sig.append(k)
+        out[(sec, si)] = dict(verdict=verdict, switches=switches, signature=sig, prefix_cells=nb // cgd)
+    _GRID_CACHE[ci] = out
+    return out
+
+def grid_cell_verdict(g, cell):
+    """`no_oracle`  the PS2 has no script at this index, or it is a different cgd_type;
+       `past_prefix` the arcade span outruns the PS2 one and this cell is in the arcade-only tail --
+                     the PS2 has no bytes there, so no byte test of any kind applies;
+       `unmodelled`  in the compared prefix, but the walk could not place some word of the cell;
+       `aligned` / `phantom` as in the header comment.  Only `phantom` excuses a finding."""
+    if g is None: return 'no_oracle'
+    if cell >= g['prefix_cells']: return 'past_prefix'
+    return g['verdict'].get(cell, 'unmodelled')
 # ---------------------------------------------------------------- SA naming for saca scripts
 def sa_labels(ci):
     """map saca script index -> list of SA-table slots that select it (asstbl.c 9900_g/_a arcade rows)."""
@@ -1660,7 +1818,8 @@ def audit(cgmap_override=None, quiet=False):
                    extra_script=0, extra_cells=0,
                    se_oob=0, eff_oob=0, tama_oob=0, sasign_oob=0, code_oob=0, koc_oob=0, idx_oob=0,
                    se_oob_dead=0, eff_oob_dead=0, tama_oob_dead=0, sasign_oob_dead=0,
-                   code_oob_dead=0, koc_oob_dead=0, idx_oob_dead=0)
+                   code_oob_dead=0, koc_oob_dead=0, idx_oob_dead=0,
+                   oob_phantom=0, oob_not_phantom=0)
         for koc, sec in KOC2SEC.items():
             an, pn = len(arc_tabs[sec]), len(ps2_tabs[sec][2])
             for si in range(an):
@@ -1683,14 +1842,23 @@ def audit(cgmap_override=None, quiet=False):
                         cls['extra_cells'] += len(lcells)
                         rec['violations'].append(dict(cls='extra_script_no_oracle', table=sec, script=si,
                                                       arc_cells=len(acells), l_cells=len(lcells)))
+                gridsc = grid_phase(ci).get((sec, si))
                 shape_ok = (pcells is not None and len(pcells) == len(acells)
                             and all(a[0] == p[0] for a, p in zip(acells, pcells)))
                 if pcells is not None and not shape_ok and acells:
                     cls['needs_manual'] += 1
+                    # doc §29: a C-vs-L shape mismatch is explained when the decoder is off the data's
+                    # own record grid somewhere in the script; `no_oracle` means the two releases'
+                    # spans are not byte-comparable at all, so nothing explains it either way.
                     rec['violations'].append(dict(cls='needs_manual_diff', table=sec, script=si,
                                                   arc_cells=len(acells),
                                                   ps2_cells=(len(pcells) if pcells is not None else None),
-                                                  sa=salab.get(si) if sec == 'saca' else None))
+                                                  sa=salab.get(si) if sec == 'saca' else None,
+                                                  grid=('no_oracle' if gridsc is None else
+                                                        'phantom' if 'phantom' in gridsc['verdict'].values()
+                                                        else 'aligned' if len(acells) <= gridsc['prefix_cells']
+                                                        else 'aligned_prefix'),
+                                                  grid_prefix_cells=(None if gridsc is None else gridsc['prefix_cells'])))
                 for cidx, c in enumerate(acells):
                     pcell = pcells[cidx] if (shape_ok) else None
                     # A value identical on both sides is a PRE-EXISTING property of the
@@ -1703,10 +1871,17 @@ def audit(cgmap_override=None, quiet=False):
                         return False
                     def viol(counter, kind, **kw):
                         """Record one OOB-index violation on this cell and count it under the live or the
-                        dead half of `counter` -- never suppress the dead one (see `cls` above)."""
+                        dead half of `counter` -- never suppress the dead one (see `cls` above).
+                        `grid` is the independent second axis (doc §29): `phantom` says the cell is
+                        decoded off the data's own record grid, so the out-of-range index is a field of
+                        some other word and not a value anything authored.  Anything the grid model
+                        cannot place is NOT `phantom`, so it stays a finding to adjudicate."""
                         d = cidx in dead
+                        g = grid_cell_verdict(gridsc, cidx)
+                        cls['oob_phantom' if g == 'phantom' else 'oob_not_phantom'] += 1
                         cls[counter + '_dead' if d else counter] += 1
-                        rec['violations'].append(dict(cls=kind, table=sec, script=si, cell=cidx, **kw, dead=d))
+                        rec['violations'].append(dict(cls=kind, table=sec, script=si, cell=cidx, **kw,
+                                                      dead=d, grid=g))
                     if c[0] == 'C':
                         code, kc, ix, pat = c[1], c[2], c[3], c[4]
                         pre = (pcell is not None and pcell[0] == 'C'
@@ -1753,7 +1928,8 @@ def audit(cgmap_override=None, quiet=False):
                     v = dict(table=sec, script=si, cell=cidx, raw=raw, remapped=rm, group=grp,
                              ps2=ps2num, ps2_group=(OGT[ps2num] if (ps2num is not None and ps2num < OGT_N) else None),
                              confidence=('high' if shape_ok else 'low-shape-differs'),
-                             sa=salab.get(si) if sec == 'saca' else None, dead=(cidx in dead))
+                             sa=salab.get(si) if sec == 'saca' else None, dead=(cidx in dead),
+                             grid=grid_cell_verdict(gridsc, cidx))
                     if rm >= OGT_N:
                         cls['a_oob'] += 1; v['cls'] = 'a_ogt_oob'; rec['violations'].append(v)
                     elif grp == 0 and rm != 0:
@@ -1850,6 +2026,27 @@ def audit(cgmap_override=None, quiet=False):
                               past_terminator_bytes=t['reach_past_term_bytes'],
                               past_terminator_bytes_xcopy=sx['tables'][sec]['reach_past_term_bytes'],
                               decode_overrun=t['decode_overrun'])
+        # Decoder grid phase (doc §29). `signature` is the u32 byte relation §21.6's re-derivation
+        # used -- arcade BE == PS2 LE at the same offset, on a cell's word 0.  It is GEN[2], the
+        # att/hit word's normal relation, so a hit means the decoder is reading word 2 as word 0.
+        # `signature_not_phantom` is the assertion: if the byte signature ever fires on a cell the
+        # grid walk calls aligned, one of the two models is wrong and the run says so.
+        gp = grid_phase(ci)
+        gstats = dict(scripts=len(gp), switch_scripts=0, aligned=0, phantom=0, unmodelled=0,
+                      signature=0, signature_not_phantom=0, signature_unmodelled=0)
+        grid_detail = {}
+        for (sec2, si2), g in sorted(gp.items()):
+            if g['switches']: gstats['switch_scripts'] += 1
+            for v2 in g['verdict'].values(): gstats[v2] += 1
+            gstats['signature'] += len(g['signature'])
+            gstats['signature_not_phantom'] += len([k2 for k2 in g['signature']
+                                                    if g['verdict'].get(k2) not in ('phantom', 'unmodelled')])
+            gstats['signature_unmodelled'] += len([k2 for k2 in g['signature'] if g['verdict'].get(k2) == 'unmodelled'])
+            if g['switches'] or g['signature']:
+                grid_detail["%s[%d]" % (sec2, si2)] = dict(
+                    switches=g['switches'], signature=g['signature'],
+                    phantom_cells=len([k2 for k2, v2 in g['verdict'].items() if v2 == 'phantom']))
+        rec['grid_phase'] = dict(off_grid_scripts=grid_detail, **gstats)
         chf = caua_hosa_fit(ci)
         # Reason lists come out of span_closure() as sets, whose iteration order varies
         # per process (PYTHONHASHSEED). Order carries no meaning here -- these are
@@ -1896,6 +2093,12 @@ def audit(cgmap_override=None, quiet=False):
                             span_gate_reasons=len(span_why),
                             span_gate_xcopy=('closed' if not span_why_x else 'unmodelled'),
                             span_gate_xcopy_reasons=len(span_why_x),
+                            grid_scripts=gstats['scripts'], grid_switch_scripts=gstats['switch_scripts'],
+                            grid_aligned=gstats['aligned'], grid_phantom=gstats['phantom'],
+                            grid_unmodelled=gstats['unmodelled'],
+                            grid_signature=gstats['signature'],
+                            grid_signature_not_phantom=gstats['signature_not_phantom'],
+                            grid_signature_unmodelled=gstats['signature_unmodelled'],
                             caua_hosa_over_declared=chf['caua']['over_declared'] + chf['hosa']['over_declared'],
                             caua_hosa_tail_reached=int(chf['caua']['tail_reached'] or chf['hosa']['tail_reached']),
                             # doc §29: the `manu` scripts, adjudicated per raw cg_number instead of
@@ -2023,6 +2226,29 @@ if __name__ == "__main__":
                   "ours delta %+d -> group %s, oracle %+d -> group %s"
                   % (n, sec, si, len(g), min(v['raw'] for v in g), max(v['raw'] for v in g),
                      g[0]['delta'], g[0]['group'], g[0]['oracle_delta'], g[0]['oracle_group']))
+    # doc §29: the decoder grid, and what it does to the OOB findings. The "converter artifact"
+    # class §21.6 named does not exist -- the u32 byte relation it was identified by is the att/hit
+    # word's own relation, so every hit is a cell decoded off the data's record grid.
+    print("grid phase: %d byte-comparable scripts, %d with a phase switch; cells %d aligned / %d phantom / %d unmodelled; byte signature (arcade BE u32 == PS2 LE u32 at a cell's word 0): %d, of which %d phantom, %d unmodelled, %d aligned"
+          % (T['grid_scripts'], T['grid_switch_scripts'], T['grid_aligned'], T['grid_phantom'],
+             T['grid_unmodelled'], T['grid_signature'],
+             T['grid_signature'] - T['grid_signature_unmodelled'] - T['grid_signature_not_phantom'],
+             T['grid_signature_unmodelled'], T['grid_signature_not_phantom']))
+    if T['grid_signature_not_phantom']:
+        print("FATAL: the byte signature fired on a cell the grid walk calls aligned -- the two models disagree (doc §29)")
+        sys.exit(1)
+    print("OOB-index rows: %d explained by the grid (phantom), %d not -- every one of those must stand on its own (doc §29.5)"
+          % (T['oob_phantom'], T['oob_not_phantom']))
+    nmg = {}
+    for n in NAMES:
+        for v in res[n]['violations']:
+            if v['cls'] == 'needs_manual_diff': nmg[v['grid']] = nmg.get(v['grid'], 0) + 1
+    print("shape-mismatched scripts by grid: %s" % ", ".join("%s %d" % (k, nmg[k]) for k in sorted(nmg)))
+    for n in NAMES:
+        for v in res[n]['violations']:
+            if v.get('grid') != 'phantom' and v['cls'].startswith('a_'):
+                print("  %-7s %-5s %4d c%-3d %-16s grid=%-9s dead=%s"
+                      % (n, v['table'], v['script'], v['cell'], v['cls'], v['grid'], v['dead']))
     # doc §27: the over-declared spans, and what the digest hashes past the real data
     digest_in = sum(LOC[ci][sec][1] for ci in range(20) for sec in SECTIONS)
     junk = T['span_junk_bytes'] + sum(res[n]['stats']['caua_hosa_over_declared'] * 8 for n in NAMES)

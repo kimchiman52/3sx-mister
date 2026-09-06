@@ -42,8 +42,11 @@ command and its observed output, or a named primary source. Things that were
   currently **silent**, not just wrong. Read §21.3 before diffing any sound
   code: codes are equivalent iff equal **mod 32**, so a raw diff over-reports.
 - **About to audit another byte-passed field?** §21.4 — cell-index alignment
-  misses 478 scripts cast-wide; §21.6 — 781 cells look divergent but are PS2
-  converter artifacts (dead data). Both traps cost a pass to find.
+  misses 478 scripts cast-wide; §21.6/§30 — 1,402 cells look divergent because
+  the **decoder** is reading a cell boundary the data does not have, so every
+  field it reports there belongs to a different word. (§21.6 called that class
+  "PS2 converter artifacts"; §30 shows no converter did anything to them and
+  fixes the count.) Both traps cost a pass to find.
 - **Suspecting `cg_zoom` (super camera zoom) or `cg_effect`/`cg_eftype`
   (spawned effects)?** §22 — both were value-diffed arcade-vs-PS2 and are
   **clean**: no camera-zoom-level divergence exists anywhere in the 20
@@ -66,6 +69,12 @@ command and its observed output, or a named primary source. Things that were
   and closed; `cg_audit.py` re-derives it (`xcopy:` column) and also computes
   what a swap *would* consume, so a gate it cannot prove is reported, not
   assumed.
+- **About to explain a finding away as a "converter artifact"?** §30 — there
+  is no such class. The u32 byte relation §21.6 identified it by is the
+  `cg_hit_ix`/`cg_att_ix` word's own cross-release relation (the two releases
+  store the pair in opposite order), so every hit is that word read at a cell
+  boundary the data does not have. Every violation row now carries `"grid"`
+  beside `"dead"`, and only `"phantom"` excuses anything.
 - **Reading an out-of-range-index count in the audit, or about to call a cell
   dead?** §28 — every `*_oob` column is split `live+dead` and the dead half is
   an entry-point closure over the six intra-script writers of `cg_ix`, not a
@@ -187,6 +196,7 @@ command and its observed output, or a named primary source. Things that were
 | Dudley dangling OVCT next-index (arcade entry 177 → 178) | **CLOSED 2026-09-06 — unreachable, defended by the audit** (§25). The walk needs 297 (seed 130) / 594 (seed 82) consecutive frames of one `olc`; the master can hold those for ≤ 179 / 148 — the run's script frames plus one positive `hit_stop` per renewal cell, bounded at 23 by the largest value any writer hands an attacker. No code change; `cg_audit.py` -> `ovct_dangling_hold()` re-derives the bound; row `walk>end-unreached[178:hold<=179/297]` |
 | 1,694 wrong-sprite cells (measured against the audit's oracle reach — §11.2 notes 162 more scripts, 2,441 cells, with no oracle at all) | **MOSTLY LANDED** items D, E, N (§8.D, §8.E, §8.N) — class (c) 1688 (post-§8.K baseline) → 89; item F (Chun-Li, 72 of the 89) investigated, deliberately left as-is (§8.F); remaining 17 enumerated with reasons (§8.D's Urien 0x52D9 ambiguity, and 7 of Necro/Hugo/Yun/Akuma's 9 smaller own-group cells — the same per-raw-value ambiguity; Akuma's other 2, `0x546B`, are a no-oracle block on a unanimous delta, not an ambiguity — §8.P) |
 | Shape-divergent scripts (316) | **CLOSED 2026-09-06 — adjudicated, defended by the audit, and one real divergence found** (§29). A shape mismatch only means `audit()` skipped class (c) there; the question is decidable without the cell pairing, because `remap()` is a pure function of the raw `cg_number`, so a raw appearing in any shape-ok script is pinned by that script's PS2 counterpart. All 316: **225 direct + 60 bracketed + 20 no-live-cells + 4 unresolved + 7 DIVERGENT**; their 3,320 live L-cells: 2,710 + 465 + 94 bracket-disagree + 0 unbracketed + 51 divergent. Of the 51, **44 are new — Twelve `dmca[3]/[90]/[91]`, a hole in `twelve_cg_ranges` (§8.S, reported not fixed)**; the other 7 are §8.N's and §8.P's already-enumerated cells, independently rediscovered. The 4 unresolved are named with exactly what is unread (§29.5). No code change; `cg_audit.py` -> `manu_delta_gate()` re-derives it every run. §11.4's hardware oracle was assessed and **could not** answer this predicate — CPS3 RAM reports arcade numbering, not the PS2-side index the remap targets (§29.6) |
+| **The "converter artifact" class** (§21.6) | **CLOSED 2026-09-06 — the class does not exist** (§30). The u32 byte relation it was identified by is the `cg_hit_ix`/`cg_att_ix` word's own cross-release relation (the two releases store the pair in opposite order), so every one of the 1,402 hits is that word read at a cell boundary the data does not have. The verdict §21.6 reached is unchanged and now stands on `grid_phase()` + `k7_entry_walk`; its stated mechanism is withdrawn |
 | Upstream issue #363 | **OPEN** upstream; our findings not yet reported (§13) |
 | **The other 13 sections** (issue **#325**) | **AUDITED, no defect** — differences enumerated and classified (§15) |
 | **Arcade command tables** (input recognition) | **CLOSED — no bug** (§16) |
@@ -3433,6 +3443,23 @@ does not have (a genuine data difference; nothing to fix under arcade fidelity).
 
 ### 21.6 Negative result: 781 cells are converter artifacts, not divergences
 
+> **SETTLED BY §30 (2026-09-06). The verdict holds; the number is 1,402 and the
+> mechanism named below is withdrawn.** §30 re-derived this section's own
+> predicate — arcade BE u32 equal to the PS2 LE u32 at the same offset, taken
+> on a cell's word 0 — and it fires on **1,009** cells under this section's
+> gate (both releases' scripts present, same declared byte length, same
+> `cgd_type`), reproducing **Yang 337, Dudley 100 and Gill 65 to the cell**;
+> only Urien differs (148 measured, 77 written here). Relaxing the gate to the
+> common prefix the two spans share — they are aligned at the header whether or
+> not the tails are — takes it to **1,402**, which is the number the audit
+> emits. §22.10's 258 is a *different, weaker* predicate over a *smaller*
+> script population; it was never a subset claim, and the two numbers were
+> never measuring the same set. **But none of them is a converter artifact.**
+> The u32 relation is the `cg_hit_ix`/`cg_att_ix` word's *normal* cross-release
+> relation — the two releases store that pair in opposite field order — so a
+> hit means the decoder is reading word 2 as word 0, i.e. its cell boundary is
+> not the data's. Read §30 before using anything below.
+
 This is the finding that explains most "shape mismatch" and every phantom code,
 and it is recorded here so no future pass re-opens it.
 
@@ -3454,6 +3481,23 @@ read as C-vs-L cell-kind flips — hence "shape mismatch" — and manufacture
 phantom codes on *both* sides (arcade `0xA00`/`0xC00`/`0xE00`; PS2
 `0xD9D`/`0xF05`/`0xF9C`/…).
 
+> **Two errors in that paragraph, both fixed by §30.2, and the sentence is left
+> standing so the reasoning can be followed.** (i) The relation as *written* —
+> arcade BE u32 == PS2 LE u32 with the halves crossed — is the relation every
+> **correctly converted** word 0, 1, 4 and 5 in the game satisfies; it is
+> per-u16 byte-swapping expressed in the u32 domain, not an anomaly. What was
+> actually measured (and what the addendum at the end of this section uses) is
+> the *bit-identical* relation, which is the same statement about the u16
+> **values** being exchanged. (ii) The blanket-u32 story is wrong in both
+> directions: nothing is uniformly reversed in these regions (word 3's four
+> `u8` fields are byte-identical between the releases on a correctly decoded
+> cell, and per-u16 swapped on these), and the one word that *is* reversed for
+> every genuine cell in the game is word 2, `cg_hit_ix`/`cg_att_ix`, which the
+> two releases store in opposite order. There is no converter behaviour to
+> explain: the bytes are the same authored data on both sides, and it is
+> `arc_parse`/`ps2_parse`'s uniform `cgd_type` stride that is off the data's
+> own record boundary past a script's real end.
+
 Three independent arguments that they are dead data:
 
 1. Every such cell sits **past its script's first terminator command** —
@@ -3463,7 +3507,10 @@ Three independent arguments that they are dead data:
    Yang `cbca[47]` cell 3 (`code=22` -> `saca[44]` pat 23), lands on cell 22,
    which is `comm_jmp saca[75]` and immediately redirects.
 3. The converter's own blanket-u32 treatment is evidence that **Capcom's script
-   walker considered them non-cell data**.
+   walker considered them non-cell data**. *(Withdrawn by §30.2: there is no
+   blanket-u32 treatment. What survives of the intuition is stronger — the
+   region is on a different record grid from the one this script's header
+   declares, which is only possible if it is not this script's cells.)*
 
 Same verdict for all 31 arcade cells carrying a non-random `se >= 0x400`
 (`0x400`, `0x4C8`, `0x600` — the only three values that occur).
@@ -3509,6 +3556,17 @@ Three facts about the same 31 rows, each measured rather than inherited:
 So the verdict no longer depends on the 781 census or on the terminator
 convention, and it is checkable from `cg_audit.json` (`"cls": "a_se_oob"`,
 `"dead": true`) rather than from prose.
+
+**And the asymmetry now has a name (§30).** Every violation row carries a
+second, independent field, `"grid"`. Of these 31: **16 are `phantom`** — the
+decoder is positively off the data's record grid there, so the `se` is a field
+of some other word — and **15 are `past_prefix`**, all Yun's, where the arcade
+span outruns the PS2 one and the PS2 has no bytes at that offset at all, so no
+byte test of any kind applies. The two halves land on the same
+ROM locations as the seven/eight split above — the 16 `phantom` rows are the
+seven bit-identical locations, the 15 `past_prefix` rows the eight Yun ones —
+re-derived by a different instrument. The 15 stand on
+`"dead": true` alone, which is what §28 established and is unaffected.
 
 ### 21.7 Results: six live divergences, 29 cells
 
@@ -3663,6 +3721,11 @@ alongside the other digest-changing fixes.
   the converter's own treatment. It is not full control-flow simulation, and
   `rja`/`uja` conditional-jump argument semantics are not fully modelled. Same
   epistemic status as §20.5's "apparently unreachable".
+  *(Superseded twice since: §28 replaced the linear-prefix position with
+  `k7_entry_walk`'s entry-point closure over six intra-script writers of
+  `cg_ix`, and §30 replaced "the converter's own treatment" with a byte-level
+  grid model. Both are still static over-approximations, so the epistemic
+  caveat stands; the supports it names do not.)*
 - **Whether CPS3 Q's throw-reaction silence was intentional authoring** or an
   omission Capcom corrected for the PS2 release (§21.10).
 
@@ -3755,7 +3818,10 @@ cast-wide set diff (the six pairs fall out as exactly the arcade-only live
 voice codes, with `0x10A`, Yang `0x269`/`0x27F` appearing and being excluded
 for §21.9's recorded reasons). §21.6's 781-cell artifact census was **not**
 reproduced (a cruder byte-aligned predicate found 258 of them, Alex + Yang
-only); it did not need to be, because of the fourth oracle:
+only); it did not need to be, because of the fourth oracle. *(§30.1: the two
+predicates are not nested and never were — 258 was a weaker test over a smaller
+script population, and §21.6's own predicate reproduces at 1,009 / 1,402. The
+grid caveat below is right and is what §30 generalises.)*
 
 **The grid caveat (new).** §21.6's converter-mangled regions do not merely
 *look* divergent under a cell diff — the two sides' parsers read them on
@@ -3766,7 +3832,9 @@ is *also* polluted by this (it was how a first pass of this run briefly
 **grid-independent u16-stream compare**: read the whole script span as BE u16s
 (arcade) vs LE u16s (PS2) and accept a position as equal iff (a) the values
 match, (b) the raw bytes match (u8 sub-fields read as u16 flip per-endian),
-(c) the u32's two u16 halves are crossed (§21.6's converter signature), or
+(c) the u32's two u16 halves are crossed (§21.6's signature — §30.2 identifies
+it as the `cg_hit_ix`/`cg_att_ix` field-order exchange, which is why accepting
+it is correct here and why it is not evidence of a converter), or
 (d) PS2 == `remap_cg_number(arcade)`. Every equal-length flagged script
 resolved to **zero unexplained positions** under this compare (16 scripts:
 Dudley `saca[36..39]`, Oro `saca[28..31]`, Remy `saca[63]`, Urien
@@ -3857,7 +3925,15 @@ is never dispatched). Both under the table's 59. Every one of the 53 cells
 `cg_audit.py` flags as `a_effinit_oob` (Yang `saca[44..47]` eff 64, Urien
 `atca[24..26]` eff 78, Remy `saca[63]` eff 116/117) was re-verified to sit
 **past its script's first terminator** (cells 28+/34+/82+ vs terminators at
-cells 22/31/20 respectively) — dead-region phantoms, §21.6's class. And the
+cells 22/31/20 respectively) — dead-region phantoms, §21.6's class.
+*(§30.4 says exactly which phantom: all 53 are `"grid": "phantom"`, and in
+every one the word the decoder reads as `cg_extdat|cg_cancel|cg_effect|cg_eftype`
+is placed by the grid walk at role **1**, `cg_olc_ix|cg_number`. Remy
+`saca[63]` c100 is the worked case — arcade bytes `00 00 74 54` at the
+decoder's word 3, reported as `eff 116, eftype 84`, are the single `cg_number`
+`0x7454`; the run of "eff 116, data 65..89" then "eff 117, data 149..154" is
+the run of CG numbers `0x7441..0x7459`, `0x7595..0x759A`. Not a terminator
+argument, and not a converter's.)* And the
 904 cell-aligned `comm_exec` cells diverge in **zero** operands; `comm_sse`
 re-verified at 0 divergences over its 61 cell-aligned cells (§21.11's 73 was
 the cast-wide count including shape-mismatched scripts).
@@ -3945,7 +4021,11 @@ and 32-33 are named; 28-31 are not), and an over-broad §20.3-style operand
 scan over all of Oro's ten tables finds **zero references** to `(koc=5, ix
 28..31)`. Same epistemic status as §20.5. The practical lesson survives:
 **"past the first terminator" is a sufficient but not necessary artifact
-signature; the stream compare is the reliable oracle.**
+signature; the stream compare is the reliable oracle.** *(§30.4 measures this
+script directly: Oro `saca[28..31]` switches grid twice — at block 29 to
+`(period 6, phase 2)` and at block 105 to `(period 6, phase 4)` — and 120 of
+its cells come back `"grid": "phantom"`. The "two containers, two grids"
+reading is confirmed by a model that never looks at terminators.)*
 
 ### 22.10 What this analysis does not establish
 
@@ -3967,6 +4047,22 @@ signature; the stream compare is the reliable oracle.**
   781 were, under a stricter byte-aligned predicate). The stream compare
   supersedes the census for every script this pass needed to decide, but the
   number 781 itself still rests on §21.6's derivation alone.
+  > **RESOLVED 2026-09-06 by §30 — and the framing above was wrong on one
+  > point.** "258 of the 781" reads as a subset claim; it is not one, and this
+  > pass never established that it was. The two predicates measure different
+  > things over different populations: §21.6's is a u32 byte relation at a
+  > cell's word 0 over every script pair with the same declared length and
+  > `cgd_type`; this pass's is a byte-aligned test applied only to the scripts
+  > its own zoom/effect diff had flagged, which is why it saw Alex and Yang and
+  > nothing else. Re-run properly, §21.6's own predicate gives **1,009** under
+  > §21.6's gate (Yang 337, Dudley 100, Gill 65 exactly as written; Urien 148,
+  > not 77) and **1,402** over the common prefix, which is what
+  > `cg_audit.py` now emits. Neither number counts converter artifacts:
+  > §30.2 identifies the relation as the `cg_hit_ix`/`cg_att_ix` word's own,
+  > and every hit as that word decoded at a cell boundary the data does not
+  > have. Stop calling either number "the converter-artifact count"; the
+  > standing name is **grid phantom**, and `cg_audit.py` -> `grid_phase()`
+  > re-derives it on every run.
 - **The frozen-camera merge path** (`bg_stop != 0` in `check_cg_zoom`) was
   traced for which bits it reads, not exercised; the Yun/Yang `0x4000`
   three-cell differences were classified by mechanism, and their on-screen
@@ -6280,3 +6376,313 @@ rather than as prose going stale.
 - **Cell ordering within a confirmed script.** The gate is a per-raw-value
   test; it would not notice two live cells of the same script exchanging
   positions if both raws are separately confirmed.
+
+## 30. The "converter artifact" class does not exist — its signature is the att/hit word read on the wrong grid, and the audit now derives it (thirteenth pass, 2026-09-06)
+
+**Citation style for this section.** As in §21-§28: this document is not in
+`tools/doc-citations/baselines.txt`; everything below cites a **symbol** in a
+named file, or a number the audit emits, never a line number.
+
+This section settles the contradiction the document carried between §21.6
+("781 cells are converter artifacts") and §22.10 ("258 of the 781 were
+reproduced; the number 781 rests on §21.6's derivation alone"). Both sections
+were right that the cells are not divergences. Both were wrong about what the
+class *is*, and the number was wrong in a way that mattered: it was low.
+
+### 30.1 The two numbers measure different things, and neither is a subset of the other
+
+- **781** (§21.6) is a census under a **u32 byte relation at a cell's word 0**,
+  over every script that exists in both releases with the same declared byte
+  length and the same `cgd_type`. Re-run, that predicate gives **1,009** cells,
+  and it reproduces §21.6's own per-character figures for three of the four it
+  names — **Yang 337, Dudley 100, Gill 65, to the cell**. Only Urien differs:
+  148 measured against 77 written. That match on three of four is why the
+  predicate below is the one §21.6 used; the derivation itself was never
+  recorded, so the 228-cell gap (Urien's `saca[70..73]` and `atca[159]` account
+  for 71 of it) cannot be attributed further and is left as an unreproduced
+  step, not explained away.
+- **258** (§22.3, §22.10) is a **different, weaker** test — "a cruder
+  byte-aligned predicate", in that section's own words — applied only to the
+  scripts §22's zoom/effect diff had already flagged. That is why it saw Alex
+  and Yang and nothing else: it was never run over the cast. "258 of the 781"
+  reads as a subset claim, but §22 did not establish containment and could not
+  have; the populations differ.
+
+So: **neither number is "the converter-artifact count", because there is no
+converter artifact to count.** The relation both were built on is the normal
+one for one particular word of every correctly converted cell in the game.
+
+### 30.2 The cross-release transform is per-field, and word 2 is a full byte reversal (measured)
+
+The PS2 cell record is `structs.h` -> `u8 cg_type; u8 cg_ctr; u16 cg_se; u16
+cg_olc_ix; u16 cg_number; u16 cg_hit_ix; s16 cg_att_ix; u8 cg_extdat; u8
+cg_cancel; u8 cg_effect; u8 cg_eftype; u16 cg_zoom; u16 cg_rival; u16
+cg_add_xy; u8 cg_next_ix; u8 cg_status`. `cg_audit.py` -> `arc_parse` and
+`ps2_parse` are the two readings of it, and they differ **per word**, not
+uniformly: `arc_parse` reads `>hH` as `att, hit`, `ps2_parse` reads `<Hh` as
+`hit, att` — the two releases store that pair in **opposite order** — while
+the four `u8`s of word 3 are read at the same byte positions on both sides.
+
+Measured over all 14,087 byte-comparable script pairs, counting only the blocks
+where exactly one of the three candidate permutations holds (so no zero-filled
+block votes):
+
+| word | fields | `id` (0,1,2,3) | `u16sw` (1,0,3,2) | `rev32` (3,2,1,0) | neither |
+|---|---|---|---|---|---|
+| 0 | `cg_type\|cg_ctr`, `cg_se` | 3 | **168,078** | 1,402 | 2,051 |
+| 1 | `cg_olc_ix`, `cg_number` | 475 | **28,588** | 0 | 124,603 |
+| 2 | `cg_hit_ix`, `cg_att_ix` | 0 | 1,035 | **89,350** | 1,736 |
+| 3 | `cg_extdat\|cg_cancel\|cg_effect\|cg_eftype` | **11,697** | 214 | 0 | 1,338 |
+| 4 | `cg_zoom`, `cg_rival` | 0 | **2,893** | 222 | 3,536 |
+| 5 | `cg_add_xy`, `cg_next_ix\|cg_status` | 272 | **8,413** | 0 | 774 |
+
+(word 1's "neither" is `remap_cg_number`; word 4's is the `cg_rival`/`cg_zoom`
+content the releases genuinely differ on, §22.4.)
+
+Read that table with §21.6's headline sentence in hand and two things fall out.
+
+1. **"Arcade BE u32 == PS2 LE u32 with the halves crossed"** — the relation
+   §21.6 states — is `u16sw` written in the u32 domain. It is what words 0, 1,
+   4 and 5 do in **every** correctly converted cell. As a predicate it would
+   fire on essentially the whole game, so it is not what §21.6 measured; the
+   addendum §28 later added to that same section uses the **bit-identical**
+   relation, and that is the one that produces the census.
+2. **"Arcade BE u32 == PS2 LE u32, bit-identical"** is `rev32`, and `rev32` is
+   word 2's own transform — the `cg_hit_ix`/`cg_att_ix` field-order exchange
+   plus each half's byte swap. It is an anomaly *only at a word that is not
+   word 2*. Nothing about it implicates a converter: there is no blanket-u32
+   treatment anywhere (word 3 is byte-identical on a correctly decoded cell and
+   `u16sw` on an anomalous one — the exact opposite of a uniform reversal).
+
+**Worked example, the one §21.6's addendum picked.** Gill `atca[15]` c30,
+arcade `02 C4 60 00` against PS2 `00 60 C4 02` — the same four bytes reversed.
+The script's first terminating command (`decode_chcmd[1]` -> `comm_roa`, in
+`cg_audit.py`'s `TERMINATORS`) is at cell 22; from cell 24
+on, every one of this script's decoded cells reads `rev32` at word 0 and
+`u16sw` at word 3, which is the profile of the roles **2,3,4,5,0,1** — the
+decoder's cell boundary is **8 bytes early** relative to the data's. Decode the
+tail at that offset instead and the whole region is ordinary converted data:
+word 0 carries `cg_type 0x00 / cg_ctr 0x02`, word 1 carries `cg_number`
+`0x00DA, 0x00DB, 0x00DC, 0x01AE, 0x01AF` — a consecutive run of CG numbers,
+identical on both sides.
+
+### 30.3 The grid walk, and why its one constant is not fitted
+
+`cg_audit.py` -> `grid_phase(ci)`. For every script that exists in both
+releases with the same `cgd_type`, over the **common prefix** of the two spans
+(both start at the 8-byte header, so they are aligned there whether or not the
+tails are — and they often are not, because the last script of an over-declared
+table runs to `location.size`, §27):
+
+1. Every 4-byte block gets the set of word-roles whose transform (the table
+   above, with `remap_cg_number` tolerated at role 1) explains the observed
+   arcade-vs-PS2 bytes.
+2. The walk starts on the grid the header declares — period `cgd_type`, phase 0
+   — and **keeps** it until it is contradicted.
+3. On a contradiction it switches only if some other (period, phase), period
+   drawn from `{2, 4, 6}`, explains at least `GRID_MIN_RECORDS` whole records
+   from that point. Otherwise the block is a **content divergence** and the
+   grid is left alone. That is what keeps the 89 `c_mismatch_own_group`
+   wrong-sprite cells `aligned`: a `cg_number` that differs beyond the remap
+   explains nothing and moves nothing.
+4. A cell is `phantom` only when some word of it is **positively assigned** a
+   role that is not its own. `aligned` when every word sits on its own role.
+   `unmodelled` when the walk could not place a word that some other role does
+   explain. `past_prefix` when the arcade span outruns the PS2 one and the PS2
+   has no bytes at that offset. `no_oracle` when there is no PS2 script at that
+   index, or its `cgd_type` differs.
+
+**Only `phantom` excuses a finding**, and it is the hardest verdict to reach —
+the house rule for this class of tooling (§24.5, §25.6, §26.7, §27.6, §28).
+
+`GRID_MIN_RECORDS = 4` is the model's one threshold (the period set `{2, 4, 6}`
+is the other choice, and it is the set of `cgd_type`s the format has), and the
+classification does not turn on it. Sweeping it:
+
+| `GRID_MIN_RECORDS` | aligned | phantom | unmodelled | switch scripts | signature: phantom / unmodelled / **aligned** |
+|---|---|---|---|---|---|
+| 2 | 165,446 | 2,747 | 328 | 145 | 1,347 / 55 / **0** |
+| 3 | 165,720 | 2,189 | 612 | 143 | 1,343 / 59 / **0** |
+| **4** | **165,738** | **2,169** | **614** | **143** | **1,343 / 59 / 0** |
+| 5 | 165,738 | 2,169 | 614 | 143 | 1,343 / 59 / **0** |
+| 6 | 165,738 | 2,169 | 614 | 143 | 1,343 / 59 / **0** |
+| 8 | 165,706 | 2,168 | 647 | 143 | 1,319 / 83 / **0** |
+| 12 | 165,706 | 2,168 | 647 | 143 | 1,319 / 83 / **0** |
+
+4 sits in the middle of a plateau (4, 5 and 6 are bit-identical), and the
+verdict on the OOB violation rows is the same at every value in the table. The
+last column is the assertion in §30.6: **at no threshold does the byte
+signature ever fire on a cell the grid walk calls `aligned`.**
+
+### 30.4 Result: 1,402 cells, and every one of them is word 2
+
+Under the shipped gate the byte signature fires on **1,402** cells: Alex 399,
+Yang 337, Twelve 162, Urien 148, Dudley 100, Necro 74, Gill 65, Remy 59, Oro
+48, Yun 4, Ibuki 4, Sean 2. (Under §21.6's own equal-length gate: 1,009 — Yang
+337, Twelve 162, Urien 148, Dudley 100, Gill 65, Necro 65, Remy 59, Oro 48,
+Alex 15, Yun 4, Ibuki 4, Sean 2. Alex's jump is his `saca[56..59]`, whose
+arcade span is 3,584 B against the PS2's 3,280 B and which the equal-length
+gate therefore discarded whole.)
+
+**The grid walk assigns role 2 to every one of them that it places at all.**
+The histogram over the role it gives each signature cell's word-0 block is
+`{2: 1343, None: 59}`: 1,343 placed, every single one at role **2** — the
+`cg_hit_ix`/`cg_att_ix` word — and 59 it declined to place, which come back
+`unmodelled`. **Not one is assigned role 0, and not one is `aligned`, at any
+value of `GRID_MIN_RECORDS` from 2 to 12.** The signature and the walk are
+independent instruments — one is a single u32 comparison at one offset, the
+other a segmentation of the whole script against a six-role field layout — and
+they agree on every cell.
+
+Cast-wide the walk finds **143 scripts with a phase switch** and **2,169
+phantom cells** against 165,738 aligned and 614 unmodelled. Named cases, from
+`cg_audit.json` -> `grid_phase.off_grid_scripts`:
+
+| script | switches (block, period, phase) | phantom cells | what it is |
+|---|---|---|---|
+| Gill `atca[15..17]` | `[144, 6, 2]` | 20 each | §21.6's own example; the decoder is 8 B early from cell 24 |
+| Dudley `saca[36..39]` | `[5, 4, 0]` | 19 each | the tail is on **16-byte** records while the header declares `cgd 6` |
+| Oro `saca[28..31]` | `[29, 6, 2]`, `[105, 6, 4]` | 29 each | §22.9's "two containers, two grids", re-derived without a terminator |
+| Remy `saca[63]` | `[125, 6, 2]`, `[489, 6, 4]` | 97 | carries 30 of the 53 `a_effinit_oob` rows |
+| Twelve `nmca[46]` | `[212, 4, 2]` | 1 | 29 signature cells at 12, 15, 18, 21 … — 24-byte records on a 16-byte grid that the walk declines to switch to (§30.5) |
+
+### 30.5 What changes status
+
+**Nothing becomes a live hazard, and nothing that was closed re-opens.** Every
+`*_oob` row was already `dead` under `k7_entry_walk` (§28) and still is; the
+grid is a second, independent axis. What changes is *which* rows the artifact
+story was entitled to excuse, and the answer is: fewer than it claimed, and for
+a different reason than it gave.
+
+**The 136 OOB-index rows split 119 / 17.**
+
+- **119 `phantom`** — 53 `a_effinit_oob`, 50 `a_koc_oob`, 16 `a_se_oob`. For
+  these the audit now says *what the out-of-range index actually is*. All 53
+  `a_effinit_oob` rows sit on cells whose word 3 — the one the decoder reports
+  as `cg_extdat|cg_cancel|cg_effect|cg_eftype` — the walk places at role **1**,
+  `cg_olc_ix|cg_number`. Remy `saca[63]` c100 is the worked case: arcade bytes
+  `00 00 74 54`, reported as `eff 116, eftype 84`, are the single `cg_number`
+  `0x7454`. That is why the "effect indices" run consecutively (116/65…89 then
+  117/149…154 = `0x7441..0x7459`, `0x7595..0x759A`): they are a run of sprites.
+  The role assigned to word 3 of those 53 cells is `{1: 53}` — every one, no
+  exception. On the same measurement the 16 phantom `a_se_oob` rows and 44 of
+  the 50 phantom `a_koc_oob` rows have role **2** at word 0 (the `cg_se` /
+  `koc` the audit read is half of a `cg_hit_ix`/`cg_att_ix` pair); the other
+  six `a_koc_oob` rows are phantom on a different word of the cell.
+- **17 not** — and each stands on `"dead": true` alone:
+  - **16 `past_prefix`.** Fifteen `a_se_oob` rows, all Yun (`atca[30..32]` c25
+    `se 0x4C8`; `atca[118/119/130/131/142/143]` c8 `se 0x600`; `saca[31]`
+    c30/c95/c180 `se 0x400`; `saca[98]` c59/c60/c61), plus Hugo `nmca[49]` c24
+    (`koc 6144`). In every one the arcade span outruns the PS2 span and the
+    cell lies past its end — Yun `atca[30]` is 896 B against 352 B, `saca[31]`
+    5,544 B against 328 B, Hugo `nmca[49]` 776 B against 64 B — so the PS2 has
+    **no bytes at that offset** and no byte test applies in either direction.
+    These are exactly the eight ROM locations §21.6's addendum recorded as "the
+    8 that differ are all Yun's, whose PS2 spans do not line up", re-found by
+    an instrument that knows nothing about that sentence.
+  - **1 `unmodelled`.** Twelve `nmca[46]` c30, `comm_jpss` with `koc 6144`. The
+    byte signature fires at cells 12, 15, 18, 21 … of this script — every third
+    cell, which is the fingerprint of 24-byte records decoded on a 16-byte grid
+    — but no single (period, phase) clears the four-record bar there, so the
+    walk refuses to call the cell `phantom` and leaves it to be adjudicated.
+    This is the house rule working: the model declines rather than guesses.
+
+**The 316 shape-mismatched scripts split four ways** (`grid` on each
+`needs_manual_diff` row), which retires §21.6's "explains most shape mismatch":
+
+| verdict | scripts | meaning |
+|---|---|---|
+| `phantom` | 54 | some cell is decoded off the data's record grid — §21.6's class, and it is 17% of them, not "most" |
+| `aligned_prefix` | 236 | no phantom in the prefix the two releases share, and the arcade script outruns the PS2 one: the shape difference is in a region the PS2 does not have |
+| `aligned` | 9 | wholly inside a comparable prefix and grid-clean — genuine re-authoring. All nine are the PS2 adding one trailing cell: Yun `nmca[0]` 31→32, Yun `atca[146]` 5→6, Ibuki `yuca[37]` 15→16, `yuca[38]` 19→20, `yuca[43]` 21→22, Yang `caca[9]` 22→23, Urien `yuca[37]`/`[39]`/`[65]` 54→55 |
+| `no_oracle` | 17 | no PS2 script at that index, or a different `cgd_type`. Nine are `dmca[3]` (Gill, Alex, Yun, Hugo, Ibuki, Elena, Yang, Urien, Remy), every one arcade `cgd 6` against PS2 `cgd 4` — §22.6's per-release `cgd_type` mismatch; the other eight are Ibuki `atca[52/53]`, Akuma `atca[50/51]` and Q `atca[145/146/148/149]` |
+
+The 89 `c_mismatch_own_group` wrong-sprite cells are **`aligned`, all 89** —
+the class that is a wrong *value* on a cell that plays is on the data's own
+grid, which is the same shape of separation §28.1 found on the live/dead axis
+and is a second reason to trust both models.
+
+### 30.6 The defence, in code
+
+`cg_audit.py`:
+
+- `grid_phase(ci)` — the walk, cached per character; `grid_cell_verdict(g, k)`
+  — the five-valued verdict.
+- Every per-cell violation record in `cg_audit.json` carries `"grid"` beside
+  `"dead"`; every `needs_manual_diff` record carries `"grid"` and
+  `"grid_prefix_cells"`. `grid_phase.off_grid_scripts` lists, per character,
+  every script with a phase switch or a signature hit, with its switches, its
+  signature cells and its phantom-cell count.
+- The run prints the census, the split, and every OOB row the grid does **not**
+  explain, by name. The assertion is hard: if the byte signature ever fires on
+  a cell the walk calls `aligned`, the two models disagree and the run exits
+  non-zero (`grid_signature_not_phantom`). It reads **0** today, and reads 0 at
+  every `GRID_MIN_RECORDS` from 2 to 12.
+- Stats added per character: `grid_scripts`, `grid_switch_scripts`,
+  `grid_aligned`, `grid_phantom`, `grid_unmodelled`, `grid_signature`,
+  `grid_signature_not_phantom`, `grid_signature_unmodelled`, `oob_phantom`,
+  `oob_not_phantom`.
+
+Nothing in `src/` changed. The audit's own totals are untouched — 133,901 cells
+audited, and the violation table byte-for-byte what §28 left; the JSON diff
+against the previous run is **0 changed, 0 removed, 3,266 added**, all of it
+the new fields.
+
+### 30.7 Corrections to earlier sections (recorded, not silently edited)
+
+- **§21.6.** The verdict — these cells are not divergences and must not be
+  diffed — is confirmed a third time and now runs on every audit. Three of its
+  supports are withdrawn: the stated u32 relation (it is `u16sw`, the *normal*
+  one, not the anomaly — §30.2), the blanket-u32 mechanism (no such treatment
+  exists anywhere in the data), and argument 3, which inferred Capcom's intent
+  from that mechanism. The census is **1,009** under its own gate and **1,402**
+  over the common prefix, against the 781 written; its Yang, Dudley and Gill
+  figures are exact and its Urien figure is 148, not 77.
+- **§22.3 / §22.10.** "258 of the 781" is not a subset relation and was never
+  shown to be one (§30.1). §22's stream compare and its acceptance clause (c)
+  are both right; what clause (c) accepts is the `cg_hit_ix`/`cg_att_ix`
+  exchange, so accepting it is *required*, not a concession.
+- **§22.5.** The 53 `a_effinit_oob` cells are dead-region phantoms, as stated,
+  but "past its script's first terminator" is not what makes them phantoms —
+  §26.10.2 had already shown a linear terminator scan is not a reachability
+  test. They are phantoms because the word the decoder reads as
+  `cg_effect|cg_eftype` is a `cg_number` (§30.5).
+- **§22.9.** Oro `saca[28..31]`'s "same bytes, two grids" reading is confirmed
+  by a model that never consults a terminator: two phase switches per script,
+  29 phantom cells each.
+- **§28.1.** Its table is unchanged. The `*_oob` classes now carry a second
+  independent axis, and on it the split is 119/17 rather than 136/0 — dead is
+  still the load-bearing verdict for all 136.
+- **§11.2's "162 scripts with no oracle at all"** is a different population
+  from §30.5's 17 `no_oracle` shape mismatches (those 162 have no PS2 script at
+  the index at all and never reach the shape test). Neither number corrects the
+  other; they are recorded together here because they are easy to confuse.
+
+### 30.8 What this does not establish
+
+- **Why the record grid changes.** The walk measures *that* the data past a
+  script's real end is on a different record boundary or a different record
+  length from the one the header declares, and it measures it byte for byte in
+  two independent ways. It does not identify what those bytes are — the next
+  script's body, a different table's data, or padding — and no attempt was made
+  to attribute them. §27's span closure is the section that bounds what the
+  engine can reach there; this one does not extend it.
+- **The role assignment is a fit, not a proof.** Roles 0, 1, 4 and 5 all carry
+  the same transform, so a block is rarely forced to one role; the walk resolves
+  that by requiring a switch to explain four whole records, and the sweep in
+  §30.3 shows the answer is stable over 2..12 records. It is not shown to be
+  the *only* consistent assignment, and where it cannot decide it returns
+  `unmodelled`, which excuses nothing.
+- **Nothing about reachability.** `grid` and `dead` are independent axes and
+  neither implies the other. 1,545 of the 2,169 phantom cells are `dead` under
+  `k7_entry_walk` and 624 are not; most of those 624 sit in scripts the entry
+  walk fails open on. A phantom
+  cell is not evidence that a cell is unreachable, and an aligned cell is not
+  evidence that it is reachable.
+- **The PS2 side is not audited on this axis.** The verdict is about which
+  arcade cells the audit's decoder misreads; the identical question for
+  `ps2_parse` over PS2-only regions was not asked, and no PS2-side violation
+  class exists to ask it of.
+- **`cgd_type 1` scripts are outside the model** — 23 cast-wide, all `yuca`,
+  the same gap §27.8 and §28.7 record. Their period is not in `{2, 4, 6}` and
+  no violation of any class falls in one.

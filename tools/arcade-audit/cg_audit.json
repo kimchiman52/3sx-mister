@@ -9,7 +9,9 @@
     "script": 27,
     "arc_cells": 14,
     "ps2_cells": 15,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "needs_manual_diff",
@@ -17,7 +19,9 @@
     "script": 28,
     "arc_cells": 14,
     "ps2_cells": 15,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "extra_script_no_oracle",
@@ -109,7 +113,9 @@
     "script": 3,
     "arc_cells": 15,
     "ps2_cells": 12,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -117,7 +123,9 @@
     "script": 15,
     "arc_cells": 44,
     "ps2_cells": 44,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 44
    },
    {
     "cls": "a_koc_oob",
@@ -126,7 +134,8 @@
     "cell": 27,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -135,7 +144,8 @@
     "cell": 28,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_se_oob",
@@ -143,7 +153,8 @@
     "script": 15,
     "cell": 30,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -151,7 +162,9 @@
     "script": 16,
     "arc_cells": 44,
     "ps2_cells": 44,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 44
    },
    {
     "cls": "a_koc_oob",
@@ -160,7 +173,8 @@
     "cell": 27,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -169,7 +183,8 @@
     "cell": 28,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_se_oob",
@@ -177,7 +192,8 @@
     "script": 16,
     "cell": 30,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -185,7 +201,9 @@
     "script": 17,
     "arc_cells": 44,
     "ps2_cells": 44,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 44
    },
    {
     "cls": "a_koc_oob",
@@ -194,7 +212,8 @@
     "cell": 27,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -203,7 +222,8 @@
     "cell": 28,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_se_oob",
@@ -211,7 +231,8 @@
     "script": 17,
     "cell": 30,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "extra_script_no_oracle",
@@ -296,7 +317,9 @@
     "script": 23,
     "arc_cells": 17,
     "ps2_cells": 17,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 17
    },
    {
     "cls": "needs_manual_diff",
@@ -304,7 +327,9 @@
     "script": 37,
     "arc_cells": 36,
     "ps2_cells": 18,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 35
    },
    {
     "cls": "extra_script_no_oracle",
@@ -481,6 +506,14 @@
    "span_gate_reasons": 26,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 27,
+   "grid_scripts": 619,
+   "grid_switch_scripts": 11,
+   "grid_aligned": 8022,
+   "grid_phantom": 100,
+   "grid_unmodelled": 66,
+   "grid_signature": 65,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 5,
@@ -515,7 +548,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 6,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 9,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -1017,6 +1052,208 @@
     }
    ]
   },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "atca[15]": {
+     "switches": [
+      [
+       144,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43
+     ],
+     "phantom_cells": 20
+    },
+    "atca[16]": {
+     "switches": [
+      [
+       144,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43
+     ],
+     "phantom_cells": 20
+    },
+    "atca[17]": {
+     "switches": [
+      [
+       144,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43
+     ],
+     "phantom_cells": 20
+    },
+    "atca[118]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[119]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[130]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[131]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[142]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[143]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "exca[23]": {
+     "switches": [
+      [
+       6,
+       6,
+       0
+      ]
+     ],
+     "signature": [
+      2,
+      5,
+      8,
+      11,
+      14
+     ],
+     "phantom_cells": 11
+    },
+    "exca[37]": {
+     "switches": [
+      [
+       74,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 17
+    }
+   },
+   "scripts": 619,
+   "switch_scripts": 11,
+   "aligned": 8022,
+   "phantom": 100,
+   "unmodelled": 66,
+   "signature": 65,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
+  },
   "span_reach": {
    "tables": {
     "nmca": {
@@ -1268,7 +1505,9 @@
     "script": 27,
     "arc_cells": 28,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "needs_manual_diff",
@@ -1276,7 +1515,9 @@
     "script": 28,
     "arc_cells": 28,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "needs_manual_diff",
@@ -1284,7 +1525,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 9,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -1292,7 +1535,9 @@
     "script": 84,
     "arc_cells": 8,
     "ps2_cells": 32,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -1300,7 +1545,9 @@
     "script": 85,
     "arc_cells": 8,
     "ps2_cells": 32,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -1308,7 +1555,9 @@
     "script": 88,
     "arc_cells": 8,
     "ps2_cells": 32,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -1316,7 +1565,9 @@
     "script": 89,
     "arc_cells": 8,
     "ps2_cells": 32,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -1324,7 +1575,9 @@
     "script": 90,
     "arc_cells": 12,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -1332,7 +1585,9 @@
     "script": 91,
     "arc_cells": 12,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -1340,7 +1595,9 @@
     "script": 20,
     "arc_cells": 13,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 12
    },
    {
     "cls": "needs_manual_diff",
@@ -1348,7 +1605,9 @@
     "script": 21,
     "arc_cells": 13,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 12
    },
    {
     "cls": "needs_manual_diff",
@@ -1356,7 +1615,9 @@
     "script": 22,
     "arc_cells": 13,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 12
    },
    {
     "cls": "needs_manual_diff",
@@ -1364,7 +1625,9 @@
     "script": 7,
     "arc_cells": 32,
     "ps2_cells": 32,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 32
    },
    {
     "cls": "a_se_oob",
@@ -1372,7 +1635,8 @@
     "script": 7,
     "cell": 17,
     "se": 1024,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -1382,7 +1646,9 @@
     "ps2_cells": 26,
     "sa": [
      "9900_g[8]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -1392,7 +1658,9 @@
     "ps2_cells": 26,
     "sa": [
      "9900_g[9]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -1403,7 +1671,9 @@
     "sa": [
      "9900_g[10]",
      "9900_g[11]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -1411,7 +1681,9 @@
     "script": 47,
     "arc_cells": 35,
     "ps2_cells": 26,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -1419,7 +1691,9 @@
     "script": 56,
     "arc_cells": 224,
     "ps2_cells": 205,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 204
    },
    {
     "cls": "a_koc_oob",
@@ -1428,7 +1702,8 @@
     "cell": 11,
     "koc": 48,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -1436,7 +1711,9 @@
     "script": 57,
     "arc_cells": 224,
     "ps2_cells": 205,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 204
    },
    {
     "cls": "a_koc_oob",
@@ -1445,7 +1722,8 @@
     "cell": 11,
     "koc": 48,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -1453,7 +1731,9 @@
     "script": 58,
     "arc_cells": 224,
     "ps2_cells": 205,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 204
    },
    {
     "cls": "a_koc_oob",
@@ -1462,7 +1742,8 @@
     "cell": 11,
     "koc": 48,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -1470,7 +1751,9 @@
     "script": 59,
     "arc_cells": 224,
     "ps2_cells": 205,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 204
    },
    {
     "cls": "a_koc_oob",
@@ -1479,7 +1762,8 @@
     "cell": 11,
     "koc": 48,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    }
   ],
   "stats": {
@@ -1516,6 +1800,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 3,
+   "grid_scripts": 684,
+   "grid_switch_scripts": 9,
+   "grid_aligned": 7935,
+   "grid_phantom": 612,
+   "grid_unmodelled": 7,
+   "grid_signature": 399,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 21,
@@ -1550,7 +1842,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 4,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 5,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -1684,6 +1978,581 @@
     "unmodelled": null
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "atca[6]": {
+     "switches": [
+      [
+       131,
+       4,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[7]": {
+     "switches": [
+      [
+       101,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31
+     ],
+     "phantom_cells": 16
+    },
+    "atca[41]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[77]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[29]": {
+     "switches": [
+      [
+       50,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[56]": {
+     "switches": [
+      [
+       46,
+       4,
+       2
+      ],
+      [
+       268,
+       6,
+       2
+      ],
+      [
+       459,
+       6,
+       4
+      ],
+      [
+       643,
+       6,
+       0
+      ]
+     ],
+     "signature": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      96,
+      99,
+      102,
+      105,
+      108,
+      111,
+      115,
+      118,
+      121,
+      124,
+      127,
+      130,
+      133,
+      136,
+      139,
+      142,
+      145,
+      148,
+      151,
+      154,
+      157,
+      161,
+      164,
+      167,
+      170,
+      173,
+      176,
+      179,
+      182,
+      185,
+      188,
+      191,
+      194,
+      197,
+      200,
+      203
+     ],
+     "phantom_cells": 148
+    },
+    "saca[57]": {
+     "switches": [
+      [
+       46,
+       4,
+       2
+      ],
+      [
+       268,
+       6,
+       2
+      ],
+      [
+       459,
+       6,
+       4
+      ],
+      [
+       643,
+       6,
+       0
+      ]
+     ],
+     "signature": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      96,
+      99,
+      102,
+      105,
+      108,
+      111,
+      115,
+      118,
+      121,
+      124,
+      127,
+      130,
+      133,
+      136,
+      139,
+      142,
+      145,
+      148,
+      151,
+      154,
+      157,
+      161,
+      164,
+      167,
+      170,
+      173,
+      176,
+      179,
+      182,
+      185,
+      188,
+      191,
+      194,
+      197,
+      200,
+      203
+     ],
+     "phantom_cells": 148
+    },
+    "saca[58]": {
+     "switches": [
+      [
+       46,
+       4,
+       2
+      ],
+      [
+       268,
+       6,
+       2
+      ],
+      [
+       459,
+       6,
+       4
+      ],
+      [
+       643,
+       6,
+       0
+      ]
+     ],
+     "signature": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      96,
+      99,
+      102,
+      105,
+      108,
+      111,
+      115,
+      118,
+      121,
+      124,
+      127,
+      130,
+      133,
+      136,
+      139,
+      142,
+      145,
+      148,
+      151,
+      154,
+      157,
+      161,
+      164,
+      167,
+      170,
+      173,
+      176,
+      179,
+      182,
+      185,
+      188,
+      191,
+      194,
+      197,
+      200,
+      203
+     ],
+     "phantom_cells": 148
+    },
+    "saca[59]": {
+     "switches": [
+      [
+       46,
+       4,
+       2
+      ],
+      [
+       268,
+       6,
+       2
+      ],
+      [
+       459,
+       6,
+       4
+      ],
+      [
+       643,
+       6,
+       0
+      ]
+     ],
+     "signature": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      96,
+      99,
+      102,
+      105,
+      108,
+      111,
+      115,
+      118,
+      121,
+      124,
+      127,
+      130,
+      133,
+      136,
+      139,
+      142,
+      145,
+      148,
+      151,
+      154,
+      157,
+      161,
+      164,
+      167,
+      170,
+      173,
+      176,
+      179,
+      182,
+      185,
+      188,
+      191,
+      194,
+      197,
+      200,
+      203
+     ],
+     "phantom_cells": 148
+    }
+   },
+   "scripts": 684,
+   "switch_scripts": 9,
+   "aligned": 7935,
+   "phantom": 612,
+   "unmodelled": 7,
+   "signature": 399,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -1885,7 +2754,9 @@
     "script": 27,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -1893,7 +2764,9 @@
     "script": 28,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -1901,7 +2774,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -1909,7 +2784,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -1917,7 +2794,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -1925,7 +2804,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -1933,7 +2814,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -1941,7 +2824,9 @@
     "script": 90,
     "arc_cells": 19,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -1949,7 +2834,9 @@
     "script": 91,
     "arc_cells": 20,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -1957,7 +2844,9 @@
     "script": 19,
     "arc_cells": 2,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    },
    {
     "cls": "needs_manual_diff",
@@ -1965,7 +2854,9 @@
     "script": 20,
     "arc_cells": 2,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    },
    {
     "cls": "needs_manual_diff",
@@ -1973,7 +2864,9 @@
     "script": 21,
     "arc_cells": 2,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    },
    {
     "cls": "needs_manual_diff",
@@ -1981,7 +2874,9 @@
     "script": 22,
     "arc_cells": 2,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    },
    {
     "cls": "needs_manual_diff",
@@ -1989,7 +2884,9 @@
     "script": 23,
     "arc_cells": 2,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    }
   ],
   "stats": {
@@ -2029,6 +2926,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 5,
+   "grid_scripts": 697,
+   "grid_switch_scripts": 4,
+   "grid_aligned": 6528,
+   "grid_phantom": 8,
+   "grid_unmodelled": 1,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 12,
@@ -2063,7 +2968,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -2242,6 +3149,62 @@
     ]
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "caca[14]": {
+     "switches": [
+      [
+       29,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "caca[15]": {
+     "switches": [
+      [
+       29,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "caca[16]": {
+     "switches": [
+      [
+       29,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "caca[17]": {
+     "switches": [
+      [
+       29,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    }
+   },
+   "scripts": 697,
+   "switch_scripts": 4,
+   "aligned": 6528,
+   "phantom": 8,
+   "unmodelled": 1,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -2449,7 +3412,9 @@
     "script": 0,
     "arc_cells": 31,
     "ps2_cells": 32,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 31
    },
    {
     "table": "nmca",
@@ -2463,6 +3428,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -2471,7 +3437,9 @@
     "script": 27,
     "arc_cells": 6,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -2479,7 +3447,9 @@
     "script": 28,
     "arc_cells": 6,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -2487,7 +3457,9 @@
     "script": 50,
     "arc_cells": 9,
     "ps2_cells": 8,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 8
    },
    {
     "cls": "extra_script_no_oracle",
@@ -2544,7 +3516,9 @@
     "script": 3,
     "arc_cells": 14,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -2552,7 +3526,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -2560,7 +3536,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -2568,7 +3546,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -2576,7 +3556,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -2584,7 +3566,9 @@
     "script": 90,
     "arc_cells": 24,
     "ps2_cells": 23,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "needs_manual_diff",
@@ -2592,7 +3576,9 @@
     "script": 91,
     "arc_cells": 23,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -2600,7 +3586,9 @@
     "script": 4,
     "arc_cells": 26,
     "ps2_cells": 27,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -2608,7 +3596,9 @@
     "script": 8,
     "arc_cells": 52,
     "ps2_cells": 52,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 52
    },
    {
     "cls": "needs_manual_diff",
@@ -2616,7 +3606,9 @@
     "script": 30,
     "arc_cells": 37,
     "ps2_cells": 15,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 14
    },
    {
     "cls": "a_se_oob",
@@ -2624,7 +3616,8 @@
     "script": 30,
     "cell": 25,
     "se": 1224,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2632,7 +3625,9 @@
     "script": 31,
     "arc_cells": 37,
     "ps2_cells": 15,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 14
    },
    {
     "cls": "a_se_oob",
@@ -2640,7 +3635,8 @@
     "script": 31,
     "cell": 25,
     "se": 1224,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2648,7 +3644,9 @@
     "script": 32,
     "arc_cells": 37,
     "ps2_cells": 15,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 14
    },
    {
     "cls": "a_se_oob",
@@ -2656,7 +3654,8 @@
     "script": 32,
     "cell": 25,
     "se": 1224,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2664,7 +3663,9 @@
     "script": 118,
     "arc_cells": 20,
     "ps2_cells": 2,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 2
    },
    {
     "cls": "a_se_oob",
@@ -2672,7 +3673,8 @@
     "script": 118,
     "cell": 8,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2680,7 +3682,9 @@
     "script": 119,
     "arc_cells": 20,
     "ps2_cells": 2,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 2
    },
    {
     "cls": "a_se_oob",
@@ -2688,7 +3692,8 @@
     "script": 119,
     "cell": 8,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2696,7 +3701,9 @@
     "script": 130,
     "arc_cells": 20,
     "ps2_cells": 2,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 2
    },
    {
     "cls": "a_se_oob",
@@ -2704,7 +3711,8 @@
     "script": 130,
     "cell": 8,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2712,7 +3720,9 @@
     "script": 131,
     "arc_cells": 20,
     "ps2_cells": 2,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 2
    },
    {
     "cls": "a_se_oob",
@@ -2720,7 +3730,8 @@
     "script": 131,
     "cell": 8,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2728,7 +3739,9 @@
     "script": 142,
     "arc_cells": 20,
     "ps2_cells": 2,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 2
    },
    {
     "cls": "a_se_oob",
@@ -2736,7 +3749,8 @@
     "script": 142,
     "cell": 8,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2744,7 +3758,9 @@
     "script": 143,
     "arc_cells": 20,
     "ps2_cells": 2,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 2
    },
    {
     "cls": "a_se_oob",
@@ -2752,7 +3768,8 @@
     "script": 143,
     "cell": 8,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2760,7 +3777,9 @@
     "script": 146,
     "arc_cells": 5,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -2768,7 +3787,9 @@
     "script": 263,
     "arc_cells": 17,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 16
    },
    {
     "cls": "needs_manual_diff",
@@ -2778,7 +3799,9 @@
     "ps2_cells": 14,
     "sa": [
      "9900_g[43]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "a_se_oob",
@@ -2786,7 +3809,8 @@
     "script": 31,
     "cell": 30,
     "se": 1024,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "a_se_oob",
@@ -2794,7 +3818,8 @@
     "script": 31,
     "cell": 95,
     "se": 1024,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "a_se_oob",
@@ -2802,7 +3827,8 @@
     "script": 31,
     "cell": 180,
     "se": 1024,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2812,7 +3838,9 @@
     "ps2_cells": 29,
     "sa": [
      "9900_g[0]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 28
    },
    {
     "cls": "needs_manual_diff",
@@ -2822,7 +3850,9 @@
     "ps2_cells": 29,
     "sa": [
      "9900_g[1]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 28
    },
    {
     "cls": "needs_manual_diff",
@@ -2833,7 +3863,9 @@
     "sa": [
      "9900_g[2]",
      "9900_g[3]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 28
    },
    {
     "cls": "needs_manual_diff",
@@ -2841,7 +3873,9 @@
     "script": 64,
     "arc_cells": 79,
     "ps2_cells": 29,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 28
    },
    {
     "cls": "needs_manual_diff",
@@ -2849,7 +3883,9 @@
     "script": 98,
     "arc_cells": 69,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 45
    },
    {
     "cls": "a_se_oob",
@@ -2857,7 +3893,8 @@
     "script": 98,
     "cell": 59,
     "se": 1024,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "a_se_oob",
@@ -2865,7 +3902,8 @@
     "script": 98,
     "cell": 60,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "a_se_oob",
@@ -2873,7 +3911,8 @@
     "script": 98,
     "cell": 61,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -2881,7 +3920,9 @@
     "script": 19,
     "arc_cells": 32,
     "ps2_cells": 32,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 32
    }
   ],
   "stats": {
@@ -2918,6 +3959,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 4,
+   "grid_scripts": 914,
+   "grid_switch_scripts": 2,
+   "grid_aligned": 10706,
+   "grid_phantom": 24,
+   "grid_unmodelled": 27,
+   "grid_signature": 4,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 1,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 13,
@@ -2952,7 +4001,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 15
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -3122,6 +4173,51 @@
     ]
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "caca[8]": {
+     "switches": [
+      [
+       179,
+       2,
+       0
+      ],
+      [
+       234,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      19,
+      39,
+      51
+     ],
+     "phantom_cells": 23
+    },
+    "yuca[19]": {
+     "switches": [
+      [
+       60,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      30
+     ],
+     "phantom_cells": 1
+    }
+   },
+   "scripts": 914,
+   "switch_scripts": 2,
+   "aligned": 10706,
+   "phantom": 24,
+   "unmodelled": 27,
+   "signature": 4,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 1
   },
   "span_reach": {
    "tables": {
@@ -3326,7 +4422,9 @@
     "script": 27,
     "arc_cells": 16,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -3334,7 +4432,9 @@
     "script": 28,
     "arc_cells": 16,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -3342,7 +4442,9 @@
     "script": 32,
     "arc_cells": 13,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "a_koc_oob",
@@ -3351,7 +4453,8 @@
     "cell": 10,
     "koc": 6144,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -3359,7 +4462,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 24,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -3367,7 +4472,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 48,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -3375,7 +4482,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 48,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -3383,7 +4492,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 48,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -3391,7 +4502,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 48,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -3399,7 +4512,9 @@
     "script": 90,
     "arc_cells": 21,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 19
    },
    {
     "cls": "needs_manual_diff",
@@ -3407,7 +4522,9 @@
     "script": 91,
     "arc_cells": 20,
     "ps2_cells": 9,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 8
    },
    {
     "cls": "needs_manual_diff",
@@ -3415,7 +4532,9 @@
     "script": 36,
     "arc_cells": 20,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 19
    },
    {
     "cls": "needs_manual_diff",
@@ -3423,7 +4542,9 @@
     "script": 37,
     "arc_cells": 20,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 19
    },
    {
     "cls": "needs_manual_diff",
@@ -3431,7 +4552,9 @@
     "script": 38,
     "arc_cells": 20,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 19
    },
    {
     "cls": "needs_manual_diff",
@@ -3439,7 +4562,9 @@
     "script": 39,
     "arc_cells": 20,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 19
    },
    {
     "cls": "needs_manual_diff",
@@ -3447,7 +4572,9 @@
     "script": 61,
     "arc_cells": 60,
     "ps2_cells": 60,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 60
    },
    {
     "cls": "a_koc_oob",
@@ -3456,7 +4583,8 @@
     "cell": 30,
     "koc": -32768,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3465,7 +4593,8 @@
     "cell": 32,
     "koc": -16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3474,7 +4603,8 @@
     "cell": 33,
     "koc": -16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3483,7 +4613,8 @@
     "cell": 34,
     "koc": -8192,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3492,7 +4623,8 @@
     "cell": 35,
     "koc": -8192,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3501,7 +4633,8 @@
     "cell": 40,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3510,7 +4643,8 @@
     "cell": 41,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3519,7 +4653,8 @@
     "cell": 42,
     "koc": 24576,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3528,7 +4663,8 @@
     "cell": 43,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3537,7 +4673,8 @@
     "cell": 44,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3546,7 +4683,8 @@
     "cell": 45,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3555,7 +4693,8 @@
     "cell": 46,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3564,7 +4703,8 @@
     "cell": 50,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3573,7 +4713,8 @@
     "cell": 51,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3582,7 +4723,8 @@
     "cell": 52,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3591,7 +4733,8 @@
     "cell": 53,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -3599,7 +4742,9 @@
     "script": 62,
     "arc_cells": 60,
     "ps2_cells": 60,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 60
    },
    {
     "cls": "a_koc_oob",
@@ -3608,7 +4753,8 @@
     "cell": 30,
     "koc": -32768,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3617,7 +4763,8 @@
     "cell": 32,
     "koc": -16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3626,7 +4773,8 @@
     "cell": 33,
     "koc": -16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3635,7 +4783,8 @@
     "cell": 34,
     "koc": -8192,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3644,7 +4793,8 @@
     "cell": 35,
     "koc": -8192,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3653,7 +4803,8 @@
     "cell": 40,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3662,7 +4813,8 @@
     "cell": 41,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3671,7 +4823,8 @@
     "cell": 42,
     "koc": 24576,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3680,7 +4833,8 @@
     "cell": 43,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3689,7 +4843,8 @@
     "cell": 44,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3698,7 +4853,8 @@
     "cell": 45,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3707,7 +4863,8 @@
     "cell": 46,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3716,7 +4873,8 @@
     "cell": 50,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3725,7 +4883,8 @@
     "cell": 51,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3734,7 +4893,8 @@
     "cell": 52,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -3743,7 +4903,8 @@
     "cell": 53,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    }
   ],
   "stats": {
@@ -3788,6 +4949,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 5,
+   "grid_scripts": 711,
+   "grid_switch_scripts": 25,
+   "grid_aligned": 8749,
+   "grid_phantom": 161,
+   "grid_unmodelled": 43,
+   "grid_signature": 100,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 15,
@@ -3822,7 +4991,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 33,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 33,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -4152,6 +5323,400 @@
      }
     }
    ]
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "btca[3]": {
+     "switches": [
+      [
+       46,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[6]": {
+     "switches": [
+      [
+       54,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[7]": {
+     "switches": [
+      [
+       58,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[8]": {
+     "switches": [
+      [
+       50,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[9]": {
+     "switches": [
+      [
+       46,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[12]": {
+     "switches": [
+      [
+       50,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[16]": {
+     "switches": [
+      [
+       54,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[24]": {
+     "switches": [
+      [
+       22,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[27]": {
+     "switches": [
+      [
+       34,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[29]": {
+     "switches": [
+      [
+       14,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[34]": {
+     "switches": [
+      [
+       54,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[35]": {
+     "switches": [
+      [
+       34,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "exca[20]": {
+     "switches": [
+      [
+       22,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "exca[27]": {
+     "switches": [
+      [
+       34,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "nmca[32]": {
+     "switches": [
+      [
+       42,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      11,
+      12
+     ],
+     "phantom_cells": 3
+    },
+    "saca[32]": {
+     "switches": [
+      [
+       389,
+       4,
+       2
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[33]": {
+     "switches": [
+      [
+       389,
+       4,
+       2
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[34]": {
+     "switches": [
+      [
+       389,
+       4,
+       2
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[35]": {
+     "switches": [
+      [
+       389,
+       4,
+       2
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[36]": {
+     "switches": [
+      [
+       5,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11,
+      13,
+      15,
+      17
+     ],
+     "phantom_cells": 19
+    },
+    "saca[37]": {
+     "switches": [
+      [
+       5,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11,
+      13,
+      15,
+      17
+     ],
+     "phantom_cells": 19
+    },
+    "saca[38]": {
+     "switches": [
+      [
+       5,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11,
+      13,
+      15,
+      17
+     ],
+     "phantom_cells": 19
+    },
+    "saca[39]": {
+     "switches": [
+      [
+       5,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11,
+      13,
+      15,
+      17
+     ],
+     "phantom_cells": 19
+    },
+    "saca[61]": {
+     "switches": [
+      [
+       173,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59
+     ],
+     "phantom_cells": 32
+    },
+    "saca[62]": {
+     "switches": [
+      [
+       173,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59
+     ],
+     "phantom_cells": 32
+    }
+   },
+   "scripts": 711,
+   "switch_scripts": 25,
+   "aligned": 8749,
+   "phantom": 161,
+   "unmodelled": 43,
+   "signature": 100,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -4543,7 +6108,9 @@
     "script": 27,
     "arc_cells": 7,
     "ps2_cells": 8,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "table": "nmca",
@@ -4557,6 +6124,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -4565,7 +6133,9 @@
     "script": 49,
     "arc_cells": 48,
     "ps2_cells": 48,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 48
    },
    {
     "cls": "a_koc_oob",
@@ -4574,7 +6144,8 @@
     "cell": 24,
     "koc": 6144,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -4582,7 +6153,9 @@
     "script": 3,
     "arc_cells": 16,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "needs_manual_diff",
@@ -4590,7 +6163,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -4598,7 +6173,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -4606,7 +6183,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -4614,7 +6193,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -4622,7 +6203,9 @@
     "script": 90,
     "arc_cells": 27,
     "ps2_cells": 4,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "needs_manual_diff",
@@ -4630,7 +6213,9 @@
     "script": 91,
     "arc_cells": 25,
     "ps2_cells": 4,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "needs_manual_diff",
@@ -4638,7 +6223,9 @@
     "script": 5,
     "arc_cells": 102,
     "ps2_cells": 100,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 100
    },
    {
     "cls": "needs_manual_diff",
@@ -4648,7 +6235,9 @@
     "ps2_cells": 43,
     "sa": [
      "9900_g[0]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 41
    },
    {
     "cls": "needs_manual_diff",
@@ -4658,7 +6247,9 @@
     "ps2_cells": 43,
     "sa": [
      "9900_g[1]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 41
    },
    {
     "cls": "needs_manual_diff",
@@ -4669,7 +6260,9 @@
     "sa": [
      "9900_g[2]",
      "9900_g[3]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 41
    },
    {
     "cls": "needs_manual_diff",
@@ -4677,7 +6270,9 @@
     "script": 39,
     "arc_cells": 42,
     "ps2_cells": 43,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 41
    },
    {
     "cls": "needs_manual_diff",
@@ -4690,7 +6285,9 @@
      "9900_g[9]",
      "9900_g[10]",
      "9900_g[11]"
-    ]
+    ],
+    "grid": "phantom",
+    "grid_prefix_cells": 30
    },
    {
     "cls": "needs_manual_diff",
@@ -4698,7 +6295,9 @@
     "script": 49,
     "arc_cells": 31,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 30
    }
   ],
   "stats": {
@@ -4735,6 +6334,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 8,
+   "grid_scripts": 654,
+   "grid_switch_scripts": 4,
+   "grid_aligned": 8137,
+   "grid_phantom": 90,
+   "grid_unmodelled": 46,
+   "grid_signature": 74,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 26,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 10,
@@ -4769,7 +6376,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 1,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 1,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -4898,6 +6507,162 @@
     "unmodelled": null
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "caca[5]": {
+     "switches": [],
+     "signature": [
+      90,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99
+     ],
+     "phantom_cells": 0
+    },
+    "caca[11]": {
+     "switches": [],
+     "signature": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26
+     ],
+     "phantom_cells": 0
+    },
+    "nmca[49]": {
+     "switches": [
+      [
+       98,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      6,
+      9,
+      12,
+      15,
+      18,
+      21,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47
+     ],
+     "phantom_cells": 24
+    },
+    "saca[48]": {
+     "switches": [
+      [
+       89,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      15,
+      17,
+      19,
+      21,
+      23,
+      25,
+      29
+     ],
+     "phantom_cells": 16
+    },
+    "saca[49]": {
+     "switches": [
+      [
+       89,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      15,
+      17,
+      19,
+      21,
+      23,
+      25,
+      29
+     ],
+     "phantom_cells": 16
+    },
+    "saca[66]": {
+     "switches": [
+      [
+       54,
+       6,
+       0
+      ],
+      [
+       131,
+       6,
+       2
+      ],
+      [
+       201,
+       6,
+       4
+      ]
+     ],
+     "signature": [
+      17,
+      20,
+      23,
+      26,
+      33,
+      36,
+      39,
+      42,
+      52,
+      55,
+      58
+     ],
+     "phantom_cells": 34
+    }
+   },
+   "scripts": 654,
+   "switch_scripts": 4,
+   "aligned": 8137,
+   "phantom": 90,
+   "unmodelled": 46,
+   "signature": 74,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 26
   },
   "span_reach": {
    "tables": {
@@ -5108,7 +6873,9 @@
     "script": 27,
     "arc_cells": 14,
     "ps2_cells": 8,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -5116,7 +6883,9 @@
     "script": 28,
     "arc_cells": 14,
     "ps2_cells": 8,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -5124,7 +6893,9 @@
     "script": 49,
     "arc_cells": 48,
     "ps2_cells": 4,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "a_koc_oob",
@@ -5133,7 +6904,8 @@
     "cell": 24,
     "koc": 6144,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "past_prefix"
    },
    {
     "cls": "needs_manual_diff",
@@ -5141,7 +6913,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -5149,7 +6923,9 @@
     "script": 84,
     "arc_cells": 8,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -5157,7 +6933,9 @@
     "script": 85,
     "arc_cells": 8,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -5165,7 +6943,9 @@
     "script": 88,
     "arc_cells": 8,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -5173,7 +6953,9 @@
     "script": 89,
     "arc_cells": 8,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -5181,7 +6963,9 @@
     "script": 90,
     "arc_cells": 11,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -5189,7 +6973,9 @@
     "script": 91,
     "arc_cells": 12,
     "ps2_cells": 18,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -5197,7 +6983,9 @@
     "script": 39,
     "arc_cells": 11,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -5205,7 +6993,9 @@
     "script": 40,
     "arc_cells": 11,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "extra_script_no_oracle",
@@ -5227,7 +7017,9 @@
     "script": 57,
     "arc_cells": 51,
     "ps2_cells": 28,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 27
    },
    {
     "cls": "needs_manual_diff",
@@ -5235,7 +7027,9 @@
     "script": 58,
     "arc_cells": 51,
     "ps2_cells": 28,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 27
    },
    {
     "cls": "needs_manual_diff",
@@ -5243,7 +7037,9 @@
     "script": 59,
     "arc_cells": 51,
     "ps2_cells": 28,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 27
    },
    {
     "table": "btca",
@@ -5257,6 +7053,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    }
   ],
@@ -5294,6 +7091,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 5,
+   "grid_scripts": 668,
+   "grid_switch_scripts": 2,
+   "grid_aligned": 7008,
+   "grid_phantom": 4,
+   "grid_unmodelled": 6,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 15,
@@ -5328,7 +7133,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 1,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 1
   },
   "over_declared_sections": [
    {
@@ -5507,6 +7314,40 @@
      "ps2_twelve": null
     }
    ]
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "btca[20]": {
+     "switches": [
+      [
+       5,
+       4,
+       2
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "btca[21]": {
+     "switches": [
+      [
+       5,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    }
+   },
+   "scripts": 668,
+   "switch_scripts": 2,
+   "aligned": 7008,
+   "phantom": 4,
+   "unmodelled": 6,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -5713,7 +7554,9 @@
     "script": 27,
     "arc_cells": 19,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -5721,7 +7564,9 @@
     "script": 28,
     "arc_cells": 19,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -5729,7 +7574,9 @@
     "script": 3,
     "arc_cells": 19,
     "ps2_cells": 9,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -5737,7 +7584,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 75,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -5745,7 +7594,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 75,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -5753,7 +7604,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 75,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -5761,7 +7614,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 75,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -5769,7 +7624,9 @@
     "script": 90,
     "arc_cells": 34,
     "ps2_cells": 35,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 33
    },
    {
     "cls": "needs_manual_diff",
@@ -5777,7 +7634,9 @@
     "script": 91,
     "arc_cells": 34,
     "ps2_cells": 35,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 33
    },
    {
     "cls": "needs_manual_diff",
@@ -5785,7 +7644,9 @@
     "script": 10,
     "arc_cells": 57,
     "ps2_cells": 54,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 53
    },
    {
     "cls": "needs_manual_diff",
@@ -5793,7 +7654,9 @@
     "script": 52,
     "arc_cells": 2,
     "ps2_cells": 22,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -5801,7 +7664,9 @@
     "script": 53,
     "arc_cells": 2,
     "ps2_cells": 22,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -5809,7 +7674,9 @@
     "script": 0,
     "arc_cells": 3,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "needs_manual_diff",
@@ -5817,7 +7684,9 @@
     "script": 1,
     "arc_cells": 3,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "needs_manual_diff",
@@ -5825,7 +7694,9 @@
     "script": 2,
     "arc_cells": 3,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "needs_manual_diff",
@@ -5833,7 +7704,9 @@
     "script": 3,
     "arc_cells": 3,
     "ps2_cells": 3,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "needs_manual_diff",
@@ -5841,7 +7714,9 @@
     "script": 14,
     "arc_cells": 36,
     "ps2_cells": 37,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 35
    },
    {
     "cls": "needs_manual_diff",
@@ -5849,7 +7724,9 @@
     "script": 15,
     "arc_cells": 36,
     "ps2_cells": 37,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 35
    },
    {
     "cls": "needs_manual_diff",
@@ -5857,7 +7734,9 @@
     "script": 37,
     "arc_cells": 15,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -5865,7 +7744,9 @@
     "script": 38,
     "arc_cells": 19,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 19
    },
    {
     "cls": "needs_manual_diff",
@@ -5873,7 +7754,9 @@
     "script": 43,
     "arc_cells": 21,
     "ps2_cells": 22,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 21
    }
   ],
   "stats": {
@@ -5912,6 +7795,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 5,
+   "grid_scripts": 795,
+   "grid_switch_scripts": 28,
+   "grid_aligned": 10145,
+   "grid_phantom": 34,
+   "grid_unmodelled": 85,
+   "grid_signature": 4,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 14,
@@ -5946,7 +7837,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -8599,6 +10492,334 @@
     }
    ]
   },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "atca[38]": {
+     "switches": [
+      [
+       110,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[39]": {
+     "switches": [
+      [
+       110,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[40]": {
+     "switches": [
+      [
+       122,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[41]": {
+     "switches": [
+      [
+       122,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[44]": {
+     "switches": [
+      [
+       66,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[45]": {
+     "switches": [
+      [
+       66,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[46]": {
+     "switches": [
+      [
+       66,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[47]": {
+     "switches": [
+      [
+       66,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[48]": {
+     "switches": [
+      [
+       82,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[49]": {
+     "switches": [
+      [
+       82,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[50]": {
+     "switches": [
+      [
+       90,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[51]": {
+     "switches": [
+      [
+       90,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[54]": {
+     "switches": [
+      [
+       70,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[55]": {
+     "switches": [
+      [
+       70,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[56]": {
+     "switches": [
+      [
+       70,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[57]": {
+     "switches": [
+      [
+       70,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[58]": {
+     "switches": [
+      [
+       66,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[59]": {
+     "switches": [
+      [
+       66,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[118]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[119]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[130]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[131]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[142]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[143]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "yuca[0]": {
+     "switches": [
+      [
+       2,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1
+     ],
+     "phantom_cells": 1
+    },
+    "yuca[1]": {
+     "switches": [
+      [
+       2,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1
+     ],
+     "phantom_cells": 1
+    },
+    "yuca[2]": {
+     "switches": [
+      [
+       2,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1
+     ],
+     "phantom_cells": 1
+    },
+    "yuca[3]": {
+     "switches": [
+      [
+       2,
+       4,
+       0
+      ]
+     ],
+     "signature": [
+      1
+     ],
+     "phantom_cells": 1
+    }
+   },
+   "scripts": 795,
+   "switch_scripts": 28,
+   "aligned": 10145,
+   "phantom": 34,
+   "unmodelled": 85,
+   "signature": 4,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
+  },
   "span_reach": {
    "tables": {
     "nmca": {
@@ -8806,7 +11027,9 @@
     "script": 27,
     "arc_cells": 21,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -8814,7 +11037,9 @@
     "script": 28,
     "arc_cells": 21,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -8822,7 +11047,9 @@
     "script": 3,
     "arc_cells": 13,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -8830,7 +11057,9 @@
     "script": 84,
     "arc_cells": 6,
     "ps2_cells": 88,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -8838,7 +11067,9 @@
     "script": 85,
     "arc_cells": 6,
     "ps2_cells": 88,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -8846,7 +11077,9 @@
     "script": 88,
     "arc_cells": 6,
     "ps2_cells": 88,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -8854,7 +11087,9 @@
     "script": 89,
     "arc_cells": 6,
     "ps2_cells": 88,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -8862,7 +11097,9 @@
     "script": 90,
     "arc_cells": 41,
     "ps2_cells": 28,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 27
    },
    {
     "cls": "needs_manual_diff",
@@ -8870,7 +11107,9 @@
     "script": 91,
     "arc_cells": 41,
     "ps2_cells": 19,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 18
    },
    {
     "cls": "needs_manual_diff",
@@ -8878,7 +11117,9 @@
     "script": 17,
     "arc_cells": 22,
     "ps2_cells": 22,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 21
    },
    {
     "cls": "needs_manual_diff",
@@ -8886,7 +11127,9 @@
     "script": 5,
     "arc_cells": 37,
     "ps2_cells": 19,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 18
    },
    {
     "cls": "needs_manual_diff",
@@ -8894,7 +11137,9 @@
     "script": 9,
     "arc_cells": 4,
     "ps2_cells": 18,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 3
    },
    {
     "cls": "needs_manual_diff",
@@ -8902,7 +11147,9 @@
     "script": 57,
     "arc_cells": 18,
     "ps2_cells": 17,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 17
    },
    {
     "cls": "extra_script_no_oracle",
@@ -9009,6 +11256,14 @@
    "span_gate_reasons": 25,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 27,
+   "grid_scripts": 707,
+   "grid_switch_scripts": 1,
+   "grid_aligned": 9689,
+   "grid_phantom": 1,
+   "grid_unmodelled": 5,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 10,
@@ -9043,7 +11298,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [
    {
@@ -9181,6 +11438,29 @@
     "unmodelled": null
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "btca[16]": {
+     "switches": [
+      [
+       66,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    }
+   },
+   "scripts": 707,
+   "switch_scripts": 1,
+   "aligned": 9689,
+   "phantom": 1,
+   "unmodelled": 5,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -9443,7 +11723,9 @@
     "script": 27,
     "arc_cells": 23,
     "ps2_cells": 24,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "needs_manual_diff",
@@ -9451,7 +11733,9 @@
     "script": 28,
     "arc_cells": 23,
     "ps2_cells": 24,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "needs_manual_diff",
@@ -9459,7 +11743,9 @@
     "script": 3,
     "arc_cells": 16,
     "ps2_cells": 9,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 8
    },
    {
     "cls": "needs_manual_diff",
@@ -9467,7 +11753,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 27,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -9475,7 +11763,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 27,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -9483,7 +11773,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 27,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -9491,7 +11783,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 27,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -9499,7 +11793,9 @@
     "script": 90,
     "arc_cells": 10,
     "ps2_cells": 9,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 8
    },
    {
     "cls": "needs_manual_diff",
@@ -9507,7 +11803,9 @@
     "script": 91,
     "arc_cells": 10,
     "ps2_cells": 21,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 9
    },
    {
     "cls": "needs_manual_diff",
@@ -9515,7 +11813,9 @@
     "script": 3,
     "arc_cells": 25,
     "ps2_cells": 26,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 24
    },
    {
     "cls": "extra_script_no_oracle",
@@ -9530,7 +11830,9 @@
     "script": 28,
     "arc_cells": 34,
     "ps2_cells": 34,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 33
    },
    {
     "cls": "needs_manual_diff",
@@ -9538,7 +11840,9 @@
     "script": 29,
     "arc_cells": 34,
     "ps2_cells": 34,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 33
    },
    {
     "cls": "needs_manual_diff",
@@ -9546,7 +11850,9 @@
     "script": 30,
     "arc_cells": 34,
     "ps2_cells": 34,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 33
    },
    {
     "cls": "needs_manual_diff",
@@ -9554,7 +11860,9 @@
     "script": 31,
     "arc_cells": 34,
     "ps2_cells": 34,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 33
    }
   ],
   "stats": {
@@ -9591,6 +11899,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 4,
+   "grid_scripts": 697,
+   "grid_switch_scripts": 8,
+   "grid_aligned": 8006,
+   "grid_phantom": 120,
+   "grid_unmodelled": 1,
+   "grid_signature": 48,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 12,
@@ -9625,7 +11941,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -9756,6 +12074,178 @@
     "unmodelled": null
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "btca[20]": {
+     "switches": [
+      [
+       5,
+       4,
+       2
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "btca[21]": {
+     "switches": [
+      [
+       5,
+       4,
+       2
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[28]": {
+     "switches": [
+      [
+       29,
+       6,
+       2
+      ],
+      [
+       105,
+       6,
+       4
+      ]
+     ],
+     "signature": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+     ],
+     "phantom_cells": 29
+    },
+    "saca[29]": {
+     "switches": [
+      [
+       29,
+       6,
+       2
+      ],
+      [
+       105,
+       6,
+       4
+      ]
+     ],
+     "signature": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+     ],
+     "phantom_cells": 29
+    },
+    "saca[30]": {
+     "switches": [
+      [
+       29,
+       6,
+       2
+      ],
+      [
+       105,
+       6,
+       4
+      ]
+     ],
+     "signature": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+     ],
+     "phantom_cells": 29
+    },
+    "saca[31]": {
+     "switches": [
+      [
+       29,
+       6,
+       2
+      ],
+      [
+       105,
+       6,
+       4
+      ]
+     ],
+     "signature": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+     ],
+     "phantom_cells": 29
+    },
+    "saca[32]": {
+     "switches": [
+      [
+       83,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "saca[73]": {
+     "switches": [
+      [
+       98,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 0
+    }
+   },
+   "scripts": 697,
+   "switch_scripts": 8,
+   "aligned": 8006,
+   "phantom": 120,
+   "unmodelled": 1,
+   "signature": 48,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -9961,7 +12451,9 @@
     "script": 27,
     "arc_cells": 6,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -9969,7 +12461,9 @@
     "script": 28,
     "arc_cells": 6,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -9977,7 +12471,9 @@
     "script": 3,
     "arc_cells": 14,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -9985,7 +12481,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -9993,7 +12491,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -10001,7 +12501,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -10009,7 +12511,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 76,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -10017,7 +12521,9 @@
     "script": 90,
     "arc_cells": 24,
     "ps2_cells": 23,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "needs_manual_diff",
@@ -10025,7 +12531,9 @@
     "script": 91,
     "arc_cells": 23,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -10033,7 +12541,9 @@
     "script": 0,
     "arc_cells": 26,
     "ps2_cells": 27,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -10041,7 +12551,9 @@
     "script": 4,
     "arc_cells": 26,
     "ps2_cells": 27,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -10049,7 +12561,9 @@
     "script": 9,
     "arc_cells": 22,
     "ps2_cells": 23,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 23
    },
    {
     "cls": "needs_manual_diff",
@@ -10057,7 +12571,9 @@
     "script": 0,
     "arc_cells": 17,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -10065,7 +12581,9 @@
     "script": 1,
     "arc_cells": 17,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -10073,7 +12591,9 @@
     "script": 2,
     "arc_cells": 17,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -10081,7 +12601,9 @@
     "script": 14,
     "arc_cells": 39,
     "ps2_cells": 39,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 39
    },
    {
     "cls": "a_se_oob",
@@ -10089,7 +12611,8 @@
     "script": 14,
     "cell": 24,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10097,7 +12620,9 @@
     "script": 118,
     "arc_cells": 56,
     "ps2_cells": 56,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 56
    },
    {
     "cls": "a_se_oob",
@@ -10105,7 +12630,8 @@
     "script": 118,
     "cell": 44,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10113,7 +12639,9 @@
     "script": 119,
     "arc_cells": 56,
     "ps2_cells": 56,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 56
    },
    {
     "cls": "a_se_oob",
@@ -10121,7 +12649,8 @@
     "script": 119,
     "cell": 44,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10129,7 +12658,9 @@
     "script": 130,
     "arc_cells": 56,
     "ps2_cells": 56,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 56
    },
    {
     "cls": "a_se_oob",
@@ -10137,7 +12668,8 @@
     "script": 130,
     "cell": 44,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10145,7 +12677,9 @@
     "script": 131,
     "arc_cells": 56,
     "ps2_cells": 56,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 56
    },
    {
     "cls": "a_se_oob",
@@ -10153,7 +12687,8 @@
     "script": 131,
     "cell": 44,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10161,7 +12696,9 @@
     "script": 142,
     "arc_cells": 56,
     "ps2_cells": 56,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 56
    },
    {
     "cls": "a_se_oob",
@@ -10169,7 +12706,8 @@
     "script": 142,
     "cell": 44,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10177,7 +12715,9 @@
     "script": 143,
     "arc_cells": 56,
     "ps2_cells": 56,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 56
    },
    {
     "cls": "a_se_oob",
@@ -10185,7 +12725,8 @@
     "script": 143,
     "cell": 44,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "extra_script_no_oracle",
@@ -10888,7 +13429,9 @@
     "ps2_cells": 117,
     "sa": [
      "9900_g[8]"
-    ]
+    ],
+    "grid": "phantom",
+    "grid_prefix_cells": 117
    },
    {
     "cls": "a_effinit_oob",
@@ -10897,7 +13440,8 @@
     "cell": 28,
     "eff": 64,
     "data": 72,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10906,7 +13450,8 @@
     "cell": 31,
     "eff": 64,
     "data": 74,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10915,7 +13460,8 @@
     "cell": 34,
     "eff": 64,
     "data": 75,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10924,7 +13470,8 @@
     "cell": 37,
     "eff": 64,
     "data": 76,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10933,7 +13480,8 @@
     "cell": 43,
     "eff": 64,
     "data": 79,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10943,7 +13491,9 @@
     "ps2_cells": 117,
     "sa": [
      "9900_g[9]"
-    ]
+    ],
+    "grid": "phantom",
+    "grid_prefix_cells": 117
    },
    {
     "cls": "a_effinit_oob",
@@ -10952,7 +13502,8 @@
     "cell": 28,
     "eff": 64,
     "data": 72,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10961,7 +13512,8 @@
     "cell": 31,
     "eff": 64,
     "data": 74,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10970,7 +13522,8 @@
     "cell": 34,
     "eff": 64,
     "data": 75,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10979,7 +13532,8 @@
     "cell": 37,
     "eff": 64,
     "data": 76,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -10988,7 +13542,8 @@
     "cell": 43,
     "eff": 64,
     "data": 79,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -10999,7 +13554,9 @@
     "sa": [
      "9900_g[10]",
      "9900_g[11]"
-    ]
+    ],
+    "grid": "phantom",
+    "grid_prefix_cells": 117
    },
    {
     "cls": "a_effinit_oob",
@@ -11008,7 +13565,8 @@
     "cell": 28,
     "eff": 64,
     "data": 72,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11017,7 +13575,8 @@
     "cell": 31,
     "eff": 64,
     "data": 74,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11026,7 +13585,8 @@
     "cell": 34,
     "eff": 64,
     "data": 75,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11035,7 +13595,8 @@
     "cell": 37,
     "eff": 64,
     "data": 76,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11044,7 +13605,8 @@
     "cell": 43,
     "eff": 64,
     "data": 79,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -11052,7 +13614,9 @@
     "script": 47,
     "arc_cells": 117,
     "ps2_cells": 117,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 117
    },
    {
     "cls": "a_effinit_oob",
@@ -11061,7 +13625,8 @@
     "cell": 28,
     "eff": 64,
     "data": 72,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11070,7 +13635,8 @@
     "cell": 31,
     "eff": 64,
     "data": 74,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11079,7 +13645,8 @@
     "cell": 34,
     "eff": 64,
     "data": 75,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11088,7 +13655,8 @@
     "cell": 37,
     "eff": 64,
     "data": 76,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -11097,7 +13665,8 @@
     "cell": 43,
     "eff": 64,
     "data": 79,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -11107,7 +13676,9 @@
     "ps2_cells": 66,
     "sa": [
      "9900_g[0]"
-    ]
+    ],
+    "grid": "phantom",
+    "grid_prefix_cells": 66
    },
    {
     "cls": "needs_manual_diff",
@@ -11117,7 +13688,9 @@
     "ps2_cells": 66,
     "sa": [
      "9900_g[1]"
-    ]
+    ],
+    "grid": "phantom",
+    "grid_prefix_cells": 66
    },
    {
     "cls": "needs_manual_diff",
@@ -11128,7 +13701,9 @@
     "sa": [
      "9900_g[2]",
      "9900_g[3]"
-    ]
+    ],
+    "grid": "phantom",
+    "grid_prefix_cells": 66
    },
    {
     "cls": "needs_manual_diff",
@@ -11136,7 +13711,9 @@
     "script": 64,
     "arc_cells": 66,
     "ps2_cells": 66,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 66
    }
   ],
   "stats": {
@@ -11173,6 +13750,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 4,
+   "grid_scripts": 821,
+   "grid_switch_scripts": 16,
+   "grid_aligned": 9099,
+   "grid_phantom": 492,
+   "grid_unmodelled": 76,
+   "grid_signature": 337,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 2,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 14,
@@ -11207,7 +13792,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 27,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -11496,6 +14083,566 @@
     }
    ]
   },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "atca[14]": {
+     "switches": [
+      [
+       119,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38
+     ],
+     "phantom_cells": 19
+    },
+    "atca[118]": {
+     "switches": [
+      [
+       88,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      44,
+      46,
+      48,
+      50,
+      52,
+      54
+     ],
+     "phantom_cells": 6
+    },
+    "atca[119]": {
+     "switches": [
+      [
+       88,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      44,
+      46,
+      48,
+      50,
+      52,
+      54
+     ],
+     "phantom_cells": 6
+    },
+    "atca[130]": {
+     "switches": [
+      [
+       88,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      44,
+      46,
+      48,
+      50,
+      52,
+      54
+     ],
+     "phantom_cells": 6
+    },
+    "atca[131]": {
+     "switches": [
+      [
+       88,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      44,
+      46,
+      48,
+      50,
+      52,
+      54
+     ],
+     "phantom_cells": 6
+    },
+    "atca[142]": {
+     "switches": [
+      [
+       88,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      44,
+      46,
+      48,
+      50,
+      52,
+      54
+     ],
+     "phantom_cells": 6
+    },
+    "atca[143]": {
+     "switches": [
+      [
+       88,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      44,
+      46,
+      48,
+      50,
+      52,
+      54
+     ],
+     "phantom_cells": 6
+    },
+    "nmca[52]": {
+     "switches": [
+      [
+       94,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[44]": {
+     "switches": [
+      [
+       114,
+       6,
+       0
+      ],
+      [
+       239,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      29,
+      32,
+      35,
+      38,
+      41,
+      44,
+      47,
+      50,
+      53,
+      56,
+      60,
+      63,
+      66,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      93,
+      99,
+      102,
+      105,
+      108,
+      111,
+      114
+     ],
+     "phantom_cells": 60
+    },
+    "saca[45]": {
+     "switches": [
+      [
+       114,
+       6,
+       0
+      ],
+      [
+       239,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      29,
+      32,
+      35,
+      38,
+      41,
+      44,
+      47,
+      50,
+      53,
+      56,
+      60,
+      63,
+      66,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      93,
+      99,
+      102,
+      105,
+      108,
+      111,
+      114
+     ],
+     "phantom_cells": 60
+    },
+    "saca[46]": {
+     "switches": [
+      [
+       114,
+       6,
+       0
+      ],
+      [
+       239,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      29,
+      32,
+      35,
+      38,
+      41,
+      44,
+      47,
+      50,
+      53,
+      56,
+      60,
+      63,
+      66,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      93,
+      99,
+      102,
+      105,
+      108,
+      111,
+      114
+     ],
+     "phantom_cells": 60
+    },
+    "saca[47]": {
+     "switches": [
+      [
+       114,
+       6,
+       0
+      ],
+      [
+       239,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      29,
+      32,
+      35,
+      38,
+      41,
+      44,
+      47,
+      50,
+      53,
+      56,
+      60,
+      63,
+      66,
+      69,
+      72,
+      75,
+      78,
+      81,
+      84,
+      87,
+      90,
+      93,
+      99,
+      102,
+      105,
+      108,
+      111,
+      114
+     ],
+     "phantom_cells": 60
+    },
+    "saca[61]": {
+     "switches": [
+      [
+       107,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      18,
+      19,
+      20,
+      21,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63
+     ],
+     "phantom_cells": 49
+    },
+    "saca[62]": {
+     "switches": [
+      [
+       107,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      18,
+      19,
+      20,
+      21,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63
+     ],
+     "phantom_cells": 49
+    },
+    "saca[63]": {
+     "switches": [
+      [
+       107,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      18,
+      19,
+      20,
+      21,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63
+     ],
+     "phantom_cells": 49
+    },
+    "saca[64]": {
+     "switches": [
+      [
+       107,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      18,
+      19,
+      20,
+      21,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63
+     ],
+     "phantom_cells": 49
+    }
+   },
+   "scripts": 821,
+   "switch_scripts": 16,
+   "aligned": 9099,
+   "phantom": 492,
+   "unmodelled": 76,
+   "signature": 337,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 2
+  },
   "span_reach": {
    "tables": {
     "nmca": {
@@ -11700,7 +14847,9 @@
     "script": 27,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -11708,7 +14857,9 @@
     "script": 28,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -11716,7 +14867,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 12,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -11724,7 +14877,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -11732,7 +14887,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -11740,7 +14897,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -11748,7 +14907,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -11756,7 +14917,9 @@
     "script": 90,
     "arc_cells": 19,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -11764,7 +14927,9 @@
     "script": 91,
     "arc_cells": 20,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    }
   ],
   "stats": {
@@ -11801,6 +14966,14 @@
    "span_gate_reasons": 4,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 7,
+   "grid_scripts": 683,
+   "grid_switch_scripts": 8,
+   "grid_aligned": 6448,
+   "grid_phantom": 8,
+   "grid_unmodelled": 10,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 7,
@@ -11835,7 +15008,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -12179,6 +15354,106 @@
     }
    ]
   },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "yuca[40]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "yuca[41]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "yuca[42]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "yuca[43]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "yuca[44]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "yuca[45]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "yuca[46]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "yuca[47]": {
+     "switches": [
+      [
+       2,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    }
+   },
+   "scripts": 683,
+   "switch_scripts": 8,
+   "aligned": 6448,
+   "phantom": 8,
+   "unmodelled": 10,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
+  },
   "span_reach": {
    "tables": {
     "nmca": {
@@ -12389,7 +15664,9 @@
     "script": 27,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -12397,7 +15674,9 @@
     "script": 28,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -12405,7 +15684,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 12,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -12413,7 +15694,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -12421,7 +15704,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -12429,7 +15714,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -12437,7 +15724,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -12445,7 +15734,9 @@
     "script": 90,
     "arc_cells": 19,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -12453,7 +15744,9 @@
     "script": 91,
     "arc_cells": 20,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    }
   ],
   "stats": {
@@ -12490,6 +15783,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 3,
+   "grid_scripts": 682,
+   "grid_switch_scripts": 0,
+   "grid_aligned": 7079,
+   "grid_phantom": 0,
+   "grid_unmodelled": 25,
+   "grid_signature": 2,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 2,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 7,
@@ -12524,7 +15825,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [
    {
@@ -12681,6 +15984,26 @@
     ]
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "caca[18]": {
+     "switches": [],
+     "signature": [
+      52,
+      58
+     ],
+     "phantom_cells": 0
+    }
+   },
+   "scripts": 682,
+   "switch_scripts": 0,
+   "aligned": 7079,
+   "phantom": 0,
+   "unmodelled": 25,
+   "signature": 2,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 2
   },
   "span_reach": {
    "tables": {
@@ -12882,7 +16205,9 @@
     "script": 27,
     "arc_cells": 6,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -12890,7 +16215,9 @@
     "script": 28,
     "arc_cells": 6,
     "ps2_cells": 7,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -12898,7 +16225,9 @@
     "script": 3,
     "arc_cells": 15,
     "ps2_cells": 12,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -12906,7 +16235,9 @@
     "script": 15,
     "arc_cells": 42,
     "ps2_cells": 42,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 42
    },
    {
     "cls": "a_koc_oob",
@@ -12915,7 +16246,8 @@
     "cell": 25,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -12924,7 +16256,8 @@
     "cell": 26,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_se_oob",
@@ -12932,7 +16265,8 @@
     "script": 15,
     "cell": 28,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -12940,7 +16274,9 @@
     "script": 16,
     "arc_cells": 42,
     "ps2_cells": 42,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 42
    },
    {
     "cls": "a_koc_oob",
@@ -12949,7 +16285,8 @@
     "cell": 25,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -12958,7 +16295,8 @@
     "cell": 26,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_se_oob",
@@ -12966,7 +16304,8 @@
     "script": 16,
     "cell": 28,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -12974,7 +16313,9 @@
     "script": 17,
     "arc_cells": 42,
     "ps2_cells": 42,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 42
    },
    {
     "cls": "a_koc_oob",
@@ -12983,7 +16324,8 @@
     "cell": 25,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_koc_oob",
@@ -12992,7 +16334,8 @@
     "cell": 26,
     "koc": 16384,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_se_oob",
@@ -13000,7 +16343,8 @@
     "script": 17,
     "cell": 28,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -13008,7 +16352,9 @@
     "script": 24,
     "arc_cells": 40,
     "ps2_cells": 40,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 40
    },
    {
     "cls": "a_effinit_oob",
@@ -13017,7 +16363,8 @@
     "cell": 34,
     "eff": 78,
     "data": 208,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -13025,7 +16372,9 @@
     "script": 25,
     "arc_cells": 40,
     "ps2_cells": 40,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 40
    },
    {
     "cls": "a_effinit_oob",
@@ -13034,7 +16383,8 @@
     "cell": 34,
     "eff": 78,
     "data": 208,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -13042,7 +16392,9 @@
     "script": 26,
     "arc_cells": 40,
     "ps2_cells": 40,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 40
    },
    {
     "cls": "a_effinit_oob",
@@ -13051,7 +16403,8 @@
     "cell": 34,
     "eff": 78,
     "data": 208,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "needs_manual_diff",
@@ -13061,7 +16414,9 @@
     "ps2_cells": 16,
     "sa": [
      "9900_g[8]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 14
    },
    {
     "cls": "needs_manual_diff",
@@ -13071,7 +16426,9 @@
     "ps2_cells": 16,
     "sa": [
      "9900_g[9]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 14
    },
    {
     "cls": "needs_manual_diff",
@@ -13081,7 +16438,9 @@
     "ps2_cells": 16,
     "sa": [
      "9900_g[10]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 14
    },
    {
     "cls": "needs_manual_diff",
@@ -13091,7 +16450,9 @@
     "ps2_cells": 16,
     "sa": [
      "9900_g[11]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 14
    },
    {
     "cls": "needs_manual_diff",
@@ -13101,7 +16462,9 @@
     "ps2_cells": 27,
     "sa": [
      "9900_g[4]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -13111,7 +16474,9 @@
     "ps2_cells": 27,
     "sa": [
      "9900_g[5]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -13121,7 +16486,9 @@
     "ps2_cells": 27,
     "sa": [
      "9900_g[6]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -13131,7 +16498,9 @@
     "ps2_cells": 27,
     "sa": [
      "9900_g[7]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 25
    },
    {
     "cls": "needs_manual_diff",
@@ -13139,7 +16508,9 @@
     "script": 23,
     "arc_cells": 16,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 15
    },
    {
     "table": "yuca",
@@ -13153,6 +16524,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13167,6 +16539,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13181,6 +16554,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13195,6 +16569,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13209,6 +16584,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13223,6 +16599,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13237,6 +16614,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13251,6 +16629,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13259,7 +16638,9 @@
     "script": 37,
     "arc_cells": 54,
     "ps2_cells": 55,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 54
    },
    {
     "cls": "needs_manual_diff",
@@ -13267,7 +16648,9 @@
     "script": 39,
     "arc_cells": 54,
     "ps2_cells": 55,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 54
    },
    {
     "cls": "needs_manual_diff",
@@ -13275,7 +16658,9 @@
     "script": 65,
     "arc_cells": 54,
     "ps2_cells": 55,
-    "sa": null
+    "sa": null,
+    "grid": "aligned",
+    "grid_prefix_cells": 54
    }
   ],
   "stats": {
@@ -13312,6 +16697,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 4,
+   "grid_scripts": 654,
+   "grid_switch_scripts": 19,
+   "grid_aligned": 7824,
+   "grid_phantom": 276,
+   "grid_unmodelled": 66,
+   "grid_signature": 148,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 11,
@@ -13346,7 +16739,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 6,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 12,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [
    {
@@ -13509,6 +16904,387 @@
     "unmodelled": null
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "atca[15]": {
+     "switches": [
+      [
+       131,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+     ],
+     "phantom_cells": 21
+    },
+    "atca[16]": {
+     "switches": [
+      [
+       131,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+     ],
+     "phantom_cells": 21
+    },
+    "atca[17]": {
+     "switches": [
+      [
+       131,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+     ],
+     "phantom_cells": 21
+    },
+    "atca[24]": {
+     "switches": [
+      [
+       191,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      32,
+      34,
+      36,
+      38
+     ],
+     "phantom_cells": 9
+    },
+    "atca[25]": {
+     "switches": [
+      [
+       191,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      32,
+      34,
+      36,
+      38
+     ],
+     "phantom_cells": 9
+    },
+    "atca[26]": {
+     "switches": [
+      [
+       191,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      32,
+      34,
+      36,
+      38
+     ],
+     "phantom_cells": 9
+    },
+    "atca[118]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[119]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[130]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[131]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[142]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[143]": {
+     "switches": [
+      [
+       71,
+       6,
+       4
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 2
+    },
+    "atca[159]": {
+     "switches": [
+      [
+       58,
+       6,
+       2
+      ]
+     ],
+     "signature": [
+      15,
+      18,
+      21,
+      24,
+      27,
+      30,
+      33
+     ],
+     "phantom_cells": 15
+    },
+    "exca[23]": {
+     "switches": [
+      [
+       6,
+       6,
+       0
+      ]
+     ],
+     "signature": [
+      2,
+      5,
+      8,
+      11,
+      14
+     ],
+     "phantom_cells": 10
+    },
+    "saca[36]": {
+     "switches": [
+      [
+       94,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "saca[70]": {
+     "switches": [
+      [
+       347,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      58,
+      60,
+      62,
+      64,
+      66,
+      68,
+      70,
+      72,
+      74,
+      76,
+      78,
+      80,
+      82,
+      84,
+      88,
+      90
+     ],
+     "phantom_cells": 37
+    },
+    "saca[71]": {
+     "switches": [
+      [
+       347,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      58,
+      60,
+      62,
+      64,
+      66,
+      68,
+      70,
+      72,
+      74,
+      76,
+      78,
+      80,
+      82,
+      84,
+      88,
+      90
+     ],
+     "phantom_cells": 37
+    },
+    "saca[72]": {
+     "switches": [
+      [
+       347,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      58,
+      60,
+      62,
+      64,
+      66,
+      68,
+      70,
+      72,
+      74,
+      76,
+      78,
+      80,
+      82,
+      84,
+      88,
+      90
+     ],
+     "phantom_cells": 37
+    },
+    "saca[73]": {
+     "switches": [
+      [
+       347,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      58,
+      60,
+      62,
+      64,
+      66,
+      68,
+      70,
+      72,
+      74,
+      76,
+      78,
+      80,
+      82,
+      84,
+      88,
+      90
+     ],
+     "phantom_cells": 37
+    }
+   },
+   "scripts": 654,
+   "switch_scripts": 19,
+   "aligned": 7824,
+   "phantom": 276,
+   "unmodelled": 66,
+   "signature": 148,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -13719,6 +17495,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13733,6 +17510,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13747,6 +17525,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13761,6 +17540,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13775,6 +17555,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13783,7 +17564,9 @@
     "script": 27,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -13791,7 +17574,9 @@
     "script": 28,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "table": "nmca",
@@ -13805,6 +17590,7 @@
     "confidence": "high",
     "sa": null,
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -13813,7 +17599,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -13821,7 +17609,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -13829,7 +17619,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -13837,7 +17629,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -13845,7 +17639,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 46,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -13853,7 +17649,9 @@
     "script": 90,
     "arc_cells": 19,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -13861,7 +17659,9 @@
     "script": 91,
     "arc_cells": 20,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "needs_manual_diff",
@@ -13869,7 +17669,9 @@
     "script": 50,
     "arc_cells": 2,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -13877,7 +17679,9 @@
     "script": 51,
     "arc_cells": 2,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -13887,7 +17691,9 @@
     "ps2_cells": 24,
     "sa": [
      "9900_a[0]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "needs_manual_diff",
@@ -13897,7 +17703,9 @@
     "ps2_cells": 24,
     "sa": [
      "9900_a[1]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "needs_manual_diff",
@@ -13907,7 +17715,9 @@
     "ps2_cells": 24,
     "sa": [
      "9900_a[2]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "needs_manual_diff",
@@ -13917,7 +17727,9 @@
     "ps2_cells": 24,
     "sa": [
      "9900_a[3]"
-    ]
+    ],
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 22
    },
    {
     "cls": "manu_cg_delta_divergent",
@@ -13986,6 +17798,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 4,
+   "grid_scripts": 723,
+   "grid_switch_scripts": 0,
+   "grid_aligned": 7529,
+   "grid_phantom": 0,
+   "grid_unmodelled": 37,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 11,
@@ -14020,7 +17840,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -14186,6 +18008,17 @@
     ]
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {},
+   "scripts": 723,
+   "switch_scripts": 0,
+   "aligned": 7529,
+   "phantom": 0,
+   "unmodelled": 37,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -14390,7 +18223,9 @@
     "script": 27,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -14398,7 +18233,9 @@
     "script": 28,
     "arc_cells": 12,
     "ps2_cells": 13,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -14406,7 +18243,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 8,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -14414,7 +18253,9 @@
     "script": 84,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -14422,7 +18263,9 @@
     "script": 85,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -14430,7 +18273,9 @@
     "script": 88,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -14438,7 +18283,9 @@
     "script": 89,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -14446,7 +18293,9 @@
     "script": 90,
     "arc_cells": 19,
     "ps2_cells": 18,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 17
    },
    {
     "cls": "needs_manual_diff",
@@ -14454,7 +18303,9 @@
     "script": 91,
     "arc_cells": 20,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "table": "saca",
@@ -14470,6 +18321,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14486,6 +18338,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14502,6 +18355,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14518,6 +18372,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14534,6 +18389,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14550,6 +18406,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14566,6 +18423,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14582,6 +18440,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14598,6 +18457,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14614,6 +18474,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14630,6 +18491,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14646,6 +18508,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14662,6 +18525,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14678,6 +18542,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14694,6 +18559,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14710,6 +18576,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14726,6 +18593,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14742,6 +18610,7 @@
      "9900_g[0]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14758,6 +18627,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14774,6 +18644,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14790,6 +18661,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14806,6 +18678,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14822,6 +18695,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14838,6 +18712,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14854,6 +18729,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14870,6 +18746,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14886,6 +18763,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14902,6 +18780,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14918,6 +18797,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14934,6 +18814,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14950,6 +18831,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14966,6 +18848,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14982,6 +18865,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -14998,6 +18882,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15014,6 +18899,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15030,6 +18916,7 @@
      "9900_g[1]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15046,6 +18933,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15062,6 +18950,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15078,6 +18967,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15094,6 +18984,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15110,6 +19001,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15126,6 +19018,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15142,6 +19035,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15158,6 +19052,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15174,6 +19069,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15190,6 +19086,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15206,6 +19103,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15222,6 +19120,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15238,6 +19137,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15254,6 +19154,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15270,6 +19171,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15286,6 +19188,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15302,6 +19205,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15318,6 +19222,7 @@
      "9900_g[2]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15334,6 +19239,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15350,6 +19256,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15366,6 +19273,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15382,6 +19290,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15398,6 +19307,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15414,6 +19324,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15430,6 +19341,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15446,6 +19358,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15462,6 +19375,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15478,6 +19392,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15494,6 +19409,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15510,6 +19426,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15526,6 +19443,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15542,6 +19460,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15558,6 +19477,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15574,6 +19494,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15590,6 +19511,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    },
    {
@@ -15606,6 +19528,7 @@
      "9900_g[3]"
     ],
     "dead": false,
+    "grid": "aligned",
     "cls": "c_mismatch_own_group"
    }
   ],
@@ -15643,6 +19566,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 5,
+   "grid_scripts": 694,
+   "grid_switch_scripts": 0,
+   "grid_aligned": 9049,
+   "grid_phantom": 0,
+   "grid_unmodelled": 36,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 5,
@@ -15677,7 +19608,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -15810,6 +19743,17 @@
     ]
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {},
+   "scripts": 694,
+   "switch_scripts": 0,
+   "aligned": 9049,
+   "phantom": 0,
+   "unmodelled": 36,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -16018,7 +19962,9 @@
     "script": 27,
     "arc_cells": 33,
     "ps2_cells": 12,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16026,7 +19972,9 @@
     "script": 28,
     "arc_cells": 33,
     "ps2_cells": 12,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16034,7 +19982,9 @@
     "script": 3,
     "arc_cells": 2,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    },
    {
     "cls": "needs_manual_diff",
@@ -16042,7 +19992,9 @@
     "script": 84,
     "arc_cells": 8,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -16050,7 +20002,9 @@
     "script": 85,
     "arc_cells": 8,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -16058,7 +20012,9 @@
     "script": 88,
     "arc_cells": 8,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -16066,7 +20022,9 @@
     "script": 89,
     "arc_cells": 8,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -16074,7 +20032,9 @@
     "script": 90,
     "arc_cells": 2,
     "ps2_cells": 24,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    },
    {
     "cls": "needs_manual_diff",
@@ -16082,7 +20042,9 @@
     "script": 91,
     "arc_cells": 2,
     "ps2_cells": 23,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 1
    },
    {
     "cls": "needs_manual_diff",
@@ -16090,7 +20052,9 @@
     "script": 150,
     "arc_cells": 12,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16098,7 +20062,9 @@
     "script": 151,
     "arc_cells": 12,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16106,7 +20072,9 @@
     "script": 152,
     "arc_cells": 12,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16114,7 +20082,9 @@
     "script": 153,
     "arc_cells": 12,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16122,7 +20092,9 @@
     "script": 154,
     "arc_cells": 12,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16130,7 +20102,9 @@
     "script": 155,
     "arc_cells": 12,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    }
   ],
   "stats": {
@@ -16167,6 +20141,14 @@
    "span_gate_reasons": 39,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 41,
+   "grid_scripts": 698,
+   "grid_switch_scripts": 0,
+   "grid_aligned": 9190,
+   "grid_phantom": 0,
+   "grid_unmodelled": 37,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 15,
@@ -16201,7 +20183,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -16417,6 +20401,17 @@
     ]
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {},
+   "scripts": 698,
+   "switch_scripts": 0,
+   "aligned": 9190,
+   "phantom": 0,
+   "unmodelled": 37,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -16697,7 +20692,9 @@
     "script": 27,
     "arc_cells": 25,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "needs_manual_diff",
@@ -16705,7 +20702,9 @@
     "script": 28,
     "arc_cells": 25,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 13
    },
    {
     "cls": "needs_manual_diff",
@@ -16713,7 +20712,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16721,7 +20722,9 @@
     "script": 82,
     "arc_cells": 7,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -16729,7 +20732,9 @@
     "script": 84,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -16737,7 +20742,9 @@
     "script": 85,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -16745,7 +20752,9 @@
     "script": 86,
     "arc_cells": 7,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -16753,7 +20762,9 @@
     "script": 88,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -16761,7 +20772,9 @@
     "script": 89,
     "arc_cells": 6,
     "ps2_cells": 45,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 5
    },
    {
     "cls": "needs_manual_diff",
@@ -16769,7 +20782,9 @@
     "script": 90,
     "arc_cells": 19,
     "ps2_cells": 29,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 18
    },
    {
     "cls": "needs_manual_diff",
@@ -16777,7 +20792,9 @@
     "script": 91,
     "arc_cells": 20,
     "ps2_cells": 12,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -16785,7 +20802,9 @@
     "script": 145,
     "arc_cells": 14,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -16793,7 +20812,9 @@
     "script": 146,
     "arc_cells": 14,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -16801,7 +20822,9 @@
     "script": 148,
     "arc_cells": 14,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -16809,7 +20832,9 @@
     "script": 149,
     "arc_cells": 14,
     "ps2_cells": 6,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    }
   ],
   "stats": {
@@ -16846,6 +20871,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 6,
+   "grid_scripts": 654,
+   "grid_switch_scripts": 0,
+   "grid_aligned": 8138,
+   "grid_phantom": 0,
+   "grid_unmodelled": 0,
+   "grid_signature": 0,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 15,
@@ -16880,7 +20913,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
@@ -17022,6 +21057,17 @@
     ]
    },
    "foreign_cells": []
+  },
+  "grid_phase": {
+   "off_grid_scripts": {},
+   "scripts": 654,
+   "switch_scripts": 0,
+   "aligned": 8138,
+   "phantom": 0,
+   "unmodelled": 0,
+   "signature": 0,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
@@ -17231,7 +21277,9 @@
     "script": 27,
     "arc_cells": 8,
     "ps2_cells": 9,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 7
    },
    {
     "cls": "needs_manual_diff",
@@ -17239,7 +21287,9 @@
     "script": 28,
     "arc_cells": 7,
     "ps2_cells": 9,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -17247,7 +21297,9 @@
     "script": 46,
     "arc_cells": 54,
     "ps2_cells": 54,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 54
    },
    {
     "cls": "a_koc_oob",
@@ -17256,7 +21308,8 @@
     "cell": 30,
     "koc": 6144,
     "ix": 0,
-    "dead": true
+    "dead": true,
+    "grid": "unmodelled"
    },
    {
     "cls": "needs_manual_diff",
@@ -17264,7 +21317,9 @@
     "script": 3,
     "arc_cells": 16,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -17272,7 +21327,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -17280,7 +21337,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -17288,7 +21347,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -17296,7 +21357,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 59,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -17304,7 +21367,9 @@
     "script": 90,
     "arc_cells": 27,
     "ps2_cells": 20,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 19
    },
    {
     "cls": "needs_manual_diff",
@@ -17312,7 +21377,9 @@
     "script": 91,
     "arc_cells": 25,
     "ps2_cells": 17,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 16
    },
    {
     "cls": "needs_manual_diff",
@@ -17320,7 +21387,9 @@
     "script": 53,
     "arc_cells": 29,
     "ps2_cells": 16,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 15
    },
    {
     "cls": "manu_cg_delta_divergent",
@@ -18061,6 +22130,14 @@
    "span_gate_reasons": 4,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 165,
+   "grid_scripts": 671,
+   "grid_switch_scripts": 5,
+   "grid_aligned": 9569,
+   "grid_phantom": 142,
+   "grid_unmodelled": 38,
+   "grid_signature": 162,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 28,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 6,
@@ -18095,7 +22172,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 1,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 0,
+   "oob_not_phantom": 1
   },
   "over_declared_sections": [
    {
@@ -18850,6 +22929,237 @@
    "dead": 7,
    "unmodelled": null
   },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "atca[24]": {
+     "switches": [
+      [
+       486,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[25]": {
+     "switches": [
+      [
+       486,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "atca[26]": {
+     "switches": [
+      [
+       486,
+       2,
+       0
+      ]
+     ],
+     "signature": [],
+     "phantom_cells": 1
+    },
+    "nmca[46]": {
+     "switches": [
+      [
+       212,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      12,
+      15,
+      18,
+      21,
+      24,
+      27,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53
+     ],
+     "phantom_cells": 1
+    },
+    "saca[74]": {
+     "switches": [
+      [
+       33,
+       4,
+       2
+      ]
+     ],
+     "signature": [
+      18,
+      20,
+      22,
+      24,
+      26,
+      28,
+      30,
+      32,
+      34,
+      36,
+      38,
+      40,
+      42,
+      44,
+      46,
+      48,
+      50,
+      52,
+      54,
+      56,
+      58,
+      60,
+      62,
+      64,
+      66,
+      68,
+      72,
+      74,
+      76,
+      78,
+      80,
+      82,
+      84,
+      86,
+      88,
+      90,
+      92,
+      94,
+      96,
+      98,
+      100,
+      102,
+      104,
+      106,
+      108,
+      110,
+      112,
+      114,
+      116,
+      118,
+      120,
+      122,
+      126,
+      128,
+      130,
+      132,
+      134,
+      136,
+      138,
+      140,
+      142,
+      144,
+      146,
+      148,
+      150,
+      152,
+      154,
+      156,
+      158,
+      160,
+      162,
+      164,
+      166,
+      168,
+      170,
+      172,
+      174,
+      176,
+      178,
+      182,
+      184,
+      186,
+      188,
+      190,
+      192,
+      194,
+      196,
+      198,
+      200,
+      202,
+      204,
+      206,
+      208,
+      210,
+      212,
+      214,
+      216,
+      218,
+      220,
+      222,
+      224,
+      226,
+      228,
+      230,
+      232,
+      234,
+      238,
+      240,
+      242,
+      244,
+      246,
+      248,
+      250,
+      252,
+      254,
+      256,
+      258,
+      260,
+      262,
+      264,
+      266,
+      268,
+      270,
+      272,
+      274,
+      276,
+      278,
+      280,
+      282,
+      284,
+      286,
+      288,
+      290
+     ],
+     "phantom_cells": 138
+    }
+   },
+   "scripts": 671,
+   "switch_scripts": 5,
+   "aligned": 9569,
+   "phantom": 142,
+   "unmodelled": 38,
+   "signature": 162,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 28
+  },
   "span_reach": {
    "tables": {
     "nmca": {
@@ -19218,7 +23528,9 @@
     "script": 27,
     "arc_cells": 9,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 8
    },
    {
     "cls": "needs_manual_diff",
@@ -19226,7 +23538,9 @@
     "script": 28,
     "arc_cells": 9,
     "ps2_cells": 10,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 8
    },
    {
     "cls": "needs_manual_diff",
@@ -19234,7 +23548,9 @@
     "script": 0,
     "arc_cells": 18,
     "ps2_cells": 17,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 16
    },
    {
     "cls": "needs_manual_diff",
@@ -19242,7 +23558,9 @@
     "script": 1,
     "arc_cells": 18,
     "ps2_cells": 17,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 16
    },
    {
     "cls": "needs_manual_diff",
@@ -19250,7 +23568,9 @@
     "script": 2,
     "arc_cells": 18,
     "ps2_cells": 17,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 16
    },
    {
     "cls": "needs_manual_diff",
@@ -19258,7 +23578,9 @@
     "script": 3,
     "arc_cells": 12,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "no_oracle",
+    "grid_prefix_cells": null
    },
    {
     "cls": "needs_manual_diff",
@@ -19266,7 +23588,9 @@
     "script": 84,
     "arc_cells": 7,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -19274,7 +23598,9 @@
     "script": 85,
     "arc_cells": 7,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -19282,7 +23608,9 @@
     "script": 88,
     "arc_cells": 7,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -19290,7 +23618,9 @@
     "script": 89,
     "arc_cells": 7,
     "ps2_cells": 31,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 6
    },
    {
     "cls": "needs_manual_diff",
@@ -19298,7 +23628,9 @@
     "script": 90,
     "arc_cells": 12,
     "ps2_cells": 11,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 10
    },
    {
     "cls": "needs_manual_diff",
@@ -19306,7 +23638,9 @@
     "script": 91,
     "arc_cells": 12,
     "ps2_cells": 14,
-    "sa": null
+    "sa": null,
+    "grid": "aligned_prefix",
+    "grid_prefix_cells": 11
    },
    {
     "cls": "needs_manual_diff",
@@ -19314,7 +23648,9 @@
     "script": 63,
     "arc_cells": 118,
     "ps2_cells": 118,
-    "sa": null
+    "sa": null,
+    "grid": "phantom",
+    "grid_prefix_cells": 117
    },
    {
     "cls": "a_se_oob",
@@ -19322,7 +23658,8 @@
     "script": 63,
     "cell": 30,
     "se": 1024,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_se_oob",
@@ -19330,7 +23667,8 @@
     "script": 63,
     "cell": 72,
     "se": 1536,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19339,7 +23677,8 @@
     "cell": 82,
     "eff": 116,
     "data": 65,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19348,7 +23687,8 @@
     "cell": 83,
     "eff": 116,
     "data": 66,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19357,7 +23697,8 @@
     "cell": 84,
     "eff": 116,
     "data": 67,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19366,7 +23707,8 @@
     "cell": 85,
     "eff": 116,
     "data": 68,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19375,7 +23717,8 @@
     "cell": 86,
     "eff": 116,
     "data": 70,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19384,7 +23727,8 @@
     "cell": 87,
     "eff": 116,
     "data": 71,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19393,7 +23737,8 @@
     "cell": 88,
     "eff": 116,
     "data": 72,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19402,7 +23747,8 @@
     "cell": 89,
     "eff": 116,
     "data": 73,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19411,7 +23757,8 @@
     "cell": 90,
     "eff": 116,
     "data": 74,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19420,7 +23767,8 @@
     "cell": 91,
     "eff": 116,
     "data": 75,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19429,7 +23777,8 @@
     "cell": 92,
     "eff": 116,
     "data": 76,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19438,7 +23787,8 @@
     "cell": 93,
     "eff": 116,
     "data": 77,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19447,7 +23797,8 @@
     "cell": 94,
     "eff": 116,
     "data": 78,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19456,7 +23807,8 @@
     "cell": 95,
     "eff": 116,
     "data": 79,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19465,7 +23817,8 @@
     "cell": 96,
     "eff": 116,
     "data": 80,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19474,7 +23827,8 @@
     "cell": 97,
     "eff": 116,
     "data": 81,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19483,7 +23837,8 @@
     "cell": 98,
     "eff": 116,
     "data": 82,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19492,7 +23847,8 @@
     "cell": 99,
     "eff": 116,
     "data": 83,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19501,7 +23857,8 @@
     "cell": 100,
     "eff": 116,
     "data": 84,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19510,7 +23867,8 @@
     "cell": 101,
     "eff": 116,
     "data": 85,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19519,7 +23877,8 @@
     "cell": 102,
     "eff": 116,
     "data": 86,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19528,7 +23887,8 @@
     "cell": 103,
     "eff": 116,
     "data": 87,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19537,7 +23897,8 @@
     "cell": 104,
     "eff": 116,
     "data": 88,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19546,7 +23907,8 @@
     "cell": 105,
     "eff": 116,
     "data": 89,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19555,7 +23917,8 @@
     "cell": 106,
     "eff": 117,
     "data": 149,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19564,7 +23927,8 @@
     "cell": 107,
     "eff": 117,
     "data": 150,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19573,7 +23937,8 @@
     "cell": 108,
     "eff": 117,
     "data": 151,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19582,7 +23947,8 @@
     "cell": 109,
     "eff": 117,
     "data": 152,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19591,7 +23957,8 @@
     "cell": 110,
     "eff": 117,
     "data": 153,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "a_effinit_oob",
@@ -19600,7 +23967,8 @@
     "cell": 111,
     "eff": 117,
     "data": 154,
-    "dead": true
+    "dead": true,
+    "grid": "phantom"
    },
    {
     "cls": "manu_cg_delta_divergent",
@@ -19717,6 +24085,14 @@
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
    "span_gate_xcopy_reasons": 5,
+   "grid_scripts": 661,
+   "grid_switch_scripts": 1,
+   "grid_aligned": 6888,
+   "grid_phantom": 97,
+   "grid_unmodelled": 2,
+   "grid_signature": 59,
+   "grid_signature_not_phantom": 0,
+   "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 1699,
    "caua_hosa_tail_reached": 0,
    "manu_direct": 7,
@@ -19751,7 +24127,9 @@
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
    "koc_oob_dead": 0,
-   "idx_oob_dead": 0
+   "idx_oob_dead": 0,
+   "oob_phantom": 32,
+   "oob_not_phantom": 0
   },
   "over_declared_sections": [
    {
@@ -20101,6 +24479,94 @@
      }
     }
    ]
+  },
+  "grid_phase": {
+   "off_grid_scripts": {
+    "saca[63]": {
+     "switches": [
+      [
+       125,
+       6,
+       2
+      ],
+      [
+       489,
+       6,
+       4
+      ]
+     ],
+     "signature": [
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79
+     ],
+     "phantom_cells": 97
+    }
+   },
+   "scripts": 661,
+   "switch_scripts": 1,
+   "aligned": 6888,
+   "phantom": 97,
+   "unmodelled": 2,
+   "signature": 59,
+   "signature_not_phantom": 0,
+   "signature_unmodelled": 0
   },
   "span_reach": {
    "tables": {
