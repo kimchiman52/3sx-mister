@@ -183,7 +183,7 @@ command and its observed output, or a named primary source. Things that were
 | Upstream issue #363 | **OPEN** upstream; our findings not yet reported (§13) |
 | **The other 13 sections** (issue **#325**) | **AUDITED, no defect** — differences enumerated and classified (§15) |
 | **Arcade command tables** (input recognition) | **CLOSED — no bug** (§16) |
-| **`location_data[]` over-declared spans** | **OPEN** — **106** script spans (§19.7 corrects §7.6's 7) plus Remy CAUA/HOSA (§15.6) |
+| **`location_data[]` over-declared spans** | **CLOSED 2026-09-06 — no code change, defended by the audit** (§27). Both consequences adjudicated: (1) no path the engine can take forms a cell index inside any over-declared tail — every writer of `cg_ix` is modelled in `cg_audit.py` -> `span_closure()`, and the only cells reachable past a first terminator are 18 in-bounds script cells of Dudley `caca[6]`/`saca[87]` and Elena `atca[159]`; Remy's CAUA/HOSA tails are never indexed (`max cuix` 6 of 7, `max hoix` 11 of 12). (2) `ArcadeCharData_ComputeDigest` does hash 49,288 B (1.90% of its 2,590,884 B input) of decoded ROM past the real data, but the ROM is SHA-256-pinned to one revision (`rom_load.c`) and the decode is a pure function of it, so every peer hashes the same bytes: harmless, and deliberately NOT tightened (a digest move forces a lockstep client update). Real ends re-derived by reach, not by §19's terminator scan; §19.7's `Real end` column corrected in 14 spans |
 | **Residual (second-door) bounds** | **AUDITED, FIXED** `a5bc6a5b` — pre-fix baseline was 6 violations, all Remy → Gill's group; current tree measures 0 (§17.3, §17.5); tooling `residual_audit.py` (§8.K) |
 | **Under-declared (truncating) spans** | **CLOSED — none exist.** 500/500 spans COVERED (§19) |
 | Unreferenced script in `IBUKI atca` | **OPEN, benign** — 376 B, real data, outside the 133,901-cell census; all CGs in bounds (§19.6) |
@@ -705,6 +705,12 @@ terminator), so not a live fault.
 > **106 script spans, not seven**, totalling 36,680 bytes — all hashed into the
 > digest.
 
+> **CLOSED 2026-09-06 — see §27.** The real end is now derived from what the
+> executor can reach, not from the first terminator (which the §19 convention
+> is now known to undercount — a `jmp`/`jsr` `pat` is a 1-based cell index and
+> can land past it). Nothing executes any tail; the digest hashes the tails but
+> deterministically; no code change.
+
 ---
 
 ## 8. Worklist
@@ -1009,7 +1015,15 @@ them excluded in the audit so they stop appearing as findings.
 > `cg_audit.py` runs as a `c_mismatch_own_group` finding for CHUNLI — that is
 > expected, not a regression.
 
-### G. Over-declared section sizes (§7.6, **corrected by §19.7**)
+### G. Over-declared section sizes (§7.6, **corrected by §19.7**, **CLOSED by §27**)
+
+> **Status 2026-09-06: CLOSED, no code change.** §27 adjudicates both halves:
+> no engine path forms a cell index in any tail (measured over every writer of
+> `cg_ix`, both `cg_audit.py` closures), and the hashed tails are a pure
+> function of the one SHA-pinned ROM, hence identical for every peer. The
+> "tighten the sizes" change below is deliberately **not** made: it would move
+> the digest for no behavioural gain. `cg_audit.py` re-derives the verdict on
+> every run (`slack:` column, `span_reach` records).
 
 Tighten the declared sizes to real extents. **There are 106 over-declared script
 spans, not seven** (§19.7 has the measured table; 12 exceed 0x100, and `ELENA
@@ -2940,6 +2954,16 @@ Across all 200 script spans: **94 have slack exactly 0, 106 have slack > 0,
 none is negative, total slack 36,680 bytes** — all of it hashed by
 `ArcadeCharData_ComputeDigest`. So §8.G's list of "seven sections" is really
 **106**, of which 12 exceed 0x100. Fold the corrected table into that item.
+
+> **CORRECTED by §27 (2026-09-06).** "Real end = first terminator's read-end"
+> undercounts: a `jmp`/`jpss`/`jsr` `pat` is a 1-based cell index and can enter
+> a script past its first terminator (so can `comm_end`, `cg_next_ix`,
+> `cg_wca_ix`, `cg_extdat`, the relative jumps, and a script that simply runs
+> into the next one). Measured by reach, 14 of the 106 spans end later than
+> this table says — `DUDLEY caca` is not over-declared at all (its `caca[6]`
+> continues past a cell-1 `roa` and ends in a `comm_ret` exactly at the
+> declared size), `DUDLEY saca` is 0x138 not 0x1A0, and the others shrink by
+> 8-16 bytes. The total is **35,696 bytes**, not 36,680. §27.2 has the table.
 
 ### 19.8 One §12 unknown now closed
 
@@ -5383,3 +5407,270 @@ point is moot, because the hazard does not exist on either.
   uses in `cg_audit.py` (§21.6's converter-artefact classification among them)
   were not re-derived, and their counts are unchanged by this pass.
 - The CPS3's own overlay engine was still not disassembled (§24.7/§26.9).
+
+---
+
+## 27. Over-declared `location_data[]` spans: CLOSED — nothing executes a tail, and the hashed tails are deterministic (eleventh pass, 2026-09-06)
+
+**Citation style for this section.** As in §21-§26: this document is not in
+`tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line. Code was read at
+`new-stuff` @ `56f4f52a`. Every number marked **measured** was produced by
+`tools/arcade-audit/cg_audit.py` (`span_closure()`, `span_results()`,
+`caua_hosa_fit()`, added in this pass) against the same `rom.bin` (md5
+`909f5abec4b6b21bf7d2a452a03fdfcc`) and `SF33RD.AFS` the rest of this document
+uses.
+
+**Headline.** §7.6/§19.7 left two consequences of the 106 over-declared script
+spans (and Remy's CAUA/HOSA, §15.6) unseparated. Separated and adjudicated:
+
+1. **Execution.** No path the engine can take forms a cell index inside an
+   over-declared tail. Every writer of the cell index `cg_ix` was enumerated
+   (§27.1) and the closure taken from every entry the C can form (§27.3). The
+   only cells reachable past a *first* terminator are **18**, in three spans —
+   Dudley `caca[6]` cells 2-12, Dudley `saca[87]` cells 11-16, Elena
+   `atca[159]` cell 24 — and all of them are script data (entered by a `jsr`
+   or a forward `comm_wcne` that PS2 carries byte-identically), every sprite
+   among them in bounds (Dudley's are CG 5537-5543, group 5, his own). Remy's
+   CAUA/HOSA tails are indexed by nothing: `max(HIIT.cuix) = 6 = 7 − 1`,
+   `max(HIIT.hoix) = 11 = 12 − 1` — exact fits (§27.4).
+2. **Digest.** `ArcadeCharData_ComputeDigest` hashes `span->data, span->size`
+   for all 500 spans — the *decoded* image, tails included: **49,288 B of
+   2,590,884 B (1.90%)** is decoded ROM past the real data (35,696 B in the
+   106 script spans, 13,592 B in Remy's CAUA/HOSA). But `rom_load.c` accepts
+   exactly one ROM (four SIMM slices, each SHA-256-pinned — `rom_load.c` ->
+   `expected_entries[]`, "Digests pinned 2026-08-23 from a known-good
+   sfiii3nr1 set"), and `read_char_table`'s decode of a tail is a pure
+   function of those bytes (`SDL_memset(result, 0, location.size)`, then
+   `remap_cg_se`/`remap_cg_number` on every cell, no other input). Every peer
+   therefore hashes the same 49,288 bytes. **The slack is hashed, junk, and
+   harmless.** Tightening the sizes would move the digest and force every
+   netplay client to update in lockstep for no behavioural change; this pass
+   makes **no code change**, like the two sibling lanes that declined
+   digest-moving fixes this week.
+
+The §19 terminator convention is **not** load-bearing here: the real end of
+every span is derived from reach (§27.2), and §19.7's column is corrected by it.
+
+### 27.1 Every writer of `cg_ix`, and what each can form
+
+`cg_ix` is a `u32` word index into the current script (`charset.c` ->
+`check_cm_extended_code`: `cpc = (UNK11*)(wk->set_char_ad + wk->cg_ix)`), with
+stride `cgd_type` words. The C indexes with no bound: a cell index may be
+negative (the header), or run past the script into the next one, or past the
+span. `grep 'cg_ix *=' src` — the complete list:
+
+| Writer | Forms | Modelled as |
+|---|---|---|
+| `check_cm_extended_code` `cg_ix += cgd_type` | k+1 | sequential edge |
+| same, `if (wk->cg_next_ix) cg_ix = (cg_next_ix - 1) * cgd_type` | the cgd-6 cell's byte | absolute edge |
+| `check_cgd_patdat` `cg_wca_ix = cg_type & 0x7F` → `char_move_wca`/`comm_wca` | `(type & 0x7F) − 1` | absolute edge |
+| `hitcheck.c` `((as->cg_extdat & 0x3F) - 1) * as->cgd_type` (cases 0x81/0x41/0x01) | `(ext & 0x3F) − 1` | absolute edge |
+| `pls03.c` -> `check_renda_cancel` `cg_eftype * cgd_type - cgd_type * 2`, gated by `cg_cancel & 16` (`pls00.c`) | `eftype − 1` | absolute edge on cells with `canc & 0x10` |
+| `comm_end` `(ctc->pat - 2) * cgd_type` | `pat − 1` | absolute edge |
+| `comm_ixfw` / `comm_ixbw` | k ± `pat` | relative edge |
+| `decord_if_jump` (23 conditional commands): `0x4000` fwd, `0x8000` back, `0x2000` `decode_if_lever[]`, else `(ix - 2) * cgd_type` | k ± (w & 0xFF), or `w − 1` | every operand a target, condition ignored |
+| `set_char_move_init2(koc, index, ip)` from `comm_jmp`/`jpss`/`jsr`/`rapp*`/`rapk*` and the register jumps `comm_uja*`/`umja`/`uhsja` after `comm_rja*`/`rmja`/`rhsja` | `(table koc, script ix, cell ip − 1)`; `ip <= 0` → 1, `index < 0` → 0 (the `#if !defined(CPS3)` clamps: `CPS3` is not defined, `CMakeLists.txt`) | seed; every stored triple is a global seed (the register persists across script switches) |
+| C literal entries: `appear.c` (nine `set_char_move_init2(&wk->wu, 9, ix, ip, 0)`), `win_pl.c` `(9, 36, 7)`, `plpat00.c` `(5, 60, 8, 1)` | `yuca`/`saca` at `ip − 1` | seeds |
+| `plpcu.c` `char_move_index(emwk->wu.curr_rca->catch_nix)` on `cuca[cmyd.ix]` | thrower's RICT row `cg_rival + CHAR_3SX_TO_ARCADE(caught) − 24` (`catch_table_offset`) | throw census, §27.3 |
+| `exset_char_move_init` (keeps `cg_ix`, `cg_next_ix`, `cg_wca_ix`): `pls00.c` Elena `nmca[36]` → `nmca[0]`, `plpdm.c` `Damage_17000` → `dmca[dm17_to_nm23_change[ci]]` | the source cell's index | one-step carry |
+| `appear.c` -> `Appear_14000` `work = cg_ix / cgd_type; set_char_move_init2(0, 0, work + 1)` (own index, read while running `yuca[0x3C]`, when the *opponent's* `Appear_free` is 1); `win_pl.c` `work2 = cg_ix / cgd_type + 2` into `yuca[work + 32]` from `nmca[0]` | the source cell's index (+1) | one-step carry from the fixed source script |
+| `set_char_move_init(koc, index)` from C, any state | cell 0 of any script in a table the C names by literal koc: `nmca dmca caca cuca atca saca btca yuca` (measured over `engine/` + `animation/`; `exca`, `cbca` are entered only by script triples) | seeds |
+| `comm_retmj` `cg_ix = cmb2.pat` (raw), `comm_back`/`ret`/`abbak`/`nex` | a position saved from a reachable cell (+1) | already an edge |
+| `effk5.c` -> `get_okuri_time` | a look-ahead over the master's script that follows only `comm_end`/`ixfw`/`ixbw` and stops at every `k5_exc_check == 2` code, which includes every terminator | a subset of the closure; not a writer |
+
+Not writers: effects bind their own `char_table` (`eff*.c` `*ewk->wu.char_table
+= _..._char_table`); the two that call `set_char_base_data` and then
+`set_char_move_init2` with a non-zero `ip` (`eff13.c` charset 11, `effc3.c`
+charset 17) bind slots that `charid.c` -> `copy_char_base_data` overwrites with
+effect tables; `eff50`/`eff09`/`effc8`/`effk5` mirror the master's `cg_ix` on
+their own scripts; `netplay/game_state.c` restores saved values; nothing in
+`src/training/` or `src/port/config/` writes it.
+
+**Two engine facts worth recording.** (i) `cgd_type 1` scripts (the `yuca`
+intro/win tables) stride **4 bytes** in the executor (`cg_ix += cgd_type`,
+`set_char_ad` is `u32*`; `setupCharTableData` copies `cgd_type` words) while
+`read_char_table` lays their cells out 8 bytes wide (`8 + max(cgd_type*4 − 8,
+0)`); the executor therefore runs each sprite's `olc`/`num` word and each
+command's `ix`/`pat` word as a command of its own. The data is built for it —
+those words decode as `comm_dummy` (0), `rja6`/`rja7` register stores — and
+the PS2 data is byte-identical, so this is the engine's contract, not a port
+defect; it is why the model reads cells at the executor's stride. (ii)
+`comm_ydat` (code 33) appears in **no** script of any character on either
+release (measured: 0 cells arcade, 0 cells PS2), so `cmyd.ix` only ever holds
+its initial 0 and a caught player always runs `cuca[0]`.
+
+### 27.2 The true extent of every span (measured)
+
+A span's **real end** is the last byte any reachable cell touches, or the first
+terminator's read-end if that is later. The §19.7 column undercounts wherever a
+script continues past a mid-script terminator; 14 of the 106 spans do:
+
+| Character | Section | Declared | §19.7 real end | Real end by reach | Junk | §19.7 slack |
+|---|---|---|---|---|---|---|
+| REMY | `yuca` | 0x73E0 | 0x11C0 | 0x11C0 | **0x6220** | 0x6220 |
+| HUGO | `saca` | 0x4164 | 0x374C | 0x3754 | **0x0A10** | 0x0A18 |
+| TWELVE | `saca` | 0x5E50 | 0x55B0 | 0x55B0 | **0x08A0** | 0x08A0 |
+| URIEN | `saca` | 0x3A54 | 0x36E4 | 0x36F4 | **0x0360** | 0x0370 |
+| NECRO | `saca` | 0x3FF8 | 0x3CC8 | 0x3CD0 | **0x0328** | 0x0330 |
+| ELENA | `saca` | 0x6638 | 0x63B0 | 0x63C0 | **0x0278** | 0x0288 |
+| SEAN | `caca` | 0x12C0 | 0x1040 | 0x1050 | **0x0270** | 0x0280 |
+| TWELVE | `cbca` | 0x089C | 0x06BC | 0x06BC | **0x01E0** | 0x01E0 |
+| URIEN | `atca` | 0x290C | 0x2794 | 0x279C | **0x0170** | 0x0178 |
+| DUDLEY | `saca` | 0x6AE4 | 0x6944 | 0x69AC | **0x0138** | 0x01A0 |
+| NECRO | `caca` | 0x2124 | 0x1FF4 | 0x2004 | **0x0120** | 0x0130 |
+| DUDLEY | `caca` | 0x07B8 | 0x06B0 | 0x07B8 | **0** | 0x0108 |
+
+`DUDLEY caca[6]` is the instructive one: cell 0 is a 250-frame hold, cell 1 is
+`comm_roa` — where §19 stopped — and `caca[1]`/`caca[2]` both `jsr` to
+`(2, 6, 3)`, i.e. `caca[6]` **cell 2**, which is `comm_wset` followed by nine
+sprite cells (raw CG → remapped 5537-5543, `obj_group_table` group 5, Dudley's
+own) and a `comm_ret` whose 8 read bytes end exactly at the declared size. The
+span is exactly right; only the metric was wrong. `DUDLEY saca[87]` (cells
+11-16 via the `comm_wcne` `0x4007` of §19.3, ending in `jmp saca[86]`) and
+`ELENA atca[159]` (cell 24, `jmp nmca[34]`, via `0x4002`) are the other two.
+
+Totals: **106 spans, 35,696 B of junk** (§19.7 said 36,680), the largest
+Remy's `yuca` at 25,120 B. Remy's `caua` (777 elements declared, 7 real) and
+`hosa` (941 declared, 12 real) add 13,592 B.
+
+### 27.3 The closure, and what keeps its gate open
+
+`cg_audit.py` -> `span_closure(ci)` takes the closure over positions — a frame
+is `(table, script)` with that script's stride; a node is a cell index in it,
+negative or past the script allowed, as the C allows — from every seed in
+§27.1, with every operand of every conditional a target. Two cross-character
+couplings are iterated to a fixpoint in `span_results()`: the **throw census**
+(a thrower's reachable `cg_rival` cells select the caught player's RICT row,
+`ydat = {0}` per §27.1(ii)), and the **X.C.O.P.Y. morph** (`effk7.c` ->
+`K7_move_type_0` case 0 rebinds the tables and touches no register, so Twelve's
+stored `rja*`/`rmja`/`rhsja` triples resolve against the target's tables at the
+target's `uja*` consumers, and the target's against Twelve's on the reverse
+marker). A donor triple is applied only where the recipient has a consumer
+reachable from a C-side entry without passing a setter of that register
+(`span_stale()`, `SPAN_REG`).
+
+**Result (measured, both closures):** the reachable cells past a first
+terminator are the 18 of §27.2 — **0 out of bounds**, 0 in a tail. The gate is
+nonetheless reported **`unmodelled`** for every character, for three reasons
+the model refuses to guess at, all of them **byte-identical on PS2** (§6.1):
+
+- **Registered jumps whose script index is beyond the pointer table** (81
+  reasons): Gill's cgd-1 `yuca[68..]` cell 9 is the `num` word `0x0400`
+  executing as `rja7 (0, 1024, 0)` → `nmca[1024]` of a 63-entry table; Elena's
+  one-cell `saca[10..31]` run off their end into the next script's header,
+  which executes as `jpss (9, 3072, 273)` → `yuca[3072]`; Makoto's
+  `atca[108..]` cell 0 is `jsr (8, 38, 1)` → `cbca[38]` of a 30-entry table
+  (PS2: same cell, same 30 entries). What `char_table[koc][index]` reads past
+  the table is a decoded cell interpreted as an offset — computable, not
+  computed here.
+- **Ken's `rja4 (5, 44, 55)`** (`cbca[0]` cell 3, PS2-identical) enters
+  `saca[44]` at cell 54 of 53 and runs misaligned through the next script; the
+  garbage cells carry `cg_rival` 4320/16384/32768, whose RICT rows fall
+  outside his 1,080-row table — so every caught character's census inherits
+  three unplaceable rows (60 reasons, 3 per character). Hugo's `rja (4, 89,
+  12)` (`cbca[16]` cell 0) is the same shape: `atca[89]` has 2 cells on both
+  releases, cell 11 is a later script's header.
+- **Two jumps with `koc` outside 0..9** (Ken `saca[44]` cell 81, Twelve
+  `yuca[16]` cell 2 — both in the overruns above).
+
+These are pre-existing properties of data the PS2 engine runs identically; they
+keep the gate open because their landing position is not emulated, not because
+any of them reaches a tail (none does: the overruns stay inside the spans they
+start in, and every span's junk is measured **after** them). The X.C.O.P.Y.
+closure adds only donor triples beyond the recipient's tables (Twelve: 124)
+and the positional registers it does not carry (`cmbk`, `cmsw`, `cmlp`,
+`cml2`, `cmb2` — listed per recipient in `donor_notes`).
+
+### 27.4 Remy's CAUA and HOSA
+
+`caught_adrs` is indexed only by `HIIT.cuix` (`charset.c` `wk->h_cau =
+wk->caught_adrs + wk->cg_ja.cuix`) and `hosei_adrs` by `HIIT.hoix`
+(`wk->h_hos = wk->hosei_adrs + wk->cg_ja.hoix`) plus the literal
+`hosei_adrs[1]` (`pls01.c`, `pls02.c`, `pls03.c`); `effc2.c`'s `hoix + 1` is
+the bonus-stage charset 17, not a player. Over **every** HIIT row, reachable or
+not (measured, `caua_hosa_fit()`): Remy `max cuix = 6` against 7 real
+elements, `max hoix = 11` against 12 — both exact fits, so the 770 and 929
+over-declared elements are never indexed. For the other 19 characters the same
+witness holds at the declared length (Sean `caua` and Chun-Li `caua` and Ibuki
+`hosa` are under-used but in bounds).
+
+### 27.5 `read_char_table` itself
+
+The decoder writes the last script until `p < end_offset = location.size`,
+8 bytes for a command and the stride for a sprite. For all 200 last scripts the
+final write ends at or before the malloc (measured: `decode_overrun` 0 B for
+every span) — no heap overrun from the slack. The executor's copy of a sprite
+cell (`cgd_type` words) at a terminator that sits at the very end of a span
+reads only the command's 8 bytes (`decode_chcmd[code](wk, cpc)` reads `UNK11`),
+so the §19.5 caveat does not bite either.
+
+### 27.6 The defence, in code
+
+- `tools/arcade-audit/cg_audit.py` -> `span_closure()`, `span_results()`,
+  `span_stale()`, `span_throw_census()`/`span_throw_seeds()`, `span_donor()`,
+  `caua_hosa_fit()`, `c_start_tables()` (the literal-koc census). Per character
+  the JSON gains `span_reach` (per table: `declared`, `term_end`,
+  `slack_by_terminator`, `reach_end`, `real_end`, `junk`,
+  `past_terminator_cells` with each cell's class, `decode_overrun`; the
+  `unmodelled` reasons, `throw_notes`, the X.C.O.P.Y. reasons and stale
+  consumer counts; `caua_hosa`) and the stats `span_over_declared`,
+  `span_slack_bytes`, `span_junk_bytes`, `span_past_terminator_cells`,
+  `span_past_terminator_bad`, `span_gate`, `span_gate_xcopy`,
+  `caua_hosa_over_declared`, `caua_hosa_tail_reached`. **No pre-existing JSON
+  value changed** (measured: field-by-field diff against `56f4f52a`, 0
+  changed, 0 removed, 3,650 added).
+- The table's trailing column: `slack:dead(n,B)` — n over-declared tables, B
+  junk bytes, nothing reaches them; `+past(k,in-bounds)` when k cells past a
+  first terminator are reachable and all in bounds; `REACHED-OOB(k)!` if any
+  such cell is out of bounds; then the gate state of both closures. The
+  summary block prints the totals, the digest arithmetic and the past-terminator
+  spans.
+- Kept: `over_declared_sections` (the §7.6 metric) and `arc_parse`'s
+  first-terminator stop, so every earlier number reproduces.
+
+DUDLEY row, `cg_audit.py`, before (`56f4f52a`) and after:
+
+```
+DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     0    33     0 | 178/180 r<=177 walk>end-unreached[178:hold<=179/297]  41/43 short  xcopy:gated(3)(1 dead)
+DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     0    33     0 | 178/180 r<=177 walk>end-unreached[178:hold<=179/297]  41/43 short  xcopy:gated(3)(1 dead)  slack:dead(6,352B)+past(17,in-bounds) unmodelled(3)+xc:unmodelled(5)
+```
+
+`residual_audit.py` after: output and JSON unchanged, R2b `on a REACHABLE part
+: 0`.
+
+### 27.7 Corrections to earlier sections (recorded, not silently edited)
+
+- **§7.6 / §8.G** "Parsed-but-unreachable at run time (execution is bounded by
+  each script's own terminator)" — the conclusion stands, the reason does not:
+  execution is bounded by the reachable set, which crosses first terminators in
+  three spans. **§8.G's fix ("tighten the declared sizes") is withdrawn.**
+- **§19.7** `Real end` column: 14 spans later than stated (§27.2 table);
+  `DUDLEY caca` is not over-declared; total junk 35,696 B, not 36,680.
+- **§19.3** "2 of 200 last scripts contain an intra-script forward jump whose
+  target sits past the terminator" — there is a third entry past a terminator,
+  by `jsr` from another script (`DUDLEY caca[6]` cell 2), and the cells it
+  reaches were **outside the 133,901-cell census**; they are now classified
+  (11 cells, all in bounds). §19.6(b)'s "two" is nine sprite cells more.
+- **§19.6(a)** says 35,912 of the 36,288 unvisited script-span bytes are
+  post-terminator slack; 248 of those bytes are Dudley's live `caca[6]` tail.
+- **§15.6** "indices never approach it" for Remy's CAUA/HOSA is now measured
+  rather than asserted (§27.4).
+
+### 27.8 What this does not establish
+
+- The landing position of the pointer-table-overrunning jumps of §27.3 is not
+  emulated (it would need a byte-exact model of `read_char_table`'s decoded
+  image, including the `hit`/`att` field swap and the remaps); those jumps are
+  PS2-identical and are the reason the gate reports `unmodelled`, not a
+  finding about the tails.
+- The X.C.O.P.Y. closure carries the stored-triple registers only; the
+  positional registers a C-side setter can hold (`cmbk`, `cmb2`, `cmb3`, and
+  `cmsw`/`cmlp`/`cml2` from script) are listed, not applied — applying "any
+  reachable cell of Twelve" to every target's same-numbered script is sound but
+  does not converge, and says nothing.
+- No timing is modelled anywhere: every conditional's every operand is taken.
+  That is the direction that keeps the gate open, never the one that closes it.
+- Whether the arcade engine's own reader (not disassembled here) treats cgd-1
+  cells the way `charset.c` does was not checked; the port runs `charset.c`,
+  and that is the reader whose reach matters.

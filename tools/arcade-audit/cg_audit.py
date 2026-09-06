@@ -939,6 +939,488 @@ def k7_foreign_cells(ci):
     return out
 
 
+# ---------------------------------------------------------------- over-declared spans: can the executor reach the slack? (doc §27)
+#
+# `read_char_table` decodes the LAST script of every table up to `location.size`,
+# so an over-declared span carries decoded-but-unrelated ROM ("slack") after
+# that script's real end. This models every writer of the cell index `cg_ix`
+# (charset.c and the C sites that set it from data) as a graph over cell
+# POSITIONS -- a frame is (table, script) with that script's cgd stride, and a
+# node is a cell index k in that frame (k may be negative or run past the
+# script's own cells: the C indexes `set_char_ad + cg_ix` with no bound) -- and
+# takes the closure from every entry the C can form. Anything the model cannot
+# follow is a reason in `unmodelled`, which keeps the gate OPEN.
+#
+# Writers (charset.c unless noted), in the order the closure applies them:
+#   sequential      check_cm_extended_code `cg_ix += cgd_type`         k -> k+1
+#   cg_next_ix      (cgd 6 cell byte) `(cg_next_ix - 1) * cgd_type`     k -> next_ix-1
+#   cg_wca_ix       check_cgd_patdat `cg_type & 0x80` -> char_move_wca   k -> (type&0x7F)-1
+#   cg_extdat       hitcheck.c `((cg_extdat & 0x3F) - 1) * cgd_type`    k -> (ext&0x3F)-1
+#   renda           pls03.c check_renda_cancel (cell canc & 0x10)       k -> eftype-1
+#   comm_end        `(ctc->pat - 2) * cgd_type` then += cgd_type          k -> pat-1
+#   comm_ixfw/ixbw  `+= (pat-1)*cgd` / `-= (pat+1)*cgd`, then +=          k -> k±pat
+#   decord_if_jump  0x4000 rel fwd, 0x8000 rel back, 0x2000 sub-command,
+#                   else `(ix - 2) * cgd_type` absolute                  k -> k±(w&0xFF) | w-1
+#   jmp/jpss/jsr/rapp*/rja*/rhsja   set_char_move_init2(koc, ix, pat)   -> (table, ix, pat-1)
+#   C literals      appear.c / win_pl.c / plpat00.c set_char_move_init2  -> (yuca|saca, ix, ip-1)
+#   plpcu.c         char_move_index(curr_rca->catch_nix)                 -> (cuca, *, nix-1)
+#   exset_char_move_init (pls00.c, plpdm.c) keeps cg_ix across a switch  -> (target, k)
+#   appear.c:816 / win_pl.c:557 carry the current index into nmca[0]/yuca
+# Every other `decode_chcmd` handler returns 1 without touching cg_ix
+# (grep `cg_ix *=` in charset.c: the sites above are the whole list).
+# effk5.c's look-ahead (get_okuri_time) READS cells but only follows 2/49/50
+# and stops at every terminator (k5_exc_check == 2), so its reach is a
+# subset of this closure. Effects bind their own char_table (eff*.c
+# `*ewk->wu.char_table = _..._char_table`); the two that call
+# set_char_base_data and then set_char_move_init2 with a non-zero ip
+# (eff13 charset 11, effc3 charset 17) bind char_init_data slots that
+# copy_char_base_data() overwrites with effect tables, not a player's.
+
+SPAN_TERMINAL = {1, 6, 17, 19, 21, 23, 25, 27, 29, 31, 69, 102, 115, 120}   # return 0, no same-frame successor
+SPAN_TRIPLE_JUMP = {3: False, 4: False, 5: True, 54: True, 55: True, 85: True, 86: True}  # code -> falls through too
+SPAN_TRIPLE_STORE = {16, 18, 20, 22, 24, 26, 28, 30, 119}                  # rja..rja7, rmja, rhsja
+SPAN_DECORD = {10: ('ix', 'pat'), 11: ('koc', 'ix', 'pat'), 46: ('ix', 'pat'), 47: ('koc', 'ix', 'pat'),
+               53: ('ix', 'pat'), 65: ('ix', 'pat'), 71: ('ix',), 76: ('pat',), 77: ('pat',), 78: ('pat',),
+               79: ('pat',), 81: ('pat',), 82: ('pat',), 83: ('pat',), 84: ('pat',), 87: ('pat',),
+               101: ('pat', 'ix'), 109: ('ix', 'pat'), 111: ('ix', 'pat'), 113: ('ix', 'pat'),
+               114: ('ix', 'pat'), 121: ('ix', 'pat'), 122: ('koc', 'ix', 'pat'), 123: ('koc', 'ix', 'pat'),
+               124: ('ix', 'pat')}
+SPAN_DECORD_FALL = {47, 71, 76, 77, 78, 79, 81, 82, 83, 84, 87}            # return 1 when the branch is not taken
+SPAN_LEVER_FALL = {0, 11, 12}                                             # decode_if_lever: dummy, nex, nex2
+N_IF_LEVER = 16
+# set_char_move_init2 literal entries on a player's tables (koc 9 = yuca, 5 = saca), as (sec, ix, ip)
+SPAN_C_ENTRIES = [('yuca', 0x17, 9), ('yuca', 12, 19), ('yuca', 0x3D, 4), ('yuca', 0x10, 3), ('yuca', 17, 2),
+                  ('yuca', 17, 15), ('yuca', 0xb, 5), ('yuca', 0xC, 2), ('yuca', 0x11, 0x0A),   # appear.c
+                  ('yuca', 36, 7),                                                             # win_pl.c
+                  ('saca', 60, 8)]                                                             # plpat00.c
+RICT_ELEM = 8   # CatchTable, structs.h: hos_x s16, hos_y s16, prio u8, flip u8, nix s16
+RICT_NIX_OFF = 6
+
+def parse_dm17_to_nm23():
+    m = re.search(r'const s16 dm17_to_nm23_change\[20\] = \{([^}]*)\}', src("src/sf33rd/Source/Game/engine/plpdm.c"))
+    v = [int(x) for x in m.group(1).replace('\n', ' ').split(',') if x.strip()]
+    assert len(v) == 20
+    return v
+
+def arcade_id(c):
+    """constants.h CHAR_3SX_TO_ARCADE: arcade ids skip 15 (Shin Akuma)."""
+    return c + 1 if c > NAMES.index('AKUMA') else c
+
+_FRAMES_CACHE = {}
+def span_frames(ci):
+    """(table, script) -> (cell-0 position, executor stride cgd_type*4 | None), plus the pointer tables."""
+    if ci not in _FRAMES_CACHE:
+        tabs = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+        frames = {}
+        for sec, ents in tabs.items():
+            off, size = LOC[ci][sec]
+            for si, base in enumerate(ents):
+                cgd = struct.unpack_from('>h', ROM, off + base - 8)[0]
+                frames[(sec, si)] = (base, cgd * 4 if cgd in (1, 2, 4, 6) else None)
+        _FRAMES_CACHE[ci] = (tabs, frames)
+    return _FRAMES_CACHE[ci]
+
+def _span_cell(ci, sec, pos, st):
+    """Decode the cell at span position `pos` in a frame of stride `st`, reading what the C reads: a command
+    handler reads the 8-byte UNK11 {code, koc, ix, pat}; a sprite cell is copied cgd_type words."""
+    off, size = LOC[ci][sec]
+    if pos < 0 or pos + 2 > size: return None
+    p = off + pos
+    code = struct.unpack_from('>H', ROM, p)[0]
+    if code < 0x100:
+        if pos + 8 > size: return None
+        koc, ix, pat = struct.unpack_from('>hhh', ROM, p + 2)
+        return dict(C=True, code=code, koc=koc, ix=ix, pat=pat)
+    if pos + st > size: return None
+    r = dict(C=False, type=code & 0xFF, ctr=code >> 8, num=struct.unpack_from('>H', ROM, p + 6)[0])
+    if st >= 16:
+        r['ext'], r['canc'], r['eff'], r['eftype'] = ROM[p+12], ROM[p+13], ROM[p+14], ROM[p+15]
+    if st == 24:
+        r['rival'] = struct.unpack_from('>H', ROM, p + 18)[0]
+        r['next_ix'] = ROM[p+20]
+    return r
+
+def _covered(iv):
+    """Bytes covered by the union of half-open intervals."""
+    n, end = 0, None
+    for a, b in sorted(iv):
+        if end is None or a > end: n += b - a; end = b
+        elif b > end: n += b - end; end = b
+    return n
+
+def _decord(k, w):
+    """decord_if_jump on operand word w at cell k: same-frame targets, fallthrough?, unmodelled reason."""
+    u = w & 0xFFFF; hi = u & 0xE000
+    if hi == 0x4000: return [k + (u & 0xFF)], False, None
+    if hi == 0x8000: return [k - (u & 0xFF)], False, None
+    if hi == 0x2000:
+        sub = u & 0xFF
+        if sub >= N_IF_LEVER: return [], False, "decode_if_lever[%d] out of range" % sub
+        if sub in SPAN_LEVER_FALL: return [], True, None
+        return [], False, None          # ret/uja*/umja/back/retmj/abbak: cross-script, seeds cover; wca: edge added at the cell that sets cg_wca_ix
+    return [w - 1], False, None
+
+def _carry_targets(ci, f, k):
+    """Indices a switch that keeps the WORK's cell state (exset_char_move_init) can land on in the target
+    script when the source is node (f, k): the same k, plus the source cell's cg_next_ix / cg_wca_ix, which
+    exset does not clear (only set_char_move_init/2 do)."""
+    base, st = span_frames(ci)[1][f]
+    out = {k}
+    c = _span_cell(ci, f[0], base + k * st, st) if st else None
+    if c and not c['C']:
+        if c.get('next_ix'): out.add(c['next_ix'] - 1)
+        if c['type'] != 0xFF and c['type'] & 0x80: out.add((c['type'] & 0x7F) - 1)
+    return out
+
+_CSTART = {}
+def c_start_tables():
+    """Tables the C starts a player script in at cell 0: every literal koc passed to set_char_move_init,
+    set_char_move_init2 or set_char_move_init_ca in the engine and animation sources (effects bind their
+    own char_table). A table absent here (cbca) is entered only through script data -- jsr/jmp/rja
+    triples -- which the closure discovers on reachable cells."""
+    if 'v' not in _CSTART:
+        kocs = set()
+        for d in ("engine", "animation"):
+            root = os.path.join(REPO, "src/sf33rd/Source/Game", d)
+            for fn in sorted(os.listdir(root)):
+                if not fn.endswith('.c'): continue
+                t = re.sub(r'//[^\n]*', '', open(os.path.join(root, fn)).read())
+                kocs |= set(int(m) for m in re.findall(r'set_char_move_init(?:2|_ca)?\(&?[\w>.-]+, (\d+),', t))
+        _CSTART['v'] = set(KOC2SEC[k] for k in kocs if k in KOC2SEC)
+        _CSTART['kocs'] = kocs
+    return _CSTART['v']
+
+def span_closure(ci, throw_seeds=(), donor_seeds=(), donor_triples=(), stale_only=None):
+    """Closure of the cell index over character ci's ten script tables from every entry the C can form.
+    `throw_seeds`: cuca entries the throw census produced (span_throw_seeds); `donor_seeds`/`donor_triples`:
+    another character's positional registers and stored (koc, ix, pat) applied to THIS character's tables
+    (the X.C.O.P.Y. morph, effk7.c K7_move_type_0: the tables are rebound, the WORK's registers are not).
+    `stale_only=(setters, consumers)`: register-dataflow mode -- start from the C-side entries only, stop at
+    every setter of the register class, and report the consumers reached (they can see a value the
+    recipient's own data did not set). Returns nodes, reachable command cells by code, per-table facts and
+    `unmodelled`."""
+    tabs, frames = span_frames(ci)
+    why = []
+    for (sec, si), (base, st) in frames.items():
+        if st is None: why.append("%s[%d] header cgd not in {1,2,4,6}" % (sec, si))
+    def clamp_ip(ip): return max(ip, 1) - 1              # set_char_move_init2: `if (ip <= 0) ip = 1`
+    def triple(koc, ix, pat):
+        if not (0 <= koc <= 9): return None, "koc %d" % koc
+        sec = KOC2SEC[koc]; ix = max(ix, 0)                # `if (index < 0) index = 0`
+        if ix >= len(tabs[sec]): return None, "%s[%d] beyond the %d-entry pointer table" % (sec, ix, len(tabs[sec]))
+        return ((sec, ix), clamp_ip(pat)), None
+    seeds = set((f, 0) for f in frames if f[0] in c_start_tables())
+    for sec, ix, ip in SPAN_C_ENTRIES:
+        if ix < len(tabs[sec]): seeds.add(((sec, ix), clamp_ip(ip)))
+    seeds |= set(throw_seeds)
+    for (f, k) in donor_seeds:
+        if f in frames: seeds.add((f, k))
+    static_seeds = set(seeds)
+    by_code = {}                                           # command code -> reachable cells (f, k) carrying it
+    hit = set()                                            # stale_only: consumers reached
+    for koc, ix, pat in donor_triples:
+        t, bad = triple(koc, ix, pat)
+        if t: seeds.add(t)
+        else: why.append("X.C.O.P.Y. donor jump to %s" % bad)
+    setters, consumers = stale_only if stale_only else ((), ())
+    dm17 = parse_dm17_to_nm23()[ci]
+    oos, edges_unmod = [], []
+    def succ(f, k):
+        base, st = frames[f]
+        if st is None: return []
+        sec = f[0]
+        c = _span_cell(ci, sec, base + k * st, st)
+        if c is None:
+            oos.append((f, k, base + k * st)); return []
+        out = []
+        if not c['C']:
+            out.append(k + 1)
+            if c.get('next_ix'): out.append(c['next_ix'] - 1)
+            if c['type'] != 0xFF and c['type'] & 0x80: out.append((c['type'] & 0x7F) - 1)
+            if st >= 16:
+                if c['ext'] & 0x3F: out.append((c['ext'] & 0x3F) - 1)
+                if c['canc'] & 0x10: out.append(c['eftype'] - 1)
+            return out
+        code = c['code']
+        if code >= N_CHCMD:
+            edges_unmod.append("%s[%d] cell %d: command code %d >= decode_chcmd[%d]" % (sec, f[1], k, code, N_CHCMD)); return []
+        by_code.setdefault(code, set()).add((f, k))
+        if stale_only:
+            if code in consumers: hit.add((f, k, code))
+            if code in setters: return []                  # the register is (re)set here: stale flow stops
+        if code in SPAN_TERMINAL: return []
+        if code == 2: return [c['pat'] - 1]
+        if code == 49: return [k + c['pat']]
+        if code == 50: return [k - c['pat']]
+        if code in SPAN_TRIPLE_JUMP or code in SPAN_TRIPLE_STORE:
+            t, bad = triple(c['koc'], c['ix'], c['pat'])
+            if t: seeds.add(t)
+            else: edges_unmod.append("%s[%d] cell %d: jump to %s" % (sec, f[1], k, bad))
+            return [k + 1] if (code in SPAN_TRIPLE_STORE or SPAN_TRIPLE_JUMP[code]) else []
+        if code in SPAN_DECORD:
+            fall = code in SPAN_DECORD_FALL
+            for opnd in SPAN_DECORD[code]:
+                t, f2, bad = _decord(k, c[opnd])
+                out += t; fall = fall or f2
+                if bad: edges_unmod.append("%s[%d] cell %d: %s" % (sec, f[1], k, bad))
+                u = c[opnd] & 0xFFFF
+                if stale_only and (u & 0xE000) == 0x2000 and ('lever', u & 0xFF) in consumers: hit.add((f, k, code))
+            if fall: out.append(k + 1)
+            return out
+        return [k + 1]                                     # every other handler returns 1 and leaves cg_ix alone
+    def closure(seeds):
+        done = set()
+        while True:
+            work = [x for x in seeds if x not in done]
+            if not work: break
+            for x in work:
+                stack = [x]
+                while stack:
+                    n = stack.pop()
+                    if n in done: continue
+                    done.add(n)
+                    f, k = n
+                    for k2 in succ(f, k):
+                        if (f, k2) not in done: stack.append((f, k2))
+            # jumps discovered on reachable cells add seeds (succ() mutates `seeds`); loop until none is new
+        return done
+    # Carried indices are ONE step each and their source script is fixed by the caller's state, so a carry
+    # cannot feed itself: appear.c Appear_14000 copies its index out of yuca[0x3C] into nmca[0]; win_pl.c
+    # copies nmca[0]'s index (+1) into yuca[33|35]; plpdm.c Damage_17000 keeps it across the switch into
+    # dmca[dm17_to_nm23_change[ci]]; pls00.c keeps Elena's across nmca[36] -> nmca[0]. Out-of-span nodes are
+    # already a hazard and are not carried.
+    def in_span(f, k):
+        base, st = frames[f]
+        return st and 0 <= base + k * st and base + k * st + st <= LOC[ci][f[0]][1]
+    c0 = closure(set(seeds))
+    carried = set()
+    if tabs['nmca']:
+        if ('yuca', 0x3C) in frames:
+            carried |= set((('nmca', 0), k) for (f, k) in c0 if f == ('yuca', 0x3C) and in_span(f, k))       # appear.c:816
+        if ci == NAMES.index('ELENA') and ('nmca', 36) in frames:
+            for (f, k) in c0:
+                if f == ('nmca', 36) and in_span(f, k):
+                    carried |= set((('nmca', 0), k2) for k2 in _carry_targets(ci, f, k))                   # pls00.c:1456
+    if ('dmca', dm17) in frames:
+        for (f, k) in c0:
+            if f[0] == 'dmca' and in_span(f, k):
+                carried |= set((('dmca', dm17), k2) for k2 in _carry_targets(ci, f, k))                    # plpdm.c:655
+    c1 = closure(set(seeds) | carried)
+    for ix in (33, 35):                                                                                      # win_pl.c:557 (work 1|3) + 32
+        if ('yuca', ix) in frames:
+            carried |= set((('yuca', ix), k + 1) for (f, k) in c1 if f == ('nmca', 0) and in_span(f, k))
+    oos.clear(); edges_unmod.clear()
+    reach = closure(set(seeds) | carried)
+    out = {}
+    for sec, ents in tabs.items():
+        off, size = LOC[ci][sec]
+        last = max(range(len(ents)), key=lambda i: ents[i])
+        base, st = frames[(sec, last)]
+        term_end = None
+        if st:
+            k = 0
+            while base + k * st + 8 <= size:            # as arc_parse: a command needs its 8 read bytes, no more
+                code = struct.unpack_from('>H', ROM, off + base + k * st)[0]
+                if code < 0x100 and code in TERMINATORS: term_end = base + k * st + 8; break
+                k += 1
+        ends = [frames[f][0] + k * frames[f][1] + frames[f][1] for (f, k) in reach if f[0] == sec and frames[f][1]]
+        reach_end = min(max(ends), size) if ends else 0
+        past = sorted([(f[1], k, frames[f][0] + k * frames[f][1]) for (f, k) in reach
+                       if f[0] == sec and frames[f][1] and term_end is not None
+                       and frames[f][0] + k * frames[f][1] >= term_end])
+        # read_char_table's own decode of the last script strides 8 + max(cgd*4-8, 0) for both cell kinds and
+        # writes 8 bytes for a command, the stride for a sprite: does its final write straddle the malloc?
+        p, over, dst = base, 0, max(st or 8, 8)
+        while p < size:
+            code = struct.unpack_from('>H', ROM, off + p)[0] if p + 2 <= size else 0x100
+            w = 8 if code < 0x100 else dst
+            over = max(over, p + w - size)
+            p += dst
+        out[sec] = dict(declared=size, scripts=len(ents), last=last, cgd=st // 4 if st else None,
+                        term_end=term_end, slack=(size - term_end) if term_end is not None else None,
+                        reach_end=reach_end, reach_past_term=past,
+                        reach_past_term_bytes=(_covered([(min(pos, size), min(pos + frames[(sec, si)][1], size)) for si, k, pos in past])
+                                               if term_end is not None else None),
+                        decode_overrun=over)
+    oos_sec = {}
+    for f, k, pos in oos: oos_sec.setdefault(f[0], []).append((f[1], k, pos))
+    for sec, lst in sorted(oos_sec.items()):
+        why.append("%s: %d reachable cell(s) read outside the declared span, e.g. script %d cell %d at %+d" % ((sec, len(lst)) + sorted(lst)[0]))
+    for sec, r in out.items():
+        if r['term_end'] is None: why.append("%s: last script has no terminator inside the span" % sec)
+    why += sorted(set(edges_unmod))
+    return dict(nodes=reach, by_code=by_code, static_seeds=static_seeds, tables=out, oos=oos_sec,
+                stale_hits=sorted(hit), unmodelled=(why or None))
+
+def span_throw_census(ci, nodes):
+    """(cg_rival values, cmyd.ix values) on character ci's REACHABLE cells -- what ci can do as a thrower.
+    cmyd.ix is written only by comm_ydat (code 33), which no script of any character carries on either
+    release (measured: 0 cells arcade, 0 cells PS2; comm_ngme/comm_ngem write cmyd.pat only), so it holds
+    its initial 0 and the caught player always runs cuca[0]. A ydat cell that DID turn up is added."""
+    tabs, frames = span_frames(ci)
+    rivals, ydat = set(), {0}
+    for (f, k) in nodes:
+        base, st = frames[f]
+        c = _span_cell(ci, f[0], base + k * st, st) if st else None
+        if c is None: continue
+        if c['C'] and c['code'] == 33: ydat.add(c['ix'])
+        elif not c['C'] and c.get('rival'): rivals.add(c['rival'])
+    return rivals, ydat
+
+def span_throw_seeds(ci, census):
+    """Cells the CAUGHT player ci can be started on by a throw: plpcu.c runs cuca[cmyd.ix] (the thrower's
+    comm_ydat operand) and char_move_index(curr_rca->catch_nix), curr_rca being the thrower's RICT row
+    `cg_rival + CHAR_3SX_TO_ARCADE(caught) - 24` (charset.c check_cgd_patdat, catch_table_offset). cmyd
+    persists across the thrower's script switches, so every ydat of a thrower pairs with every rival group
+    it selects. Returns (seeds, notes): notes are pairings the model cannot place."""
+    seeds, notes = set(), []
+    n_cuca = len(span_frames(ci)[0]['cuca'])
+    for tj, (rivals, ydat) in census.items():
+        off, size = LOC[tj]['rict']; n_rict = size // RICT_ELEM
+        for g in rivals:
+            row = g + arcade_id(ci) - 24
+            if not (0 <= row < n_rict):
+                notes.append("%s cg_rival %d row %d for caught %s outside its %d-row RICT" % (NAMES[tj], g, row, NAMES[ci], n_rict)); continue
+            nix = struct.unpack_from('>h', ROM, off + row * RICT_ELEM + RICT_NIX_OFF)[0]
+            for s_ in ydat:
+                if 0 <= s_ < n_cuca: seeds.add((('cuca', s_), nix - 1))
+                else: notes.append("%s ydat ix %d beyond caught %s's %d-entry cuca table" % (NAMES[tj], s_, NAMES[ci], n_cuca))
+    return seeds, sorted(set(notes))
+
+# Register classes the X.C.O.P.Y. morph can carry across tables (charset.c). For each: the commands that
+# SET it in script data, the commands that CONSUME it, and what the donor's value is. A class whose setter
+# is C code (cmb2: setup_comm_retmj in char_move_cmms3; cmb3: setup_comm_abbak in hitcheck.c; cmbk also
+# via char_move_cmja/cmms/cmhs) can hold the donor's value at ANY of the donor's reachable cells.
+SPAN_REG = {
+    'cmbk': dict(set={3, 4, 17, 19, 21, 23, 25, 27, 29, 31, 120, 54, 55, 85, 86}, use={69, ('lever', 10)}, val='pos', c_side=True),
+    'cmsw': dict(set={5}, use={6, ('lever', 1)}, val='pos', c_side=False),
+    'cmms': dict(set={30}, use={31, ('lever', 9)}, val='triple', c_side=False),
+    'cmhs': dict(set={119}, use={120}, val='triple', c_side=False),
+    'cmlp': dict(set={12}, use={13, ('lever', 11)}, val='pos', c_side=False),
+    'cml2': dict(set={14}, use={15, ('lever', 12)}, val='pos', c_side=False),
+    'cmb2': dict(set=set(), use={102, ('lever', 14)}, val='word', c_side=True),
+    'cmb3': dict(set=set(), use={115, ('lever', 15)}, val='pos', c_side=True),
+}
+for _n in range(1, 8):
+    SPAN_REG['cmja%d' % _n] = dict(set={16 + 2 * (_n - 1)}, use={17 + 2 * (_n - 1), ('lever', _n + 1)}, val='triple', c_side=False)
+
+def span_stale(ci, throw_seeds):
+    """Per register class: the recipient's consumer cells reachable from a C-side entry without passing a
+    setter of that class -- the only places a value carried in by the morph could be consumed."""
+    out = {}
+    for name, r in SPAN_REG.items():
+        res = span_closure(ci, throw_seeds=throw_seeds, stale_only=(r['set'], r['use']))
+        out[name] = res['stale_hits']
+    return out
+
+def span_donor(ci, res, recipient_stale):
+    """What character ci's WORK carries into a recipient's tables across the morph, per register class,
+    limited to the classes the recipient can consume stale. The stored-triple classes (cmja1..7, cmms,
+    cmhs) are bounded: the (koc, ix, pat) operands of ci's reachable rja*/rmja/rhsja cells. The positional
+    classes hold a CELL POSITION of ci's data (`cg_ix/cgd + 2`, or the raw cg_ix for cmb2) and are also
+    written by C code at any cell (char_move_cmja/cmms/cmhs, char_move_cmms3, hitcheck.c), so their value
+    set is every reachable cell of ci; applying that to the recipient's same-numbered scripts is sound but
+    unbounded, and is returned as a reason instead of a seed. Returns (triples, reasons)."""
+    tabs, frames = span_frames(ci)
+    triples, why = set(), []
+    def cell(f, k):
+        base, st = frames[f]
+        return _span_cell(ci, f[0], base + k * st, st) if st else None
+    for name, r in SPAN_REG.items():
+        hits = recipient_stale.get(name)
+        if not hits: continue
+        if r['val'] == 'triple':
+            for code in r['set']:
+                for (f, k) in res['by_code'].get(code, ()):
+                    c = cell(f, k); triples.add((c['koc'], c['ix'], c['pat']))
+        else:
+            n = sum(len(res['by_code'].get(code, ())) for code in r['set'])
+            why.append("%s: %d consumer(s) reachable without a setter (e.g. %s[%d] cell %d) can see %s's %s position%s"
+                       % (name, len(hits), hits[0][0][0], hits[0][0][1], hits[0][1], NAMES[ci],
+                          ("any" if r['c_side'] else str(n)), " (C-side setter)" if r['c_side'] else ""))
+    return triples, why
+
+def _donor_to_frames(cj, seeds):
+    """Map a donor's positional seeds onto character cj's frames; a raw word offset that is not a whole cell
+    of cj's script is returned as a note (comm_retmj would resume mid-cell)."""
+    tabs, frames = span_frames(cj)
+    out, notes = set(), []
+    for (f, k) in seeds:
+        if f not in frames or frames[f][1] is None: continue
+        if isinstance(k, tuple):
+            w = k[1]; cgd = frames[f][1] // 4
+            if w % cgd: notes.append("donor word offset %d in %s[%d] is not a cell of cgd %d" % (w, f[0], f[1], cgd))
+            else: out.add((f, w // cgd))
+        else: out.add((f, k))
+    return out, notes
+
+_SPAN_ALL = None
+def span_results():
+    """All 20 characters, to a fixpoint over the two cross-character couplings: the throw census (a thrower's
+    reachable cg_rival cells seed the caught player's cuca[0]) and the X.C.O.P.Y. morph (Twelve's WORK
+    registers against every target's tables, and each target's against Twelve's, per register class and
+    only where the recipient has a stale-reachable consumer). Returns per character the plain closure
+    (`base`, throws only) and the morph closure (`xcopy`), each with `throw_notes`; `xcopy` also carries
+    `stale` (the recipient's stale-reachable consumers) and `donor_notes`."""
+    global _SPAN_ALL
+    if _SPAN_ALL is not None: return _SPAN_ALL
+    census = {ci: (set(), set()) for ci in range(20)}
+    base = {ci: span_closure(ci) for ci in range(20)}
+    tseeds = {ci: set() for ci in range(20)}
+    for _ in range(8):
+        new = {ci: span_throw_census(ci, base[ci]['nodes']) for ci in range(20)}
+        if new == census: break
+        census = new
+        tseeds = {ci: span_throw_seeds(ci, census)[0] for ci in range(20)}
+        base = {ci: span_closure(ci, throw_seeds=tseeds[ci]) for ci in range(20)}
+    else:
+        raise RuntimeError("throw census did not converge")
+    stale = {ci: span_stale(ci, tseeds[ci]) for ci in range(20)}
+    xc = dict(base); xnotes = {ci: [] for ci in range(20)}
+    for _ in range(8):
+        prev = {ci: len(xc[ci]['nodes']) for ci in range(20)}
+        tw_trip, tw_why = set(), []
+        for cj in range(20):
+            if cj == TWELVE: continue
+            t_, w_ = span_donor(cj, xc[cj], stale[TWELVE]); tw_trip |= t_; tw_why += ["from %s -- %s" % (NAMES[cj], x) for x in w_]
+        xnotes[TWELVE] = tw_why
+        xc[TWELVE] = span_closure(TWELVE, throw_seeds=tseeds[TWELVE], donor_triples=tw_trip)
+        for cj in range(20):
+            if cj == TWELVE: continue
+            t_, w_ = span_donor(TWELVE, xc[TWELVE], stale[cj])
+            xnotes[cj] = ["from TWELVE -- %s" % x for x in w_]
+            xc[cj] = span_closure(cj, throw_seeds=tseeds[cj], donor_triples=t_)
+        census2 = {ci: span_throw_census(ci, xc[ci]['nodes']) for ci in range(20)}
+        if census2 != census:
+            census = census2; tseeds = {ci: span_throw_seeds(ci, census)[0] for ci in range(20)}; continue
+        if all(len(xc[ci]['nodes']) == prev[ci] for ci in range(20)): break
+    else:
+        raise RuntimeError("X.C.O.P.Y. closure did not converge")
+    for ci in range(20):
+        base[ci]['throw_notes'] = span_throw_seeds(ci, census)[1]
+        xc[ci]['throw_notes'] = base[ci]['throw_notes']
+        xc[ci]['donor_notes'] = sorted(set(xnotes[ci]))
+        xc[ci]['stale'] = {k: v for k, v in stale[ci].items() if v}
+    _SPAN_ALL = dict(base=base, xcopy=xc)
+    return _SPAN_ALL
+
+HIIT_ELEM = 16      # UNK_0, structs.h: boix bhix haix mf caix cuix atix hoix (8 x u16)
+def caua_hosa_fit(ci):
+    """CAUA is indexed only by HIIT.cuix (charset.c `wk->h_cau = wk->caught_adrs + wk->cg_ja.cuix`) and HOSA
+    by HIIT.hoix (`wk->h_hos = wk->hosei_adrs + wk->cg_ja.hoix`) plus the literal hosei_adrs[1] (pls01.c,
+    pls02.c, pls03.c). Every HIIT row is taken, reachable or not."""
+    off, size = LOC[ci]['hiit']; n = size // HIIT_ELEM
+    cu = [struct.unpack_from('>H', ROM, off + i * HIIT_ELEM + 10)[0] for i in range(n)]
+    ho = [struct.unpack_from('>H', ROM, off + i * HIIT_ELEM + 14)[0] for i in range(n)]
+    blob, bsd = ps2_tail(ci); offs, sp = ps2_spans(blob)
+    out = {}
+    for sec, idx in (('caua', cu), ('hosa', ho)):
+        decl = LOC[ci][sec][1] // 8; ps2 = sp[SECTIONS.index(sec)][1] // 8
+        mx = max(idx + ([1] if sec == 'hosa' else []))
+        out[sec] = dict(declared=decl, ps2=ps2, max_index=mx, over_declared=max(0, decl - ps2),
+                        tail_reached=(mx >= ps2), fits=(mx == ps2 - 1))
+    return out
+
 # ---------------------------------------------------------------- SA naming for saca scripts
 def sa_labels(ci):
     """map saca script index -> list of SA-table slots that select it (asstbl.c 9900_g/_a arcade rows)."""
@@ -1149,6 +1631,45 @@ def audit(cgmap_override=None, quiet=False):
         # computed once and recorded on his row; every row carries the verdict.
         fwd = k7_forward_gate()
         if ci == TWELVE: rec['xcopy_case0'] = fwd
+        # Over-declared spans (doc §27): the executor's reach over every script table, in the plain
+        # closure (`base`: own data + throws) and with the X.C.O.P.Y. register carry-over (`xcopy`).
+        # `real_end` is the last byte any reachable cell touches or the first terminator's read-end,
+        # whichever is later; `junk` is what read_char_table decodes and ComputeDigest hashes past it.
+        sr = span_results(); sb, sx = sr['base'][ci], sr['xcopy'][ci]
+        spans = {}
+        for sec, t in sb['tables'].items():
+            # Real end = the last byte any reachable cell touches, or the first terminator's read-end
+            # (§19.7's metric), whichever is later. Cells reachable past the first terminator are script
+            # data the census (arc_parse stops there) never classified: bound them here like class (a)/(b).
+            term = t['term_end'] or 0
+            real_end = max(term, t['reach_end'])
+            past = []
+            for si, k, pos in t['reach_past_term']:
+                st = span_frames(ci)[1][(sec, si)][1]
+                c = _span_cell(ci, sec, pos, st)
+                d = dict(script=si, cell=k, pos=pos)
+                if c is None: d['cls'] = 'oos'
+                elif c['C']: d.update(code=c['code'], koc=c['koc'], ix=c['ix'], pat=c['pat'])
+                else:
+                    rm = remap(c['num'], ci); grp = OGT[rm] if rm < OGT_N else None
+                    d.update(type=c['type'], ctr=c['ctr'], raw=c['num'], remapped=rm, group=grp,
+                             cls=('a_ogt_oob' if rm >= OGT_N else 'b_group_gap' if (grp == 0 and rm != 0) else 'ok'))
+                past.append(d)
+            spans[sec] = dict(declared=t['declared'], scripts=t['scripts'], last_script=t['last'], cgd=t['cgd'],
+                              term_end=t['term_end'], slack_by_terminator=t['slack'],
+                              reach_end=t['reach_end'], real_end=real_end, junk=t['declared'] - real_end,
+                              past_terminator_cells=past,
+                              past_terminator_bytes=t['reach_past_term_bytes'],
+                              past_terminator_bytes_xcopy=sx['tables'][sec]['reach_past_term_bytes'],
+                              decode_overrun=t['decode_overrun'])
+        chf = caua_hosa_fit(ci)
+        rec['span_reach'] = dict(tables=spans, reachable_cells=len(sb['nodes']), reachable_cells_xcopy=len(sx['nodes']),
+                                 unmodelled=sb['unmodelled'], throw_notes=sb['throw_notes'],
+                                 xcopy=dict(unmodelled=sx['unmodelled'], donor_notes=sx['donor_notes'],
+                                            stale_consumers={k: len(v) for k, v in sx['stale'].items()}),
+                                 caua_hosa=chf)
+        span_why = list(sb['unmodelled'] or []) + list(sb['throw_notes'] or [])
+        span_why_x = list(sx['unmodelled'] or []) + list(sx['throw_notes'] or []) + list(sx['donor_notes'] or [])
         rec['stats'] = dict(cells=cells_seen, ovct_arcade=a_ovct, ovct_ps2=p_ovct,
                             ovix_arcade=a_ovix, ovix_ps2=p_ovix,
                             ovct_unpatched_tail=max(0, a_ovct - p_ovct),
@@ -1168,7 +1689,22 @@ def audit(cgmap_override=None, quiet=False):
                             k7_fwd_gate=('closed' if fwd['unmodelled'] is None else 'unmodelled'),
                             k7_foreign_oob=len([f for f in foreign if not f['dead'] and f['twelve']['oob']]),
                             k7_foreign_oob_ps2=len([f for f in foreign if not f['dead'] and f['ps2_same_cell'] and f['ps2_twelve']['oob']]),
-                            k7_foreign_ps2_differs=len([f for f in foreign if not f['dead'] and not f['ps2_same_cell']]), **cls)
+                            k7_foreign_ps2_differs=len([f for f in foreign if not f['dead'] and not f['ps2_same_cell']]),
+                            span_over_declared=len([t for t in spans.values() if t['slack_by_terminator']]),
+                            span_slack_bytes=sum(t['slack_by_terminator'] or 0 for t in spans.values()),
+                            span_junk_bytes=sum(t['junk'] for t in spans.values()),
+                            span_past_terminator_cells=sum(len(t['past_terminator_cells']) for t in spans.values()),
+                            span_past_terminator_bytes=sum(t['past_terminator_bytes'] or 0 for t in spans.values()),
+                            span_past_terminator_bad=sum(1 for t in spans.values() for d in t['past_terminator_cells'] if d.get('cls') not in (None, 'ok')),
+                            span_past_terminator_bytes_xcopy=sum(t['past_terminator_bytes_xcopy'] or 0 for t in spans.values()),
+                            span_decode_overrun=max(t['decode_overrun'] for t in spans.values()),
+                            span_gate=('closed' if not span_why else 'unmodelled'),
+                            span_gate_reasons=len(span_why),
+                            span_gate_xcopy=('closed' if not span_why_x else 'unmodelled'),
+                            span_gate_xcopy_reasons=len(span_why_x),
+                            caua_hosa_over_declared=chf['caua']['over_declared'] + chf['hosa']['over_declared'],
+                            caua_hosa_tail_reached=int(chf['caua']['tail_reached'] or chf['hosa']['tail_reached']),
+                            **cls)
         result[NAMES[ci]] = rec
     CGMAP = saved
     return result
@@ -1191,7 +1727,7 @@ if __name__ == "__main__":
     res = audit()
     json.dump(res, open(os.path.join(HERE, "cg_audit.json"), "w"), indent=1)
     hdr = ("%-7s %5s | %4s %4s %5s %5s %5s %5s | %5s %5s %5s %5s %5s %5s %5s | %s"
-           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra","se","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p  xcopy"))
+           % ("char","cells","(a)","(b)","(c)wg","(c)og","manu","extra","se","eff","tama","sasi","code","koc","sidx","ovct a/p reach  ovix a/p  xcopy  slack"))
     print(hdr); print("-"*len(hdr))
     T = {}
     def ovct_flag(s):
@@ -1218,17 +1754,45 @@ if __name__ == "__main__":
         if s['k7_foreign_oob']:
             return "xcopy:FOREIGN-OOB(%d/%d)%s!" % (s['k7_foreign_oob'], n, "(ps2 too)" if s['k7_foreign_oob_ps2'] else "(arcade-only)")
         return "xcopy:unmodelled(%d,in-range)%s" % (n, tag)
+    def slack_flag(s):
+        # doc §27: an over-declared span is a hazard only if a reachable cell lies past the real script
+        # data. `dead(n,B)`: n over-declared tables, B junk bytes, nothing reaches them; `+xc` says the
+        # X.C.O.P.Y. closure agrees. `unmodelled(k)`: k reasons keep the gate open (listed in the JSON).
+        if s['span_past_terminator_bad']:
+            return "slack:REACHED-OOB(%d)!" % s['span_past_terminator_bad']
+        tag = "" if s['span_over_declared'] == 0 else "dead(%d,%dB)" % (s['span_over_declared'], s['span_junk_bytes'])
+        if s['span_past_terminator_cells']: tag += "+past(%d,in-bounds)" % s['span_past_terminator_cells']
+        g = ("closed" if s['span_gate'] == 'closed' else "unmodelled(%d)" % s['span_gate_reasons'])
+        gx = ("closed" if s['span_gate_xcopy'] == 'closed' else "unmodelled(%d)" % s['span_gate_xcopy_reasons'])
+        return "slack:%s%s%s+xc:%s" % ("none " if not tag else tag + " ", g, "", gx)
     for n in NAMES:
         r = res[n]; s = r['stats']
         for k, v in s.items(): T[k] = T.get(k, 0) + (v if isinstance(v, int) else 0)
-        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d | %d/%d r<=%d %s  %d/%d %s  %s"
+        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d | %d/%d r<=%d %s  %d/%d %s  %s  %s"
               % (n, s['cells'], s['a_oob'], s['b_gap'], s['c_wrong_group'], s['c_same_group'], s['needs_manual'],
                  s['extra_script'],
                  s['se_oob'], s['eff_oob'], s['tama_oob'], s['sasign_oob'], s['code_oob'], s['koc_oob'], s['idx_oob'],
                  s['ovct_arcade'], s['ovct_ps2'], s['ovct_reach_max'], ovct_flag(s),
-                 s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok", xcopy_flag(s)))
+                 s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok", xcopy_flag(s), slack_flag(s)))
     print("-"*len(hdr))
     print("TOTAL         | %4d %4d %5d %5d %5d %5d | %5d %5d %5d %5d %5d %5d %5d"
           % (T['a_oob'], T['b_gap'], T['c_wrong_group'], T['c_same_group'], T['needs_manual'], T['extra_script'],
              T['se_oob'], T['eff_oob'], T['tama_oob'], T['sasign_oob'], T['code_oob'], T['koc_oob'], T['idx_oob']))
     print("cells audited:", T['cells'])
+    # doc §27: the over-declared spans, and what the digest hashes past the real data
+    digest_in = sum(LOC[ci][sec][1] for ci in range(20) for sec in SECTIONS)
+    junk = T['span_junk_bytes'] + sum(res[n]['stats']['caua_hosa_over_declared'] * 8 for n in NAMES)
+    print("over-declared script spans: %d (slack by first terminator %d B; junk past the real end %d B; cells reachable past a first terminator: %d base / %d B xcopy, %d out of bounds)"
+          % (T['span_over_declared'], T['span_slack_bytes'], T['span_junk_bytes'], T['span_past_terminator_cells'], T['span_past_terminator_bytes_xcopy'], T['span_past_terminator_bad']))
+    print("CAUA/HOSA over-declared elements: %d (tail reached: %d); read_char_table decode overrun: %d B max"
+          % (sum(res[n]['stats']['caua_hosa_over_declared'] for n in NAMES), T['caua_hosa_tail_reached'], max(res[n]['stats']['span_decode_overrun'] for n in NAMES)))
+    print("digest input: %d B over 500 spans, of which %d B (%.2f%%) is decoded ROM past the real data"
+          % (digest_in, junk, 100.0 * junk / digest_in))
+    print("slack gate: base closed %d/20, xcopy closed %d/20"
+          % (len([n for n in NAMES if res[n]['stats']['span_gate'] == 'closed']), len([n for n in NAMES if res[n]['stats']['span_gate_xcopy'] == 'closed'])))
+    for n in NAMES:
+        for sec, t in res[n]['span_reach']['tables'].items():
+            if t['past_terminator_cells']:
+                print("  %s %s: %d reachable cell(s) past the first terminator (script %d cell %d ..), real end %d of %d, junk %d B, classes %s"
+                      % (n, sec, len(t['past_terminator_cells']), t['past_terminator_cells'][0]['script'], t['past_terminator_cells'][0]['cell'],
+                         t['real_end'], t['declared'], t['junk'], sorted(set(d.get('cls', 'C') for d in t['past_terminator_cells']))))
