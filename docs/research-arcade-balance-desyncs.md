@@ -3186,6 +3186,51 @@ re-downloading or re-emulating. Union coverage: **19/20 characters** (Gill
 unobtainable), **18/20 stages** (Gill, Q — both excluded by code),
 **57/60 (character, super-art)** pairs (Gill's three unobtainable).
 
+### The manifests were stale, and are not any more (2026-09-06)
+
+**The problem.** Every `manifest.tsv` / `manifest.json` still recorded the
+verdicts of the sweep that *built* the corpus, months of fixes ago: **43 stale
+rows** across the three — 1 in `-09-05` (E4, fixed since), **32** in `-09-06`
+and **10** in `-09-06b` (E6/E7/E8/H5b, all fixed since), every one reading
+`divergent` for a segment that now passes. Worse, **no per-segment statcheck
+output was stored anywhere under `runs/`**, so "447 of 447 eligible PASS" rested
+on scratchpad artifacts: a reader could re-run the sweep, but could not check a
+single recorded verdict without owning the binary.
+
+**The fix.** `tools/fcade-replays/resweep_corpus.py` (see its module docstring
+for why it is not just `analyze.py` again). All three corpora re-swept at
+`0b811794` with a clean worktree, `--headless`, three jobs:
+
+| corpus | segments | eligible | verdict |
+|---|---|---|---|
+| `3sarm-corpus-2026-09-05` | 143 | 143 | **143 PASS** |
+| `3sarm-corpus-2026-09-06` | 185 | 183 | **183 PASS** (+ 2 `rc=3`) |
+| `3sarm-corpus-2026-09-06b` | 135 | 121 | **121 PASS** (+ 12 `rc=3`, 2 `rc=2`) |
+
+**447 of 447 eligible PASS**, now written back into each `manifest.json`
+(with a `last_sweep` block naming the binary, its size and mtime, the commit and
+whether the tree was dirty) and each `manifest.tsv` (with a new `log` column).
+
+**And it is now checkable without re-running anything.** Each corpus carries
+`sweeps/<tag>/sweep.json` plus `sweeps/<tag>/logs/<quark>_game_N.log` — the full
+stdout+stderr of every segment, pass or fail, 463 files per sweep, ~15 MB for
+all four sweeps kept:
+
+| tag | what it is |
+|---|---|
+| `head-783166d5` | the BEFORE sweep, at the tip this work started from |
+| `cgix` | the same corpora with the `cg_ix` assert added (§CG) |
+| `cgix-ctrl-plus1` | the `cg_ix` liveness control — 447/447 FAIL |
+| `2026-09-06-cgix` | the sweep the manifests now record |
+
+**No hang was observed.** The caution that prompted this — a statcheck binary
+parked at 0% CPU just after "Arcade balance auto-selected", before comparing a
+frame — did not reproduce across **1,852** runs (four sweeps x 463 segments),
+all with `--headless`, none exceeding the 300 s timeout, no process left in
+state `T`. Without `--headless` a FAILING run *does* park forever (SIGSTOP,
+state `TN`), which is the documented shape and is why the tool always passes it;
+the reported symptom was on a *passing* prefix, and nothing here matched it.
+
 ## Worklist
 
 | id | what | state |
