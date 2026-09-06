@@ -1,6 +1,30 @@
 #ifndef ARCADE_CONSTANTS_H
 #define ARCADE_CONSTANTS_H
 
+/* test_flag (CPS3 0x02000094, u8). The cabinet's test/service flag: the
+ * arcade's own globals are scattered through the low 0x100 bytes of work RAM
+ * (`Init_Task_1st` zeroes 0x02000094 alongside 0x0200001D and Random_ix16),
+ * so a low address here is not a red flag.
+ *
+ * Read off the sfiii3nr1 SH-2 program at four paired sites, all of the shape
+ * `if (test_flag == 0 || ixbfw_cut == 0)`, which is a `||` and therefore
+ * evaluates test_flag FIRST -- that is what tells the two apart:
+ *   - `comm_ixfw` CPS3 0x0608A3(8A): `mov.l <0x02000094>,r?` / `mov.b @r?` /
+ *     `tst` / `bt` to the body, then the same on 0x02025638, then
+ *     `wk->cg_ix += (ctc->pat - 1) * wk->cgd_type` -- the += site indexes wk
+ *     at the literal 0x0204, i.e. the already-established
+ *     WORK_CG_IX_OFFSET, which is what identifies the function.
+ *   - `comm_ixbw` CPS3 0x0608A3BA: identical, with `-=` and `pat + 1`.
+ *   - the two `effk5.c` opcode cases, CPS3 0x0610FC4A and 0x0610FC78.
+ * Corroborated by the writers: `Init_Task_1st` zeroes it (CPS3 0x06004F38)
+ * and the service routine at CPS3 0x06005518 sets it to 1 -- reached only when
+ * the switch word at 0x0206AA9C has bit 1 set, which is what a test flag is.
+ *
+ * Measured 0 on all 143 corpus segments, and our port's `Init_Task_1st` sets
+ * 0 too. Note what that does NOT establish: a field that is 0 on both sides
+ * everywhere cannot distinguish a correct offset from a wrong-but-zero one.
+ * The address rests on the disassembly above, not on the corpus. */
+#define TEST_FLAG_OFFSET 0x94
 #define GAME_TIMER_OFFSET 0x1136C
 #define COUNTER_HI_OFFSET 0x11376
 #define COUNTER_LOW_OFFSET 0x11378
@@ -20,9 +44,139 @@
 #define C_NO_OFFSET 0x154A6
 #define RANDOM_IX_16_OFFSET 0x155E8
 #define RANDOM_IX_32_OFFSET 0x155EA
+/* Country (CPS3 0x0201556F, u8). The cabinet REGION byte, and the root of two
+ * further values -- our `Setup_Difficult_V()` derives CC_Value from it and
+ * `Setup_Limit_Time()` derives Limit_Time from it, so one address resolves
+ * three.
+ *
+ * Read off the sfiii3nr1 SH-2 program at three independent sites:
+ *   - CPS3 0x06004EB2 (inside `Init_Task_1st`, just before its `bsr` to
+ *     `Setup_Difficult_V` at 0x06005368): `mov.b @<0x0201556F>,r2` /
+ *     `extu.b` / `add #-1` / `mov.b @(r0,r2),r2` off the byte table at
+ *     0x0613D83D / `mov.b r2,@<0x0201584C>`. The arcade splits what our port
+ *     inlines: it stores a country INDEX at 0x0201584C, and
+ *     `Setup_Difficult_V` (CPS3 0x06005368) then reads that index, doubles it
+ *     and copies two bytes out of `Difficult_V_Data` = 0x0613D845 into
+ *     CC_Value. That table reads {0,0, 1,2, 2,4}, whose first two rows are our
+ *     `Difficult_V_Data[2][2] = {{0,0},{1,2}}` verbatim, and the index table
+ *     at 0x0613D83D reads {0,2,1,1,1,1,1,2,...} -- so index 0 (our
+ *     `Country == 1` arm) is reached only by Country == 1.
+ *   - CPS3 0x06092148: `switch (Country)` with `cmp/eq #1` .. `cmp/eq #8` in
+ *     sequence, the 1..8 range our port's Country comparisons use.
+ *   - CPS3 0x060F277C and 0x060F28A8: `cmp/eq #1` on the same byte.
+ *
+ * MEASURED: 1 on all 143 corpus segments (the ground truth is a Japanese
+ * board). Our port hardcodes `Country = 4` in `njUserInit` (main.c), which is
+ * a PS2-build constant -- see the seeding-gap section of
+ * docs/research-arcade-balance-desyncs.md for what that difference gates. */
+#define COUNTRY_OFFSET 0x1556F
 #define PLAYER_COLOR_OFFSET 0x15683
+/* No_Death (CPS3 0x02015761, s8). Nonzero means no damage lands:
+ * `if (No_Death) { plw[0].wu.dm_vital = plw[1].wu.dm_vital = 0; }`.
+ *
+ * Read off the sfiii3nr1 SH-2 program at three independent sites -- the three
+ * `plcnt_*_move` entry points our port has as `plcnt_move` (plcnt.c),
+ * `plcnt_b_move` (plcnt2.c) and `plcnt_b2_move` (plcnt3.c), each of which
+ * opens with the SAME pair of guarded double stores:
+ *   CPS3 0x06116E0A, 0x06118C04, 0x06119470:
+ *     `mov.l <0x02015761>,r3` / `mov.b @r3,r0` / `tst` / `bt` past the body,
+ *     the body being `mov.w #0,@(0xA2, plw[1])` + `mov.w #0,@(0xA2, plw[0])`
+ *     with the plw bases the established PLW_OFFSET (0x02068C6C) and
+ *     PLW_OFFSET + PLW_SIZE (0x02069104), and 0xA2 the `wu.dm_vital` slot
+ *     that `setup_vitality` zeroes at CPS3 0x0611E27A.
+ *   Each is immediately followed by the identical block guarded on
+ *   0x02011386, which is `Break_Into` -- the same source order our three
+ *   functions have.
+ * Corroborated by the writer: `Init_Task_1st` zeroes 0x02015761 (CPS3
+ * 0x06004F74) in the same run of stores that zeroes Random_ix16 (0x020155E8)
+ * and Random_ix32 (0x020155EA) at their already-established addresses.
+ *
+ * MEASURED: 0 on all 143 corpus segments; our port's `Init_Task_1st` sets 0. */
+#define NO_DEATH_OFFSET 0x15761
 #define PLAYERS_TIMER_OFFSET 0x157CE // players_timer (CPS3 0x020157CE)
+/* CC_Value[2] (CPS3 0x0201584D, u8[2]). Derived from Country -- see
+ * COUNTRY_OFFSET for the `Setup_Difficult_V` disassembly that establishes the
+ * base. CC_Value[1] is confirmed a second time, independently, by
+ * `setup_vitality` (CPS3 0x0611E20C): `mov.l <0x0201584E>,r6` / `mov.b @r6,r6`
+ * / `extu.b` / `add r0,r6` where r0 is `save_w[..].Difficulty` -- our
+ * `ix = CC_Value[1] + save_w[Present_Mode].Difficulty`, with the `extu.b` on
+ * CC_Value and the sign-extending `mov.b` on Difficulty matching their u8 /
+ * s8 types.
+ *
+ * MEASURED: {0, 0} on all 143 corpus segments (Country == 1 there). Both
+ * entries are CPU-only reads -- CC_Value[0] appears only in `com/`, and
+ * CC_Value[1] only on `setup_vitality`'s `wk->operator == 0` arm -- so on a
+ * human-vs-human corpus they are inert. */
+#define CC_VALUE_OFFSET 0x1584D
+/* Limit_Time (CPS3 0x02016AD4, s16). The ceiling `Time_Control()` clamps
+ * `Control_Time` to. Derived from Country -- see COUNTRY_OFFSET.
+ *
+ * Read off the sfiii3nr1 SH-2 program at four independent sites, three
+ * readers and one writer:
+ *   - `Time_Control` CPS3 0x06096D08: `mov.l <0x02011372>,r4` (Control_Time)
+ *     / `mov.l <0x02016AD4>,r2` / `cmp/ge` / `mov.w r5,@r4` on the taken arm,
+ *     then the `--Time_in_Time == 0 -> Time_in_Time = 60; Control_Time += 1`
+ *     tail on 0x02011374 -- our `Time_Control()` (game.c) statement for
+ *     statement.
+ *   - `Update_Level_Control` CPS3 0x0609C24C: `Control_Time += 40` then
+ *     `cmp/gt` against the same address and `Control_Time = Limit_Time` --
+ *     our `Update_Level_Control()` (manage.c).
+ *   - CPS3 0x060A0C1E: `Control_Time = Limit_Time` verbatim.
+ *   - the writer, CPS3 0x06012570: `mov.w r4,@<0x02016AD4>` at the end of a
+ *     run of `max(entry + 20, ...)` steps over a difficulty table -- the
+ *     arcade's `Setup_Limit_Time`. It is NOT the port's: ours short-circuits
+ *     the same computation to the literal `Country == 1 ? 1241 : 1061`, and
+ *     neither 1241 nor a matching 1061 appears as a code literal in the
+ *     arcade image. They agree on the value anyway (below), which is what
+ *     makes the port's constant readable as a folded form of the arcade's max.
+ *   `Control_Time` = 0x02011372 is itself established by the two sites that
+ *   copy it to and from `SC_Personal_Time[PL_id]` = 0x0201583A (CPS3
+ *   0x060993EA and 0x0609C7BE), our `Correct_Control_Time()` (sel_pl.c).
+ *
+ * MEASURED: 1241 on all 143 corpus segments -- exactly what our
+ * `Setup_Limit_Time()` produces for Country == 1 and Difficulty == 2. With
+ * our hardcoded Country == 4 it produces 1061 instead. */
+#define LIMIT_TIME_OFFSET 0x16AD4
+/* Max_vitality (CPS3 0x02016B30, s16). Starting HP AND the damage divisor.
+ *
+ * Read off the sfiii3nr1 SH-2 program at four independent sites, two readers
+ * and two writers:
+ *   - `setup_vitality` CPS3 0x0611E220: `mov.l <0x02016B30>,r5`, then
+ *     `mov.w @r5,r0` as the DIVISOR of `original_vitality << 5` (our
+ *     `wk->dmcal_d = (wk->original_vitality << 5) / Max_vitality`), and then
+ *     `mov.w @r5,r3` stored to wk+0xA0, wk+0x9E and wk+0x9C -- our
+ *     `wk->vitality = wk->vital_new = wk->vital_old = Max_vitality`, where
+ *     0x9E is the already-established WORK_VITAL_NEW_OFFSET. The same
+ *     function is anchored by `Com_Vital_Unit_Data` = 0x0616E1B8, whose row 0
+ *     {1593,1687,...,2625} occurs exactly once in the image and is referenced
+ *     by exactly one literal (0x0611E2DC, loaded at 0x0611E218).
+ *   - `cal_dm_vital_gauge_hosei` CPS3 0x0611E288: `mov.w @r5,r1` then
+ *     `r1 * 6 / 10` compared against wk+0x9E (our
+ *     `if (wk->wu.vital_new < (Max_vitality * 6) / 10)`), and at 0x0611E2A2
+ *     `mov.w @r5,r2` / `cmp/eq <0x00C0>` -- our live `if (Max_vitality ==
+ *     192)` branch.
+ *   - the two writers, in one arcade routine at CPS3 0x060053DC that branches
+ *     on the byte at 0x0206AC62: `mov.w <0x00C0>,r2` / `mov.w r2,@r1` (192)
+ *     on the nonzero arm at 0x06005450, and `mov.w <0x00A0>,r3` /
+ *     `mov.w r3,@r2` (160) on the zero arm at 0x06005496. So the "the engine
+ *     expects a second value" reading of the ==192 branch is correct, and the
+ *     selector is a service byte.
+ *
+ * MEASURED: 160 on all 143 corpus segments, with the selector byte at
+ * 0x0206AC62 reading 0 there -- i.e. the archives take the 160 arm, which is
+ * the arm our port's `Init_Task_1st` hardcodes. */
+#define MAX_VITALITY_OFFSET 0x16B30
 #define SCENE_CUT_OFFSET 0x16D30
+/* ixbfw_cut (CPS3 0x02025638, u8). Read only in the `||` pair with test_flag
+ * -- see TEST_FLAG_OFFSET for the four sites and why the `||` ordering is
+ * what assigns the two addresses. The arcade has extra writers our port does
+ * not (e.g. CPS3 0x060B22C8 sets it from a switch word); the port keeps only
+ * `Init_Task_1st`'s zero, which is why our copy has a single writer.
+ *
+ * MEASURED: 0 on all 143 corpus segments; our port sets 0. The same caveat as
+ * test_flag applies -- 0 on both sides everywhere is not evidence for the
+ * offset, only consistency with it. */
+#define IXBFW_CUT_OFFSET 0x25638
 #define T_PL_LVR_OFFSET 0x2563C
 #define WAZA_WORK_OFFSET 0x256C4
 #define WAZA_TYPE_OFFSET 0x2630C
@@ -74,6 +228,27 @@
 #define PIYORI_TYPE_OFFSET 0x695F4
 #define P1SW_0_OFFSET 0x6AA8C
 #define P2SW_0_OFFSET 0x6AA90
+/* save_w[Present_Mode].Difficulty / .Damage_Level (CPS3 0x0206AC63 /
+ * 0x0206AC64, u8). The two cabinet service settings the fighter sim reads
+ * unconditionally, from `setup_vitality` (pls02.c):
+ *   `Com_Vital_Unit_Data[pno][save_w[Present_Mode].Damage_Level][ix]`
+ * with `ix = CC_Value[1] + save_w[Present_Mode].Difficulty` on the CPU arm,
+ * and from `Setup_Limit_Time()` (sys_sub.c). `save_w` is not in the GS_SAVE
+ * whitelist so it fell outside the 607-global carried-state count, but it is
+ * the same class of setting as Round_Level.
+ *
+ * Read off `setup_vitality` CPS3 0x0611E202: `mov.l <0x0206AC62>,r7`, then
+ * `mov.b @(1,r7),r0` added to CC_Value[1] (Difficulty) and `mov.b @(2,r7),r0`
+ * scaled by 24 = 12 s16 (Damage_Level) before indexing Com_Vital_Unit_Data --
+ * the 96/24 strides being exactly this port's `s16[20][4][12]`. The ARCADE
+ * struct is not this port's `_SAVE_W` (ours has `_PAD_INFOR Pad_Infor[2]`
+ * ahead of Difficulty and `Time_Limit`/`Battle_Number[2]` between the two
+ * fields), so these are absolute addresses, not base + offsetof.
+ *
+ * MEASURED: Difficulty 2 and Damage_Level 1 on all 143 corpus segments --
+ * which is `Game_Default_Data` (sys_sub.c) verbatim, so our port agrees. */
+#define SAVE_W_DIFFICULTY_OFFSET 0x6AC63
+#define SAVE_W_DAMAGE_LEVEL_OFFSET 0x6AC64
 
 #define PLW_SIZE 0x498
 

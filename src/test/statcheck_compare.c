@@ -37,7 +37,9 @@
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/engine/pls02.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
+#include "sf33rd/Source/Game/init3rd.h"
 #include "sf33rd/Source/Game/stage/bg.h"
+#include "sf33rd/Source/Game/system/sys_sub.h"
 #include "sf33rd/Source/Game/ui/count.h"
 #include "test/statcheck_utils.h"
 #include "test/test_assert.h"
@@ -634,6 +636,52 @@ void Statcheck_SyncValues(SDL_IOStream* io) {
      * Offset from the arcade SH-2 program of sfiii3nr1, see
      * ROUND_LEVEL_OFFSET in arcade_constants.h. */
     Round_Level = read_s16(io, ROUND_LEVEL_OFFSET);
+
+    /* Country, and through it CC_Value and Limit_Time (the seeding-gap section
+     * of docs/research-arcade-balance-desyncs.md).
+     *
+     * Country is a CABINET REGION byte. The harness cannot re-derive it from a
+     * replay and cannot inherit it from a previous match either: our port
+     * hardcodes `Country = 4` in `njUserInit` (main.c), which is the PS2
+     * build's constant, while the ground truth is a Japanese board and reads
+     * 1 on every one of the 143 corpus segments. That is a real difference in
+     * an initial condition, not previous-match residue, so this seed is the
+     * only thing that can close it.
+     *
+     * What the difference gates, and why it is latent rather than fatal today:
+     *   - `effb8_normal_or_senyou()` (effb8.c) is
+     *     `if (Country != 1) return 0; return random_16() & 1;` -- an RNG DRAW
+     *     the arcade takes and, before this seed, we did not. Since 2026-09-05
+     *     the oracle asserts Random_ix16 honestly and the corpus is 143 PASS,
+     *     so that function is provably never called inside a compared frame on
+     *     this corpus. The seed makes our engine draw where CPS3 draws, so a
+     *     future corpus that does reach it will agree instead of desyncing.
+     *   - `efff9.c`'s `Country != 1 && Country != 8` clamp on `old_rno[5]`,
+     *     which draws nothing and is not compared.
+     *   - `old_my_char_check()` (effect.c) and `game.c`'s `Country == 3` are
+     *     both outside the battle path (grade screen, Rep_Game_Infor).
+     *   - CC_Value[0] is read only in `com/` and CC_Value[1] only on
+     *     `setup_vitality`'s CPU arm, so both are inert under H4b.
+     *
+     * ONE ADDRESS RESOLVES THREE. The arcade derives CC_Value and Limit_Time
+     * from Country exactly as we do (see COUNTRY_OFFSET / LIMIT_TIME_OFFSET in
+     * arcade_constants.h for the two arcade routines), so re-running the same
+     * two derivations `Init_Task_1st` runs is enough -- there is no need to
+     * import the derived values. The seed audit then asserts CC_Value[0..1]
+     * and Limit_Time against the archive STRICTLY, which turns this into a
+     * self-test: if our `Setup_Limit_Time()` folded the arcade's max-over-the-
+     * difficulty-table into the wrong constant, the audit says so at the seed
+     * frame rather than letting it surface a thousand frames later.
+     *
+     * NOT GATED on ArcadeBalance_IsEnabled(): this whole file is
+     * `#if defined(STATCHECK)` and Statcheck_SyncValues has exactly one
+     * caller, StatcheckRunner_Prologue. The shipped engine never runs it, so
+     * no shipped behaviour changes and there is nothing to gate. Whether the
+     * SHIPPED build should also stop hardcoding Country = 4 is a separate,
+     * region-not-balance question and is deliberately left alone. */
+    Country = read_u8(io, COUNTRY_OFFSET);
+    Setup_Difficult_V();
+    Setup_Limit_Time();
 }
 
 #endif

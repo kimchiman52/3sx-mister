@@ -1218,7 +1218,7 @@ comparison or an argument; the only assignments are to file-static counters and
 locals. The behavioural proof is the sweep below: all 143 `PASS — compared
 archive frames a..b of n` lines are **string-identical** before and after.
 
-### What it audits — 150 fields — and what it cannot
+### What it audits — 168 fields — and what it cannot
 
 `arcade_constants.h` carries ~46 offsets. Not all of them name a value that can
 be soundly compared, and the audit does not invent a comparison it cannot
@@ -1233,7 +1233,10 @@ justify:
 Everything else is audited: the five `Statcheck_SyncValues` imports, the
 `ScrdGame_Init` match setup (`My_char`, `Super_Arts`, `Player_Color`,
 `New_Challenger`, `bg_w.stage`), the service globals, both players' WORK/PLW
-scalars, and all 34 `T_PL_LVR` fields per player. 150 comparisons per run.
+scalars, and all 34 `T_PL_LVR` fields per player, plus the seven cabinet /
+service globals and the two `save_w` service settings added when the seeding
+gap was closed ("The seven, resolved"). 168 comparisons per run — it was 150
+when the audit landed and 158 by the time those ten were added.
 
 **`t_pl_lvr[].waza_no` is new here.** `compare_lvr()` (`statcheck_compare.c`)
 compares 33 of the struct's 34 fields; upstream's list omits `waza_no`. Measured
@@ -1338,7 +1341,7 @@ match's player residue, plus `Scene_Cut`, `waza_type`, `Game_timer` and `C_No`).
 ### What the `=2` dump says about the seeds themselves
 
 Running the audit at `STATCHECK_SEED_AUDIT_VERBOSE=2` over the corpus prints all
-150 fields whether they match or not, which answers a question a clean verdict
+every audited field whether it matches or not, which answers a question a clean verdict
 cannot: *is this field clean because the import works, or because both sides
 happen to hold the same value anyway?*
 
@@ -1356,7 +1359,9 @@ Also constant-and-equal on both sides across all 143, hence carrying no signal
 today: `Counter_hi` (99), `Counter_low` (53), `round_timer` (99),
 `bg_w.quake_y_index` (0), `cmb_stock`, `cmb_all_stock`, `piyori_type.now`,
 `super_arts.gauge`/`.store`, `wu.hit_stop`, `wu.dm_stop`, `wu.cg_add_xy`, and
-the five `PLW_*` flags. They are kept because their cost is one comparison and
+the five `PLW_*` flags, plus `Max_vitality` (160),
+`No_Death` (0), `test_flag` (0), `ixbfw_cut` (0), `save_w.Difficulty` (2) and
+`save_w.Damage_Level` (1) — see "The seven, resolved". They are kept because their cost is one comparison and
 their absence is what the last seven defects were made of.
 
 ### Open
@@ -1553,6 +1558,7 @@ service-derived, single writer, never rewritten, read by the fighter sim.
 **The seven:** `Max_vitality`, `No_Death`, `test_flag`, `ixbfw_cut`, `Country`,
 `CC_Value`, `Limit_Time` — and `Country` is the root that feeds `CC_Value` and
 `Limit_Time`, so one address resolves three.
+**All seven are now resolved — see "The seven, resolved" below.**
 
 Strongest is `Max_vitality`: `init3rd.c:Init_Task_1st` (`= 160`) is the only
 writer, and it sets both starting HP and the damage divisor
@@ -1572,6 +1578,180 @@ cabinet service setting as `Round_Level` and belongs on the same trip.
 **Caveat:** the scanner matches writes by name, so pointer-aliased writes
 (`lvr->x = …`) are invisible — that is why `t_pl_lvr` shows zero writers. Read
 202 as "roughly 200", not exact.
+
+### The seven, resolved (2026-09-05)
+
+All seven addresses were established by disassembly of the sfiii3nr1 SH-2
+program and are recorded, with their evidence chains, in
+`src/arcade/arcade_constants.h` — `TEST_FLAG_OFFSET`, `COUNTRY_OFFSET`,
+`NO_DEATH_OFFSET`, `CC_VALUE_OFFSET`, `LIMIT_TIME_OFFSET`,
+`MAX_VITALITY_OFFSET`, `IXBFW_CUT_OFFSET`. All seven then measured over the
+whole 143-segment corpus, every frame of every archive:
+
+| global | CPS3 address | arcade, 143/143 | ours | verdict |
+|---|---|---|---|---|
+| `Max_vitality` | `0x02016B30` | **160** | 160 | identical |
+| `No_Death` | `0x02015761` | **0** | 0 | identical |
+| `test_flag` | `0x02000094` | **0** | 0 | identical |
+| `ixbfw_cut` | `0x02025638` | **0** | 0 | identical |
+| `Country` | `0x0201556F` | **1** | **4** | **differs** |
+| `CC_Value[0..1]` | `0x0201584D` | **{0, 0}** | **{1, 2}** | **differs** (via `Country`) |
+| `Limit_Time` | `0x02016AD4` | **1241** | **1061** | **differs** (via `Country`) |
+
+Not one of the seven varies *within* an archive either — measured across every
+frame of all 143, `varying_within_archive = 0` for each. They are boot
+constants on both sides, which is what makes a single seed sufficient and an
+assert meaningful.
+
+**Four are a negative result, and that is worth having.** `Max_vitality`,
+`No_Death`, `test_flag` and `ixbfw_cut` are identical on both sides of every
+segment, so none of them can be the cause of anything, and four of the forty
+hand-verified carried globals are now closed rather than merely unexamined.
+Note the limit of that: `test_flag` and `ixbfw_cut` are **0 on both sides
+everywhere**, and a field that is zero on both sides cannot distinguish a
+correct offset from a wrong-but-zero one. Their addresses rest on the
+disassembly (four paired `test_flag == 0 || ixbfw_cut == 0` sites, anchored by
+the already-established `WORK_CG_IX_OFFSET 0x204`), not on the corpus.
+
+**`Max_vitality` came with a bonus.** The `if (Max_vitality == 192)` branch in
+`cal_dm_vital_gauge_hosei` (`pls02.c`) really does have an arcade writer: one
+routine at CPS3 `0x060053DC` branches on the service byte at `0x0206AC62` and
+writes **192** on one arm (`0x06005450`) and **160** on the other
+(`0x06005496`). The corpus reads that selector byte as 0 on all 143, i.e. the
+archives take the 160 arm — the arm our `Init_Task_1st` hardcodes. So the
+branch is live hardware behaviour, and this ground truth never exercises it.
+
+### `Country` is the one real difference, and it is latent
+
+Our port hardcodes `Country = 4` in `njUserInit` (`main.c`); the ground truth is
+a Japanese board and reads **1**. The arcade splits what our
+`Setup_Difficult_V()` inlines — CPS3 `0x06004EB2` stores
+`tbl_0x0613D83D[Country - 1]` into a country *index* at `0x0201584C`, and
+`Setup_Difficult_V` (CPS3 `0x06005368`) then copies two bytes out of
+`Difficult_V_Data` = `0x0613D845` — but the two agree wherever our port has an
+arm at all. The index byte reads 0 on all 143 segments, which is reachable only
+from `Country == 1`: a second, independent address confirming the first.
+
+What the difference gates, in descending order of how much it would matter:
+
+- **`effb8_normal_or_senyou()` (`effb8.c`) is `if (Country != 1) return 0;
+  return random_16() & 1;`** — an RNG draw the arcade takes and, before this
+  change, we did not. Since the `Random_ix16` mask came off (M1) the oracle
+  asserts that field honestly and the corpus is 143 PASS, so **this function is
+  provably never called inside a compared frame on this corpus**. That is a
+  statement about the corpus, not a reason the difference is safe.
+- `efff9.c`'s `Country != 1 && Country != 8` clamp on `old_rno[5]`: draws
+  nothing, and `old_rno` on an effect work is not compared.
+- `Limit_Time` 1061 vs 1241 is the ceiling `Time_Control()` (`game.c`) clamps
+  `Control_Time` to. `Control_Time` = `0x02011372` measures 481 at the start of
+  all 143 archives — our `game.c`'s literal — and climbs by 1 per 60 frames, and
+  in the longest archives it reaches **1093**. So the arcade genuinely runs
+  `Control_Time` past our 1061 clamp. It does not surface in statcheck, because
+  a statcheck run starts a synthetic match at 481 and never gets near either
+  ceiling, and `Control_Time` only feeds CPU difficulty selection (`com/`),
+  inert under H4b.
+- `CC_Value[0]` is read only in `com/`; `CC_Value[1]` only on
+  `setup_vitality`'s `wk->operator == 0` arm. Both inert under H4b.
+- `old_my_char_check()` (`effect.c`) and `game.c`'s `Country == 3` are outside
+  the battle path entirely (grade screen, `Rep_Game_Infor`).
+
+### Seed vs assert, decided per global
+
+**`Country` is SEEDED — one address resolves three.** `Statcheck_SyncValues`
+now reads `Country` from the archive and re-runs the same two derivations
+`Init_Task_1st` runs, `Setup_Difficult_V()` and `Setup_Limit_Time()`.
+`CC_Value` and `Limit_Time` are deliberately **not** imported: they are
+recomputed, and then asserted against the archive by the seed audit, which
+makes the import a self-test of the derivation rather than a restatement of it.
+Measured, that assert lands: `Country` 1 = 1, `CC_Value` {0,0} = {0,0},
+`Limit_Time` 1241 = 1241 on every segment. The last of those is the interesting
+one — our `Setup_Limit_Time()` folds the arcade's max-over-a-difficulty-table
+(CPS3 `0x06012570`) into the literal `Country == 1 ? 1241 : 1061`, and the fold
+is exactly right for this cabinet's settings.
+
+This is the opposite call from `bg_w.quake_y_index` (E5), and for the opposite
+reason. There, both sides entered every segment at 0, so a seed would have been
+a per-frame mask over a real divergence. Here the two sides enter at *different*
+constants, nothing in a replay can re-derive a region byte, and the seed is the
+only thing that can close the gap.
+
+**The seed is not gated on `ArcadeBalance_IsEnabled()`, and does not need to
+be.** `statcheck_compare.c` is entirely `#if defined(STATCHECK)` and
+`Statcheck_SyncValues` has exactly one caller, `StatcheckRunner_Prologue`. The
+shipped engine never runs it, so no shipped behaviour changes. **Whether the
+shipped build should stop hardcoding `Country = 4` is a separate question and
+was deliberately left alone** — it is a *region* difference, not an
+arcade-vs-PS2 balance difference. A US CPS3 cabinet would also read `Country !=
+1` and also skip that `random_16()` draw, so "the arcade draws here" is only
+true of the board this corpus came from.
+
+**The other four are ASSERTED, strictly.** `Max_vitality`, `No_Death`,
+`test_flag` and `ixbfw_cut` already agree; there is nothing to seed, and a
+mismatch would be a real defect. Kept for the same reason the other
+constant-and-equal fields are: one comparison each, and their absence is what
+the last seven defects were made of.
+
+**`save_w[Present_Mode].Difficulty` and `.Damage_Level` were on the same trip**
+(`0x0206AC63` / `0x0206AC64`, read off `setup_vitality` CPS3 `0x0611E202`) and
+are asserted too, not seeded: the archives read 2 and 1, which is
+`Game_Default_Data` (`sys_sub.c`) verbatim, so both sides already agree. Note
+the arcade `_SAVE_W` is **not** this port's — ours has `_PAD_INFOR
+Pad_Infor[2]` ahead of `Difficulty` and `Time_Limit`/`Battle_Number[2]` between
+the two fields, where the arcade has them at +1 and +2 — so these are absolute
+addresses, never a base plus `offsetof`. That is the same trap
+`bg_w.quake_y_index` set.
+
+### Result
+
+Ten comparisons added to `StatcheckSeedAudit_Run` (the `=2` dump goes from 158
+named fields to **168**). Corpus sweep, two binaries built from the same source
+tree differing only by this change, `--headless`, 143 segments:
+
+| | before | after |
+|---|---|---|
+| rc 0 | 143 | **143** |
+| rc 1/2/3/4 | 0 | **0** |
+| `PASS — compared archive frames a..b of n` lines that changed | — | **0 of 143** |
+| seed verdict | CLEAN 143/143 | **CLEAN 143/143** |
+
+So seeding `Country` changes no verdict and no compared frame range on this
+corpus — which is the expected result given that the one behavioural path it
+opens (`effb8_normal_or_senyou`) is never reached in a compared frame here, and
+is also the measurement that establishes that.
+
+**Detection control, because a clean verdict on its own proves nothing.** A
+third binary, identical except that the three seed lines are removed (the audit
+left in), sweeps **143 of 143 DIRTY**, naming exactly the four fields with
+exactly the predicted values:
+
+    statcheck-seed: MISMATCH Country [seeded]        ours=4 cps3=1
+    statcheck-seed: MISMATCH CC_Value[0] [derived]   ours=1 cps3=0
+    statcheck-seed: MISMATCH CC_Value[1] [derived]   ours=2 cps3=0
+    statcheck-seed: MISMATCH Limit_Time [derived]    ours=1061 cps3=1241
+
+and **all 143 of those still exit 0**, because none of the four is compared
+frame by frame. That is the `t_pl_lvr.waza_no` case again: the audit catching an
+imported-state gap the oracle is completely blind to, which is the case it was
+built for.
+
+### Still carried, still unexamined
+
+The 13 round-settle globals (`Winner_id`, `Loser_id`, `Conclusion_Type`,
+`EM_id`, …) are unchanged: every read sits inside code that writes them first
+in the same match, so they are only worth taking if a divergence is traced to a
+round transition.
+
+One new item came out of the measurement and is **not** closed: **`Break_Into`**
+(CPS3 `0x02011386`, established at the same three `plcnt_*_move` sites as
+`No_Death` — it is the very next guarded block in each). It is read exactly like
+`No_Death` (`if (Break_Into) { plw[0].wu.dm_vital = plw[1].wu.dm_vital = 0; }`)
+and it is **not** constant: it holds 1 at some point in **106 of the 143**
+archives, and varies within those archives. Our port writes it too
+(`entry.c` sets it to 1 at six sites, `game.c` and `entry.c` clear it), so this
+may be reproduced rather than carried — but nothing has checked, and unlike the
+seven it is not a boot constant. Sizing it needs the same treatment: when is it
+1 relative to the compared window, and does our synthetic session set it on the
+same frames.
 
 ### HARNESS FACT, and a trap: `Mode_Type` is `MODE_ARCADE`
 
@@ -1660,7 +1840,8 @@ PS2 mode and arcade mode now genuinely differ there, deliberately.
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
-| SA | **the seed audit** — announce imported-state gaps at the seed frame | **BUILT, 2026-09-05** — `src/test/statcheck_seed_audit.c`, run from `StatcheckRunner_Prologue` right after `Statcheck_SyncValues` and before the engine executes any compared frame; 150 fields, read-only. Corpus **CLEAN 143/143**, sweep unchanged at 143 PASS / 0 FAIL with **byte-identical** compared-frame ranges. A comparison failure with a dirty seed now exits **4**, not 1 — H1/H4b's rule, a fourth typed code, so rc 1 gets stronger. Retrodicts `players_timer` (143/143 named; 126 runs move from rc 1 to rc 4) and `t_pl_lvr` (the H3 segment's exact `s1_cnt` numbers, and 143/143 on the wide corpus via `waza_no` — a carried field the oracle never compares). `Round_Level` and `bg_w.stage` are **inert on both corpora** (`=2` dump: 3 and matching on every segment); their detection paths are proven by a deliberate skew instead |
+| CAB | **the seven cabinet / service globals** — `Max_vitality`, `No_Death`, `test_flag`, `ixbfw_cut`, `Country`, `CC_Value`, `Limit_Time` | **RESOLVED, 2026-09-05** — all seven addressed by disassembly and recorded with their evidence chains in `arcade_constants.h`, then measured over every frame of all 143 corpus segments. Four are **identical on both sides** (`Max_vitality` 160, `No_Death` 0, `test_flag` 0, `ixbfw_cut` 0) and are **asserted**, not seeded — a negative result that closes four of the forty hand-verified carried globals. `Country` is the one real difference (ours 4, arcade 1) and is **seeded**; `CC_Value` and `Limit_Time` are then **re-derived** by `Setup_Difficult_V()` / `Setup_Limit_Time()` and asserted, so one address resolves three and the import self-tests its own derivation. Latent, not fatal: the difference gates `effb8_normal_or_senyou()`'s `random_16()` draw, which the honest `Random_ix16` assert proves is never reached in a compared frame on this corpus. Sweep **143/143 -> 143/143**, zero PASS lines changed; detection control (seed removed) goes **143/143 DIRTY** naming all four. `save_w.Difficulty` / `.Damage_Level` came on the same trip and also agree |
+| SA | **the seed audit** — announce imported-state gaps at the seed frame | **BUILT, 2026-09-05** — `src/test/statcheck_seed_audit.c`, run from `StatcheckRunner_Prologue` right after `Statcheck_SyncValues` and before the engine executes any compared frame; 168 fields, read-only. Corpus **CLEAN 143/143**, sweep unchanged at 143 PASS / 0 FAIL with **byte-identical** compared-frame ranges. A comparison failure with a dirty seed now exits **4**, not 1 — H1/H4b's rule, a fourth typed code, so rc 1 gets stronger. Retrodicts `players_timer` (143/143 named; 126 runs move from rc 1 to rc 4) and `t_pl_lvr` (the H3 segment's exact `s1_cnt` numbers, and 143/143 on the wide corpus via `waza_no` — a carried field the oracle never compares). `Round_Level` and `bg_w.stage` are **inert on both corpora** (`=2` dump: 3 and matching on every segment); their detection paths are proven by a deliberate skew instead |
 
 **For a reviewer:** the 16-segment corpus reports **no engine divergence at
 all** — 6 PASS, 8 rejected as unreproducible (H4b), 2 with no match (H1). Every

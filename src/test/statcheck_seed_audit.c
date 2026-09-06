@@ -49,6 +49,7 @@
 #include "sf33rd/Source/Game/engine/plcnt.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
 #include "sf33rd/Source/Game/stage/bg.h"
+#include "sf33rd/Source/Game/system/work_sys.h"
 #include "sf33rd/Source/Game/ui/count.h"
 #include "test/statcheck_utils.h"
 
@@ -220,6 +221,48 @@ static void audit_service(SDL_IOStream* io) {
     seed_cmp("bg_w.stage [seeded]", bg_w.stage, CHAR_ARCADE_TO_3SX(read_u8(io, BG_W_STAGE_OFFSET)));
 
     seed_cmp("bg_w.quake_y_index", bg_w.quake_y_index, read_s16(io, BG_W_QUAKE_Y_INDEX_OFFSET));
+
+    /* Cabinet / service globals (the seeding-gap section of
+     * docs/research-arcade-balance-desyncs.md). Every one of these is
+     * boot- or service-derived, has a single writer that runs long before any
+     * segment starts, is never rewritten during a match, and is read by the
+     * fighter sim -- the exact shape of the seven defects this audit exists
+     * for. None of them is COMPARED frame by frame, so before this block
+     * nothing in the harness would ever have noticed one being wrong.
+     *
+     * All are STRICT. Four of them were measured identical on both sides of
+     * all 143 corpus segments (Max_vitality 160, No_Death 0, test_flag 0,
+     * ixbfw_cut 0) and are kept for the same reason the other constant-and-
+     * equal fields are: the cost is one comparison, and their absence is what
+     * the last seven defects were made of.
+     *
+     * The other three -- Country, CC_Value and Limit_Time -- were NOT equal:
+     * our port hardcodes `Country = 4` (main.c) where the ground truth reads
+     * 1. Statcheck_SyncValues now seeds Country and re-runs
+     * `Setup_Difficult_V()` / `Setup_Limit_Time()`, so these three assert the
+     * DERIVATION as much as the import: CC_Value and Limit_Time are never
+     * read from the archive, only recomputed from the seeded Country, and a
+     * mismatch here would mean our two derivations disagree with the arcade's
+     * (which compute the same values by different routes -- see
+     * COUNTRY_OFFSET and LIMIT_TIME_OFFSET in arcade_constants.h). */
+    seed_cmp("Country [seeded]", Country, read_u8(io, COUNTRY_OFFSET));
+    seed_cmp("CC_Value[0] [derived]", CC_Value[0], read_u8(io, CC_VALUE_OFFSET));
+    seed_cmp("CC_Value[1] [derived]", CC_Value[1], read_u8(io, CC_VALUE_OFFSET + 1));
+    seed_cmp("Limit_Time [derived]", Limit_Time, read_s16(io, LIMIT_TIME_OFFSET));
+    seed_cmp("Max_vitality", Max_vitality, read_s16(io, MAX_VITALITY_OFFSET));
+    seed_cmp("No_Death", No_Death, (s8)read_u8(io, NO_DEATH_OFFSET));
+    seed_cmp("test_flag", test_flag, read_u8(io, TEST_FLAG_OFFSET));
+    seed_cmp("ixbfw_cut", ixbfw_cut, read_u8(io, IXBFW_CUT_OFFSET));
+
+    /* save_w[Present_Mode]: the two cabinet service settings `setup_vitality`
+     * (pls02.c) reads unconditionally. `save_w` is not in the GS_SAVE
+     * whitelist, so it fell outside the 607-global carried-state count -- but
+     * it is the same class of setting as Round_Level and belongs here.
+     * Neither is seeded: both sides start from `Game_Default_Data` (sys_sub.c)
+     * and the archives measure at its values (Difficulty 2, Damage_Level 1) on
+     * all 143 segments, so a mismatch would be a genuine defect. */
+    seed_cmp("save_w.Difficulty", save_w[Present_Mode].Difficulty, read_u8(io, SAVE_W_DIFFICULTY_OFFSET));
+    seed_cmp("save_w.Damage_Level", save_w[Present_Mode].Damage_Level, read_u8(io, SAVE_W_DAMAGE_LEVEL_OFFSET));
 
     seed_cmp("cmb_all_stock[0]", cmb_all_stock[0], read_u8(io, CMB_ALL_STOCK_OFFSET));
 
