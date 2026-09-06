@@ -87,6 +87,15 @@ because the list said so.
 One exception: a check the change could plausibly move, that the implementer
 did NOT run, is worth running once — that is coverage, not duplication.
 
+**Mutation campaigns: validate against the witness, not the suite.** A
+mutation is proven by the one harness or route that catches it. Running the
+whole suite per mutation multiplies its cost by the suite size, and a suite
+grows — this project's route set went 5 -> 14 in a day, so a 15-mutation
+campaign at "all routes" is 210 game boots for information that 15 would
+have given. Name the witnessing route in the report, run the full suite
+once at the end, and prefer a small number of mutations aimed at the new
+assertions and anything that looks decorative over a broad sweep.
+
 ## Workflow
 
 - For implementation tasks, use the `/implement` skill (three-agent implement → review → fix loop).
