@@ -13,6 +13,36 @@
 #include "sf33rd/Source/Game/stage/bg_data.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
 
+/* ARCADE ADJUDICATION of every set_field_hosei_flag site in this file,
+ * 2026-09-06. E7 left all 12 unadjudicated; they are adjudicated now.
+ *
+ * lose_player is 0x060C558C: it copies the 4-entry lose_jp_tbl at 0x061A3A6C
+ * (one literal referrer, 0x060C56A8) onto its stack and indexes it by the
+ * 21-entry loser_type_tbl at 0x061A3A3C (one referrer, 0x060C56B0); the
+ * My_char mismatch arm is `bsr 0x60c5b2c` = meta_lose_pause. Lose_00000
+ * (0x060C55DE) is the two-way branch this file has, giving Judge_normal_loser
+ * (0x060C5A72) and Normal_normal_Loser (0x060C59BC). meta_lose_tbl is at
+ * 0x061A3A7C, 21 entries = ours with 24 inserted at Shin Akuma's index 15.
+ *
+ *   Lose_00000 0x060C55DE   Lose_10000 0x060C55F4   Lose_20000 0x060C5742
+ *   Lose_30000 0x060C5864   Normal_normal_Loser 0x060C59BC
+ *   Judge_normal_loser 0x060C5A72   meta_lose_pause 0x060C5B2C
+ *
+ * ARCADE HAS THE CALL at all six sites -- verified negatives, do not re-check
+ * and do not gate. The jsr pairs are 0x060C561A/0x060C563C,
+ * 0x060C5768/0x060C578A, 0x060C588A/0x060C58AC, 0x060C59E2/0x060C5A04,
+ * 0x060C5A98/0x060C5ABA and 0x060C5B58/0x060C5B7A.
+ *
+ * DIVERGENT IN SHAPE, NOT IN PRESENCE -- established, deliberately NOT changed
+ * (E9 in docs/research-arcade-balance-desyncs.md). In all six the arcade makes
+ * the correction the FIRST thing the routine does, before the pcon_rno tests
+ * and before the routine_no[3] dispatch; we make it the LAST thing, after. Two
+ * consequences: the arcade corrects before char_move and we correct after, and
+ * on the `pcon_rno[1] == 0 || == 4` early returns below we skip the correction
+ * entirely where the arcade has already made it. Normal_normal_Loser is the
+ * clearest reading -- 0x060C59E2/0x060C5A04 (the pair), then 0x060C5A08
+ * `mov.l 0x60c5ae4,r4 ; =02068c5e` and the tst/cmp-eq-#4 pair, then
+ * 0x060C5A18 `mov.w @(r0,r14),r0` with r0 = 42. */
 const s16 loser_type_tbl[20] = { 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0 };
 
 const s16 meta_lose_tbl[20] = { 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 28, 24, 24, 24, 24, 24, 24 };

@@ -6,6 +6,7 @@
 #include "sf33rd/Source/Game/animation/win_pl.h"
 #include "arcade/arcade_balance.h"
 #include "common.h"
+#include "sf33rd/AcrSDK/common/pad.h"
 #include "sf33rd/Source/Game/effect/eff30.h"
 #include "sf33rd/Source/Game/effect/eff31.h"
 #include "sf33rd/Source/Game/effect/eff32.h"
@@ -58,6 +59,64 @@ s16 win_rno[2];
 s16 win_free[2];
 s16 poison_flag[2];
 
+/* ARCADE ADJUDICATION of every set_field_hosei_flag site in this file, 2026-09-06.
+ * Recorded so nobody re-derives it. E7 read ONE routine (Oro's) out of the CPS3
+ * program; this is the rest. Where the arcade HAS the call, that is a verified
+ * negative -- do not re-check it, and do not gate it.
+ *
+ * The routine addresses are not guesses. win_player (0x060C2DDC) copies the
+ * 16-entry win_jp_tbl at 0x061A38C0 -- one literal referrer, 0x060C2EBC -- onto
+ * its stack and indexes it by the 21-entry winner_type_tbl at 0x061A3890, also
+ * one referrer. Win_00000 (0x060C2E88) is `bra 0x60c37ba; nop`, which is how
+ * Normal_normal_Winner is pinned; win_player's other three calls give
+ * meta_win_pause (0x060C54B2), bonus_game_win_pause (0x060C5308) and
+ * Judge_normal_winner (0x060C3898, a bsr) in source order.
+ *
+ *   Win_00000  0x060C2E88 (stub)  Win_08000  0x060C3E10
+ *   Win_01000  0x060C2E8C         Win_09000  0x060C3F54
+ *   Win_02000  0x060C33B2         Win_10000  0x060C414E
+ *   Win_03000  0x060C34EA         Win_11000  0x060C47DC
+ *   Win_04000  0x060C3654         Win_12000  0x060C4C22
+ *   Win_05000  0x060C3950         Win_13000  0x060C4D22
+ *   Win_06000  0x060C3B1C         Win_14000  0x060C4EAC
+ *   Win_07000  0x060C3C3C         Win_15000  0x060C51AA
+ *   Normal_normal_Winner 0x060C37BA   Judge_normal_winner  0x060C3898
+ *   bonus_game_win_pause 0x060C5308   meta_win_pause       0x060C54B2
+ *   twelve_win_away 0x060C499C   twelve_win_backjump 0x060C4A84
+ *   Neither is in a table: Win_11000's default arm switches on win_rno[0]
+ *   (0x060C490C, mov.w @r13,r0 with r13 = 0x020281AC) and tail-BRANCHES --
+ *   case 0 jmp 0x060C37BA (Normal_normal_Winner), case 1 bra 0x060C499C,
+ *   case 2 bra 0x060C4A84 -- which is this file's case 0/1/2 ladder exactly.
+ *   Both then switch on win_rno[1] at 0x020281AC+2.
+ *
+ * ARCADE HAS THE CALL, in the same place, with the same arguments -- 16 of the
+ * 24 pairs in this file (the remaining 8 are Win_01000's 1, which the arcade
+ * does not have, and the 7 listed under DIVERGENT IN SHAPE below):
+ *   Win_02000/06000/08000/10000/11000/12000/13000/15000  first statement of
+ *     case 0, after the routine_no[3] dispatch, exactly as here.
+ *   Win_03000/04000/05000/07000/09000/14000, Normal_normal_Winner,
+ *     Judge_normal_winner  before the dispatch, exactly as here.
+ * Normal_normal_Winner was the standing worry (its first ten lines are
+ * byte-identical to Win_01000's) and it is settled: 0x060C37BA does
+ * `mov.b r3,@r2` (bg_app_stop) at 0x060C37D2 and then `jsr` to 0x0611DFB8 at
+ * 0x060C37E8 and 0x060C380A, before `mov #42,r0` at 0x060C380E.
+ *
+ * ARCADE DOES NOT HAVE IT: Win_01000 only. Gated below; see E7.
+ *
+ * DIVERGENT IN SHAPE, NOT IN PRESENCE -- established, deliberately NOT changed,
+ * because they are an ordering/argument class and not E7's "call the arcade
+ * never makes". Written up as E9 in docs/research-arcade-balance-desyncs.md:
+ *   twelve_win_backjump (0x060C4A84)  arcade puts the pair at the HEAD of
+ *     win_rno[1] cases 0 and 1 (0x060C4AEC/0x060C4B0C, 0x060C4B88/0x060C4BA8),
+ *     before char_move; we put it at the tail, after.
+ *   meta_win_pause  arcade 0x060C54B2 has ONE pair -- plw[wk->wu.id] with
+ *     scrr/scrl -- BEFORE the dispatch, and no Bonus_Game_Flag test at all
+ *     (0x02016B3A appears nowhere in 0x060C54B2..0x060C558C). We have three
+ *     pairs after the dispatch behind a Bonus_Game_Flag if/else.
+ *   bonus_game_win_pause  arcade 0x060C5308 has the plw[1]-then-plw[0] shape we
+ *     have, in the same place, but passes the ordinary scrr/scrl pair -- both
+ *     its pairs read the same *(0x02026CB0) +- *(0x02026BD4) every other routine
+ *     reads -- where we pass bs_scrrrl[1][*] / bs_scrrrl[0][*]. */
 const s16 winner_type_tbl[20] = { 6, 0, 0, 6, 2, 7, 9, 3, 4, 1, 12, 0, 5, 14, 8, 13, 6, 10, 11, 15 };
 
 void win_player(PLW* wk) {
@@ -1361,12 +1420,61 @@ void Win_13000(PLW* wk) {
 
         if (Round_num >= (save_w[Present_Mode].Battle_Number[Play_Type] * 2) ||
             PL_Wins[wk->wu.id] >= save_w[Present_Mode].Battle_Number[Play_Type] + 1) {
+            /* ARCADE: bit 12, not bit 0 -- the same defect as E8, in the routine
+             * E8 named and could not read.
+             *
+             * This is Chun-Li's win routine and hers alone: winner_type_tbl
+             * holds 13 at exactly one index, 15 == CHAR_CHUNLI (arcade index 16,
+             * Shin Akuma inserted at 15), and win_jp_tbl[13] == 0x060C4D22.
+             *
+             * The arcade routine tests a mask held in a pool word, not the
+             * immediate 1:
+             *
+             *   060c4df4  mov.w 0x60c4e74,r4   ; r4 = 0x1000  (bit 12)
+             *   060c4df6  mov.w @(8,r14),r0    ; r0 = wu.id
+             *   060c4df8  tst   r0,r0
+             *   060c4dfa  bt    0x60c4e0a      ; id == 0 -> the P1 arm
+             *   060c4dfc  mov.l 0x60c4e9c,r2   ; = 0x0206AA90  (P2SW_0)
+             *   060c4e02  tst   r4,r3
+             *   060c4e04  bt    0x60c4e20      ; not held -> win_select
+             *   060c4e0a  mov.l 0x60c4ea0,r2   ; = 0x0206AA8C  (P1SW_0)
+             *   060c4e10  tst   r4,r3
+             *   060c4e14  mov   #40,r6 / mov #9,r5 / jsr set_char_move_init
+             *
+             * Same two raw switch words E8 established (0x0206AA8C / 0x0206AA90)
+             * and the same 0x1000. The routine is Win_13000 and not a lookalike:
+             * win_player (0x060C2DDC) copies win_jp_tbl from 0x061A38C0, whose
+             * entry [13] is 0x060C4D22, and that function's case 0 matches this
+             * one statement for statement -- the set_field_hosei_flag pair, the
+             * win_rno[0] = win_rno[1] = 0 pair at 0x020281AC, routine_no[3]++,
+             * the Round_num / PL_Wins test, and the default arm tail-calling
+             * Normal_normal_Winner (0x060C37BA).
+             *
+             * WHY THE BIT MATTERS BEYOND THE POSE. The held branch returns
+             * WITHOUT calling win_select(), so it draws no random_16. Under
+             * `& 1` a Chun-Li player merely holding UP on the deciding win skips
+             * a draw the arcade takes -- an RNG divergence, not just a different
+             * animation.
+             *
+             * SWK_START is a conversion identity here, exactly as in effl7.c:
+             * src/test/replay_game.c -> read_input_buff() maps arcade bit 12 to
+             * (raw & (1 << 12)) << 2 == SWK_START, so a p*sw_0 word produced by
+             * this port's conversion layer carries arcade bit 12 at SWK_START.
+             *
+             * PS2 keeps `& 1`: proven against the CPS3 program and not against
+             * the PS2 binary (2d74225d, 192291a4). SWK_UP is 1 << 0, so the PS2
+             * arm is bit-identical to what this function has always done.
+             *
+             * See Class B / E8 and E7's adjudication table in
+             * docs/research-arcade-balance-desyncs.md. */
+            const u16 pose_sw = ArcadeBalance_IsEnabled() ? (u16)SWK_START : (u16)SWK_UP;
+
             if (wk->wu.id) {
-                if (p2sw_0 & 1) {
+                if (p2sw_0 & pose_sw) {
                     set_char_move_init(&wk->wu, 9, 40);
                     return;
                 }
-            } else if (p1sw_0 & 1) {
+            } else if (p1sw_0 & pose_sw) {
                 set_char_move_init(&wk->wu, 9, 40);
                 return;
             }
