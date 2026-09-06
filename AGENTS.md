@@ -45,6 +45,23 @@
   loud which gates you skipped and why.
 - FPGA core builds (Quartus) run in the Colima `quartus2` VM, not Docker. See [docs/agent-memory/mister-wrapper-quartus.md](docs/agent-memory/mister-wrapper-quartus.md).
 
+## Mutation-testing hygiene
+
+Four distinct ways to get a false result have been seen live on this repo.
+All four produce a green run or a red one that means nothing:
+
+1. **Delete the mutated TU's object AND the app binary.** `make` skips a
+   relink when two builds land in the same wall-clock second.
+2. **Never restore with `cp -p`.** It preserves the backup's older mtime,
+   `make` skips the recompile, and the next measurement is taken against
+   the previous mutation's object.
+3. **Never `git checkout --` to undo a mutation in a dirty tree.** It
+   reverts to HEAD, not to the working copy, and destroys the uncommitted
+   change under review. Snapshot the files to a scratch directory and
+   restore from those.
+4. **Prove the restore.** Compare source md5s *and* object md5s against a
+   pre-mutation snapshot before trusting any result that follows.
+
 ## Gating
 
 **Run the gates the change can reach. Skip the rest, and say which you skipped
