@@ -55,6 +55,10 @@ command and its observed output, or a named primary source. Things that were
   because CPS3 spawns two stage effects the port has no code for. The
   statcheck oracle has always hidden this (it overwrites `Random_ix16` every
   frame). Read §23.10 before adding a bare `random_16()` anywhere.
+- **About to trust a frame-count argument for an OVCT walk?** §25 — the
+  hold is bounded by enumerating every writer of the master's `hit_stop` and
+  every freeze that is asymmetric between player and overlay, and the bound
+  is re-derived by `cg_audit.py` on every run.
 - **Worried the parse itself is truncating data?** §19.
 - **Worried about hitboxes / throw ranges / attack properties?** §15 — the other
   13 sections (the ones a CG audit cannot see). This is upstream issue **#325**.
@@ -151,7 +155,8 @@ command and its observed output, or a named primary source. Things that were
     and `residual_audit.py` reports OVCT violations on reachable parts (0),
     so the tail is **defended by the audit**. The same sweep found an
     **arcade-only dangling next-index on Dudley** (entry 177 → 178, past a
-    178-entry table; §24.6(i), item R).
+    178-entry table; §24.6(i), item R) — **closed 2026-09-06 (§25)**: the walk
+    needs 297 frames of one unchanged `olc`; no writer can hold it past 179.
 
 ---
 
@@ -165,6 +170,7 @@ command and its observed output, or a named primary source. Things that were
 | Elena crash fix | **LANDED** `23326679` — range applied in `src/arcade/arcade_char_data.c`; gate `cg_audit.py` class (a) 66 → 0 (§8.A) |
 | Remy crash fix | **LANDED** `a5bc6a5b` — range applied in `src/arcade/arcade_char_data.c`; gate `residual_audit.py` residual-OOB 6 → 0 (§8.K) |
 | Elena OVCT unpatched tail | **CLOSED 2026-09-06 — unreachable, defended by the audit** (§24). Parts 17-90 are indexed by no writer: the OVIX is the identity and no cell emits `olc >> 4` above 16, and the `eff01.c` timer walk is stationary (`parts_nix[i] == i` for all 91). No code change; `cg_audit.py` -> `ovct_reachability()` and `residual_audit.py` R2b `part_reachable` enforce it. Corrects §18's "undefended" |
+| Dudley dangling OVCT next-index (arcade entry 177 → 178) | **CLOSED 2026-09-06 — unreachable, defended by the audit** (§25). The walk needs 297 (seed 130) / 594 (seed 82) consecutive frames of one `olc`; the master can hold those for ≤ 179 / 148 — the run's script frames plus one positive `hit_stop` per renewal cell, bounded at 23 by the largest value any writer hands an attacker. No code change; `cg_audit.py` -> `ovct_dangling_hold()` re-derives the bound; row `walk>end-unreached[178:hold<=179/297]` |
 | 1,694 wrong-sprite cells (measured against the audit's oracle reach — §11.2 notes 162 more scripts, 2,441 cells, with no oracle at all) | **MOSTLY LANDED** items D, E, N (§8.D, §8.E, §8.N) — class (c) 1688 (post-§8.K baseline) → 89; item F (Chun-Li, 72 of the 89) investigated, deliberately left as-is (§8.F); remaining 17 enumerated with reasons (§8.D's Urien 0x52D9 ambiguity, and 7 of Necro/Hugo/Yun/Akuma's 9 smaller own-group cells — the same per-raw-value ambiguity; Akuma's other 2, `0x546B`, are a no-oracle block on a unanimous delta, not an ambiguity — §8.P) |
 | Shape-divergent scripts (316) | **OPEN** — enumerated; §11.4 now offers an oracle |
 | Upstream issue #363 | **OPEN** upstream; our findings not yet reported (§13) |
@@ -1372,7 +1378,7 @@ release-note under §8.O. Rationale in §21.13.
 > the boot log's "Arcade balance auto-selected" line against the same
 > verified romset. Not merged to `mister`, not on-device verified.
 
-### R. Dudley's dangling OVCT next-index — arcade entry 177 → 178, past a 178-entry table (§24.6(i)) — OPEN, decision needed
+### R. Dudley's dangling OVCT next-index — arcade entry 177 → 178, past a 178-entry table (§24.6(i)) — CLOSED 2026-09-06 (§25)
 
 Found by the §24 reachability sweep, **arcade-only** (PS2 control: none).
 Dudley's arcade OVCT has 178 entries; entry 177 is `{timer 250, parts_char 0,
@@ -1397,6 +1403,25 @@ drawn, whereas PS2 would show sprite 5058; also moves the digest; (3) a bounds
 check in `eff01.c` -> `get_new_parts_data`, which touches a PS2 engine file
 and must be gated. `cg_audit.py` prints the row as `walk>end[178](arcade-only)`
 until one of them lands.
+
+> #### Status 2026-09-06: CLOSED — unreachable, no code change, defended by the audit (§25)
+>
+> None of the three options was taken, on purpose. The walk from seed 130
+> needs **297** consecutive effect frames of `olc 40`, from seed 82 **594** of
+> `olc 39`. The master decodes cells only from `char_move`, which
+> `check_hit_stop` withholds only while `hit_stop > 0`; every other freeze
+> is either symmetric (`Game_pause`, `EXE_flag`), freezes the effect harder
+> (`sa_stop_flag`, the opponent's flash) or installs a new script. Every
+> writer of an attacker's positive `hit_stop` was enumerated (§25.3): own
+> `hs_me` (Dudley max 12), parry (20), and an atemi's `hs_you` (Dudley 21,
+> Remy 23 — the only two `comm_atmf` users in the cast); each needs a
+> renewal cell, of which the `olc 40` run has 7 and the `olc 39` run 5.
+> Holds are therefore ≤ 18 + 7 × 23 = **179** and ≤ 33 + 5 × 23 = **148**.
+> The runs have no C cell and are bounded by `olc 0` cells on both sides,
+> and both SA handlers call `char_move` every frame (§25.4). The "SA freeze"
+> sentence above is corrected in §25.7. `cg_audit.py` ->
+> `ovct_dangling_hold()` now re-derives the bound on every run; the row
+> reads `walk>end-unreached[178:hold<=179/297]`.
 
 ---
 
@@ -4503,6 +4528,8 @@ one-frame steps to 177 then 250 frames to 178, one element past the
 is 344 + 250 frames. Those scripts hold the `olc` for 18 and 33 script
 frames. `cg_audit.py` prints `178/180 r<=177 walk>end[178](arcade-only)`.
 This is the only character whose arcade walk leaves its table. See §8.R.
+**CLOSED 2026-09-06 (§25):** the hold is bounded at 179 / 148 frames against
+a need of 297 / 594.
 
 **(ii) RYU — a pre-existing PS2 quirk, not ours.** PS2 entries 54 and 55 (the
 two entries the port added) carry `nix 57` and `58` against a 56-entry table,
@@ -4530,9 +4557,257 @@ them is below `common_count`, so it holds a PS2-patched `parts_char`;
 - Dudley's window (§24.6(i)) was measured in script frames from cell `ctr`
   sums; hit-stop accumulation across a multi-hit SA was not modelled. The
   finding is "arcade-only dangling index, ≥ 297 frames from an 18-frame
-  hold", not "reachable in play".
+  hold", not "reachable in play". **Modelled and closed in §25.**
 - The reachability model is per-character: a part index decoded against one
   character's OVIX and consumed against another's table (the X.C.O.P.Y.
   window) was checked only at the 40 `cg_type == 20` markers and their
   predecessors, which is where the swap happens; `cg_audit.py` does not
-  model the swap generically.
+  model the swap generically. **§25.5 extends the check to every cell after
+  every marker: all `olc 0`.**
+
+---
+
+## 25. Dudley's dangling OVCT next-index: CLOSED — the hold is bounded by data, and the audit now checks it (ninth pass, 2026-09-06)
+
+**Citation style for this section.** As in §21-§24: this document is not in
+`tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line. Code was read at
+`new-stuff` @ `54fd349d`. Every number marked **measured** was produced by
+`tools/arcade-audit/cg_audit.py` (`ovct_dangling_hold()`, added in this pass)
+against the same `rom.bin` (md5 `909f5abec4b6b21bf7d2a452a03fdfcc`) the rest
+of this document uses, or by the scratch sweeps that preceded it and that the
+function reproduces.
+
+**Headline.** §8.R and §24.6(i) left Dudley's arcade entry 177
+(`{timer 250, parts_char 0, parts_nix 178}`, one past his 178-entry table) as
+"not observed and timing-gated", and §24.7 named the hole: hit-stop was not
+modelled. It is now. The walk from the only two seeds that reach entry 177
+needs **297** (seed 130) and **594** (seed 82) consecutive effect frames of
+one unchanged `olc`; the master can hold those `olc` values for at most
+**179** and **148** frames respectively — the run's own script frames plus
+one positive `hit_stop` per attack-renewal cell, with the per-renewal value
+bounded by the largest hit-stop any writer can hand an attacking player
+(**23**, Remy's Blue Nocturne absorbing the hit). The gap is **118** and
+**446** frames. This is not an observation: every writer of the master's
+`hit_stop` was enumerated (§25.3), every mechanism that freezes the master
+without freezing the effect was enumerated (§25.2), and the numbers come from
+the ROM. §8.R is closed with **no code change**; the model is code in
+`cg_audit.py`, so the DUDLEY row now reads
+`walk>end-unreached[178:hold<=179/297]` and would flip back to
+`walk>end[178](arcade-only)` if a cell, a table or an ATIT record moved the
+bound past the need. The X.C.O.P.Y. gap in §24.7 is closed generically for all
+40 markers (§25.5).
+
+### 25.1 What has to happen for the walk to leave the table
+
+`eff01.c` -> `effect_01_move` walks `cg_ix` only inside
+`if (!Game_pause && !EXE_flag)`, only on the `else if (((PLW*)mwk)->sa_stop_flag == 0)`
+branch, and only while its cached selection equals the master's
+(`ewk->wu.cg_olc.olc_ix[type] != mwk->cg_olc.olc_ix[type]` restarts at the
+seed; a master value of 0 goes dormant). Each such frame is one `--cg_ctr`;
+the walk moves when it hits 0, and `get_new_parts_data` reloads `cg_ctr` from
+the new part's `parts_timer` (both `u8`, `structs.h`, so a 0 timer is 256
+frames). **Measured** on the arcade OVCT: exactly **96** entries (82-177) walk
+to index 178; every other entry's walk stays inside the table. The OVIX
+entries that can install one of them are **39** (`{82, 0, 0, 0}`) and **40**
+(`{130, 0, 0, 0}`) — slots 1-3 are 0, so overlay types 1-3 never take part
+(§24.2 #4). `plcnt_init`'s 0 and `exdm_ix_data[*][4][3]` (= 0, measured) select
+nothing on the chain. From seed 130 the walk is 47 one-frame entries then 250
+frames on entry 177: **297** frames. From seed 82 it is 47 one-frame entries,
+250 on an entry whose `parts_nix` is 130, then the same: **594**.
+
+So the question is exactly: can the master's `cg_olc.olc_ix[0]` stay **40**
+(or **39**) for 297 (594) consecutive effect-walking frames?
+
+### 25.2 What can keep the master's `olc` unchanged while the effect walks
+
+The master's `cg_olc` is written only by a cell decode (§24.2 #1-#3), and a
+player decodes cells only from `charset.c` -> `char_move` (`--cg_ctr == 0` ->
+`check_cm_extended_code`). Where `char_move` is reached from, for a player in
+an attack, and what withholds it:
+
+| Path | Calls `char_move`? | Effect walks meanwhile? |
+|---|---|---|
+| `plmain.c` -> `player_mv_4000` -> `check_hit_stop` returns 0 -> `plmain_lv_02[4]` = `Player_attack` -> `plxx_extra_attack_table[player_number]` | yes, every frame in every nonzero `routine_no[3]` state of both Dudley SA handlers (§25.4) | yes — this is the run's own script frames |
+| `check_hit_stop` with `hit_stop > 0`: `wk->wu.hit_stop--` and `num = 1` | **no** | **yes** — `eff01.c` never reads the master's `hit_stop`, and the attacker's `sa_stop_flag` is 0 (`charset.c` -> `comm_stop`: `wk->sa_stop_flag = 0` for the caster) |
+| `check_hit_stop` with `hit_stop < 0`: `wk->wu.hit_stop++; char_move(&wk->wu);` | yes, from `check_hit_stop` itself | yes, but the master advances at the same rate — holds nothing |
+| `Game_pause` or `EXE_flag` (`plcnt.c` -> `Player_control`: `if (Game_pause \|\| EXE_flag) goto end;`) | no | **no** — `eff01.c` tests the same two flags; symmetric, drops out |
+| opponent's SA flash (`comm_stop`: `wk2->wu.hit_stop = ctc->ix; wk2->sa_stop_flag = 2;`, later 1 in `check_hit_stop`) | no while the stop lasts | **no** — `sa_stop_flag != 0` is the effect's own freeze; it returns to 0 only in state-entry code (`plpat.c` -> `Player_attack`, `plpnm.c`, `plpca.c`, `plpcu.c`, `plpdm.c` -> `setup_damage_process_flags`, `plmain2.c`), each of which installs a new script |
+| round settle (`plcnt.c` -> `plcnt_die` -> `settle_process[]`, then `move_player_work()`) | yes — the players keep moving; `footwork_check`/`nekorobi_check` wait for them | yes, but at the same rate |
+| a damage, catch, caught or normal state | new script, new `olc` | restart |
+
+The only asymmetric freeze is the second row: a **positive `hit_stop` on the
+attacker**. `Game_timer`-based slow motion (`slowf.c` -> `set_EXE_flag`)
+and pause hit both sides; the opponent's SA stop freezes the effect harder
+than the master; everything else installs a script. Netplay rollback
+restores the effect pool wholesale (`game_state.c`: `SDL_copya(es->frw, frw)`),
+so re-simulation cannot add walk frames either.
+
+### 25.3 Every writer of an attacking player's `hit_stop`
+
+Positive assignments to a `PLW`'s `wu.hit_stop` (grep `hit_stop =` over
+`src/sf33rd`, effect-own `ewk->wu.hit_stop` excluded), classified by whether
+the player is still on its attack script afterwards:
+
+| Writer | Value | Leaves the attacker on its script? |
+|---|---|---|
+| `hitcheck.c` -> `dm_status_copy`: `as->hit_stop = as->att.hs_me;` (called on hit **and** on guard, `set_guard_status`) | the attacker's current ATIT record's `hs_me` | yes |
+| `hitcheck.c` -> `set_paring_status`: `as->wu.hit_stop = sel_hs_add_tbl[hsadix] + 16;` / `= 16` | 16-20 (`sel_hs_add_tbl[6] = { 4, 3, 2, 1, 0, 0 }`) | yes |
+| `plpdm.c` -> `damage_atemi_setup`: `ek->wu.hit_stop = wk->wu.att.hs_you;` (`ek` is the attacker; reached from `get_damage_reaction_data` when the *defender's* `atemi_flag` is 1 or 2) | the **defender's** current ATIT record's `hs_you` | yes — the defender jumps to its `cmms` script, the attacker continues |
+| `plcnt.c` (and `plcnt2.c`) aiuchi KO: `plw[0].wu.hit_stop = plw[1].wu.hit_stop = 2` / `4` | 2 / 4 | no — both already in damage (`check_result_extra` requires `routine_no[1] == 1` on both) |
+| `hitcheck.c` -> `check_result_extra` aiuchi: `plw[0].wu.hit_stop = plw[1].wu.hit_stop = hs1` / `hs2` | max `\|dm_stop\|` | no — same precondition |
+| `plpdm.c` -> `Player_damage` -> `pls02.c` -> `set_hit_stop_hit_quake`: `wk->hit_stop = wk->dm_stop;`; `plpdm.c` `wk->wu.hit_stop = 3;` | | no — damage state, new script |
+| `plpca.c`: `tk->wu.hit_stop = 1;` | 1 | no — the throw target is in `caught`, new script |
+| `charset.c` -> `comm_stop`: `wk->wu.hit_stop = ctc->koc;` | the script's own value | only if a C cell sits inside the run (none do — §25.4) |
+| `effect.c` -> `setup_shell_hit_stop`, `effc2.c`, `effi3.c`, `effe2.c` | | write an **effect's** `hit_stop`, not the player's |
+
+Being hit does not extend the hold either: `hitplpl.c` ->
+`plef_at_vs_player_damage_union` writes `ds->wu.routine_no[1] = 1;
+ds->wu.routine_no[3] = 0;` at contact, so `check_hit_stop`'s
+`(dm_stop != 0) && (hit_stop != 0)` case takes the `routine_no[3] == 0` arm
+(`dm_stop = select_hit_stop(...); hit_stop = 0; return 0;`) and
+`Player_damage` installs the damage script the next frame. The
+`routine_no[3] != 0` arm (which would merge `dm_stop` into `hit_stop` and drop
+the damage) is unreachable for a player that has just been hit.
+
+**How many times per run.** A contact requires `att_hit_ok`, which only
+`charset.c` -> `set_new_attnum` sets — on a cell whose `att` word is negative
+(`if (wk->cg_att_ix < 0) { ... wk->att_hit_ok = 1; ...}`, the renewal) — and
+which `hitcheck.c` clears on every registered contact (`mad->att_hit_ok = 0`
+in both hit loops; `hissatsu_setup_union` also clears it at SA start). A
+renewal needs a decode, a decode needs `char_move`, and `char_move` needs
+`hit_stop == 0`. So the positive hit-stops during a run are sequential, one
+per renewal cell at most, and the hold is
+
+> **hold ≤ Σ ctr over the run + (renewal cells in the run) × HS\***, with
+> HS\* = max(own `hs_me`, parry 20, atemi `hs_you`).
+
+**Measured** from the arcade ATIT (`structs.h` `UNK_7`, 16 bytes, `hs_me` at
++12, `hs_you` at +13, both `s8`): Dudley's largest positive `hs_me` over all
+118 records is **12** (the run's own records 62/92/36 carry 4, and 38-42
+carry 2, 2, 4, 6, 10); the only scripts in the cast that issue `comm_atmf`
+(`decode_chcmd[100]`) with a nonzero `koc` are **Dudley `saca[65..68]`**
+(Cross Counter, `atemi_flag 1`, record 79, `hs_you` **21**) and **Remy
+`saca[50..53]`** (Blue Nocturne, `atemi_flag 2`, record 47, `hs_you` **23**);
+their whole ATITs bound the value at 21 and 23 whatever record happens to be
+loaded. **HS\* = 23.**
+
+### 25.4 The runs, and the bound
+
+**Measured** — every cell in Dudley's ten arcade tables with `olc >> 4 == 40`
+or `39`, pre- and post-terminator:
+
+| `olc` | Scripts | Cells | Σ ctr | Renewal cells (`att < 0`) | Bounded by | Hold ≤ | Need | Gap |
+|---|---|---|---|---|---|---|---|---|
+| 40 (seed 130) | `saca[48..51]` (SA1, `9900_g[0..3]`; 51 is selected by no slot) | 43-60, eighteen 1-frame cells | 18 | 7 (`att` -3954 ×6, -2290) | L cell 42 (`olc 0`) and L cell 61 (`olc 0`, `cg_type 30`) | 18 + 7 × 23 = **179** | **297** | 118 |
+| 39 (seed 82) | `saca[28..31]` (SA3, `9900_g[8..11]`; 31 is selected by no slot) | 13-25 | 33 | 5 (`att` -2420 … -2676) | L cell 12 (`olc 0`) and L cell 26 (`olc 0`, `cg_type 255`) | 33 + 5 × 23 = **148** | **594** | 446 |
+
+Why the runs cannot be re-entered without a restart: a run is bounded on both
+sides by an L cell with a different `olc`, and contains **no C cell**, so
+leaving it in script order decodes an `olc 0` cell first (the effect goes
+dormant and restarts at the seed on the next 40), and no command inside it can
+loop or jump. The handlers are `plpatuni.c` -> `Att_SHOURYUUREPPA`
+(`waza_r` 19 for command slot 20, `arcade_cmd_data.c` `unk_cmd_51`) and
+`Att_CHOUCHUURENGEKI` (`waza_r` 21, `unk_cmd_53`): both call `char_move` — directly
+or through `pls01.c` -> `jumping_union_process` — in every nonzero
+`routine_no[3]` state, so the master never parks on a run cell. The `cg_type
+20` on cell 43 sends `Att_SHOURYUUREPPA` to its airborne state, where landing
+(`jumping_union_process`: `xyz[1].disp.pos + cg_jphos <= 0` ->
+`char_move_cmja`) jumps to the address `comm_rja` saved at cell 36
+(`cbca[0]`, `olc 0`) — an exit, not a re-entry. The own SA flash is
+`comm_stop koc=-50 ix=50` at cell 1: a **negative** `hit_stop` for the caster,
+so §25.2's third row — the caster animates through its own flash.
+
+Nothing else in the frame budget is asymmetric, so the walk from seed 130
+stops at or before entry 130 + 179 - 1 (well short of 177's 250-frame hold),
+and from seed 82 at or before 82 + 148 - 1. Entry 177 is never occupied for
+250 frames; index 178 is never formed; `get_new_parts_data` never reads past
+`read_ovct`'s buffer.
+
+### 25.5 The X.C.O.P.Y. swap, closed generically
+
+§24.7 recorded that the swap was checked only at the 40 `cg_type == 20`
+markers and their predecessors. **Measured** this pass over Twelve's arcade
+tables: for every one of the **40** markers, **every** L cell from the marker
+to the end of its script has `olc >> 4 == 0`. `effk7.c` -> `K7_move_type_0`
+case 0 rebinds the tables at the marker, and the X.C.O.P.Y. script keeps
+running until `plpatuni.c` -> `Att_METAMOR_WAIT` leaves it; those are the
+cells decoded against the *target's* OVIX, and none selects anything. So no
+Twelve cell can seed any target's walk, Dudley's chain included. The reverse
+swap (case 4, on a `cg_type == 30` cell) is reached through `Att_METAMOR_REBIRTH`'s
+`set_char_move_init(&wk->wu, 5, 1)`: Dudley's `saca[1]` carries its marker at
+cell 1 with `olc 0` and every other cell `olc 0` (measured), so the effect is
+dormant when Twelve's tables come back. Twelve-as-Dudley otherwise runs
+Dudley's scripts through Dudley's handlers (`plxx_extra_attack_table[player_number]`
+after `mwk->player_number = target->player_number`), so §25.4 covers him.
+Dudley is **not exposed** through the swap.
+
+### 25.6 The defence, in code
+
+- `tools/arcade-audit/cg_audit.py` -> `ovct_dangling_hold(ci, rr)`: for every
+  arcade walk exit (`past_end`), the seeds that reach it, the frames the walk
+  needs (`parts_timer`, `u8`, 0 = 256), the OVIX indices that install each
+  seed, every `olc` run in the ten tables that selects such an index
+  (`olc_runs`), and the bound `Σ ctr + renewals × HS*` with HS* rebuilt from
+  the sources each run: `parse_parry_hit_stop()` reads `sel_hs_add_tbl` and the
+  `+ 16` from `hitcheck.c`; `arc_atit_hs()` reads the character's own ATIT;
+  `atemi_hit_stop_max()` finds every `comm_atmf` script in the cast and takes
+  its character's ATIT maximum. A run that contains a C cell, starts at a
+  script's first cell or reaches its last is reported `unmodelled` and keeps
+  the exit **reachable** — the model refuses to bound what it has not read.
+  Per character the JSON gains `ovct_dangling_hold` and the stats
+  `ovct_walk_past_end_reachable` (exits the model cannot rule out) and
+  `ovct_walk_hold` (`[exit, hold_max, need]` for the ones it can). **No
+  pre-existing JSON value changed** (measured: field-by-field diff against
+  `54fd349d`'s file, 0 changed, 0 removed, 60 added — three keys × 20
+  characters).
+- The flag is now `walk>end[...]` only for a reachable-or-unmodelled exit;
+  a bounded one prints `walk>end-unreached[exit:hold<=H/N]`. `TAIL-REACHED`
+  still takes precedence.
+
+DUDLEY row, `cg_audit.py`, before (`54fd349d`) and after:
+
+```
+DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     0    33     0 | 178/180 r<=177 walk>end[178](arcade-only)  41/43 short
+DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     0    33     0 | 178/180 r<=177 walk>end-unreached[178:hold<=179/297]  41/43 short
+```
+
+`residual_audit.py` after: output byte-identical to before; `residual < 0 :
+0`, `residual >= offset-table length : 0`, R2b `on a REACHABLE part : 0`.
+
+### 25.7 Corrections to §8.R and §24 (recorded, not silently edited)
+
+- **§8.R** says "hit-stop extends the hold; the SA freeze does not,
+  `sa_stop_flag`". The conclusion is right, the reason is not: the caster's
+  own flash is a **negative** `hit_stop` (`comm_stop`'s `koc`, -50 here) and
+  `check_hit_stop`'s negative arm calls `char_move` itself; `sa_stop_flag`
+  is set to 0 for the caster and to 2 for the *opponent*, where it freezes
+  the **effect** (`eff01.c` reads the master's flag), not the master.
+- **§8.R's three options** were all declined: (1) and (2) move
+  `ArcadeCharData_ComputeDigest`; (3) would be a gated `eff01.c` guard for a
+  read that cannot happen. The hazard was real data and stays reported
+  (`ovct_walk_past_end = [178]`); what changed is that the audit now knows the
+  frame budget, so the row is no longer an open item.
+- **§24.6(i)**'s "scripts hold the `olc` for 33 and 18 script frames" and
+  **§24.7**'s "hit-stop accumulation across a multi-hit SA was not modelled"
+  are both superseded by §25.3-§25.4.
+
+### 25.8 What this does not establish
+
+- Nothing about what entry 178 *would* draw. No path forms the index.
+- The bound is over the shipped ROM and the engine as read. A new writer of a
+  player's positive `hit_stop`, a new `comm_atmf` script, a larger `hs_you`
+  in either atemi character's ATIT, or a C cell inside either run moves
+  `ovct_dangling_hold()`'s numbers and the row with them.
+- The PS2 side was not modelled: Ryu's PS2-only `nix 57/58` (§24.6(ii)) is
+  reported, not bounded, because it is not an adaptation defect (§6.1).
+- The reverse X.C.O.P.Y. swap was checked for the script `Att_METAMOR_REBIRTH`
+  actually installs (`saca[1]`). Dudley also carries `cg_type 30` cells with
+  `olc >> 4 == 26` in `saca[71]`, `saca[72]` (measured); whether `K7_move_type_0`
+  case 4 can be armed while one of those plays (an interrupted rebirth) was
+  not analysed. If it can, the effect restarts on Twelve's 133-entry table
+  with Dudley's OVIX[26] part index — in range, and a Twelve-table question,
+  not this exit.
+- The `unmodelled` verdict is deliberately blunt: a C cell inside a run is
+  reported, not decoded. No run in the cast currently needs it (Dudley's two
+  are the only dangling-exit runs).

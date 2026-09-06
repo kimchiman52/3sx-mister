@@ -449,6 +449,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -675,6 +677,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 16,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "ALEX": {
@@ -907,6 +923,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -962,6 +980,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 18,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "RYU": {
@@ -1095,6 +1127,8 @@
     57,
     58
    ],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -1171,6 +1205,20 @@
     ],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 52,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 52
+   },
+   "exits": {}
   }
  },
  "YUN": {
@@ -1613,6 +1661,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -1659,6 +1709,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 16,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "DUDLEY": {
@@ -2071,6 +2135,14 @@
     178
    ],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [
+    [
+     178,
+     179,
+     297
+    ]
+   ],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -2137,6 +2209,128 @@
     ],
     "past_end": [],
     "ovix_oob": []
+   }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 12,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {
+    "178": {
+     "seeds": {
+      "82": {
+       "need": 594,
+       "olc": [
+        39
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 39,
+         "table": "saca",
+         "script": 28,
+         "cells": "13-25",
+         "frames": 33,
+         "renewals": 5,
+         "unmodelled": null,
+         "hold_max": 148
+        },
+        {
+         "olc": 39,
+         "table": "saca",
+         "script": 29,
+         "cells": "13-25",
+         "frames": 33,
+         "renewals": 5,
+         "unmodelled": null,
+         "hold_max": 148
+        },
+        {
+         "olc": 39,
+         "table": "saca",
+         "script": 30,
+         "cells": "13-25",
+         "frames": 33,
+         "renewals": 5,
+         "unmodelled": null,
+         "hold_max": 148
+        },
+        {
+         "olc": 39,
+         "table": "saca",
+         "script": 31,
+         "cells": "13-25",
+         "frames": 33,
+         "renewals": 5,
+         "unmodelled": null,
+         "hold_max": 148
+        }
+       ],
+       "hold_max": 148,
+       "reachable": false
+      },
+      "130": {
+       "need": 297,
+       "olc": [
+        40
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 40,
+         "table": "saca",
+         "script": 48,
+         "cells": "43-60",
+         "frames": 18,
+         "renewals": 7,
+         "unmodelled": null,
+         "hold_max": 179
+        },
+        {
+         "olc": 40,
+         "table": "saca",
+         "script": 49,
+         "cells": "43-60",
+         "frames": 18,
+         "renewals": 7,
+         "unmodelled": null,
+         "hold_max": 179
+        },
+        {
+         "olc": 40,
+         "table": "saca",
+         "script": 50,
+         "cells": "43-60",
+         "frames": 18,
+         "renewals": 7,
+         "unmodelled": null,
+         "hold_max": 179
+        },
+        {
+         "olc": 40,
+         "table": "saca",
+         "script": 51,
+         "cells": "43-60",
+         "frames": 18,
+         "renewals": 7,
+         "unmodelled": null,
+         "hold_max": 179
+        }
+       ],
+       "hold_max": 179,
+       "reachable": false
+      }
+     },
+     "reachable": false
+    }
    }
   }
  },
@@ -2317,6 +2511,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -2367,6 +2563,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 16,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "HUGO": {
@@ -2540,6 +2750,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -2592,6 +2804,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 22,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "IBUKI": {
@@ -2778,6 +3004,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [
     2277
    ],
@@ -2988,6 +3216,20 @@
      2277
     ]
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 20,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "ELENA": {
@@ -3180,6 +3422,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 0,
    "a_oob": 0,
@@ -3239,6 +3483,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 12,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "ORO": {
@@ -3376,6 +3634,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -3428,6 +3688,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 12,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "YANG": {
@@ -4602,6 +4876,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -4652,6 +4928,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 16,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "KEN": {
@@ -4742,6 +5032,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -4784,6 +5076,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 14,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "SEAN": {
@@ -4874,6 +5180,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -4928,6 +5236,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 12,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "URIEN": {
@@ -5327,6 +5649,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -5411,6 +5735,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 16,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "AKUMA": {
@@ -5635,6 +5973,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -5691,6 +6031,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 32,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 32
+   },
+   "exits": {}
   }
  },
  "CHUNLI": {
@@ -6861,6 +7215,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -6905,6 +7261,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 15,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "MAKOTO": {
@@ -7043,6 +7413,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -7135,6 +7507,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 34,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 34
+   },
+   "exits": {}
   }
  },
  "Q": {
@@ -7273,6 +7659,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -7319,6 +7707,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 24,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 24
+   },
+   "exits": {}
   }
  },
  "TWELVE": {
@@ -7433,6 +7835,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -7487,6 +7891,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 16,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  },
  "REMY": {
@@ -7863,6 +8281,8 @@
    "ovct_reach_unpatched": 0,
    "ovct_walk_past_end": [],
    "ovct_walk_past_end_ps2": [],
+   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_hold": [],
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "a_oob": 0,
@@ -7932,6 +8352,20 @@
     "past_end": [],
     "ovix_oob": []
    }
+  },
+  "ovct_dangling_hold": {
+   "hit_stop": {
+    "own_hs_me": 14,
+    "parry": 20,
+    "atemi": 23,
+    "atemi_characters": [
+     "DUDLEY",
+     "REMY"
+    ],
+    "aiuchi_ko": 4,
+    "per_renewal": 23
+   },
+   "exits": {}
   }
  }
 }

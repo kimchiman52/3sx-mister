@@ -32,9 +32,10 @@ PASS
 ```
 
 `cg_audit.py` covers sprite indices in the 10 script tables, plus OVCT/OVIX
-coverage and the OVCT **reachability** model (`ovct_reachability()`; table
+coverage, the OVCT **reachability** model (`ovct_reachability()`; table
 column `ovct a/p reach`, verdicts `ok` / `tail-unreached(n)` /
-`walk>end[...]` / `TAIL-REACHED(n)!`). `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
+`walk>end-unreached[exit:hold<=H/N]` / `walk>end[...]` / `TAIL-REACHED(n)!`)
+and the dangling-walk **hold** model (`ovct_dangling_hold()`, doc §25). `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
 RICT HIIT BODA HANA CATA CAUA ATTA HOSA ATIT PROT — where hitboxes, throw
 placement and attack properties live (upstream issue #325). It imports
 `cg_audit.py` for the shared constants and does not modify it. Its invariant:
@@ -77,9 +78,15 @@ OVCT parts any writer of the part index can land on (the cell's `olc >> 4`
 through the OVIX, `plcnt_init`'s 0, `exdm_ix_data[*][character][3]`, and the
 closure of `eff01.c`'s timer walk over `parts_nix` with no timing constraint).
 Elena's reachable set is parts 1-16; parts 17-90 are cold (doc §24, worklist
-item **B**, CLOSED 2026-09-06). The same model flags **Dudley** as
-`walk>end[178](arcade-only)` — an arcade entry whose `parts_nix` points one
-past the table (doc §24.6(i), item **R**, OPEN).
+item **B**, CLOSED 2026-09-06). The same model finds **Dudley**'s arcade
+entry 177 pointing one past the table (`ovct_walk_past_end = [178]`, doc
+§24.6(i)); `ovct_dangling_hold()` then bounds how long the master can hold the
+selecting `olc` — the run's script frames plus one positive `hit_stop` per
+renewal cell, the per-renewal value taken from `hitcheck.c`'s parry constant
+and the ATITs — against the frames the walk needs, so the row reads
+`walk>end-unreached[178:hold<=179/297]` (item **R**, CLOSED 2026-09-06, doc
+§25). A run the model cannot read (a C cell inside it, or a script boundary)
+is reported `unmodelled` and keeps the exit flagged `walk>end[...]`.
 
 Expected at the time of writing (`fix/arcade-cg-mapping` branch point):
 

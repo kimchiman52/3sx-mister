@@ -11,6 +11,8 @@ Constants are PARSED FROM SOURCE (no hand-copied tables):
   src/sf33rd/Source/Game/effect/eff13.c         tama_data[243]
   src/sf33rd/Source/Game/effect/eff41.c         sa_sign_data[69]
   src/sf33rd/Source/Game/sound/se_data.c        sound_effect_request[1024]
+  src/sf33rd/Source/Game/engine/plpdm.c         exdm_ix_data[2][20][5]  (OVCT reachability, doc §24)
+  src/sf33rd/Source/Game/engine/hitcheck.c      sel_hs_add_tbl[6] + 16  (dangling-walk hold model, doc §25)
 Data sources:
   rom.bin                     decrypted CPS3 sfiii3nr1 (decrypt.py; SIMM sha256 == rom_load.c:41-45)
   SF33RD.AFS                  PS2 game data (AFS entry apfn, tail at to_chd)
@@ -382,6 +384,160 @@ def ovct_reachability(ci):
     _REACH_CACHE[ci] = r
     return r
 
+# ---------------------------------------------------------------- dangling-walk hold model (doc §25)
+# A walk that leaves its table (`past_end` above) is a hazard only if the
+# master can HOLD the selecting `olc` for as long as eff01.c's timer walk needs
+# to get there. Modelled from the code, not from play:
+#
+#   eff01.c  effect_01_move   `--cg_ctr` runs once per frame in which
+#                             !Game_pause && !EXE_flag && mwk->sa_stop_flag == 0
+#                             and the master's cg_olc.olc_ix[type] still equals
+#                             the cached selection (any change restarts at the
+#                             seed; 0 goes dormant). Game_pause/EXE_flag freeze
+#                             the player too (plcnt.c Player_control), so they
+#                             are symmetric and drop out.
+#   charset.c check_cgd_patdat  the master's selection changes only on a cell
+#                             decode, and a player decodes cells only from
+#                             char_move() -- which plmain.c check_hit_stop()
+#                             withholds while hit_stop > 0 (a NEGATIVE hit_stop
+#                             calls char_move itself, so it holds nothing).
+#
+# So the hold, in effect frames, is: the run's own script frames (sum of `ctr`
+# over the consecutive cells that select the same OVIX index) + every POSITIVE
+# hit_stop applied to the master while it is on those cells. Every writer of a
+# player's hit_stop that leaves the player on its current script:
+#   hitcheck.c  dm_status_copy     as->hit_stop = as->att.hs_me          own contact (hit or guard)
+#   hitcheck.c  set_paring_status  as->hit_stop = sel_hs_add_tbl[i] + 16  own attack parried
+#   plpdm.c     damage_atemi_setup ek->hit_stop = wk->att.hs_you        own attack absorbed by an
+#                                  atemi (comm_atmf scripts: Dudley saca[65..68], Remy saca[50..53])
+#   plcnt.c     aiuchi KO          2 / 4  (both players already in damage; below the parry value)
+# Everything else moves the player to a damage/catch/caught state first --
+# hitplpl.c plef_at_vs_player_damage_union writes ds->routine_no[1] = 1 and
+# routine_no[3] = 0 at contact, so check_hit_stop()'s dm_stop branch reaches
+# Player_damage (a new script, hence a new `olc`) on the next frame. A contact
+# needs att_hit_ok, which only a RENEWAL cell (negative `att`, charset.c
+# set_new_attnum) sets and which hitcheck.c clears on any contact, so each
+# renewal cell in the run buys at most ONE positive hit_stop.
+#
+# The model is deliberately conservative where the script is not a plain run:
+# a run that contains a C command (a loop or a jump could re-enter it, comm_stop
+# could freeze the master mid-run) or that touches a script boundary (the hold
+# could continue from another script) is reported `unmodelled`, which keeps the
+# exit flagged as reachable. Only a run bounded on both sides by an L cell
+# selecting a different OVIX index, with no C cell inside, gets a bound.
+def parse_parry_hit_stop():
+    """hitcheck.c set_paring_status: `as->wu.hit_stop = sel_hs_add_tbl[hsadix] + 16`."""
+    s = src("src/sf33rd/Source/Game/engine/hitcheck.c")
+    tbl = re.search(r'const s16 sel_hs_add_tbl\[\d+\] = \{([^}]*)\};', s)
+    add = re.search(r'hit_stop = sel_hs_add_tbl\[hsadix\] \+ (\d+);', s)
+    assert tbl and add, "hitcheck.c parry hit-stop not found"
+    return max(int(v) for v in tbl.group(1).split(',')) + int(add.group(1))
+
+def arc_atit_hs(ci):
+    """(max positive hs_me, max |hs_you|) over the character's arcade ATIT
+    records (structs.h UNK_7: 16 bytes, hs_me at +12, hs_you at +13, s8)."""
+    off, size = LOC[ci]['atit']
+    me = you = 0
+    for i in range(size // 16):
+        a, b = struct.unpack_from('>bb', ROM, off + i * 16 + 12)
+        me = max(me, a); you = max(you, abs(b))
+    return me, you
+
+def _all_cells(ci):
+    tabs = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+    for sec in KOC2SEC.values():
+        for si in range(len(tabs[sec])):
+            cgd, cells = arc_parse(ci, sec, si, tabs)
+            yield sec, si, cgd, cells
+
+_ATEMI_CACHE = {}
+def atemi_hit_stop_max():
+    """Max |hs_you| over the ATIT of every character whose arcade scripts carry
+    a `comm_atmf` (decode_chcmd[100]) with a nonzero koc -- the value
+    damage_atemi_setup hands the ATTACKER as hit_stop is the atemi performer's
+    current att.hs_you, and its whole ATIT bounds that whatever was loaded."""
+    if 'v' in _ATEMI_CACHE: return _ATEMI_CACHE['v']
+    who, best = [], 0
+    for ci in range(20):
+        if any(c[0] == 'C' and c[1] == 100 and c[2] != 0 for _, _, _, cells in _all_cells(ci) for c in cells):
+            who.append(NAMES[ci]); best = max(best, arc_atit_hs(ci)[1])
+    _ATEMI_CACHE['v'] = (best, who)
+    return _ATEMI_CACHE['v']
+
+def _walk_frames(nix, timers, seed):
+    """Effect frames from seed until the walk index leaves the table (or None if
+    it never does). parts_timer is a u8 loaded into the u8 cg_ctr and
+    pre-decremented, so a 0 timer is 256 frames."""
+    p, total, seen = seed, 0, set()
+    while 0 <= p < len(nix):
+        if p in seen: return None
+        seen.add(p); total += timers[p] or 256
+        p = nix[p] if nix[p] else p + 1
+    return total
+
+def olc_runs(ci, k):
+    """Maximal runs of consecutive cells selecting OVIX index k in every arcade
+    script of the character. Each run: table, script, cell span, script frames
+    (sum of ctr), renewal cells, and why it is unmodelled if it is."""
+    out = []
+    for sec, si, cgd, cells in _all_cells(ci):
+        n = len(cells); i = 0
+        while i < n:
+            c = cells[i]
+            if not (c[0] == 'L' and (c[1]['olc'] >> 4) == k): i += 1; continue
+            j = i; frames = renew = 0; ccodes = []
+            while j < n and not (cells[j][0] == 'L' and (cells[j][1]['olc'] >> 4) != k):
+                if cells[j][0] == 'C': ccodes.append(cells[j][1])
+                else:
+                    r = cells[j][1]; frames += r['ctr']
+                    # charset.c check_cgd_patdat: `cg_att_ix >>= 6` (arithmetic), and
+                    # set_new_attnum re-arms att_hit_ok iff the result is negative --
+                    # i.e. iff the s16 `att` word itself is negative.
+                    if 'att' in r and r['att'] < 0: renew += 1
+                j += 1
+            why = None
+            if ccodes: why = "C cells inside run: %s" % ccodes
+            elif i == 0: why = "run starts at script start"
+            elif j >= n: why = "run reaches script end"
+            out.append(dict(table=sec, script=si, cells="%d-%d" % (i, j - 1), frames=frames, renewals=renew, unmodelled=why))
+            i = j
+    return out
+
+def ovct_dangling_hold(ci, rr):
+    """For every arcade walk exit in rr['arcade']['past_end']: the seeds whose
+    walk reaches it, the frames the walk needs, every olc run that can install
+    each seed, and the bound on how long the master can hold it."""
+    nix = arc_ovct_nix(ci); ovix = arc_ovix(ci)
+    off, size = LOC[ci]['ovct']
+    timers = [ROM[off + i * OVCT_ELEM + 8] for i in range(size // OVCT_ELEM)]   # OverlapPart.parts_timer (u8 at +8)
+    own_me, _ = arc_atit_hs(ci)
+    parry = parse_parry_hit_stop()
+    atemi, atemi_who = atemi_hit_stop_max()
+    hs_max = max(own_me, parry, atemi, 4)
+    hs = dict(own_hs_me=own_me, parry=parry, atemi=atemi, atemi_characters=atemi_who, aiuchi_ko=4, per_renewal=hs_max)
+    exits = {}
+    for exit_ in rr['arcade']['past_end']:
+        seeds = {}
+        for s in rr['arcade']['seeds']:
+            p, seen = s, set()
+            while 0 <= p < len(nix) and p not in seen:
+                seen.add(p); p = nix[p] if nix[p] else p + 1
+            if p != exit_: continue
+            need = _walk_frames(nix, timers, s)
+            ks = sorted(k for k, e in enumerate(ovix) if s in e)
+            runs = [dict(olc=k, **r) for k in ks for r in olc_runs(ci, k)]
+            exdm = sorted(e for e in EXDM_OLC_IX[ci] if e in ks)
+            for r in runs:
+                r['hold_max'] = None if r['unmodelled'] else r['frames'] + r['renewals'] * hs_max
+            holds = [r['hold_max'] for r in runs]
+            unmod = [r for r in runs if r['unmodelled']] or exdm
+            hold_max = None if unmod else (max(holds) if holds else 0)
+            seeds[s] = dict(need=need, olc=ks, exdm_olc=exdm, runs=runs, hold_max=hold_max,
+                            reachable=(hold_max is None or hold_max >= need))
+        exits[exit_] = dict(seeds=seeds, reachable=any(v['reachable'] for v in seeds.values()) or not seeds)
+    return dict(hit_stop=hs, exits=exits)
+
+
 # ---------------------------------------------------------------- SA naming for saca scripts
 def sa_labels(ci):
     """map saca script index -> list of SA-table slots that select it (asstbl.c 9900_g/_a arcade rows)."""
@@ -575,6 +731,12 @@ def audit(cgmap_override=None, quiet=False):
             ps2=dict(entries=rr['ps2_entries'], seeds=runs(rr['ps2']['seeds']),
                      reach=runs(rr['ps2']['reach']), past_end=rr['ps2']['past_end'],
                      ovix_oob=rr['ps2']['ovix_oob']))
+        # Dangling-walk hold model (doc §25): an exit past the table is a
+        # hazard only if the master can hold the selecting olc for `need`
+        # frames; `ovct_walk_past_end_reachable` lists the exits it can (or
+        # that the model cannot bound).
+        hold = ovct_dangling_hold(ci, rr)
+        rec['ovct_dangling_hold'] = hold
         rec['stats'] = dict(cells=cells_seen, ovct_arcade=a_ovct, ovct_ps2=p_ovct,
                             ovix_arcade=a_ovix, ovix_ps2=p_ovix,
                             ovct_unpatched_tail=max(0, a_ovct - p_ovct),
@@ -582,6 +744,10 @@ def audit(cgmap_override=None, quiet=False):
                             ovct_reach_unpatched=len([p for p in reach if p >= common]),
                             ovct_walk_past_end=rr['arcade']['past_end'],
                             ovct_walk_past_end_ps2=rr['ps2']['past_end'],
+                            ovct_walk_past_end_reachable=[e for e, v in hold['exits'].items() if v['reachable']],
+                            ovct_walk_hold=[(e, max(d['hold_max'] for d in v['seeds'].values()),
+                                             min(d['need'] for d in v['seeds'].values()))
+                                            for e, v in hold['exits'].items() if not v['reachable']],
                             ovix_oob_pre_terminator=rr['arcade']['ovix_oob_pre'],
                             ovix_arcade_shorter_by=max(0, p_ovix - a_ovix), **cls)
         result[NAMES[ci]] = rec
@@ -613,8 +779,12 @@ if __name__ == "__main__":
         # doc §24: the tail is a hazard only if a reachable part index lands in it.
         if s['ovct_reach_unpatched']:
             return "TAIL-REACHED(%d)!" % s['ovct_reach_unpatched']
+        if s['ovct_walk_past_end_reachable']:
+            return "walk>end%s%s" % (s['ovct_walk_past_end_reachable'], "(ps2 too)" if s['ovct_walk_past_end_ps2'] else "(arcade-only)")
         if s['ovct_walk_past_end']:
-            return "walk>end%s%s" % (s['ovct_walk_past_end'], "(ps2 too)" if s['ovct_walk_past_end_ps2'] else "(arcade-only)")
+            # doc §25: the walk leaves the table, but no writer can hold the
+            # selecting olc for the frames the walk needs (hold bound / need).
+            return "walk>end-unreached[%s]" % ", ".join("%d:hold<=%d/%d" % t for t in s['ovct_walk_hold'])
         if s['ovct_unpatched_tail']:
             return "tail-unreached(%d)" % s['ovct_unpatched_tail']
         return "ok"
