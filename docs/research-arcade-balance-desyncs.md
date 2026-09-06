@@ -2851,6 +2851,96 @@ Existing files are correct and need nothing. The genuinely open item is the
 opposite one: segments the eligibility gate *rejected* before `3f04f0bb` were
 never converted at all, which is a deploy question, not a re-conversion one.
 
+## Coverage is CLOSED at 18/20 stages — stage 17 is excluded by code (2026-09-06)
+
+Three harvests spent **26 Q segments, 461 corpus segments and a 22,850-file
+census** without producing one stage-17 segment. That null result is the code
+behaving as written, not a sampling failure. **Do not spend another harvest on
+it.**
+
+Verified independently at `3769c189`, three ways in the port:
+
+- `sel_data.c` -> `Random_Stage_Data[2][32]` — both rows read `…15, 16, 18,
+  19…`. **17 is absent from both.**
+- `sel_pl.c` -> `Handicap_Stage_Move_Sub()` — the VS cursor hops it in both
+  directions (`if (VS_Stage == 17) { VS_Stage = 16; }` going down, `= 18` going
+  up). Every other `VS_Stage` write is `0` or `0x14`, so it can never be seeded
+  onto 17.
+- `stage/` contains no `bg170.c` at all — the list jumps `bg160.c -> bg180.c`.
+  `bg_data.c` -> `bg_index_tbl[22][3]` is the identity **except** `{4,4,4}` at
+  index 17, so even the index is remapped away.
+
+**The mechanism, which explains the anomaly the harvests kept measuring.**
+`sel_pl.c` -> `Setup_Battle_Country()` routes around Q whenever the ordinary
+"stage == one of the players' characters" rule would name it: a Q mirror goes to
+`Random_Stage_Data`, and either-player-Q returns the OTHER player's character.
+That is why 12 Q-mirror segments landed on 8 different stages while 18 of 18
+non-Q mirrors sat on the mirrored character's stage.
+
+**The arcade agrees, at Q = 18** (arcade index; `CHAR_ARCADE_TO_3SX` drops
+arcade 15, Shin Akuma). `Setup_Battle_Country` = CPS3 `0x060A0C52`, byte-for-byte
+the same shape, with `cmp/eq #18` guards. Its random table at `0x0619542A` is 18
+entries — `1..14, 16, 17, 19, 20` — omitting **18 (Q), 0 (Gill) and 15 (Shin
+Akuma)**. New anchors established on this trip: `My_char = 0x02011387`,
+`New_Challenger = 0x020113DA`, `Champion = 0x020113DB`,
+`Battle_Country = 0x020154F4`, `Q_Country = 0x02016D81`, `EM_id = 0x02015504`.
+
+**One deliberate port/arcade divergence, benign and worth not "fixing".** The
+port uses `My_char[1 - New_Challenger]` where the arcade uses
+`My_char[Champion]` (`a752e2ca`). Identity in arcade mode; it repairs a netplay
+case where `setup_vs_mode` leaves both at 0, which on the arcade shape would
+return Q's own stage. The port is stricter, never looser.
+
+**Not verified:** the arcade's `bg_index_tbl` equivalent was not found (scanned
+8 MB for a 23x3 run, no match). It does not matter — arcade stage 18 is never
+selected, so the remap is never exercised.
+
+## The census instrument: 22,850 `.3sr` on the VPS, not 1,059 locally
+
+`hetzner-3s-arm:/opt/fcade-proxy/3sr/` holds **22,862 `.3sr` across 5,334
+quarks**; the local fleet's 1,059/368 is a strict subset (368/368). Reading the
+first 28 bytes of every file in one ssh command gives an exact per-game
+(character, super-art) census at **zero network and zero emulation cost** —
+`make_3sr.py` -> `encode_3sr` writes `setup.characters` and `setup.supers` into
+the header.
+
+That is a **21x larger instrument** than the local fleet, and it should be the
+starting point of every future harvest. It is what closed `Elena/SA3` and
+`Twelve/SA2` and what backs the Gill claim with `0 of 22,850` rather than
+`0 of 1,052`.
+
+**Why the store is that large, and why that is fine.** 156 quarks sit inside the
+device's 7-day window; **5,178 are outside it**, and the device takes at most 90
+(`RS_SET_MAX`). So ~97% will never be read by a client. It accumulates because
+`evictStoreIfNeeded` triggers at 90% of `FCADE_STORE_MAX_QUARKS=10000` or 90% of
+`FCADE_STORE_MAX_BYTES=2 GB`, and at 5,334 quarks / 727 MB the store is at 53%
+and 35%. **The unread 97% is the research corpus** — worth protecting before the
+cap is reached (~24 days at ~150 quarks/day), since eviction is LRU and would
+discard the oldest, i.e. exactly the material a census depends on.
+
+**Two method corrections** (both recorded in the 06b corpus's `NOTES-method.md`):
+- "Players main one character" is a **within-session** property — 79.7% within a
+  session, but only **37.5%** for players seen in >= 3 sessions (3,415 players).
+  An earlier harvest lane used the weak form as a selection proxy.
+- A VPS `.3sr` proves a segment *existed* with those characters; it does **not**
+  prove the segment is eligible today. Four published `Twelve/SA2` games turned
+  out to be `wu_operator=(0,1)` CPU recordings under the current H4b gate.
+
+## Corpora index (2026-09-06)
+
+| corpus | segments | note |
+|---|---|---|
+| `3sarm-corpus-baseline` | 16 | the original four quarks; symlink shim |
+| `3sarm-corpus-2026-09-05` | 143 | first widening; found E4 |
+| `3sarm-corpus-2026-09-06` | 185 | character/SA/stage targeting; found E6 |
+| `3sarm-corpus-2026-09-06b` | 135 | super-art targeting; closed Elena/SA3, Twelve/SA2 |
+
+All under `/Volumes/KimchDrive/`, each with `README.md`, `NOTES-method.md`,
+`manifest.json`/`.tsv` and its own `analyze.py`. All re-sweepable without
+re-downloading or re-emulating. Union coverage: **19/20 characters** (Gill
+unobtainable), **18/20 stages** (Gill, Q — both excluded by code),
+**57/60 (character, super-art)** pairs (Gill's three unobtainable).
+
 ## Worklist
 
 | id | what | state |
