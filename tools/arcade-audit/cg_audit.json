@@ -456,6 +456,7 @@
    "k7_foreign_cells": 5,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 5,
    "k7_foreign_oob_ps2": 5,
    "k7_foreign_ps2_differs": 0,
@@ -726,7 +727,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -743,6 +765,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": [
@@ -1181,6 +1213,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -1280,7 +1313,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -1297,6 +1351,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": []
@@ -1440,6 +1504,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -1560,7 +1625,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -1599,8 +1685,18 @@
       "canc": 96
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 3"
+     "cells that can be current at arming and carry a script-installing cancel bit: 3 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": []
@@ -2053,6 +2149,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -2143,7 +2240,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -2203,8 +2321,18 @@
       "canc": 36
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 6"
+     "cells that can be current at arming and carry a script-installing cancel bit: 6 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": []
@@ -2633,6 +2761,7 @@
    "k7_foreign_cells": 2,
    "k7_foreign_dead": 1,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -2852,7 +2981,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -2869,6 +3019,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": [
@@ -3134,6 +3294,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -3228,7 +3389,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -3245,6 +3427,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": []
@@ -3428,6 +3620,7 @@
    "k7_foreign_cells": 2,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 1,
@@ -3524,7 +3717,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -3541,6 +3755,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": [
@@ -3784,11 +4008,12 @@
     2277
    ],
    "ovix_arcade_shorter_by": 5,
-   "k7_foreign_cells": 19,
-   "k7_foreign_dead": 5,
+   "k7_foreign_cells": 23,
+   "k7_foreign_dead": 1,
    "k7_gate": "closed",
-   "k7_foreign_oob": 19,
-   "k7_foreign_oob_ps2": 18,
+   "k7_fwd_gate": "closed",
+   "k7_foreign_oob": 23,
+   "k7_foreign_oob_ps2": 22,
    "k7_foreign_ps2_differs": 1,
    "a_oob": 0,
    "b_gap": 0,
@@ -4039,7 +4264,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -4056,6 +4302,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": [
@@ -4520,7 +4776,7 @@
       1192,
       1193
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": true,
       "detail": [
@@ -6020,7 +6276,7 @@
       1037,
       1038
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": true,
       "detail": [
@@ -6126,7 +6382,7 @@
       1037,
       1038
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": true,
       "detail": [
@@ -6232,7 +6488,7 @@
       1037,
       1038
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": true,
       "detail": [
@@ -6623,6 +6879,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -6726,7 +6983,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -6743,6 +7021,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": []
@@ -6890,6 +7178,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -6986,7 +7275,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -7003,6 +7313,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": []
@@ -8187,6 +8507,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 4,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -8281,7 +8602,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -8362,8 +8704,18 @@
       "canc": 36
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 9"
+     "cells that can be current at arming and carry a script-installing cancel bit: 9 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": [
@@ -8557,6 +8909,7 @@
    "k7_foreign_cells": 6,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -8643,7 +8996,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -8682,8 +9056,18 @@
       "canc": 96
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 3"
+     "cells that can be current at arming and carry a script-installing cancel bit: 3 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": [
@@ -8982,6 +9366,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -9080,7 +9465,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -9119,8 +9525,18 @@
       "canc": 96
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 3"
+     "cells that can be current at arming and carry a script-installing cancel bit: 3 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": []
@@ -9530,6 +9946,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -9658,7 +10075,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -9675,6 +10113,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": []
@@ -9909,6 +10357,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -10009,7 +10458,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -10055,8 +10525,18 @@
       "canc": 96
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 4"
+     "cells that can be current at arming and carry a script-installing cancel bit: 4 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": []
@@ -11237,6 +11717,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -11325,7 +11806,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -11350,8 +11852,18 @@
       "canc": 96
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 1"
+     "cells that can be current at arming and carry a script-installing cancel bit: 1 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": []
@@ -11500,6 +12012,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -11636,7 +12149,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -11696,8 +12230,18 @@
       "canc": 96
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 6"
+     "cells that can be current at arming and carry a script-installing cancel bit: 6 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": []
@@ -11846,6 +12390,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "unmodelled",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -11936,7 +12481,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -11968,8 +12534,18 @@
       "canc": 96
      }
     ],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 2"
+     "cells that can be current at arming and carry a script-installing cancel bit: 2 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
     ]
    },
    "foreign_cells": []
@@ -12094,6 +12670,7 @@
    "k7_foreign_cells": 0,
    "k7_foreign_dead": 0,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -12204,7 +12781,32 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -12221,9 +12823,624 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": []
+  },
+  "xcopy_case0": {
+   "marker": 20,
+   "markers": [
+    {
+     "table": "saca",
+     "script": 24,
+     "cell": 3,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 24,
+     "cell": 21,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 24,
+     "cell": 37,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 25,
+     "cell": 3,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 25,
+     "cell": 21,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 26,
+     "cell": 3,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 26,
+     "cell": 21,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 27,
+     "cell": 10,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 28,
+     "cell": 5,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 30,
+     "cell": 5,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 31,
+     "cell": 5,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 50,
+     "cell": 20,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 51,
+     "cell": 17,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 54,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 55,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 56,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 57,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 67,
+     "cell": 28,
+     "olc": 0,
+     "tail_olc": [
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 67,
+     "cell": 37,
+     "olc": 0,
+     "tail_olc": [
+      0
+     ],
+     "dead": true
+    },
+    {
+     "table": "saca",
+     "script": 68,
+     "cell": 30,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 69,
+     "cell": 22,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 70,
+     "cell": 22,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 71,
+     "cell": 0,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 73,
+     "cell": 0,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 73,
+     "cell": 3,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "saca",
+     "script": 73,
+     "cell": 6,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "exca",
+     "script": 14,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "exca",
+     "script": 14,
+     "cell": 6,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "exca",
+     "script": 14,
+     "cell": 10,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "exca",
+     "script": 14,
+     "cell": 14,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "exca",
+     "script": 14,
+     "cell": 17,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": true
+    },
+    {
+     "table": "exca",
+     "script": 14,
+     "cell": 58,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": true
+    },
+    {
+     "table": "exca",
+     "script": 15,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": false
+    },
+    {
+     "table": "exca",
+     "script": 15,
+     "cell": 6,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": true
+    },
+    {
+     "table": "exca",
+     "script": 15,
+     "cell": 10,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": true
+    },
+    {
+     "table": "exca",
+     "script": 15,
+     "cell": 14,
+     "olc": 0,
+     "tail_olc": [],
+     "dead": true
+    },
+    {
+     "table": "exca",
+     "script": 15,
+     "cell": 17,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": true
+    },
+    {
+     "table": "exca",
+     "script": 15,
+     "cell": 58,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": true
+    },
+    {
+     "table": "exca",
+     "script": 42,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    },
+    {
+     "table": "exca",
+     "script": 43,
+     "cell": 2,
+     "olc": 0,
+     "tail_olc": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "dead": false
+    }
+   ],
+   "live": 32,
+   "dead": 8,
+   "unmodelled": null
   }
  },
  "REMY": {
@@ -12607,6 +13824,7 @@
    "k7_foreign_cells": 5,
    "k7_foreign_dead": 2,
    "k7_gate": "closed",
+   "k7_fwd_gate": "closed",
    "k7_foreign_oob": 0,
    "k7_foreign_oob_ps2": 0,
    "k7_foreign_ps2_differs": 0,
@@ -12720,7 +13938,28 @@
       0,
       0,
       0
-     ]
+     ],
+     "tail_hit_ix": [
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452,
+      452
+     ],
+     "tail_exit": {
+      "code": 3,
+      "koc": 5,
+      "ix": 53,
+      "pat": 1,
+      "table": "saca",
+      "twelve_entries": 75
+     },
+     "twelve_hiit": 503
     },
     "frame_n": {
      "entry": [
@@ -12737,6 +13976,16 @@
      "empty": true
     },
     "preempt_cells": [],
+    "input_words": {
+     "tables": 21,
+     "words": [
+      5,
+      128
+     ],
+     "live": [
+      5
+     ]
+    },
     "unmodelled": null
    },
    "foreign_cells": [

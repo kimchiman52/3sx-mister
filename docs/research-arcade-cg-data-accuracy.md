@@ -4996,10 +4996,10 @@ would consume; `k7_swap_gate()` applies §26.2-§26.3 per character.
 | Gill | 5 (`saca[29..32]` c3 `olc 105` -> part 206; `saca[59]` c6 `olc 142` -> parts 291, 292) | closed | **past** Twelve's 133 entries; PS2 identical |
 | Dudley | 2 + 1 (§26.4) | closed | part 26, in range; PS2 identical |
 | Hugo | 2 (`caca[33]`/`[42]` c19 `olc 50` -> part 59) | closed | in range; `caca[42]` has no PS2 twin |
-| Ibuki | 19 + 5 (`saca[24..31]`, `[44..47]`, `[60..63]`, `caca[10]`; `olc` 1030-1225 -> parts 1089-1284) | closed | **past** Twelve's OVIX and OVCT; 18 of 19 PS2 identical, `caca[10]` c31 arcade-only |
+| Ibuki | 23 + 1 (`saca[24..31]`, `[44..47]`, `[60..63]`, `caca[10]`; `olc` 1030-1225 -> parts 1089-1284) | closed | **past** Twelve's OVIX and OVCT; 22 of 23 PS2 identical, `caca[10]` c31 arcade-only (counts corrected in §26.10.2 — four cells this table called dead are live) |
 | Remy | 5 + 2 (`saca[28..31]`, `olc` 26-28 -> parts 28, 29, 34) | closed | in range; PS2 identical |
-| Ken | 6 (`saca[30]` c11, `saca[36..39]` c32, `saca[64]` c12; `olc` 19-21 -> parts 37-39) | **unmodelled** — `nmca[4]` cells 6-7 (`canc 0x21`) and `dmca[64]` cell 17 (`canc 0x60`) can be current at arming | in range; PS2 identical |
-| Yang | 0 + 4 (`saca[44..47]` c41 `olc 1264`) | **unmodelled** — nine `atca` type-64 cells with `canc 0x24` | the four cells are post-terminator, and `olc 1264` is already past Yang's own 20-entry OVIX (`ovix_oob_post_terminator`, §24.4's decoder-artefact class) |
+| Ken | 6 (`saca[30]` c11, `saca[36..39]` c32, `saca[64]` c12; `olc` 19-21 -> parts 37-39) | **unmodelled** — `nmca[4]` cells 6-7 (`canc 0x21`) and `dmca[64]` cell 17 (`canc 0x60`) can be current at arming (§26.10.1: the input-side half of this row is now *refuted*, not merely unread) | in range; PS2 identical |
+| Yang | 0 + 4 (`saca[44..47]` c41 `olc 1264`) | **unmodelled** — nine `atca` type-64 cells with `canc 0x24` | the four cells are unreachable by any entry point (§26.10.2, a closure stronger than the §19 convention this row originally used), and `olc 1264` is already past Yang's own 20-entry OVIX (`ovix_oob_post_terminator`, §24.4's decoder-artefact class) |
 | Alex, Necro, Elena, Oro, Urien, Twelve | 0 | closed | — |
 | Ryu, Yun, Sean, Akuma, Chun-Li, Makoto, Q | 0 | unmodelled (`nmca[4]`/`dmca[64]`-class cells, Yun's `atca` type-64 cells) | nothing to protect |
 
@@ -5069,6 +5069,13 @@ before; R2b `on a REACHABLE part : 0`.
 
 ### 26.9 What this does not establish
 
+> **Resolved in §26.10 (eleventh pass, 2026-09-06), except where noted.**
+> Bullets 1, 2 and 4 are closed and are now code in the audit; bullet 3 (Ken,
+> Yang, and the seven with nothing to protect) is *partly* closed — Yang is
+> closed outright, and Ken's input-side leg turns out to be **refutable, not
+> merely unread**, which leaves the gate open for a better-founded reason than
+> this section gives. Bullet 5 stands unchanged.
+
 - The **forward** swap (case 0) is closed by §25.5's sweep, not by code in
   the audit; a Twelve cell after a `cg_type 20` marker acquiring a nonzero
   `olc` would not move a row. Same class of gap as §25.8's last bullet.
@@ -5091,3 +5098,288 @@ before; R2b `on a REACHABLE part : 0`.
 - The CPS3's own overlay engine was not disassembled (§24.7); the port runs
   `eff01.c`/`effk7.c` on arcade data, and those are the only engines whose
   arming order matters here.
+
+## 26.10 The §26.9 residuals: Yang and the method gaps closed, Ken's gate open for a better reason (eleventh pass, 2026-09-06)
+
+**Citation style for this section.** As in §21-§26: this document is not in
+`tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line. Code was read at
+`new-stuff` @ `56f4f52a`. Every number marked **measured** was produced by
+`tools/arcade-audit/cg_audit.py` against the same `rom.bin` (md5
+`909f5abec4b6b21bf7d2a452a03fdfcc`) the rest of this document uses.
+
+**Headline.** §26.9 left five residuals. Three are now closed and are code in
+the audit, not prose: the **forward** swap (`k7_forward_gate()`), the
+post-rebind hit indices and `comm_jmp` target (folded into `k7_swap_gate()`),
+and `pull_effect_work`'s `dead_f` — which turns out never to have been a
+hazard at all (§26.10.4). **Yang is closed** by an entry-point argument that
+is strictly stronger than the §19 terminator convention §26.6 leaned on — and
+that convention is itself **unsound**, which reclassifies four Ibuki cells
+from dead to live (§26.10.2). **Ken stays `unmodelled`**, but the reason has
+changed shape: the input-side leg of §26.3 row 8 is now *refuted* rather than
+unread, because the only input word the shipped command data ever reads is
+`sw_chg`, and `sw_chg` at N+1 carries frame N's live buttons (§26.10.1). The
+consequence is still in range on both arms and PS2-identical, so §6.1 puts it
+out of scope: **no code change**, and the model still fails toward *open*
+wherever it has not read the data.
+
+### 26.10.1 Ken: "input is dead at N+1" is false for the only word the cancel reads
+
+§26.3 row 8 conceded that the 0x40/0x20 cancel paths could fire "from a
+**buffered** command and a **stale** `meoshi_hit_flag`", but rested part of
+its confidence on `plmain.c` -> `Player_move` forcing `sw_lvbt = 0` while
+`metamor_over` is set. Reading the input chain end to end shows that force
+does not reach the word those paths actually read.
+
+1. Both paths sit inside one guard. `pls00.c` -> `check_cg_cancel_data`
+   opens `if (wk->wu.cg_cancel == 0) return 0;` and then puts the whole
+   `0x40` block (`check_full_gauge_attack`, `check_super_arts_attack`) and
+   the whole `0x20` block (`check_special_attack`, `check_chouhatsu`) inside
+   `if (wk->wu.meoshi_hit_flag != 0) { ... }`.
+2. Every scan reads its button word through the same window. `pls03.c` sets
+   `conpane = &wk->cp->sw_lvbt` at **all eight** of its scan sites and then
+   reads `cusw = conpane[wk->cp->btix[i] & 0xFF]`. `structs.h` -> `WORK_CP`
+   orders that window `sw_lvbt, sw_new, sw_old, sw_now, sw_off, sw_chg,
+   old_now` — indices 0 to 6.
+3. **Measured** (`k7_input_words()`, over `src/arcade/arcade_cmd_data.c`,
+   whose records `cmd_main.c` -> `cmd_data_set` consumes as `reset, w_dead,
+   w_dead2, waza_r[0..3], btix, exdt[0..3]`, i.e. `btix` is word 7): across
+   all **21** arcade command tables, every ground entry (28-37) and every air
+   entry (46-55) has `btix & 0xFF` equal to **5** — `sw_chg` — or the `0x80`
+   no-button sentinel `pls03.c` tests for explicitly. Word 5 is the only live
+   index in the shipped data; `sw_lvbt`, `sw_new` and `sw_now` are never read
+   by a special-move entry.
+4. `sw_chg` is not a function of this frame's input. `cmd_main.c` ->
+   `pl_lvr_set` computes `chk_pl->sw_chg = (chk_pl->sw_now) | (chk_pl->sw_old
+   & ~(sw_0))`, and `cmd_main.c` copies it into `wcp[cmd_id].sw_chg`
+   alongside `sw_new`, `sw_old`, `sw_now` and `sw_off`. `sw_old` is the
+   previous frame's `sw_new`. So with this frame's `sw_0` forced to 0, every
+   button held on the previous frame appears in `sw_chg` as a release.
+5. Which frames are forced. `Player_move` zeroes `sw_lvbt` at the top of the
+   frame when `metamor_over` is set, so at N+1 `sw_lvbt`, `sw_new` and
+   `sw_now` are indeed dead — row 8's argument for the `0x04` path
+   (`check_nm_attack`, which reads `sw_now` via `shot_data_convert`) survives
+   untouched. `sw_old`, `sw_off`, `sw_chg` and `old_now` do not.
+6. Frame N itself had live input. `effk7.c` -> `K7_move_type_0` case 2 sets
+   `mwk->metamor_over = 1` and then **falls through** to case 3 in the same
+   invocation — there is no `break`. `metamor_over` is read at the top of
+   `Player_move`, and K7 runs later in the frame (`game.c` -> `Game2_1`:
+   `Player_control`, then `reqPlayerDraw` -> `move_effect_work(6)`), so on
+   the frame case 2 fires the master's input was still live.
+7. And that frame can be N. `K7_mt0_rebirth_check` requires `routine_no[1]
+   == 0`; case 2 waits on `mwk->sa->ok != -1`; and `plmain.c` ->
+   `sag_union_0`/`sag_union_1` case 2 restores `ok = 0` on the condition
+   `(wk->sa->saeff_ok != 1) || (wk->wu.routine_no[1] != 4)` — the moment the
+   master leaves attack state. `about_gauge_process`, which calls
+   `sag_union`, is the **last** call in `plmain.c` -> `player_mv_4000`, so it
+   runs after the state handler. On the first frame the master is back in
+   normal state, `sa->ok` leaves -1, case 2 releases, `metamor_over` becomes
+   1, and case 3's `routine_no[1] == 0` is already true. That is the main
+   line, not an edge case, and its `Player_move` saw live input.
+
+So `sw_chg` at N+1 carries the buttons the master held at frame N. The gate
+stays open, now for a reason the model can state positively.
+
+The `guard_flag` sub-argument does not close Ken either. `nmca[4]` has exactly
+two installers — `plpnm.c` -> `nm_05_0000` and `nm_05_0100`, both under
+`Normal_05000`, which sets `wk->guard_flag = 3` before dispatching. But
+`Normal_05000` ends by calling `jumping_guard_type_check`, and `pls00.c` ->
+`jumping_guard_type_check` clears `guard_flag` on `cg_type` 0xFF, 64, 2, 3
+and 7 — and Ken's two flagged cells are types **7 and 64**. So
+`K7_mt0_rebirth_check`'s `guard_flag != 3` is satisfiable on precisely the two
+cells that carry the cancel bit.
+
+**What is still unread** — exactly two links, and this is the whole of it:
+
+- `meoshi_hit_flag != 0` at N+1. Writers enumerated: set by `hitcheck.c`
+  (the attacker's own landed hit — and for a non-player attacker the branch
+  writes the *effect's* flag, not the master's), by `charset.c` ->
+  `check_cgd_patdat` when `(kow & 0x60) && (cg_cancel & 0x40)` and
+  `DIP2_SA_TO_SA_CANCEL_DISABLED` is clear, by `charset.c` -> `comm_smhf`,
+  and by `plpat18.c`; cleared by `charset.c` -> `set_new_attnum` (on
+  `cg_att_ix < 0`) and by `pls03.c` -> `hissatsu_setup_union`,
+  `check_nm_attack`, `check_chouhatsu`, `check_catch_attack`,
+  `check_renda_cancel`, `check_meoshi_cancel`. `plpnm.c` ->
+  `setup_normal_process_flags` clears `cancel_timer` but **not**
+  `meoshi_hit_flag`, so it can be stale across every normal-state frame.
+  Whether it is nonzero at N+1 was not traced.
+- `waza_flag[i] != 0` at N+1 — whether a recognised motion survives the
+  metamorphose window. `cmd_main.c` -> `cmd_init` clears `waza_flag[]` at the
+  forward swap, and `cmd_move` re-runs the recogniser every frame, but the
+  decay was not traced.
+
+**Consequence, and why there is no fix.** Measured, unchanged from §26.5's
+control: all six Ken cells are `ps2_same_cell`, and the part indices they
+would feed Twelve's OVCT are in range on **both** data sides
+(`k7_foreign_oob` 0, `k7_foreign_oob_ps2` 0). By §6.1 a value identical on
+both sides is a property of shipping PS2 data and out of scope. Even if the
+two unread links were shown reachable, the visible effect is a wrong overlay
+sprite that the PS2 shows too. A change here would have to be gated behind
+`ArcadeBalance_IsEnabled()`, would introduce an arcade-only divergence where
+none exists today, and would be fixing the PS2's behaviour rather than an
+adaptation defect. **Not warranted.**
+
+### 26.10.2 Yang: the four cells are dead — and the convention that said so is not sound
+
+§26.6 called Yang's `saca[44..47]` c41 dead using §19's convention: everything
+after the first terminating C command never executes. The convention is a
+**linear scan**, and the script format's jumps carry a cell index —
+`charset.c` -> `comm_jmp`, `comm_jpss` and `comm_jsr` all call
+`set_char_move_init2(wk, ctc->koc, ctc->ix, ctc->pat, ...)`, whose
+`wk->cg_ix = (ip - 1) * wk->cgd_type - wk->cgd_type` makes `pat` a 1-based
+cell index. A jump can therefore land *after* a terminator and revive the
+cells behind it, which a linear scan cannot see.
+
+`k7_entry_walk(ci)` replaces the scan with a reachability walk: the entry
+points of a script are cell 0 plus every landing (`pat - 1`) that any C cell
+anywhere in that character's own tables names, and each walk runs forward
+until a terminator. It fails open in both directions — a landing outside the
+script, or a `koc` the model does not map, marks the whole script live.
+
+**Measured**, comparing the two methods over every `cg_type 30` cell with a
+live `olc` in all 20 characters:
+
+| | verdict |
+|---|---|
+| Yang `saca[44]` c41 | dead — exactly one reference to the script exists (`cbca[47]` c3, `pat` 23), landing on c22, which is itself the terminating `comm_jmp (5, 75, 1)`, so that walk stops on the cell it lands on |
+| Yang `saca[45..47]` c41 | dead — **zero** references to those scripts anywhere in Yang's tables |
+| Dudley `saca[72]` c33 | dead — the `comm_jpss (5, 72, 37)` at c18 that §26.4 names lands at 0-based cell 36, *past* c33, so it does not revive it |
+| Ibuki `saca[27]` c33, `saca[60..62]` c17 | **live** — reached by a `comm_rja7`/`comm_jmp` landing past the terminator; the linear scan called all four dead |
+
+So Yang's verdict is sound and now rests on an entry-point closure rather than
+on a convention. The convention itself is not sound, and the audit no longer
+uses it for this gate. Ibuki's gate is `closed`, so the four reclassified
+cells change counts but raise no hazard: `xcopy:gated(24)(5 dead)` becomes
+`xcopy:gated(24)(1 dead)`, and `k7_foreign_cells` 19 -> 23,
+`k7_foreign_dead` 5 -> 1, `k7_foreign_oob` 19 -> 23, `k7_foreign_oob_ps2`
+18 -> 22. Those are the only computed values in `cg_audit.json` this pass
+changes.
+
+Yang's remaining `unmodelled` is the nine `atca` type-64 cells with
+`canc 0x24`, i.e. the same §26.10.1 pre-empt question as Ken's — but with
+`k7_foreign_cells` 0 there is nothing behind the gate to protect.
+
+### 26.10.3 The seven characters with nothing to protect: judged, not closed
+
+Ryu, Yun, Sean, Akuma, Chun-Li, Makoto and Q report `xcopy:none` in the table
+(zero `cg_type 30` cells outside the rebirth script that select a live `olc`)
+while their `k7_gate` field reads `unmodelled`. Closing those gates would mean
+answering exactly the §26.10.1 question — `meoshi_hit_flag` and `waza_flag` at
+N+1 — for a set of characters where the answer protects nothing: with no
+foreign cell, case 4 firing late has no wrong part index to consume.
+
+**Judgement: not worth closing, and the split field is the right shape.** The
+gate and the consequence are deliberately independent (§26.6), so that a
+future data change which *adds* a foreign cell to one of these seven is caught
+by the existing machinery rather than by a gate that was closed on today's
+data. `xcopy_flag()` already reports `none` ahead of the gate for them, so the
+open gate costs no false alarm. The census that drives it is honest: the
+`dmca` type-0 cells (Chun-Li, Makoto and Q's only reason) and the `nmca`
+type-2/64/7 cells are real cells with real cancel bits.
+
+One narrowing was examined and rejected. `plpdm.c` has exactly two writers of
+`routine_no[1] = 0` — the guard-recovery exit (`routine_no[2] = 38`, which
+sets `cg_type = 0; cg_next_ix = 0` and calls `char_move_wca`) and
+`Damage_17000`'s auto air recovery (`routine_no[2] = 23`, which calls
+`exset_char_move_init(&wk->wu, wk->wu.now_koc, dm17_to_nm23_change[...])`) —
+so "any `dmca`/`btca` cell can be current at arming" is looser than the code
+requires. But normal state runs `nmca` continuously, so **any** `nmca` cell
+can be current at frame N regardless, and Ken's two flagged cells are `nmca`.
+Narrowing the damage half would close Chun-Li, Makoto and Q — three characters
+with nothing to protect — and would not move Ken, Yang, Ryu, Sean or Akuma.
+Not worth the added model surface; recorded here so the next pass does not
+re-derive it.
+
+### 26.10.4 The three method gaps, closed
+
+**The forward swap is now a function.** `k7_forward_gate()` reads case 0's
+marker from `effk7.c` the same way `parse_k7_rebirth()` reads case 3's and
+case 4's, then sweeps Twelve's own tables. Case 0 fires on a `cg_type 20` cell
+while the master is still Twelve — so that cell's `cg_olc` was decoded against
+Twelve's OVIX — and then rebinds every table to the target's, with
+`eff01.c` -> `effect_01_move` restarting the overlay the same frame. A marker
+(or a following cell, decoded against the target's OVIX once rebound) with a
+nonzero `olc` would carry an index across. **Measured**: Twelve has **40**
+`cg_type 20` cells, 32 live and 8 dead by `k7_entry_walk`; every live one
+selects `olc 0`, and every cell between it and the next C command selects
+`olc 0`. Nothing is carried, so the forward swap is closed for all 20 targets
+at once with no per-target table comparison — the same conclusion §25.5
+reached by hand, now re-derived on every run. `k7_fwd_gate` is `closed` on
+every row.
+
+**The post-rebind tables are now checked, not inspected.** `k7_swap_gate()`
+gained two checks for the state after case 4 rebinds to Twelve's tables:
+
+- the post-marker cells' hit indices, read against Twelve's `hiit`
+  (`charset.c` -> `check_cgd_patdat`: `cg_ja = hit_ix_table[cg_hit_ix]`).
+  **Measured**: every post-marker cell of all 20 rebirth scripts decodes to
+  hit index **452**, and Twelve's `hiit` holds **503** entries — in range,
+  20/20, confirming §26.9's inspected figure.
+- the C command that ends the script, which jumps through the rebound
+  `char_table` (`charset.c` -> `set_char_move_init2`:
+  `char_table[koc][index]`). **Measured**: all 20 exit with the identical
+  `comm_jmp` (code 3) to `koc 5` (`saca`), `ix 53`, `pat 1`, and Twelve's
+  `saca` holds **75** entries — in range, 20/20, confirming §26.9's
+  inspected `comm_jmp (5, 53)`.
+
+Either check failing appends to `unmodelled` and keeps the gate open.
+
+**`pull_effect_work` was never a hazard.** §26.9 worried that a slot whose
+previous occupant left `dead_f = 1` would make K7 abort on its first frame.
+It cannot. `effect.c` -> `push_effect_work` — the only way a slot returns to
+the free queue — calls `SDL_zeroa(frw[qix])` before relinking it, and
+`effect.h` declares `uintptr_t frw[EFFECT_MAX][448]`, so `frw[qix]` is a
+448-word array and `SDL_zeroa(x)` (`SDL_memset((x), 0, sizeof((x)))`) clears
+the entire WORK, `dead_f` included. `effect.c` -> `effect_work_init` likewise
+zeroes all of `frw` at startup, so the first use of a slot is clean too. The
+clear is on the *free* side rather than the *pull* side, which is why reading
+`pull_effect_work` alone suggested otherwise. `effect.c` contains **no**
+`ArcadeBalance_IsEnabled()` call, so this is identical on both arms — but the
+point is moot, because the hazard does not exist on either.
+
+### 26.10.5 Corrections to §26 (recorded, not silently edited)
+
+- **§26.3 row 8** says of frame N+1 "Input is dead this frame". True for
+  `sw_lvbt`, `sw_new` and `sw_now` — which is what its `check_nm_attack`
+  argument needs, so that argument stands — but **false** for `sw_old`,
+  `sw_off`, `sw_chg` and `old_now`, and `sw_chg` is the only word the shipped
+  command data ever reads for a special (§26.10.1). Row 8's conclusion
+  (Ken and Yang stay open) is unchanged; its stated reason was too strong in
+  one clause and is now replaced by a positive refutation.
+- **§26.6**'s Ibuki row read "19 + 5" and "18 of 19 PS2 identical". Corrected
+  to "23 + 1" and "22 of 23": four cells the §19 convention called dead are
+  reachable by a jump landing past the terminator (§26.10.2). The row's
+  verdict — gate closed, consequence past Twelve's tables — is unchanged.
+- **§26.6**'s Yang row justified "dead" by "post-terminator". Corrected to an
+  entry-point closure; the verdict is unchanged and now rests on something
+  sound.
+- **§26.9** bullet 4 called `pull_effect_work`'s uncleared `dead_f` a real
+  (if out-of-scope) trap. It is not a trap at all — the slot is zeroed on
+  free (§26.10.4).
+- **§19**'s terminator convention is not sound as a reachability test
+  wherever a script can be entered by a jump. This section changes it only
+  for the X.C.O.P.Y. gate (`k7_entry_walk`); every other consumer of
+  `TERMINATORS` in `cg_audit.py` is untouched, and whether they need the same
+  treatment was not examined.
+
+### 26.10.6 What this does not establish
+
+- Ken's gate is **not** closed. The two unread links are named exactly in
+  §26.10.1: `meoshi_hit_flag != 0` and `waza_flag[i] != 0` at N+1. Closing
+  them means tracing the command recogniser's decay across the metamorphose
+  window and the flag's lifetime from the master's last landed hit — or
+  showing the flagged cells cannot be current with `routine_no[1] == 0`,
+  `guard_flag != 3` and `hit_stop == 0`. Neither was done.
+- No claim is made that Ken's case is **reachable** in play. What is
+  established is that the input-side defence does not exclude it. The
+  remaining links may or may not hold; the model reports open because it has
+  not read them, per the fail-open rule.
+- Yang's and Ibuki's dead/live reclassification rests on `k7_entry_walk`
+  seeing every entry point. It sweeps C cells in the character's **own**
+  tables only; a jump from another character's script, or an entry written by
+  C code rather than by a script command, would not be seen. No such entry is
+  known, and none was searched for.
+- The §19 convention was corrected only where this gate uses it. Its other
+  uses in `cg_audit.py` (§21.6's converter-artefact classification among them)
+  were not re-derived, and their counts are unchanged by this pass.
+- The CPS3's own overlay engine was still not disassembled (§24.7/§26.9).

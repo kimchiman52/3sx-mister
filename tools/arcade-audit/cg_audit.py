@@ -647,8 +647,9 @@ def parse_k7_rebirth():
     body = k7[k7.index("void K7_move_type_0(WORK_Other* ewk, PLW* mwk) {"):]
     m3 = re.search(r'case 3:.*?mwk->wu\.routine_no\[1\] = (\d+);\s*mwk->wu\.routine_no\[2\] = (\d+);\s*mwk->wu\.routine_no\[3\] = (\d+);', body, re.S)
     m4 = re.search(r'case 4:\s*if \(mwk->wu\.cg_type != (\d+)\)', body)
-    assert m3 and m4 and m3.group(1) == '4' and m3.group(3) == '0', "effk7.c K7_move_type_0 case 3/4 not found"
-    rno, marker = int(m3.group(2)), int(m4.group(1))
+    m0 = re.search(r'case 0:\s*if \(mwk->wu\.cg_type != (\d+)\)', body)
+    assert m3 and m4 and m0 and m3.group(1) == '4' and m3.group(3) == '0', "effk7.c K7_move_type_0 case 0/3/4 not found"
+    rno, marker, fwd_marker = int(m3.group(2)), int(m4.group(1)), int(m0.group(1))
     uni = src("src/sf33rd/Source/Game/engine/plpatuni.c")
     fb = uni[uni.index("void Att_METAMOR_REBIRTH(PLW* wk) {"):]
     mi = re.search(r'set_char_move_init\(&wk->wu, (\d+), (\d+)\);', fb)
@@ -664,8 +665,45 @@ def parse_k7_rebirth():
         assert len(ents) == int(m.group(1)), f
         if ents[rno - 16] == 'Att_METAMOR_REBIRTH': ok += 1
     assert ok == 20, "Att_METAMOR_REBIRTH is not entry %d of all 20 exatt tables (%d)" % (rno - 16, ok)
-    v = dict(rno=rno, marker=marker, table=KOC2SEC[koc], script=ix, tables=ok)
+    v = dict(rno=rno, marker=marker, fwd_marker=fwd_marker, table=KOC2SEC[koc], script=ix, tables=ok)
     _K7_CACHE['v'] = v
+    return v
+
+# cmd_main.c cmd_data_set() consumes each command record in this order:
+#   reset, w_dead, w_dead2, waza_r[0..3], btix, exdt[0..3]   -- btix is word 7.
+K7_BTIX_WORD = 7
+K7_CMD_NO_BUTTON = 0x80        # pls03.c: `(btix[i] & 0xFF) == 0x80` -> the entry needs no button word
+K7_CMD_SLOTS = ((28, 38), (46, 56))   # pls03.c check_special_attack: ground scan, then air scan
+
+_K7_BTIX_CACHE = {}
+def k7_input_words():
+    """Which word of the seven-word input window each special-move entry reads.  pls03.c sets
+    `conpane = &wk->cp->sw_lvbt` in all eight of its scans and then reads `conpane[btix[i] & 0xFF]`;
+    structs.h WORK_CP orders that window sw_lvbt, sw_new, sw_old, sw_now, sw_off, sw_chg, old_now.
+    This matters to the §26.3 row-8 pre-empt: `plmain.c` -> `Player_move` forces `sw_lvbt = 0` while
+    `metamor_over` is set, but cmd_main.c -> `pl_lvr_set` derives sw_old/sw_off/sw_chg/old_now from
+    the PREVIOUS frame, so only sw_lvbt/sw_new/sw_now are actually dead on the frame after arming.
+    **Measured**: every entry in all 21 arcade command tables reads word 5 (`sw_chg`) or is the
+    0x80 no-button sentinel -- so 'input is dead' does not close the 0x40/0x20 cancel paths."""
+    if 'v' in _K7_BTIX_CACHE: return _K7_BTIX_CACHE['v']
+    t = re.sub(r'//[^\n]*', '', src("src/arcade/arcade_cmd_data.c"))
+    arrs = {}
+    for m in re.finditer(r'static const s16 (\w+)\[(\d+)\]\s*=\s*\{(.*?)\};', t, re.S):
+        vals = [int(x) for x in re.findall(r'-?\d+', m.group(3))]
+        assert len(vals) == int(m.group(2)), m.group(1)
+        arrs[m.group(1)] = vals
+    words, tables = set(), 0
+    for m in re.finditer(r'static const (?:const_s16_arr|void\s*\*)\s*(p[0-9A-Fa-f]+_cmd)\[(\d+)\]\s*=\s*\{(.*?)\};', t, re.S):
+        names = [x for x in re.split(r'[,\s]+', m.group(3).strip()) if x]
+        if len(names) != 56: continue
+        tables += 1
+        for lo, hi in K7_CMD_SLOTS:
+            for n in names[lo:hi]:
+                if n in arrs: words.add(arrs[n][K7_BTIX_WORD] & 0xFF)
+    assert tables == 21, "expected 21 arcade command tables, parsed %d" % tables
+    v = dict(tables=tables, words=sorted(words),
+             live=sorted(w for w in words if w != K7_CMD_NO_BUTTON))
+    _K7_BTIX_CACHE['v'] = v
     return v
 
 def k7_hit_ix(r):
@@ -722,6 +760,31 @@ def k7_swap_gate(ci):
             tail.append(c[1]['olc'] >> 4)
     tail_bad = [e for e in tail if e >= len(tw_ovix) or any(p and not (0 <= p < len(tw_nix)) for p in tw_ovix[e])]
     if tail_bad: why.append("cells after the marker select outside Twelve's tables: %s" % tail_bad)
+    # §26.9 bullet 2, now checked rather than inspected: once case 4 has rebound the tables, the
+    # post-marker cells' hit indices are read against TWELVE's hiit (charset.c check_cgd_patdat:
+    # `cg_ja = hit_ix_table[cg_hit_ix]`) and the C command that ends the script jumps through the
+    # rebound char_table into Twelve's own tables (charset.c set_char_move_init2: char_table[koc][ix]).
+    tw_hiit = LOC[TWELVE]['hiit'][1] // 16          # structs.h UNK_0: 8 x u16 per entry
+    tail_hix, tail_exit = [], None
+    if k is not None and cgd >= 4:
+        for c in cells[k + 1:]:
+            if c[0] == 'C': break
+            tail_hix.append(k7_hit_ix(c[1]))
+    hix_bad = [h for h in tail_hix if not (0 <= h < tw_hiit)]
+    if hix_bad: why.append("post-marker hit index outside Twelve's %d-entry hiit: %s" % (tw_hiit, hix_bad))
+    if k is not None:
+        for c in cells[k + 1:]:
+            if c[0] == 'C':
+                tsec = KOC2SEC.get(c[2])
+                tail_exit = dict(code=c[1], koc=c[2], ix=c[3], pat=c[4], table=tsec)
+                if tsec is None:
+                    why.append("post-marker exit names koc %d, which is not a script table" % c[2])
+                else:
+                    n = len(arc_offsets(*LOC[TWELVE][tsec]))
+                    tail_exit['twelve_entries'] = n
+                    if not (0 <= c[3] < n):
+                        why.append("post-marker exit jumps to Twelve's %s[%d], outside its %d entries" % (tsec, c[3], n))
+                break
     preempt = []
     for sec in K7_ENTRY_TABLES:
         for si in range(len(tabs[sec])):
@@ -733,11 +796,91 @@ def k7_swap_gate(ci):
             for i, c in enumerate(arc_parse(ci, sec, si, tabs)[1]):
                 if c[0] == 'L' and c[1]['type'] in K7_END_TYPES and c[1].get('canc', 0) & K7_CANCEL_BITS:
                     preempt.append(dict(table=sec, script=si, cell=i, type=c[1]['type'], canc=c[1]['canc']))
-    if preempt: why.append("cells that can be current at arming and carry a script-installing cancel bit: %d" % len(preempt))
+    words = k7_input_words()
+    if preempt:
+        why.append("cells that can be current at arming and carry a script-installing cancel bit: %d "
+                   "(the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; "
+                   "the input-word leg is refuted, not unread -- every entry reads conpane%s = sw_chg, "
+                   "which pl_lvr_set derives from the previous frame)" % (len(preempt), words['live']))
     return dict(rebirth=dict(table=reb['table'], script=reb['script'], routine=reb['rno'], marker=reb['marker'],
                              marker_cell=k, cells_before=len(preL), frames_before=sum(r['ctr'] for r in preL),
-                             hit_ix_before=hix, canc_before=canc, marker_olc=marker_olc, tail_olc=tail),
-                frame_n=boxes, preempt_cells=preempt, unmodelled=(why or None))
+                             hit_ix_before=hix, canc_before=canc, marker_olc=marker_olc, tail_olc=tail,
+                             tail_hit_ix=tail_hix, tail_exit=tail_exit, twelve_hiit=tw_hiit),
+                frame_n=boxes, preempt_cells=preempt, input_words=words, unmodelled=(why or None))
+
+_K7_FWD_CACHE = {}
+def k7_forward_gate():
+    """The FORWARD swap (`effk7.c` -> `K7_move_type_0` case 0), which §25.5 closed by a data sweep and
+    §26.9 listed as still not modelled here.  Case 0 fires on a `cg_type 20` cell of TWELVE's own
+    script -- the master is still Twelve, so that cell's `cg_olc` was decoded against Twelve's OVIX --
+    and then rebinds every table to the TARGET's.  `eff01.c` -> `effect_01_move` restarts the overlay
+    that same frame against the new `overlap_char_tbl`, so a marker (or a following cell, decoded
+    against the target's OVIX once rebound) selecting a nonzero olc would carry a Twelve part index
+    into the target's OVCT.  **Measured**: every live `cg_type 20` cell in Twelve's tables, and every
+    cell between it and the next C command, selects `olc 0` -- so nothing is carried and the swap is
+    closed for all 20 targets at once, with no per-target table comparison needed.  Anything nonzero
+    is reported and keeps the gate OPEN."""
+    if 'v' in _K7_FWD_CACHE: return _K7_FWD_CACHE['v']
+    reb = parse_k7_rebirth()
+    dead = k7_entry_walk(TWELVE)
+    markers, why = [], []
+    for sec, si, cgd, cells in _all_cells(TWELVE):
+        for i, c in enumerate(cells):
+            if c[0] != 'L' or c[1]['type'] != reb['fwd_marker']: continue
+            tail = []
+            for c2 in cells[i + 1:]:
+                if c2[0] == 'C': break
+                tail.append(c2[1]['olc'] >> 4)
+            rec = dict(table=sec, script=si, cell=i, olc=(c[1]['olc'] >> 4), tail_olc=tail,
+                       dead=(i in dead[(sec, si)]))
+            markers.append(rec)
+            if rec['dead']: continue
+            if rec['olc']: why.append("Twelve's %s[%d] c%d marker selects olc %d" % (sec, si, i, rec['olc']))
+            bad = [e for e in tail if e]
+            if bad: why.append("cells after Twelve's %s[%d] c%d marker select olc %s" % (sec, si, i, bad))
+    v = dict(marker=reb['fwd_marker'], markers=markers,
+             live=len([m for m in markers if not m['dead']]),
+             dead=len([m for m in markers if m['dead']]), unmodelled=(why or None))
+    _K7_FWD_CACHE['v'] = v
+    return v
+
+_K7_DEAD_CACHE = {}
+def k7_entry_walk(ci):
+    """Which cells of each script can never execute.  §19's convention -- everything after the first
+    terminating C command is dead -- is a LINEAR scan, and the format's jumps carry a cell index:
+    charset.c -> comm_jmp/comm_jpss/comm_jsr all call `set_char_move_init2(wk, ctc->koc, ctc->ix,
+    ctc->pat, ...)`, whose `cg_ix = (ip - 1) * cgd_type - cgd_type` makes `pat` a 1-based cell index.
+    So a jump can land AFTER a terminator and revive the cells behind it (measured: Ibuki's
+    `saca[27]` c33 and `saca[60..62]` c17, entered by a `comm_rja7`/`comm_jmp` past the terminator).
+    This walks instead: entry points are cell 0 plus every landing any C cell in the character's own
+    tables names, and each walk runs forward until a terminator.  Fail-open in both directions -- a
+    landing outside the script, or a koc this model does not map, marks the whole script live."""
+    if ci in _K7_DEAD_CACHE: return _K7_DEAD_CACHE[ci]
+    allc = list(_all_cells(ci))
+    lens = {(sec, si): len(cells) for sec, si, _, cells in allc}
+    entries, unknown = {k: {0} for k in lens}, set()
+    for sec, si, cgd, cells in allc:
+        for c in cells:
+            if c[0] != 'C': continue
+            _, code, koc, ix, pat = c
+            key = (KOC2SEC.get(koc), ix)
+            if key[0] is None or key not in lens: continue     # not a reference into this character
+            if 0 <= pat - 1 < lens[key]: entries[key].add(pat - 1)
+            else: unknown.add(key)                             # fail open: landing off the end
+    out = {}
+    for sec, si, cgd, cells in allc:
+        key = (sec, si)
+        if key in unknown: out[key] = set(); continue
+        live = set()
+        for e in sorted(entries[key]):
+            i = e
+            while i < len(cells):
+                live.add(i)
+                if cells[i][0] == 'C' and cells[i][1] in TERMINATORS: break
+                i += 1
+        out[key] = set(range(len(cells))) - live
+    _K7_DEAD_CACHE[ci] = out
+    return out
 
 def _k7_consequence(parts, tail, t_ovix, t_nix):
     """What a swap consumes on Twelve's tables: `parts` (the target's OVIX entry, restarted on Twelve's
@@ -766,12 +909,11 @@ def k7_foreign_cells(ci):
     out = []
     for sec, si, cgd, cells in _all_cells(ci):
         if sec == reb['table'] and si == reb['script']: continue
-        # cells past a terminating C command never execute (doc §19/§24.5:
+        # cells no entry point can walk to never execute (doc §19/§24.5:
         # decoder artefacts such as Yang's olc 1264); they are reported `dead`.
-        term, dead = False, set()
-        for i, c in enumerate(cells):
-            if c[0] == 'C' and c[1] in TERMINATORS: term = True
-            elif term: dead.add(i)
+        # k7_entry_walk, not a linear terminator scan -- the format's jumps
+        # carry a cell index and can land past a terminator (§26.10).
+        dead = k7_entry_walk(ci)[(sec, si)]
         hits = [i for i, c in enumerate(cells) if c[0] == 'L' and c[1]['type'] == reb['marker'] and (c[1]['olc'] >> 4)]
         if not hits: continue
         b, z = sp[SECTIONS.index(sec)]; ents = ps2_offsets(blob, b)
@@ -1003,6 +1145,10 @@ def audit(cgmap_override=None, quiet=False):
         # consequences are computed regardless of it.
         gate = k7_swap_gate(ci); foreign = k7_foreign_cells(ci)
         rec['xcopy_case4'] = dict(gate=gate, foreign_cells=foreign)
+        # the forward swap (case 0) is a property of Twelve's own scripts, so it is
+        # computed once and recorded on his row; every row carries the verdict.
+        fwd = k7_forward_gate()
+        if ci == TWELVE: rec['xcopy_case0'] = fwd
         rec['stats'] = dict(cells=cells_seen, ovct_arcade=a_ovct, ovct_ps2=p_ovct,
                             ovix_arcade=a_ovix, ovix_ps2=p_ovix,
                             ovct_unpatched_tail=max(0, a_ovct - p_ovct),
@@ -1019,6 +1165,7 @@ def audit(cgmap_override=None, quiet=False):
                             k7_foreign_cells=len([f for f in foreign if not f['dead']]),
                             k7_foreign_dead=len([f for f in foreign if f['dead']]),
                             k7_gate=('closed' if gate['unmodelled'] is None else 'unmodelled'),
+                            k7_fwd_gate=('closed' if fwd['unmodelled'] is None else 'unmodelled'),
                             k7_foreign_oob=len([f for f in foreign if not f['dead'] and f['twelve']['oob']]),
                             k7_foreign_oob_ps2=len([f for f in foreign if not f['dead'] and f['ps2_same_cell'] and f['ps2_twelve']['oob']]),
                             k7_foreign_ps2_differs=len([f for f in foreign if not f['dead'] and not f['ps2_same_cell']]), **cls)
