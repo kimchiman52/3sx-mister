@@ -434,12 +434,41 @@ static void compare_service_values(SDL_IOStream* io, bool compare_characters) {
      * exactly 90 frames on the one corpus and 333 of 335 on the other, and
      * every segment of both has at least one -- and holds 1 through the
      * `Game_Manage_*` transitions where `engine/manage.c` writes 1 on both
-     * sides. Both engines consume the field only as a zero test, and the
-     * archive shows EXE_flag freezing across a -1 run exactly as it does
-     * across a 1 run -- so -1 and 1 are the same state, differently spelled by
-     * a port that narrowed the field to u8. Mapping that ONE value keeps the
-     * assert strict everywhere else: a window that opens or closes on the
-     * wrong frame still fires, and so does any value pair we have not seen.
+     * sides.
+     *
+     * WHY THE SUBSTITUTION IS SOUND, stated correctly. An earlier version of
+     * this comment said "both engines consume the field only as a zero test".
+     * That is TRUE of the arcade and FALSE of the port, and only the arcade
+     * half is what the substitution needs -- the value being rewritten is the
+     * ARCHIVE's, so what matters is what the arcade does with -1.
+     *
+     * The arcade side, MEASURED over the whole decrypted sfiii3nr1 image:
+     * `0x0201136E` has **192** 4-aligned constant-pool entries, reached by
+     * **237** `mov.l @(disp,PC),Rn` sites, giving **209** distinct
+     * `mov.w @Rn,Rm` reads and **28** distinct `mov.w Rm,@Rn` writes. **208 of
+     * the 209 reads are immediately followed by `tst Rm,Rm`**; the one
+     * exception, `0x060F2A78`, is a `bt/s` delay slot whose consumer is
+     * `exts.w r4,r4` + `tst r4,r4` at `0x060F2A92`/`0x060F2A94`. So on
+     * hardware -1 and 1 are literally the same state -- no arcade site can
+     * tell them apart -- and the archive corroborates it: EXE_flag freezes
+     * across a -1 run exactly as across a 1 run.
+     *
+     * The port side is NOT a zero test, and that is a real difference this
+     * assert does not adjudicate. `Game_pause` is `u8` here, so a -1 would be
+     * 0xFF, and the port has mask and inequality readers that would separate
+     * it from 1 -- several of them reachable in an arcade-mode battle:
+     * `engine/cmb_win.c` (seven `Game_pause & 0x80`), `engine/spgauge.c`
+     * (`(Game_pause & 0x80) || EXE_flag`), `stage/tate00.c`
+     * (`if (Game_pause & 0x80) return;`), `effect/effa2.c` (six `& 0x80`),
+     * `engine/plcnt.c` / `plcnt2.c` / `plcnt3.c` / `game.c` (`!= 0x81`),
+     * `menu/menu.c` (`(Game_pause & 0x7F) != 0`), `ui/sc_sub.c` (`& 0x80`).
+     * Our engine never writes -1, so none of them sees one today; the point is
+     * that "the port is a zero test too" is not the reason this line is safe.
+     * See the research doc's FP section for what that leaves open.
+     *
+     * Mapping that ONE value keeps the assert strict everywhere else: a window
+     * that opens or closes on the wrong frame still fires, and so does any
+     * value pair we have not seen.
      *
      * POSITIVE CONTROL, because a clean sweep proves nothing about a dead
      * assert. Remove the substitution and rebuild: the corpora go from

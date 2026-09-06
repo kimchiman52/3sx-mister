@@ -1387,11 +1387,46 @@ every effect gated on the pair went on diverging invisibly.
 
 `Game_pause` needs exactly one substitution, forced by the measurement above:
 the arcade holds **-1** through the K.O. window where our `effect_84_move`
-holds **1**. Both engines read the field only as a zero test, and the archive
-shows `EXE_flag` freezing across a -1 run exactly as it does across a 1 run —
-so -1 and 1 are the same state, differently spelled by a port that narrowed the
-field to `u8`. `compare_service_values()` therefore maps that **one** value and
-asserts equality on everything else:
+holds **1**.
+
+**CORRECTION (2026-09-06).** This section, and `91ad2da1`'s comment, used to
+justify the substitution with "both engines read the field only as a zero test".
+**The arcade half is true and the port half is false** — and only the arcade
+half is what the substitution needs, because the value being rewritten is the
+*archive's*.
+
+*The arcade half, re-measured over the whole decrypted `sfiii3nr1` image rather
+than taken on trust:* `0x0201136E` has **192** 4-aligned constant-pool entries;
+**237** `mov.l @(disp,PC),Rn` sites load one of them; those reach **209**
+distinct `mov.w @Rn,Rm` reads and **28** distinct `mov.w Rm,@Rn` writes.
+**208 of the 209 reads are immediately followed by `tst Rm,Rm`.** The single
+exception is `0x060F2A78`, a `bt/s` delay slot whose consumer is `exts.w r4,r4`
++ `tst r4,r4` at `0x060F2A92`/`0x060F2A94` — still a zero test. So no arcade
+site can tell -1 from 1, and the archive corroborates it: `EXE_flag` freezes
+across a -1 run exactly as it does across a 1 run.
+
+*The port half is not a zero test.* `Game_pause` is `u8` here, so a -1 would be
+`0xFF`, and the port has mask and inequality readers — several of them
+reachable in an arcade-mode battle, not only in training:
+
+| port site | form |
+|---|---|
+| `engine/cmb_win.c` | seven × `Game_pause & 0x80` |
+| `engine/spgauge.c` | `(Game_pause & 0x80) \|\| EXE_flag` |
+| `stage/tate00.c` | `if (Game_pause & 0x80) return;` |
+| `effect/effa2.c` | six × `Game_pause & 0x80` |
+| `engine/plcnt.c`, `plcnt2.c`, `plcnt3.c`, `game.c` | `Game_pause != 0x81` / `== 0x81` |
+| `menu/menu.c` | `(Game_pause & 0x7F) != 0` |
+| `ui/sc_sub.c` | `Game_pause & 0x80` |
+
+Our engine never *writes* -1, so none of these sees one today. The correction
+matters because the old sentence made the substitution look like a property of
+both sides when it is a property of one, and because two of those port sites
+are open items in their own right (below).
+
+So -1 and 1 are the same state **to the arcade**, differently spelled by a port
+that narrowed the field to `u8`. `compare_service_values()` maps that **one**
+value and asserts equality on everything else:
 
 ```c
 const s16 game_pause_cps3_norm = (game_pause_cps3 == -1) ? 1 : game_pause_cps3;
@@ -1535,21 +1570,79 @@ argument that the PS2 pause has no arcade counterpart.
 
 ### Still open
 
-- **The arcade's `-1` writer was not disassembled.** What is established is the
-  window and the value: 90-frame runs coinciding with the K.O. message,
-  matching `Time_Data[1]` in `effect/eff84.c`, on every segment. That our
-  `effect_84_move`'s `Game_pause = 1` window is frame-for-frame co-extensive
-  with the archive's -1 window is proven by the assert passing on all 182
-  segments — but "the arcade's `effect_84` equivalent is the writer" is an
-  inference from the duration, not a read-out of the program.
+- ~~**The arcade's `-1` writer was not disassembled.**~~ **CLOSED, 2026-09-06.
+  It is CPS3 `0x060F51AC`, inside the arcade's `effect_84_move`.** The
+  read-out, all of it re-derived here rather than taken on report:
+
+  ```
+  060F516C  mov.l 0x060F520C,r10   ; literal = 0x0201136E = Game_pause
+  060F5158  mov.l 0x060F5208,r0    ; literal = 0x061BF974 = Time_Data
+  060F5132  mov r14,r0 / add #0x24,r0 / mov.w @r0,r0
+  060F5138  cmp/eq #0,r0 ... #1 ... #2      ; routine_no[0] arms 0,1,2
+  060F516E  mov #0x26,r0 / mov.w @(r0,r14),r0
+  060F5172  cmp/eq #0,r0 / bt ... cmp/eq #1,r0   ; routine_no[1] arms 0,1
+  060F518C  mov.l 0x060F5220,r3    ; literal = 0x020113D6 = message_index
+  060F518E  mov.w @r3,r0
+  060F5190  cmp/eq #0,r0
+  060F5192  bt/s 0x060F51AA
+  060F5194  mov #-1,r4             ; <- the delay slot, taken arm only
+  060F51AA  mov #0x26,r0
+  060F51AC  mov.w r4,@r10          ; <- Game_pause = -1
+  060F51AE  mov #0,r6
+  060F51B0  mov.w @(r0,r14),r2 / add #1,r2 / mov.w r2,@(r0,r14)   ; routine_no[1]++
+  060F51B8  jsr @r13 / mov r6,r4   ; r13 = 0x060D643C, r4 = r5 = 0
+  ```
+
+  which is the port's `case 0: Game_pause = 1; ewk->wu.routine_no[1]++;
+  effect_56_init(0, 0);` (`effect/eff84.c`) instruction for instruction, with
+  the one value difference this section is about. The identification does not
+  rest on the shape alone: `Time_Data`'s five bytes `{80, 90, 50, 50, 50}`
+  occur **exactly once** in the image, at `0x061BF974`, and that address is
+  loaded 20 instructions earlier in the same function. `0x060F51AC` and
+  `0x060F51CE` are two of the 28 `mov.w Rm,@r10` writers of `0x0201136E`
+  image-wide.
 - **The value difference itself is a real, unadjudicated port/arcade
   difference.** Our `Game_pause` is `u8`; the arcade's is 16-bit and takes -1.
-  Every arcade-relevant consumer is a zero test, so it is inert here, and the
-  two port consumers that would notice — `sc_sub.c`'s `Game_pause & 0x80` and
-  `menu.c`'s `(Game_pause & 0x7F)` — are training-mode paths. Changing the
-  port's value would be an engine change (`ArcadeBalance_IsEnabled()` gate
-  required) touching `netplay/game_state.h`'s serialized `u8`, and it would buy
-  nothing measurable. It is recorded, not fixed.
+  Every arcade consumer is a zero test (209 of 209, measured above), so it is
+  inert *on that side*. It is **not** inert on ours: the port's own readers are
+  masks and inequalities, and the earlier claim here that only `sc_sub.c` and
+  `menu.c` — "training-mode paths" — would notice was **wrong**. The table in
+  "The one normalization" lists them; `cmb_win.c`, `spgauge.c`, `tate00.c`,
+  `effa2.c` and the `plcnt*.c` / `game.c` `!= 0x81` set are all reachable in an
+  arcade-mode battle. Changing the port's value would be an engine change
+  (`ArcadeBalance_IsEnabled()` gate required) touching `netplay/game_state.h`'s
+  serialized `u8`, and it would *not* be inert — it would flip
+  `Game_pause & 0x80` from false to true at every one of those sites for the
+  90-frame K.O. window. Recorded, not fixed, and now for a better reason than
+  "buys nothing".
+- **NEW, and the concrete cost of the line above: `tate00.c`'s gate can never
+  fire, and camera state is not compared.** `TATE00()` (`stage/tate00.c`) is
+
+  ```c
+  if (Game_pause & 0x80) { return; }
+  jump_tbl[bg_w.bg_routine]();
+  Scrn_Renew();
+  Irl_Family();
+  Irl_Scrn();
+  ```
+
+  Our `Game_pause` takes only 0 and 1 in a STATCHECK battle (`0x81` is
+  unreachable — every writer traced in "`Game_pause == 0x81` cannot reach the
+  assert"), so `Game_pause & 0x80` is **always false** and the early return is
+  dead code on our side: we run the stage routine, `Scrn_Renew()` and the two
+  `Irl_*` every frame, including the frames the arcade holds `Game_pause` at
+  -1. Whether the arcade's counterpart to `TATE00` gates on `Game_pause` at all
+  has **not** been established — it is not among the sites disassembled here —
+  so this is an open question, not a stated defect. What makes it worth an
+  entry is that the oracle **cannot answer it**: the compared set contains
+  `bg_w.quake_y_index` and nothing else from `bg_w`, no `bgw[].xy[]`, no
+  `Scrn_Renew` output, no `Irl_*` state. A camera that scrolls on frames the
+  arcade freezes would produce a segment that PASSES every assert in
+  `statcheck_compare.c` and still renders differently — and, unlike
+  `routine_no[2]` in E4, there is no downstream compared field that would
+  eventually catch it, because nothing the camera feeds is compared either.
+  Closing it needs the arcade's `TATE00` disassembled and a `BG_W` offset for
+  the camera, in that order.
 - **`EXE_obroll` is the third member of this family and is still unassertable.**
   Its CPS3 address has never been established (E6's "Still open" says the same),
   so there is nothing to compare against. Worse, on our side it is
@@ -3067,7 +3160,7 @@ unobtainable), **18/20 stages** (Gill, Q — both excluded by code),
 | E6 | `effect_C08_move` routine 2 ran ungated — the 2026-09-06 corpus's D2 | **FIXED and GATED** — two changes, both arcade-side. (1) `effect/effc08.c` `case 2` is now `if (!EXE_flag && !Game_pause)`, matching `case 1` and CPS3 `0x060DDA84`, whose gate is the byte-for-byte twin of routine 1's at `0x060DD918`; the function carries **two** `0x0201136E` pool slots (`0x060DD98C`, `0x060DDBD8`), one per routine. Ungated, the port ticked the `4 x v` pause through hit-stop and pause frames on which the arcade freezes, re-entered routine 1 early and drew one cycle sooner — `delta=+1`, ours ahead, on **26 of 26 stage-3 segments**, 10 quarks, frames 1,325-6,473, with a within-session control (`1788133423462-3110`: same two players and characters throughout, 4/4 stage-3 fail, 4/4 stage-13 pass). (2) `bg030.c`/`bg190.c` now spawn C08/C74 behind `ArcadeBalance_IsEnabled()` — `afc16ad2` predated the gating rule and had PS2 mode running two effects with no PS2 counterpart at all (§23.8). `effc74.c` does **NOT** share the defect: CPS3 `0x060F1390` dispatches only routines 0 and 1, one `0x0201136E` reference, and all **13** stage-19 corpus segments pass before and after. Corpus 151/32 -> **177 PASS / 6 FAIL** (the 6 are D3-D6, no frame or assert moved); old corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. §23.10's acceptance was 60 frames and could not have seen this |
 | E7 | `Win_01000()` clamps the winner where the arcade does not — the 2026-09-06 corpus's D4 | **FIXED and GATED** — `animation/win_pl.c` -> `Win_01000()` called a `set_field_hosei_flag` pair between `bg_app_stop = 1` and `switch (routine_no[3])`; the arcade routine has **nothing** between them (`060c2ea2 mov.b r3,@r2` -> `060c2ea6 mov.w @(r0,r14),r0`, r0 = 42 = `routine_no[3]`, then `cmp/eq #0/#1/#9` with 1 and 9 sharing a target as the port's `case 1: case 9:` does). Reached as `win_jp_tbl[winner_type_tbl[player_number]]` — `win_player` (`0x060C2DDC`) copies the 16-entry table at `0x061A38C0` to stack and indexes it by the 21-entry table at `0x061A3890` (Oro -> 1 -> `0x060C2E8C`); both tables unique in the image, `0x061A3890` has exactly one literal referrer. Negative established over the whole 1,318-byte routine with all three `jijii_*` inlined: no aligned word equals `&set_field_hosei_flag` (`0x0611DFB8`) so no `jsr` reaches it, and `bsr` cannot either (`0x5AC06` away vs `±0x1000` reach) — with `random_16` (`0x0611E0EE`, `0x136` distant) found by the same scan as the positive control. The clamp pins Oro at screen centre + 164, so `jijii_jump`'s `xyz[0].disp.pos > bgw[1].xy[0].disp.pos + 320` exit is unreachable and the win leap never ends. Archive agrees frame for frame: `routine_no[3] == 9`, `win_rno == 2/1` throughout, winner X climbing to **674 at f3,290** against a 668 threshold (camera 348), where `win_rno[1]` steps 1 -> 2 — the exit firing — then freezes. Corpus 178/4 -> **181 PASS / 1 `rc=1`**, exactly 3 verdicts moved, all one session; 143-corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. **The other 47 `win_pl.c` sites and 12 in `lose_pl.c` are UNADJUDICATED** — only Oro's routine was read out of the arcade program, and `Normal_normal_Winner`'s first ten lines are byte-identical to `Win_01000`'s |
 | E8 | `effect_L7_init()` gate 3 tests the wrong bit — the 2026-09-06 corpus's D5 | **FIXED and GATED** — the arcade (`0x06113FC8`) gates Hugo's Poison taunt gag on **bit 12** of the raw `P1SW_0`/`P2SW_0` (`mov.w 0x61140c0,r4` -> `r4 = 0x1000`; `0x0206AA8C`/`0x0206AA90` per branch); the port tested **bit 0**, `SWK_UP`, so it never spawned and never drew — `delta=-1`, CPS3 drawing where we did not, the opposite direction from E6. Function identified independently: `effl7_data_tbl` unique at `0x061CB064` with exactly one literal referrer (pool word `0x061141A4`, loaded at `0x0611416C`, in-function); `effmovejptbl[217] = 0x06113D54`, and 217 is the `wu.id` this routine stores. Exactly **one** `random_16` pool word in the function (`0x061141A0` -> `jsr` at `0x06114166`; `bsr` cannot reach, `0x9F64` vs `±0x1000`), so one draw per spawn. `SWK_START` is used as a **conversion identity** — the port's own raw-arcade converter `src/test/replay_game.c` -> `read_input_buff()` maps `(raw & (1 << 12)) << 2`, i.e. bit 12 -> `SWK_START`; that bit 12 **is** START is likely but **NOT proven**, and nothing rests on it. Two harness changes were needed because the `sw_lvbt` mirror carries no start bit at all: `statcheck_runner.c` -> `read_input_buff()` now imports it, and `pause.c` -> `Check_Pause_Term()`'s `STATCHECK` carve-out moved **above** the `SWK_START` check — the same correction the `.3sr` replay player already had, whose comment stated the now-false precondition "`read_input_buff` never emits `SWK_START`"; leaving it below cost 3 passing segments (`t_pl_lvr` `left_cnt` 35 vs 36, `right_cnt` 53 vs 54, and one `waza` `w_type`), measured not predicted. PS2 keeps `& 1` (`SWK_UP` is `1 << 0`, bit-identical). Corpus 181/1 -> **182 PASS / 0 `rc=1`**, exactly 1 verdict moved; 143-corpus **143/143 unchanged**; frame-data suite **99 GREEN, zero drift**. `win_pl.c` -> `Win_13000()` carries the **identical `& 1` gate** and is deliberately UNADJUDICATED — its arcade counterpart was never read |
-| FP | `EXE_flag` / `Game_pause` were never compared against CPS3 — a detection blind spot, not a defect | **CLOSED, 2026-09-06** — both offsets added to `arcade_constants.h` (`EXE_FLAG_OFFSET 0xEECC` = CPS3 `0x0200EECC`, `GAME_PAUSE_OFFSET 0x1136E` = CPS3 `0x0201136E`; established by E6's disassembly at three sites — `effect_C08_move` routines 1 and 2 at `0x060DD918`/`0x060DDA84` and `effect_C74_move` at `0x060F13D4` — and corroborated in the archives, not taken from the comment). **ASSERTED every compared frame, never seeded**, the `bg_w.quake_y_index` call and the opposite of `players_timer`: `Game2_0()` zeroes `Game_pause` and `set_EXE_flag()` recomputes `EXE_flag` from a `Game_timer` that `Game2_0()` just zeroed, so there is nothing to import and a mismatch is behaviour. **One normalization, forced by measurement**: the arcade holds **-1** through the 90-frame K.O. window where our `effect_84_move` holds **1** (`Time_Data[1]`), and the archive shows `EXE_flag` freezing across a -1 run exactly as across a 1 run — so `compare_service_values()` maps that one value and stays strict on every other. **`0x81` is not masked**: every writer was traced unreachable under STATCHECK (`Check_Pause_Term()` returns 0 unconditionally above both the `SWK_START` and connection tests since `3769c189`; `Check_SoftReset` needs `SWK_BACK`, which `read_input_buff` never emits; the five `menu.c` writers are training/replay paths; `cpLoopTask`'s `|= 0x80` is DEBUG-only) and the compare merely *labels* the case — it never fired on any of the 328 corpus runs. Seed audit: `EXE_flag` **strict** (0 on 183/183 and 143/143), `Game_pause` **allowlisted** on `Game2_0()`'s next-frame zero (archive carries 1 into the seed frame on 50/183 and 38/143, ours is 1 on all, both 0 at `start_index` on 183/183 and 143/143). **Zero new failures**: 2026-09-06 **182 PASS / 0 `rc=1` / 1 `rc=4` / 2 `rc=3` unchanged**, 2026-09-05 **143/143 unchanged**, **0** `PASS — compared archive frames a..b of n` lines changed on either corpus, frame-data suite **99 GREEN, zero drift**. Archive census over every frame of both corpora (1,167,121 + 869,986): `EXE_flag` ∈ {0,1,2,3}, `Game_pause` ∈ {0,1,-1} and **nothing else** — in particular no `0x81`. **Positive control**: remove the `-1 -> 1` substitution and the corpus goes **182/182 and 143/143 FAIL**, at archive frames 941-5,755 and 921-4,255, every one of them the identical line `game_pause_3sx (1) != game_pause_cps3_norm (-1)` — so the assert is live, the compared window reaches a K.O. freeze on EVERY segment, and the mask hides exactly one value pair with nothing behind it. `EXE_obroll`, the third flag of the family, is still unassertable — no CPS3 address, and our port has ONE writer (`EXE_obroll = 0`, `manage.c`) against 55 readers, so it is structurally dead on our side |
+| FP | `EXE_flag` / `Game_pause` were never compared against CPS3 — a detection blind spot, not a defect | **CLOSED, 2026-09-06** — both offsets added to `arcade_constants.h` (`EXE_FLAG_OFFSET 0xEECC` = CPS3 `0x0200EECC`, `GAME_PAUSE_OFFSET 0x1136E` = CPS3 `0x0201136E`; established by E6's disassembly at three sites — `effect_C08_move` routines 1 and 2 at `0x060DD918`/`0x060DDA84` and `effect_C74_move` at `0x060F13D4` — and corroborated in the archives, not taken from the comment). **ASSERTED every compared frame, never seeded**, the `bg_w.quake_y_index` call and the opposite of `players_timer`: `Game2_0()` zeroes `Game_pause` and `set_EXE_flag()` recomputes `EXE_flag` from a `Game_timer` that `Game2_0()` just zeroed, so there is nothing to import and a mismatch is behaviour. **One normalization, forced by measurement**: the arcade holds **-1** through the 90-frame K.O. window where our `effect_84_move` holds **1** (`Time_Data[1]`), and the archive shows `EXE_flag` freezing across a -1 run exactly as across a 1 run — so `compare_service_values()` maps that one value and stays strict on every other. **`0x81` is not masked**: every writer was traced unreachable under STATCHECK (`Check_Pause_Term()` returns 0 unconditionally above both the `SWK_START` and connection tests since `3769c189`; `Check_SoftReset` needs `SWK_BACK`, which `read_input_buff` never emits; the five `menu.c` writers are training/replay paths; `cpLoopTask`'s `|= 0x80` is DEBUG-only) and the compare merely *labels* the case — it never fired on any of the 328 corpus runs. Seed audit: `EXE_flag` **strict** (0 on 183/183 and 143/143), `Game_pause` **allowlisted** on `Game2_0()`'s next-frame zero (archive carries 1 into the seed frame on 50/183 and 38/143, ours is 1 on all, both 0 at `start_index` on 183/183 and 143/143). **Zero new failures**: 2026-09-06 **182 PASS / 0 `rc=1` / 1 `rc=4` / 2 `rc=3` unchanged**, 2026-09-05 **143/143 unchanged**, **0** `PASS — compared archive frames a..b of n` lines changed on either corpus, frame-data suite **99 GREEN, zero drift**. Archive census over every frame of both corpora (1,167,121 + 869,986): `EXE_flag` ∈ {0,1,2,3}, `Game_pause` ∈ {0,1,-1} and **nothing else** — in particular no `0x81`. **Positive control**: remove the `-1 -> 1` substitution and the corpus goes **182/182 and 143/143 FAIL**, at archive frames 941-5,755 and 921-4,255, every one of them the identical line `game_pause_3sx (1) != game_pause_cps3_norm (-1)` — so the assert is live, the compared window reaches a K.O. freeze on EVERY segment, and the mask hides exactly one value pair with nothing behind it. **CORRECTED 2026-09-06**: the claim "every consumer on both sides is a zero test" was half wrong. The ARCADE half is measured and true — 192 4-aligned pool entries, 237 `mov.l` loads, **209** distinct `mov.w @Rn,Rm` reads of which **208** are followed immediately by `tst Rm,Rm` and the one exception (`0x060F2A78`, a `bt/s` delay slot) by `exts.w`+`tst` at `0x060F2A92`/`94`, and **28** distinct writers. The PORT half is FALSE: `cmb_win.c` (7x `& 0x80`), `spgauge.c`, `tate00.c`, `effa2.c` (6x), `plcnt*.c`/`game.c` (`!= 0x81`), `menu.c` (`& 0x7F`), `sc_sub.c` all read it as a mask or an inequality, and several are reachable in an arcade battle. The substitution is sound anyway — it rewrites the ARCHIVE's value, and the arcade side is the zero test. **The `-1` writer is now identified**: CPS3 `0x060F51AC` (`mov.w r4,@r10`, r10 = `0x0201136E` from `0x060F516C`), fed by `mov #-1,r4` at `0x060F5194` in the `bt/s` delay slot of the `message_index == 0` arm, followed by `routine_no[1]++` and `jsr` to `0x060D643C` with both arguments 0 — the port's `effect_84_move` `case 0` exactly; the function loads `Time_Data` (`0x061BF974`, the byte string `{80,90,50,50,50}`, unique in the image) 20 instructions earlier. **NEW OPEN ITEM**: `TATE00()`'s `if (Game_pause & 0x80) return;` (`stage/tate00.c`) can never fire on our side, so we run `jump_tbl[bg_w.bg_routine]()` / `Scrn_Renew()` / `Irl_*` on every frame including the arcade's -1 window — and camera/BG state beyond `bg_w.quake_y_index` is not compared, so the oracle could not see it either way. `EXE_obroll`, the third flag of the family, is still unassertable — no CPS3 address, and our port has ONE writer (`EXE_obroll = 0`, `manage.c`) against 55 readers, so it is structurally dead on our side |
 | M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures were E5, and fixing E5 took it back to 142/1 with the assert standing. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
 | M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |
 | M2 | the viewer repaired `Random_ix16` at every checkpoint | **GATED to v1** — `check_checkpoint()` repairs only when `!has_players_timer`; a v2 file fails an ix16-only mismatch and names the field (D1). v1 kept because an A/B twin desyncs at checkpoint 18/189 without it, against ~23,300 shipped v1 files |
