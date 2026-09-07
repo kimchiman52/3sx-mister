@@ -7,7 +7,7 @@ fact a test could hold, which is why it is prose.
 ## The short version
 
 **Almost the entire method is upstream's** (`crowded-street/3sx`). This fork
-supplies corpus scale and one genuinely new instrument. Anyone who describes our
+supplies corpus scale, two instruments of its own, and a much wider audit scope. Anyone who describes our
 approach as methodologically distinct from upstream's is repeating the mistake
 this file records.
 
@@ -19,20 +19,30 @@ this file records.
 | **Statcheck**, the replay oracle | `4a86558e` "Restore Statcheck (#247)" 2026-04-24 — *restore*, so it predates that; then `52a395bd` "Statcheck: Test tooling (#268)", `f54cfc55` "Add a short article about Statcheck (#355)" |
 | the replay pipeline: `tools/fcade-replays` -> `fbneo-replay-runner` -> SCRD -> per-frame compare | `docs/statcheck.md` as added by `f54cfc55`. **We do not have that file**; read it with `git show f54cfc55:docs/statcheck.md` |
 | the SCRD container and its zero-run XOR encoding | same |
-| our `src/test/statcheck_compare.c` | `a6940977` says it verbatim: "Port upstream's statcheck test_runner/test_runner_compare logic into fork idioms", using "upstream's verbatim bit conversion" |
+| our `src/test/statcheck_compare.c` | the commit that wrote it says so verbatim: "Port upstream's statcheck test_runner/test_runner_compare logic into fork idioms", using "upstream's verbatim bit conversion" |
 
 ### "Decompile X" upstream does not mean "add a new function"
 
 `2a0793b7` "CPS3: decompile plcnt (#253)" modifies `plcnt.c`, a file that has
-existed since `2025-10-16`, and adds **11 `ArcadeBalance_IsEnabled()` gates
+existed since well before that pass (added by upstream in `d61591be`, 2025-10-07,
+and *renamed* into `engine/` on 2025-10-16 -- the rename date is not the birth
+date), and adds **11 `ArcadeBalance_IsEnabled()` gates
 inside it**. Upstream reads the CPS3 disassembly and gates the differences
 inside existing PS2-decompiled functions — the same thing this fork does, at a
 coarser granularity (a routine at a time rather than a divergence at a time).
 
 ## What is actually ours
 
-- **`tools/arcade-audit/`** (`4f1e9397`, 2026-08-29). Upstream has **no**
-  audit-family commits. This is a different instrument, not a Statcheck
+- **`tools/arcade-audit/`** (`4f1e9397`, 2026-08-29). **Correction, 2026-09-07:**
+  an earlier draft of this file claimed upstream has "no audit-family commits".
+  That is false and was the most load-bearing error in it. Upstream ships
+  `tools/compare_char_data.py` -- "Binary comparison tool (#51)", Artem Pstygo,
+  2025-10-13 -- and this tree carries it byte-identical; `#283` (2026-07-20)
+  later adds `analyze_rendering_bindings`. Static auditing is **not** this
+  fork's invention. What `arcade-audit` adds is **scope**: a 133,901-cell census
+  across all 20 characters with a reachability model, where upstream's tool
+  compares binaries. Read the difference as scope, not existence. It remains a
+  different instrument, not a Statcheck
   variant: it compares ROM data tables against our adapted tables **statically**,
   over all 133,901 cells, whether or not any replay touches them. The
   wrong-sprite cells, and the Elena / Dudley / X.C.O.P.Y. reachability
@@ -63,3 +73,27 @@ static side is the part this fork added.
 
 "The replays all pass" is a bounded claim. Before treating it as evidence, check
 that `statcheck_compare.c` actually compares the field your change affects.
+
+## Provenance caveats found by review (2026-09-07)
+
+This file was written to correct a misconception and shipped with four of its
+own. An adversarial review caught them; they are fixed above, and recorded here
+because the pattern matters more than the facts.
+
+- **"Upstream has no audit-family commits"** was false -- see the correction
+  above. I checked for an `arcade-audit`-shaped directory and concluded from its
+  absence, instead of searching for the capability.
+- **`plcnt.c` "has existed since 2025-10-16"** took a `R097` rename for a birth.
+  `--diff-filter=A` on the new path reports the rename; the original add is
+  earlier and under a different path.
+- **`a6940977` is not an ancestor of HEAD.** It lives on
+  `feat/fcade-replay-browser`; `statcheck_compare.c` reaches this branch via
+  `cdbf5678`. Citing a commit by SHA is not the same as checking it is *in* the
+  history you are describing -- especially in a repo built from omnibus squashes,
+  where the same content lands under a different SHA.
+- The summary said **"one genuinely new instrument"** while the section beneath
+  it listed two.
+
+The substantive claim -- that `statcheck_compare.c` is a port of upstream's
+`test_runner_compare.c` -- was independently verified and stands: same private
+helpers in the same order, public entries renamed.
