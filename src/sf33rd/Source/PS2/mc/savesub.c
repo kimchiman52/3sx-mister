@@ -307,6 +307,29 @@ static bool deserialize_settings(SDL_IOStream* io) {
 
     Copy_Save_w();
     Copy_Check_w();
+
+    // SJ-30 (docs/savestates-and-instant-mode-jump.md Sec 10.9): the load above
+    // writes save_w[1] and nothing else, but Convert_User_Setting() (sys_sub.c)
+    // indexes save_w[Present_Mode], and training runs at Present_Mode 4/5. Until
+    // this call the ONLY thing that ever carried the loaded mapping into those
+    // slots was Save_Game_Data(), whose callers are the Game Option / Button
+    // Config / Screen Adjust screens (menu.c) -- so every route into Training
+    // that skipped those screens ran the DEFAULT pad mapping, not the user's.
+    // Measured on the quick-training gate harness with a seeded non-identity
+    // settings file: `PROBE: Present_Mode=4 sw1=5,4,3,11,2,1,0,11
+    // sw4=0,1,2,11,3,4,5,11`.
+    //
+    // Same function Save_Game_Data() calls, so the two cannot disagree, and the
+    // same restricted field set -- see Copy_Save_w_Training() for why the carry
+    // covers Pad_Infor + GuardCheck and stops at slots 4/5.
+    //
+    // Placement: this runs from Init_Task_Aload (init3rd.c), which is reached
+    // AFTER Init_Task_1st -> Game_Data_Init() -> Setup_Default_Game_Option()
+    // has re-seeded all six slots from Game_Default_Data -- at boot and after
+    // every Soft_Reset_Sub(). Carrying anywhere earlier in the walk would be
+    // wiped by that re-seed.
+    Copy_Save_w_Training();
+
     sys_w.bgm_type = save_w[1].BgmType;
     return true;
 }

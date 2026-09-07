@@ -39,6 +39,7 @@ void Game_Data_Init();
 void Setup_IO_ConvDataDefault(s32 id);
 void Save_Game_Data();
 void Copy_Save_w();
+void Copy_Save_w_Training();
 void Copy_Check_w();
 void Setup_Default_Game_Option();
 s32 Check_Change_Contents();

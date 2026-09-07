@@ -47,8 +47,10 @@
  * TASK_INIT walk, and the real cause is that nothing carries save_w[1] (where
  * the settings load puts the user's mapping) into the training slots
  * save_w[4]/[5] unless the player visits the option screens this sequence
- * exists to skip. qt_carry_user_pad_config() does that carry, one frame before
- * the chain fires, on EVERY Quick Training jump — replay boot or not.
+ * exists to skip. That carry is now Copy_Save_w_Training() (sys_sub.c), called
+ * from the settings load itself (savesub.c -> deserialize_settings) as well as
+ * from Save_Game_Data() — so it fixes every route into Training, this sequence
+ * included, and this file no longer carries a seam-local copy of it.
  *
  * One thing genuinely does not come back: the RESOLVED arcade/PS2 balance.
  * ArcadeBalance_Init() reads the config key once at boot and latches the

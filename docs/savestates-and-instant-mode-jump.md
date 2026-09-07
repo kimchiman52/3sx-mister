@@ -85,6 +85,7 @@ No findings overlap between them.
 | SJ-26 | `WipeLimit` is SHARED with the engine's own transitions, and `WipeOut` increments it OUTSIDE its `!No_Trans` guard — a cover hides the drawing, never the counter | §10.5 | Quick Training must defer, not start, on an in-flight wipe |
 | SJ-29 | The `--watch-replays` shuffle viewer is the one replay mode Quick Training can END rather than defer to; `RS_OFF` is the only stop with no surviving path to `rs_start_next()`, and the player's freeze must be released ONLY once the sequence is about to re-cover the engine | §10.8 | Quick Training terminates the viewer; `--play-replay` still refused |
 | SJ-30 | The wrong-buttons defect is NOT the replay pin — the pin's `save_w[]` writes are overwritten by `Setup_Default_Game_Option()` on every `TASK_INIT` walk. Only `Save_Game_Data()` ever carries `save_w[1].Pad_Infor` into the training slots 4/5, and its callers are the option screens Quick Training exists to skip | §10.9 | Carry the mapping before the chain fires; unpin the (real) game-mode/balance pin at the replay teardown |
+| SJ-30b | Same root, both ends: the settings load writes only `save_w[1]`, so EVERY route into Training gets default buttons (not just Quick Training) — and replay playback runs at `Present_Mode == 1`, so it read the USER's mapping and `Convert_User_Setting()` remapped the recorded words. Measured: `REPLAY DESYNC at frame 300` with a rebound pad, `REPLAY COMPLETE` without. The producer is Options -> Button Config, which writes the `Convert_Buff[1]` ALIAS, not `Pad_Infor` — which is why a grep for the field finds no writer | §10.10 | One carry (`Copy_Save_w_Training`, called by the settings load) and one live pin (re-asserted per tick) |
 
 ## Revision log
 
@@ -99,6 +100,7 @@ No findings overlap between them.
 | 2026-09-05 | **Fix pass on the review of the above** (same day): P1 — `docs/training-score.md`'s new correction named two functions that do not exist (real sites are `combo_window_push()` / `combo_window_trans()`); `--test-instant-jump` was rewriting the user's training file, now closed at the harness (§10.7, SJ-28). P2 — the teardown restore put the runtime signals back to `SIG_DFL` (terminate) before `ConsoleMode_Exit()`, now `SIG_IGN`; the "SHA256 sweep" justification for the boot window was false (`PORT_MISTER` excludes `CHECKSUM`), `SA_RESTART` added; the DIP masks' "bits 4..11" / "bits 16..19" rationales were false and are now enumerated; the DIP assertion pins a *configuration* and says so; the SELECT-reset stage covers one of four presets and now keys off `Suicide[0]` rather than `routine_no != 4`; a PASS now names its skipped assertions. |
 | 2026-09-07 | **Quick Training now ends the shuffle viewer** (§10.8, SJ-29): pressing it under `--watch-replays` was a deliberate refusal that read as a dead button. New `ReplayShuffle_Stop()`; the refusal narrowed to the `--play-replay` boot path, which stays refused because its terminal state is `SDLApp_Exit()` and it has no device OSD caller. UNVERIFIED AT RUNTIME — headlessly unreachable; §10.8 carries the on-device checklist. |
 | 2026-09-07 | **The training match uses the user's buttons** (§10.9, SJ-30). §10.8 named the leaked `ReplayPlayer_PinConfig()` as the reason a Quick Training match ran on the default pad mapping; measured, that was wrong — the pin's `save_w[]` writes are dead (`Setup_Default_Game_Option()` overwrites all six slots every `TASK_INIT` walk with byte-identical defaults) and the real cause is that nothing carries `save_w[1]` into the training slots 4/5 unless the player visits the option screens. Fixed for **every** Quick Training jump, replay boot or not, and verified on the gate harness with a seeded non-default mapping. The pin's real halves (game mode, balance key) are now scoped: `ReplayPlayer_UnpinConfig()` restores the captured values at the replay teardown — the "Stage F2a" work — and fixes a use-after-free in `PinConfig()`'s log line on the way. The RESOLVED balance cannot be restored (`ArcadeBalance_Init` latches it once at boot); stated, not papered over. |
+| 2026-09-07 | **One carry, one pin** (§10.10, SJ-30b) — the two items §10.9 left open, measured and both real. (A) The `save_w[4]/[5]` gap was never Quick-Training-specific; the carry moved into `Copy_Save_w_Training()` (`sys_sub.c`), called by both `Save_Game_Data()` and `deserialize_settings()`, and `qt_carry_user_pad_config()` was DELETED rather than kept — the gate proves both jumps still carry without it. (B) Replay playback runs at `Present_Mode == 1` and was reading the user's mapping: same `.3sr`, seed differing from defaults only in `Pad_Infor`, `REPLAY DESYNC at frame 300` before and `REPLAY COMPLETE frames=4009 checksums=66/66` after. A silent, per-user determinism defect that a dev box with no settings file cannot reproduce. §10.9's "the pin's writes are dead but harmless" is corrected: slot 1 does not end up at `Game_Default_Data`, it ends up at whatever Options -> Button Config wrote. Named and NOT fixed: the identical defect in `StatcheckRunner_PinConfig()`, and `extra_option` as a second playback divergence source. |
 | 2026-09-05 | **Engine defects found by review and fixed** (§10.6, SJ-27): the chain skipped character select's training-config load AND its `init_omop()`, so the match ran on zeroed settings and zeroed engine DIP tables — and then wrote the zeros over the user's config. Measured before/after, both players now land byte-identical to the stock select path. Corrections to this document in the same pass: SJ-25's "byte-identical" claim was true only against an already-zero config (§10.4); the §10.4 RTL bit list omitted `status[28:25]` and `status[46:43]`; §10.5's deferral bound expired into a silent drop and now expires into a start. `SIGRTMIN+5` made non-fatal in the boot and version-skew windows (§10.4, device-unverifiable). |
 
 ---
@@ -1418,18 +1420,10 @@ taken in `initialize_game()`, before `sf3_init()`, while `save_w[]` is still
 zero-initialized static storage — restoring it would install an all-zero
 `Shot[]`, mapping every button to `Convert_Data[0]`.
 
-**Open, and not fixed here.** Two findings this work turned up and left alone,
-recorded so they are not rediscovered:
-
-- The `save_w[4]`/`save_w[5]` gap is **not** unique to Quick Training. By the
-  same evidence, a normal boot that goes straight from the menu into Training
-  without visiting the option screens gets the default mapping too. Fixing that
-  generally means propagating in `deserialize_settings()`, which changes shipped
-  behaviour on paths this change has no way to test headlessly.
-- If replay playback runs at `Present_Mode == 1`, it is reading the **user's**
-  mapping from `save_w[1]`, not the identity mapping the pin intends — so a
-  user with a rebound pad may already be a determinism risk for playback. Not
-  measured: no `.3sr` cache was available on the dev machine.
+**Both open items are now CLOSED — see §10.10.** They were: the `save_w[4]/[5]`
+gap not being Quick-Training-specific, and the unmeasured suspicion about
+`Present_Mode` during replay playback. Both were real; the second was a
+determinism defect, not a UX wrinkle.
 
 **UNVERIFIED AT RUNTIME (the unpin half).** The pad-config carry is verified by
 the `quick-training` gate harness above. The unpin is not reachable headlessly:
@@ -1439,6 +1433,202 @@ check in §10.8's checklist plus: the log must show
 after the teardown line, and the training match must respond to **your**
 button mapping.
 
+### 10.10 [SJ-30b] One carry, one pin — the settings that reach a match
+
+§10.9 closed the Quick Training seam and left two items open. Both are now
+measured, both were real, and they turn out to be the same shape of bug seen
+from two ends: `save_w[]` is indexed by `Present_Mode`, the settings load
+writes exactly one slot, and every consumer that runs at a *different*
+`Present_Mode` reads something nobody updated.
+
+#### What the six slots are
+
+`save_w[6]` (`work_sys.c`) is indexed by `Present_Mode` (`workuser.h`):
+
+| slot | `Present_Mode` | what owns it |
+| --- | --- | --- |
+| 0 | `ATTRACT` | nothing a human presses reaches it |
+| 1 | `LOCAL` (arcade + versus) | **the user's saved configuration.** `serialize_settings` / `deserialize_settings` (`savesub.c`) read and write `&save_w[1]` and nothing else |
+| 2 | `NETPLAY` | netplay: `netplay.c` / `netplay_nav.c` force `Time_Limit`/`Battle_Number`/`Damage_Level`/`Handicap`/`GuardCheck` and an identity `Pad_Infor` for `MODE_NETWORK` |
+| 3 | `REPLAY` | the PS2 replay loader: `menu.c` restores `Time_Limit`/`Battle_Number`/`Damage_Level`/`extra_option`/`Pad_Infor` from `Replay_w.mini_save_w`, so a memory-card replay reproduces against the settings it was recorded with |
+| 4 | `NORMAL_TRAINING` | `init3rd.c` pins `Time_Limit = -1`; the training menu (`menu.c`) writes `Damage_Level`/`Difficulty` from the `Training[]` tables |
+| 5 | `PARRY_TRAINING` | same as 4 |
+
+So slot 1 is user state and the other five are per-mode working copies, seeded
+from `Game_Default_Data` by `Setup_Default_Game_Option()` on **every**
+`TASK_INIT` walk — at boot and after every `Soft_Reset_Sub()`.
+
+**Which fields may be carried out of slot 1, therefore: only the ones no
+per-mode owner claims.** That is `Pad_Infor` (the pad mapping is a property of
+the human holding the controller, never of the mode) and `GuardCheck` —
+precisely the set `Save_Game_Data()` has always carried, and precisely the
+slots it carries to. `Difficulty`, `Damage_Level`, `Battle_Number` and
+`Time_Limit` are **not** carried: the training menu and `init3rd.c` own them
+for slots 4/5, and slots 2/3 want their forced/recorded values. That is the
+whole blast radius, and it is why the carry stops at 4/5 rather than becoming
+"copy slot 1 everywhere".
+
+#### A. The carry is now in the settings load, and the QT seam fix is gone
+
+`Copy_Save_w_Training()` (`sys_sub.c`) holds the six assignments, lifted
+verbatim out of `Save_Game_Data()`. Both `Save_Game_Data()` and
+`deserialize_settings()` (`savesub.c`) call it, so the two paths cannot
+disagree. `deserialize_settings` is the right seam and the only one that
+covers every route: it runs from `Init_Task_Aload` (`init3rd.c`), which is
+downstream of `Init_Task_1st` -> `Game_Data_Init()` ->
+`Setup_Default_Game_Option()`, so nothing re-seeds the slots after it.
+
+`qt_carry_user_pad_config()` (`quick_training.c`) is **removed**, not kept as
+belt-and-braces. It was a second copy of the same six assignments at a
+different seam, and two mechanisms that can drift apart are worse than one
+that cannot. Removal is not an argument, it is a measurement: the probe below
+was taken with the QT-seam call already deleted, and both jumps still carry.
+
+```
+first-jump   PROBE: Present_Mode=4 sw1=5,4,3,11,2,1,0,11 sw4=5,4,3,11,2,1,0,11 sw5=5,4,3,11,2,1,0,11 gc1=1 gc4=1 gc5=1
+re-jump #1   PROBE: Present_Mode=4 sw1=5,4,3,11,2,1,0,11 sw4=5,4,3,11,2,1,0,11 sw5=5,4,3,11,2,1,0,11 gc1=1 gc4=1 gc5=1
+re-jump #2   PROBE: Present_Mode=4 sw1=5,4,3,11,2,1,0,11 sw4=5,4,3,11,2,1,0,11 sw5=5,4,3,11,2,1,0,11 gc1=1 gc4=1 gc5=1
+```
+
+(`QUICK-TRAINING TEST PASS: 1 sequence(s)` and `2 sequence(s)` respectively.
+The seed is `Game_Default_Data` byte-for-byte except `Pad_Infor` and
+`GuardCheck` 0 -> 1, so `gc4`/`gc5` prove the second half of the carry and not
+just `Pad_Infor`. `saves/settings` md5 `abbfdfd76935fd15e40f7cb7f3665b5b` and
+`training` md5 `8200a8cba3970c85ad41c92d5cb636ee`, unchanged before and after
+both runs — a settings-propagation change is exactly the kind that can
+silently rewrite the file it reads.)
+
+#### THE PRODUCER — read this before deciding the bug is unreachable
+
+A reviewer asked, reasonably, whether a non-identity `Pad_Infor` can occur at
+all: every literal `Pad_Infor` **writer** in `src/` writes the identity table,
+and `Game_Default_Data`'s `Pad_Infor` is that same table. A `grep` for
+`Pad_Infor` genuinely finds no user-driven writer. **It is still reachable,
+through an alias, from an ordinary shipped menu screen.** The chain, in full:
+
+1. `After_Title`'s jump table (`menu.c`) has `Button_Config` at index 10.
+   `Option_Select`'s `option_routines[6] = { 9, 10, 11, 12, 14, 15 }` puts it
+   on the second row of the Option menu. No `#if`, no flavor gate: it ships.
+2. Inside it, `Button_Move_Sub_LR()` (`menu.c`) is the row editor. For cursor
+   rows 0–7 — the eight `Shot[]` slots — `max = 11`, and left/right step
+   `Convert_Buff[1][cursor_id][Menu_Cursor_Y[cursor_id]]` through `0..11`
+   with wraparound. **This is the writer, and it never names `Pad_Infor`.**
+3. `Button_Config()`'s `case 3` calls `Save_Game_Data()` every frame.
+   `Save_Game_Data()` (`sys_sub.c`) does
+   `save_w[1].Pad_Infor[p].Shot[ix] = Convert_Buff[1][p][ix]`. That is the
+   alias closing.
+4. Leaving the Option menu runs `Check_Change_Contents()` (`sys_sub.c`), which
+   compares `Convert_Buff` against `Check_Buff` — the button rows included —
+   and on a change calls `SaveInit(SAVE_FILE_SETTINGS, SAVE_MODE_SAVE)`
+   (`menu.c`), i.e. `serialize_settings()` writing `src->Pad_Infor` to
+   `saves/settings`.
+
+The MiSTer OSD's own pad mapping is a *different layer* (physical control ->
+core joystick bit); `Button_Config` maps those bits to LP/MP/HP/LK/MK/HK. Both
+exist, and the second is the one `save_w[]` carries. The seeded settings file
+used in the probes above is byte-for-byte what `serialize_settings()` emits —
+`deserialize_settings()` accepted it and the value landed in `save_w[1]`,
+which is the round-trip proof.
+
+#### B. Replay playback ran at `Present_Mode == 1` and read the user's mapping
+
+Measured, and it is a **determinism defect**. `ReplayPlayer_PinConfig()` writes
+an identity `Pad_Infor` into all six slots precisely so `Convert_User_Setting()`
+passes the recorded SWK words through `Convert_Data` unchanged. But it runs
+from `initialize_game()`, **before** `sf3_init()` — so
+`Setup_Default_Game_Option()` re-seeds every slot after it and the settings
+load then puts the user's mapping into `save_w[1]`. §10.9 read that ordering
+correctly and drew the wrong conclusion from it: it called the pin's
+button-mapping half "dead but harmless, because `Game_Default_Data` is
+byte-identical to the identity table". Slot 1 does not end up at
+`Game_Default_Data`. It ends up at whatever `Button_Config` wrote.
+
+Same `.3sr`, same build, one hermetic home each, `saves/settings` differing
+from `Game_Default_Data` in **`Pad_Infor` and nothing else**:
+
+| `saves/settings` | pin re-assert | `save_w[Present_Mode].Shot` at `play_index=0` | verdict |
+| --- | --- | --- | --- |
+| absent (engine defaults) | n/a | `0,1,2,11,3,4,5,11` | `REPLAY COMPLETE frames=4009 checksums=66/66` |
+| `{5,4,3,11,2,1,0,11}` | **off** | `5,4,3,11,2,1,0,11` | `REPLAY DESYNC at frame 300 (checkpoint 6/78: live=c430f0d2 want=389f5cd5)` |
+| `{5,4,3,11,2,1,0,11}` | **on** | `0,1,2,11,3,4,5,11` | `REPLAY COMPLETE frames=4009 checksums=66/66` |
+
+`Present_Mode == 1` and `Mode_Type == 0` at `PHASE_GAME` in all three. (An
+earlier probe pass used a seed that also zeroed `extra_option`; that desynced
+at frame 1860 even with the fix on, and the table above is the re-run with a
+seed that matches `Game_Default_Data` everywhere but `Pad_Infor`. Worth
+recording: `extra_option` is a second, independent settings-derived divergence
+source for playback — it is per-mode state that slot 3 restores from the
+recording but slot 1 does not.)
+
+**The symptom this was producing.** Any user who had ever touched Options ->
+Button Config saw replays desync within seconds — the viewer's own desync
+banner, blamed on the archive or on balance resolution, on a machine where the
+identical `.3sr` plays perfectly for someone who never opened that screen. It
+is silent, it is per-user, and it is not reproducible on a dev box with no
+settings file, which is exactly why it sat unmeasured.
+
+**The fix** is to make the pin *live* rather than one-shot:
+`pin_identity_pad_mapping()` (`replay_player.c`) is re-asserted from
+`ReplayPlayer_Tick()` on every tick while a replay is loaded and
+`s_config_pinned` is set. Every tick rather than once at playback start on
+purpose — the re-seed can happen at any point in the walk (every
+`Soft_Reset_Sub()` runs `Setup_Default_Game_Option`, every `TASK_INIT` walk
+re-runs the settings load), and an idempotent 96-byte write per frame is
+cheaper than an ordering argument that has already been wrong once. The tick
+runs before `njUserMain()` (`main.c`), so the re-assert lands before the engine
+reads it.
+
+**It cannot reach the user's file.** `serialize_settings` writes
+`save_w[1].Pad_Infor`, but `Save_Game_Data()` rebuilds that field from
+`Convert_Buff[1][p][ix]` immediately before every save, and neither the pin nor
+the re-assert touches `Convert_Buff`. Asserted by md5: `saves/settings` is
+byte-identical across a full `--play-replay` run.
+
+#### How A and B compose
+
+They touch disjoint slots and run at disjoint times, and each is a no-op for
+the other's evidence:
+
+- The carry (A) writes slots **4 and 5** only. The pin (B) writes all six. The
+  only overlap is 4/5, which playback never reads (`Present_Mode == 1`,
+  measured) — so the carry cannot corrupt a replay and the pin cannot leave a
+  training match on the wrong buttons *while a replay is loaded*.
+- After the pin is released (`ReplayPlayer_UnpinConfig()` at `qt_begin()` /
+  `ReplayShuffle_Destroy()`), the re-assert stops, and the Quick Training
+  teardown's `Soft_Reset_Sub()` -> `TASK_INIT` walk re-reads the settings file
+  into `save_w[1]` **and**, via A, into slots 4/5. The viewer -> Quick Training
+  hand-off therefore lands on the user's mapping, not the pin's identity.
+- The one corner where no teardown runs (viewer idling at `RS_EMPTY`, nothing
+  loaded, Quick Training pressed at the title) is safe *because of* A: no
+  replay is loaded so nothing re-asserts, slots 4/5 still hold what the boot
+  settings load carried, and the training match at `Present_Mode == 4` reads
+  those.
+- `UnpinConfig()` still restores no mapping, and now for a stated reason rather
+  than "the writes are dead": the user's mapping survives in `Convert_Buff[1]`,
+  which the pin never touches, and in the settings file. A snapshot taken in
+  `PinConfig()` would still be zero-initialized storage.
+
+#### Still open, named rather than left to be rediscovered
+
+- `StatcheckRunner_PinConfig()` (`statcheck_runner.c`) has the **identical**
+  defect: `pin_default_button_mapping()` runs from the same `initialize_game()`
+  slot, before `sf3_init()`, so a statcheck run against a home that has a
+  `saves/settings` with a rebound pad reads the user's mapping too. Not fixed
+  here and not measured here, because confirming a fix means the corpus sweep,
+  which this work has no other reason to run. The gate is unaffected either
+  way — `tools/gates/run-gates.sh` gives every harness a fresh
+  `THIRDSARM_HOME` with no settings file, so the loaded mapping is
+  `Game_Default_Data`'s identity.
+- `extra_option` is a second settings-derived divergence source for playback
+  (see the parenthetical above). The pin does not cover it and this work did
+  not extend it to, because the measurement that would justify the field set
+  is the same corpus sweep.
+
+**UNVERIFIED ON DEVICE.** Everything above is host-measured. The device
+checklist is in §10.9 plus: set a non-identity mapping in Options -> Button
+Config, save, then (1) boot "Watch Replays" and confirm a replay that used to
+desync now plays to the end, and (2) take the OSD's Quick Training row out of
+it and confirm the training match responds to that same mapping.
 ## Appendix A — reproducing the measurements
 
 Sizes in §2.2 came from compiling a probe with the project's real flags:

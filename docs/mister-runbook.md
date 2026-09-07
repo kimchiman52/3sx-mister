@@ -429,7 +429,7 @@ anything the device held and the package did not was deleted. It took out
 `training` settings (`src/port/config/training_config.c:184`) plus
 `balance.status` (`src/arcade/arcade_balance.c:91`) on 2026-08-29, with no
 device backup. The list still did not cover `saves/` — the actual save data,
-`settings` and `sysdir` (`src/sf33rd/Source/PS2/mc/savesub.c:87,380,385`) — so
+`settings` and `sysdir` (`src/sf33rd/Source/PS2/mc/savesub.c:87,403,408`) — so
 the next loss was already queued.
 
 Use `build/mister-clean-package/` for normal play and `build/mister-telemetry-package/` when you need perf capture or parity tooling on the device.

@@ -1029,6 +1029,54 @@ static bool s_config_pinned = false;
 static bool s_pin_prev_arcade_mode = false;
 static char* s_pin_prev_balance = NULL;
 
+/* The identity pad mapping, in every save_w[] slot.
+ *
+ * MEASURED 2026-09-07 — this used to run ONCE, from ReplayPlayer_PinConfig()
+ * below, and was therefore DEAD: PinConfig runs from initialize_game() before
+ * sf3_init(), and Init_Task_1st -> Game_Data_Init() -> Setup_Default_Game_Option()
+ * (sys_sub.c) then re-seeds all six slots from Game_Default_Data, after which
+ * the settings load writes save_w[1] from the user's file (savesub.c ->
+ * deserialize_settings). Playback runs at Present_Mode == 1, so it read the
+ * USER's mapping and Convert_User_Setting() (sys_sub.c) REMAPPED the recorded
+ * SWK words this module injects. That is a determinism defect, not a cosmetic
+ * one, and it reproduces: same .3sr, same build, one hermetic home each ---
+ *
+ *   saves/settings absent (defaults, identity):
+ *     PROBE-B: play_index=0 Present_Mode=1 swPM=0,1,2,11,3,4,5,11
+ *     REPLAY COMPLETE frames=4009 checksums=66/66 reason=game-ended
+ *
+ *   saves/settings holding { 5,4,3,11,2,1,0,11 } (what Options -> Button
+ *   Config writes; menu.c -> Button_Move_Sub_LR steps Convert_Buff[1][p][row]
+ *   over 0..11 and Save_Game_Data() copies it into save_w[1].Pad_Infor):
+ *     PROBE-B: play_index=0 Present_Mode=1 swPM=5,4,3,11,2,1,0,11
+ *     replay: desync live state C=[2,0,0,0] timer=300 ...
+ *
+ * So the pin is re-asserted every tick while a replay is loaded (below, in
+ * ReplayPlayer_Tick) rather than once at boot. Every-tick rather than once at
+ * playback start on purpose: the re-seed can happen at ANY point in the walk
+ * (every Soft_Reset_Sub() runs Setup_Default_Game_Option, and every TASK_INIT
+ * walk re-runs the settings load), and an idempotent 96-byte write per frame
+ * is cheaper than an ordering argument that has already been wrong once.
+ *
+ * IT CANNOT REACH THE USER'S FILE. serialize_settings (savesub.c) writes
+ * save_w[1].Pad_Infor, but Save_Game_Data() (sys_sub.c) rebuilds that field
+ * from Convert_Buff[1][p][ix] immediately before every save, and nothing here
+ * touches Convert_Buff. Verified by md5: saves/settings is byte-identical
+ * across a full --play-replay run. */
+static void pin_identity_pad_mapping(void) {
+    static const u8 identity[8] = { 0, 1, 2, 11, 3, 4, 5, 11 };
+
+    for (int mode = 0; mode < 6; mode++) {
+        for (int p = 0; p < 2; p++) {
+            for (int s = 0; s < 8; s++) {
+                save_w[mode].Pad_Infor[p].Shot[s] = identity[s];
+            }
+
+            save_w[mode].Pad_Infor[p].Vibration = 0;
+        }
+    }
+}
+
 /* Replicated from StatcheckRunner_PinConfig / pin_default_button_mapping
  * (statcheck_runner.c review round-1 finding P-1) rather than shared,
  * because that TU is #if STATCHECK and this module must compile in every
@@ -1051,26 +1099,26 @@ static char* s_pin_prev_balance = NULL;
  * the settings a replay reproduces against must not move under it, which is
  * the entire reason the pin exists.
  *
- * MEASURED 2026-09-07 — and the reason UnpinConfig does NOT restore save_w[]:
- * the button-mapping half of this pin is DEAD. Init_Task_1st (init3rd.c)
- * calls Game_Data_Init() -> Setup_Default_Game_Option() (sys_sub.c), which
- * assigns `Game_Default_Data` to ALL SIX save_w[] slots on every TASK_INIT
- * walk — at boot and after every Soft_Reset_Sub(). Game_Default_Data's
- * Pad_Infor is `{ 0, 1, 2, 11, 3, 4, 5, 11 }` (sys_sub.c -> Game_Default_Data),
- * byte-identical to the identity table below, so these writes are redundant
- * for slots 0/2/3/4/5 and are then overwritten for slot 1 by the settings
- * load (savesub.c -> deserialize_settings, `struct _SAVE_W* dst = &save_w[1]`).
- * They are kept because they state the intent and cost nothing; they are not
- * load-bearing, and a snapshot of them taken HERE would be worse than
- * useless: this runs from initialize_game() before sf3_init(), while save_w[]
- * is still zero-initialized static storage, so "restoring" that snapshot
- * would install an all-zero Shot[] — every button mapped to Convert_Data[0].
- * The user's mapping lives in save_w[1], loaded from their own save file, and
- * is re-established from there rather than from a snapshot
- * (quick_training.c -> qt_carry_user_pad_config). */
+ * THE BUTTON-MAPPING HALF IS NOT SELF-SUFFICIENT HERE, and the note that used
+ * to sit at this spot got the consequence wrong. This call runs from
+ * initialize_game() BEFORE sf3_init(); Init_Task_1st (init3rd.c) then calls
+ * Game_Data_Init() -> Setup_Default_Game_Option() (sys_sub.c), which re-seeds
+ * all six save_w[] slots from Game_Default_Data on every TASK_INIT walk — at
+ * boot and after every Soft_Reset_Sub() — and the settings load then writes
+ * save_w[1] from the user's own file. The old note concluded from that that
+ * the pin was harmlessly redundant, because Game_Default_Data's Pad_Infor is
+ * byte-identical to the identity table. It is not harmless: slot 1 does NOT
+ * end up at the default, it ends up at whatever the user set in Options ->
+ * Button Config, and playback runs at Present_Mode == 1. See
+ * pin_identity_pad_mapping() above for the two measurements and for the
+ * per-tick re-assert in ReplayPlayer_Tick() that makes this half real.
+ *
+ * WHY NO SNAPSHOT/RESTORE FOR THIS HALF: a snapshot taken HERE would be worse
+ * than useless — save_w[] is still zero-initialized static storage at this
+ * point, so "restoring" it would install an all-zero Shot[], mapping every
+ * button to Convert_Data[0]. Nothing needs restoring anyway; see
+ * ReplayPlayer_UnpinConfig() below. */
 void ReplayPlayer_PinConfig(void) {
-    static const u8 identity[8] = { 0, 1, 2, 11, 3, 4, 5, 11 };
-
     const bool was_arcade_mode = SDLApp_IsArcadeGameMode();
     const char* was_balance = Config_GetString(CFG_KEY_BALANCE);
 
@@ -1107,15 +1155,7 @@ void ReplayPlayer_PinConfig(void) {
      * boolean silently mislabelled rather than solved. */
     Config_SetString(CFG_KEY_BALANCE, "auto");
 
-    for (int mode = 0; mode < 6; mode++) {
-        for (int p = 0; p < 2; p++) {
-            for (int s = 0; s < 8; s++) {
-                save_w[mode].Pad_Infor[p].Shot[s] = identity[s];
-            }
-
-            save_w[mode].Pad_Infor[p].Vibration = 0;
-        }
-    }
+    pin_identity_pad_mapping();
 
     /* Reports the CAPTURED copy, not `was_balance`. Config_SetString above
      * freed the string `was_balance` points at (config.c -> Config_SetString),
@@ -1155,9 +1195,15 @@ void ReplayPlayer_PinConfig(void) {
  *   restored key only matters to a reader that runs later. Restored anyway:
  *   the key is user state, and leaving a mutated value behind for a future
  *   reader is the same class of bug as leaving the game mode flipped.
- * - button mapping: deliberately NOT restored from the pin's capture. See the
- *   MEASURED note on ReplayPlayer_PinConfig — the pin's save_w[] writes are
- *   dead, and the snapshot would be zero-initialized storage.
+ * - button mapping: not restored, and does not need to be. Clearing
+ *   s_config_pinned stops the per-tick re-assert in ReplayPlayer_Tick(), and
+ *   the user's mapping is then re-established from the two places that still
+ *   hold it: Convert_Buff[1][p][ix], which the pin never touches and which
+ *   Save_Game_Data() (sys_sub.c) rebuilds save_w[1].Pad_Infor from before
+ *   every settings save, and the settings file itself, which the Quick
+ *   Training teardown's Soft_Reset_Sub() -> TASK_INIT walk re-reads into
+ *   save_w[1] and (via Copy_Save_w_Training) into the training slots 4/5. A
+ *   snapshot taken in PinConfig would be zero-initialized storage — see there.
  *
  * Idempotent, and a no-op when the pin was never applied — a normal boot must
  * not have its game mode written by a module it never used. */
@@ -1424,6 +1470,16 @@ void ReplayPlayer_Tick(void) {
     if (phase == PHASE_DONE) {
         tick_terminal();
         return;
+    }
+
+    /* Re-assert the pin's button-mapping half, which is otherwise wiped by
+     * Setup_Default_Game_Option() and then by the settings load. Without this
+     * the recorded SWK words below are remapped through the USER's pad config
+     * and playback diverges — see pin_identity_pad_mapping() for the two
+     * measurements. Gated on the pin so a session that never applied it is
+     * never touched, and cleared by ReplayPlayer_UnpinConfig(). */
+    if (s_config_pinned) {
+        pin_identity_pad_mapping();
     }
 
     /* Refuse to fight a live netplay session for the input latch (same

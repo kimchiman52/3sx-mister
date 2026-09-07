@@ -600,6 +600,42 @@ const s8 Time_Limit_Data[4] = { 30, 60, 99, -1 };
 
 const s8 Battle_Number_Data[4] = { 0, 1, 2, 3 };
 
+/* The save_w[1] -> save_w[4]/save_w[5] carry, lifted verbatim out of
+ * Save_Game_Data() so that exactly one piece of code owns it.
+ *
+ * WHAT THE SIX SLOTS ARE. save_w[] is indexed by Present_Mode (workuser.h:
+ * 0 ATTRACT, 1 LOCAL (arcade+versus), 2 NETPLAY, 3 REPLAY, 4 NORMAL_TRAINING,
+ * 5 PARRY_TRAINING). Slot 1 is the only one the user's settings file reads
+ * into or writes out of (savesub.c -> deserialize_settings / serialize_settings,
+ * both `&save_w[1]`), so slot 1 IS the user's saved configuration and the other
+ * five are per-mode working copies seeded from Game_Default_Data by
+ * Setup_Default_Game_Option() below. Each of the other five has an owner that
+ * deliberately overrides parts of it: slot 2 by netplay (netplay.c /
+ * netplay_nav.c force Time_Limit/Battle_Number/Damage_Level/Handicap/GuardCheck
+ * and an identity Pad_Infor for MODE_NETWORK), slot 3 by the PS2 replay loader
+ * (menu.c restores Time_Limit/Battle_Number/Damage_Level/extra_option/Pad_Infor
+ * from Replay_w.mini_save_w so a replay reproduces against the settings it was
+ * recorded with), slots 4/5 by Init_Task_1st (init3rd.c pins Time_Limit = -1,
+ * training has no clock) and by the training menu (menu.c writes
+ * Damage_Level/Difficulty from the Training[] tables).
+ *
+ * WHICH FIELDS MAY BE CARRIED, THEREFORE. Only the ones no per-mode owner
+ * claims: Pad_Infor (the pad mapping is a property of the human holding the
+ * controller, never of the mode) and GuardCheck. That is precisely the set
+ * Save_Game_Data() has always carried, and the reason the carry stops at slots
+ * 4/5: slot 2 and slot 3 want their forced/recorded mappings, and slot 0 is the
+ * attract loop, which reads nothing a human presses. Difficulty, Damage_Level,
+ * Battle_Number and Time_Limit are deliberately NOT carried -- the training
+ * menu and init3rd.c own them for slots 4/5 and a carry would fight those. */
+void Copy_Save_w_Training() {
+    save_w[4].Pad_Infor[0] = save_w[1].Pad_Infor[0];
+    save_w[4].Pad_Infor[1] = save_w[1].Pad_Infor[1];
+    save_w[5].Pad_Infor[0] = save_w[1].Pad_Infor[0];
+    save_w[5].Pad_Infor[1] = save_w[1].Pad_Infor[1];
+    save_w[4].GuardCheck = save_w[1].GuardCheck;
+    save_w[5].GuardCheck = save_w[1].GuardCheck;
+}
+
 void Save_Game_Data() {
     s16 ix;
 
@@ -614,8 +650,6 @@ void Save_Game_Data() {
     save_w[1].Partner_Type[0] = Convert_Buff[0][0][8];
     save_w[1].Partner_Type[1] = Convert_Buff[0][0][9];
     mpp_w.useAnalogStickData = save_w[1].AnalogStick;
-    save_w[4].GuardCheck = save_w[1].GuardCheck;
-    save_w[5].GuardCheck = save_w[1].GuardCheck;
 
     for (ix = 0; ix < 8; ix++) {
         save_w[1].Pad_Infor[0].Shot[ix] = Convert_Buff[1][0][ix];
@@ -624,10 +658,7 @@ void Save_Game_Data() {
 
     save_w[1].Pad_Infor[0].Vibration = Convert_Buff[1][0][8];
     save_w[1].Pad_Infor[1].Vibration = Convert_Buff[1][1][8];
-    save_w[4].Pad_Infor[0] = save_w[1].Pad_Infor[0];
-    save_w[4].Pad_Infor[1] = save_w[1].Pad_Infor[1];
-    save_w[5].Pad_Infor[0] = save_w[1].Pad_Infor[0];
-    save_w[5].Pad_Infor[1] = save_w[1].Pad_Infor[1];
+    Copy_Save_w_Training();
     save_w[1].Adjust_X = Convert_Buff[2][0][0];
     save_w[1].Adjust_Y = Convert_Buff[2][0][1];
     save_w[1].Screen_Size = Convert_Buff[2][0][2];

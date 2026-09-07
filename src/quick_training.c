@@ -173,51 +173,6 @@ static bool qt_needs_teardown(void) {
     return G_No[0] == 2 && !(G_No[1] == 0 && G_No[2] <= 1);
 }
 
-/* Carry the user's pad configuration into the TRAINING save_w[] slots.
- *
- * WHY THIS IS NEEDED AT ALL, MEASURED 2026-09-07 with a seeded settings file
- * holding the non-default mapping { 5,4,3,11,2,1,0,11 } and a probe printed at
- * the QT_WIPE_IN completion:
- *
- *   PROBE: Present_Mode=4 sw1=5,4,3,11,2,1,0,11 sw4=0,1,2,11,3,4,5,11
- *
- * The training match runs at Present_Mode == 4 (PRESENT_MODE_NORMAL_TRAINING,
- * workuser.h) and Convert_User_Setting() indexes save_w[Present_Mode]
- * (sys_sub.c), so it was reading the DEFAULT mapping while the user's sat in
- * save_w[1]. That is not the replay pin — the run above had no --watch-replays
- * and no pin at all.
- *
- * The chain is: Init_Task_1st -> Game_Data_Init() -> Setup_Default_Game_Option()
- * assigns `Game_Default_Data` to all six slots at boot and after every
- * Soft_Reset_Sub(); the settings load then writes ONLY save_w[1]
- * (savesub.c -> deserialize_settings, `struct _SAVE_W* dst = &save_w[1]`); and
- * the sole propagation of save_w[1].Pad_Infor into slots 4 and 5 lives in
- * Save_Game_Data() (sys_sub.c), which is reached only from the Game Option /
- * Button Config / Screen Adjust screens (menu.c). Quick Training exists to
- * skip exactly those screens, so nothing carried the mapping across.
- *
- * The four Pad_Infor assignments and the two GuardCheck assignments below are
- * the ones Save_Game_Data() itself makes for slots 4/5 — copied directly from
- * save_w[1] rather than by calling Save_Game_Data(), which round-trips the
- * whole settings block through Convert_Buff and would rewrite save_w[1] from a
- * buffer this sequence has no reason to trust. Nothing else in save_w[4]/[5]
- * is touched; in particular Time_Limit stays at the -1 that Init_Task_1st sets
- * for the training slots (init3rd.c).
- *
- * Called once per sequence, immediately before the chain fires: by then the
- * boot (or the teardown's Soft_Reset_Sub) has walked TASK_INIT to the title,
- * so Init_Task_Aload's settings load has already put the user's mapping in
- * save_w[1]. Doing it in qt_begin() instead would be pointless — the
- * Soft_Reset_Sub that follows re-runs Setup_Default_Game_Option and wipes it. */
-static void qt_carry_user_pad_config(void) {
-    save_w[4].Pad_Infor[0] = save_w[1].Pad_Infor[0];
-    save_w[4].Pad_Infor[1] = save_w[1].Pad_Infor[1];
-    save_w[5].Pad_Infor[0] = save_w[1].Pad_Infor[0];
-    save_w[5].Pad_Infor[1] = save_w[1].Pad_Infor[1];
-    save_w[4].GuardCheck = save_w[1].GuardCheck;
-    save_w[5].GuardCheck = save_w[1].GuardCheck;
-}
-
 static void qt_begin(void) {
     qt_frame = 0;
     qt_phase_start = 0;
@@ -435,9 +390,19 @@ void QuickTraining_Tick(void) {
          * {2,0,1}, game.c -> Game0_1) with the load queue quiet — the
          * exact state the spike proved the chain from (SJ-15). */
         if (G_No[0] == 2 && G_No[1] == 0 && G_No[2] == 1 && Check_LDREQ_Clear()) {
-            /* The user's buttons, before the match they are about to play in
-             * exists. See qt_carry_user_pad_config for the measurement. */
-            qt_carry_user_pad_config();
+            /* NOTE (SJ-30, docs Sec 10.9): a qt_carry_user_pad_config() call
+             * used to sit here, copying save_w[1].Pad_Infor/GuardCheck into
+             * the training slots 4/5 so the match ran on the user's buttons.
+             * It is GONE, not forgotten: the carry now lives in
+             * Copy_Save_w_Training() (sys_sub.c), called by BOTH
+             * Save_Game_Data() and the settings load itself (savesub.c ->
+             * deserialize_settings), which fixes every route into Training
+             * rather than this one seam. This phase only fires once the
+             * post-coin title idles, which is downstream of Init_Task_Aload's
+             * settings load, so slots 4/5 already hold the user's mapping by
+             * now -- measured on both the first jump and the mid-match
+             * re-jump (the gate drives both). Two mechanisms that can
+             * disagree is worse than one that cannot. */
             qt_stage = SceneJump_ExecuteTrainingChain(&qt_params);
             qt_phase = QT_DRAIN;
             qt_phase_start = qt_frame;
