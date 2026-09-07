@@ -495,6 +495,11 @@
    ],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 23,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 23,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 5,
@@ -535,10 +540,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 824,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 5167,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 64,
    "manu_cells_direct": 77,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -729,6 +736,30 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [
+   {
+    "index": 2048,
+    "byte": 1943996,
+    "past_ovix": 15216,
+    "section": "exca",
+    "section_offset": 2800,
+    "in_run": true,
+    "slots": [
+     0,
+     339,
+     0,
+     1
+    ],
+    "slots_in_ovct": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "ovct_parts": 392,
+    "live": false
+   }
+  ],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 16,
@@ -3642,6 +3673,215 @@
     "yuca[89] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
     "yuca[90] cell 9: jump to nmca[1024] beyond the 63-entry pointer table"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "yuca[68] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[69] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[70] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[71] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[72] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[73] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[74] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[75] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[76] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[77] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[78] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[79] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[80] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[81] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[82] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[83] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[84] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[85] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[86] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[87] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[88] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[89] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    },
+    {
+     "what": "yuca[90] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "nmca",
+     "index": 1024,
+     "header_cgd": 512
+    }
+   ],
    "unmodelled": [
     "yuca[68] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
     "yuca[69] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
@@ -4019,6 +4259,11 @@
    ],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -4059,10 +4304,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 808,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 23,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 0,
    "manu_cells_direct": 213,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -4146,6 +4393,52 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [
+   {
+    "index": 1136,
+    "byte": 2027052,
+    "past_ovix": 8664,
+    "section": "rict",
+    "section_offset": 7752,
+    "in_run": true,
+    "slots": [
+     -25,
+     197,
+     257,
+     10
+    ],
+    "slots_in_ovct": [
+     false,
+     false,
+     false,
+     true
+    ],
+    "ovct_parts": 57,
+    "live": false
+   },
+   {
+    "index": 2224,
+    "byte": 2035756,
+    "past_ovix": 17368,
+    "section": "rict",
+    "section_offset": 16456,
+    "in_run": true,
+    "slots": [
+     -82,
+     23,
+     257,
+     30
+    ],
+    "slots_in_ovct": [
+     false,
+     true,
+     false,
+     true
+    ],
+    "ovct_parts": 57,
+    "live": false
+   }
+  ],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 18,
@@ -4993,6 +5286,7 @@
    "reachable_cells_xcopy": 7730,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16361 for caught ALEX outside its 1080-row RICT",
@@ -5193,6 +5487,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 1,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 1,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -5233,10 +5532,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 675,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 2,
    "manu_cells_direct": 81,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -5338,6 +5639,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 52,
@@ -5691,6 +5993,17 @@
    "last_script_cut": {},
    "k7_dead_unmodelled": [
     "X.C.O.P.Y. donor jump to saca[69] beyond the 69-entry pointer table"
+   ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[69] beyond the 69-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 69,
+     "header_cgd": null
+    }
    ],
    "unmodelled": null,
    "throw_notes": [
@@ -6277,6 +6590,11 @@
    ],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -6317,10 +6635,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1008,
    "manu_oracle_conflicts": 1,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 118,
    "manu_cells_direct": 206,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -6396,6 +6716,74 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [
+   {
+    "index": 2048,
+    "byte": 2221764,
+    "past_ovix": 16224,
+    "section": "exca",
+    "section_offset": 192,
+    "in_run": true,
+    "slots": [
+     5996,
+     0,
+     6108,
+     0
+    ],
+    "slots_in_ovct": [
+     false,
+     true,
+     false,
+     true
+    ],
+    "ovct_parts": 6,
+    "live": false
+   },
+   {
+    "index": 2292,
+    "byte": 2223716,
+    "past_ovix": 18176,
+    "section": "exca",
+    "section_offset": 2144,
+    "in_run": true,
+    "slots": [
+     0,
+     3616,
+     8192,
+     0
+    ],
+    "slots_in_ovct": [
+     true,
+     false,
+     false,
+     true
+    ],
+    "ovct_parts": 6,
+    "live": false
+   },
+   {
+    "index": 2308,
+    "byte": 2223844,
+    "past_ovix": 18304,
+    "section": "exca",
+    "section_offset": 2272,
+    "in_run": true,
+    "slots": [
+     0,
+     3616,
+     8192,
+     0
+    ],
+    "slots_in_ovct": [
+     true,
+     false,
+     false,
+     true
+    ],
+    "ovct_parts": 6,
+    "live": false
+   }
+  ],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 16,
@@ -6758,6 +7146,7 @@
    "reachable_cells_xcopy": 9092,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16363 for caught YUN outside its 1080-row RICT",
@@ -7312,6 +7701,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 3,
@@ -7352,10 +7746,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 746,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 4,
    "manu_cells_direct": 163,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -7448,6 +7844,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 12,
@@ -8519,6 +8916,7 @@
     ]
    },
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16364 for caught DUDLEY outside its 1080-row RICT",
@@ -8780,6 +9178,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 4,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 4,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -8813,18 +9216,20 @@
    "grid_signature_unmodelled": 26,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
-   "manu_direct": 8,
-   "manu_bracketed": 5,
+   "manu_direct": 9,
+   "manu_bracketed": 7,
    "manu_no_live_cells": 0,
-   "manu_unresolved": 3,
+   "manu_unresolved": 0,
    "manu_divergent": 0,
    "manu_oracle_raws": 971,
    "manu_oracle_conflicts": 1,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 55,
    "manu_cells_direct": 258,
    "manu_cells_divergent": 0,
-   "manu_cells_unbracketed": 4,
+   "manu_cells_sub_cutoff": 4,
+   "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -8899,6 +9304,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 16,
@@ -9332,6 +9738,44 @@
     "X.C.O.P.Y. donor jump to saca[68] beyond the 67-entry pointer table",
     "X.C.O.P.Y. donor jump to saca[69] beyond the 67-entry pointer table"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[44] beyond the 43-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1572868,
+     "landing": 1572868,
+     "table": "exca",
+     "index": 44,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[45] beyond the 43-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 45,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[68] beyond the 67-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4,
+     "landing": 4,
+     "table": "saca",
+     "index": 68,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[69] beyond the 67-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 69,
+     "header_cgd": null
+    }
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16365 for caught NECRO outside its 1080-row RICT",
@@ -9587,6 +10031,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 2,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 2,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 2,
@@ -9627,10 +10076,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 761,
    "manu_oracle_conflicts": 1,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 0,
    "manu_cells_direct": 182,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -9708,6 +10159,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 22,
@@ -10065,6 +10517,26 @@
     "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
     "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 68,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4,
+     "landing": 4,
+     "table": "saca",
+     "index": 69,
+     "header_cgd": null
+    }
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16366 for caught HUGO outside its 1080-row RICT",
@@ -10341,6 +10813,11 @@
     2277
    ],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [
     2277
    ],
@@ -10383,10 +10860,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1153,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 40,
    "manu_cells_direct": 195,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -10624,6 +11103,30 @@
     ]
    }
   },
+  "ovix_oob_targets": [
+   {
+    "index": 2277,
+    "byte": 2657328,
+    "past_ovix": 376,
+    "section": "ovct",
+    "section_offset": 376,
+    "in_run": true,
+    "slots": [
+     255,
+     0,
+     23,
+     11516
+    ],
+    "slots_in_ovct": [
+     true,
+     true,
+     true,
+     false
+    ],
+    "ovct_parts": 2286,
+    "live": true
+   }
+  ],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 20,
@@ -13589,6 +14092,7 @@
    "reachable_cells_xcopy": 9960,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16367 for caught IBUKI outside its 1080-row RICT",
@@ -13853,6 +14357,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 22,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 22,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 0,
    "k7_foreign_cells": 0,
@@ -13893,10 +14402,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1276,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 24,
    "manu_cells_direct": 169,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -13981,6 +14492,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 12,
@@ -14313,6 +14825,140 @@
     "saca[8] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
     "saca[9] cell 1: jump to yuca[3072] beyond the 91-entry pointer table"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "saca[10] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[11] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[12] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[13] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[14] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[15] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[16] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[17] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[18] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[19] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[20] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[21] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[22] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[23] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[2] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[3] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[4] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[5] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[6] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[7] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[8] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "saca[9] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+     "cls": "read_past_buffer",
+     "word": null,
+     "landing": null
+    }
+   ],
    "unmodelled": [
     "saca[10] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
     "saca[11] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
@@ -14568,6 +15214,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -14608,10 +15259,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 935,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 4,
    "manu_cells_direct": 88,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -14689,6 +15342,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 12,
@@ -15133,6 +15787,7 @@
    "reachable_cells_xcopy": 7584,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16369 for caught ORO outside its 1080-row RICT",
@@ -16468,6 +17123,11 @@
    ],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -16508,10 +17168,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1015,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 5,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 70,
    "manu_cells_direct": 241,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -16591,6 +17253,74 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [
+   {
+    "index": 1264,
+    "byte": 3032236,
+    "past_ovix": 9952,
+    "section": "rict",
+    "section_offset": 9632,
+    "in_run": true,
+    "slots": [
+     -61,
+     -16,
+     258,
+     6
+    ],
+    "slots_in_ovct": [
+     false,
+     false,
+     false,
+     true
+    ],
+    "ovct_parts": 20,
+    "live": false
+   },
+   {
+    "index": 2048,
+    "byte": 3038508,
+    "past_ovix": 16224,
+    "section": "rict",
+    "section_offset": 15904,
+    "in_run": true,
+    "slots": [
+     -62,
+     -57,
+     257,
+     6
+    ],
+    "slots_in_ovct": [
+     false,
+     false,
+     false,
+     true
+    ],
+    "ovct_parts": 20,
+    "live": false
+   },
+   {
+    "index": 2224,
+    "byte": 3039916,
+    "past_ovix": 17632,
+    "section": "exca",
+    "section_offset": 992,
+    "in_run": true,
+    "slots": [
+     770,
+     0,
+     0,
+     13585
+    ],
+    "slots_in_ovct": [
+     false,
+     true,
+     true,
+     false
+    ],
+    "ovct_parts": 20,
+    "live": false
+   }
+  ],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 16,
@@ -17582,6 +18312,7 @@
    "reachable_cells_xcopy": 10198,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16370 for caught YANG outside its 1080-row RICT",
@@ -17733,6 +18464,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 3,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 1,
+   "k7_landing_out_of_buffer": 1,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 1,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 6,
@@ -17773,10 +18509,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 694,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 2,
    "manu_cells_direct": 76,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -17844,6 +18582,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 14,
@@ -18442,6 +19181,32 @@
     "X.C.O.P.Y. donor jump to saca[69] beyond the 65-entry pointer table",
     "saca[44] cell 81: jump to koc 5641"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[68] beyond the 65-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "saca",
+     "index": 68,
+     "header_cgd": 512
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[69] beyond the 65-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1028653056,
+     "landing": 1028653056,
+     "table": "saca",
+     "index": 69,
+     "header_cgd": null
+    },
+    {
+     "what": "saca[44] cell 81: jump to koc 5641",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    }
+   ],
    "unmodelled": [
     "saca[44] cell 81: jump to koc 5641"
    ],
@@ -18599,6 +19364,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -18639,10 +19409,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 711,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 2,
    "manu_cells_direct": 76,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -18722,6 +19494,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 12,
@@ -19038,6 +19811,7 @@
    "reachable_cells_xcopy": 7058,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16372 for caught SEAN outside its 1080-row RICT",
@@ -19561,6 +20335,11 @@
    ],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -19601,10 +20380,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 691,
    "manu_oracle_conflicts": 1,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 75,
    "manu_cells_bracketed": 97,
    "manu_cells_direct": 253,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -19717,6 +20498,52 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [
+   {
+    "index": 1030,
+    "byte": 3284516,
+    "past_ovix": 6744,
+    "section": "rict",
+    "section_offset": 1480,
+    "in_run": true,
+    "slots": [
+     6,
+     125,
+     258,
+     8
+    ],
+    "slots_in_ovct": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "ovct_parts": 329,
+    "live": false
+   },
+   {
+    "index": 2048,
+    "byte": 3292660,
+    "past_ovix": 14888,
+    "section": "exca",
+    "section_offset": 3480,
+    "in_run": true,
+    "slots": [
+     0,
+     17128,
+     0,
+     1
+    ],
+    "slots_in_ovct": [
+     true,
+     false,
+     true,
+     true
+    ],
+    "ovct_parts": 329,
+    "live": false
+   }
+  ],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 16,
@@ -20370,6 +21197,7 @@
    "reachable_cells_xcopy": 7927,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16373 for caught URIEN outside its 1080-row RICT",
@@ -20710,6 +21538,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -20750,10 +21583,12 @@
    "manu_divergent": 2,
    "manu_oracle_raws": 692,
    "manu_oracle_conflicts": 3,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 2,
    "manu_cells_bracketed": 0,
    "manu_cells_direct": 154,
    "manu_cells_divergent": 2,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -20835,6 +21670,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 32,
@@ -21149,6 +21985,7 @@
    "reachable_cells_xcopy": 7546,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16374 for caught AKUMA outside its 1080-row RICT",
@@ -22523,6 +23360,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 0,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 0,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -22563,10 +23405,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1085,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 18,
    "manu_cells_direct": 56,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -22636,6 +23480,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 15,
@@ -22929,6 +23774,7 @@
    "reachable_cells_xcopy": 8502,
    "last_script_cut": {},
    "k7_dead_unmodelled": [],
+   "k7_dead_landing_targets": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16376 for caught CHUNLI outside its 1080-row RICT",
@@ -23143,6 +23989,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 38,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 36,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 2,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -23183,10 +24034,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1332,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 0,
    "manu_cells_direct": 127,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -23304,6 +24157,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 34,
@@ -23671,6 +24525,344 @@
     "atca[142] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
     "atca[143] cell 0: jump to cbca[38] beyond the 30-entry pointer table"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to koc 16384",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to koc 8192",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "atca[108] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[109] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[110] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[111] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[112] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[113] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[114] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[115] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[116] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[117] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[118] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[119] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[120] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[121] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[122] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[123] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[124] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[125] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[126] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[127] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[128] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[129] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[130] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[131] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[132] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[133] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[134] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[135] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[136] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[137] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[138] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[139] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[140] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[141] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[142] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "atca[143] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65584,
+     "landing": 65584,
+     "table": "cbca",
+     "index": 38,
+     "header_cgd": null
+    }
+   ],
    "unmodelled": [
     "atca[108] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
     "atca[109] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
@@ -23957,6 +25149,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 2,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 2,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -23997,10 +25194,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1141,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 0,
    "manu_cells_direct": 146,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -24072,6 +25271,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 24,
@@ -24375,6 +25575,26 @@
     "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
     "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 68,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4,
+     "landing": 4,
+     "table": "saca",
+     "index": 69,
+     "header_cgd": null
+    }
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16378 for caught Q outside its 1080-row RICT",
@@ -24560,6 +25780,11 @@
    "ovix_oob": [],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 117,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 21,
+   "k7_landing_out_of_buffer": 89,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 7,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -24600,10 +25825,12 @@
    "manu_divergent": 0,
    "manu_oracle_raws": 1021,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 25,
    "manu_cells_bracket_disagree": 3,
    "manu_cells_bracketed": 48,
    "manu_cells_direct": 71,
    "manu_cells_divergent": 0,
+   "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
@@ -24683,6 +25910,7 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 16,
@@ -25925,6 +27153,1040 @@
     "atca[89] cell 271: jump to koc 16384",
     "yuca[16] cell 2: jump to koc 9728"
    ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[200] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "atca",
+     "index": 200,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[201] beyond the 162-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "atca",
+     "index": 201,
+     "header_cgd": 10052
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[203] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 344064,
+     "landing": 344064,
+     "table": "atca",
+     "index": 203,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[205] beyond the 162-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "atca",
+     "index": 205,
+     "header_cgd": 10052
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[206] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1622016000,
+     "landing": 1622016000,
+     "table": "atca",
+     "index": 206,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[207] beyond the 162-entry pointer table",
+     "cls": "in_buffer",
+     "word": 8192,
+     "landing": 8192,
+     "table": "atca",
+     "index": 207,
+     "header_cgd": 0
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[208] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "atca",
+     "index": 208,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[209] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 64255,
+     "landing": 64252,
+     "table": "atca",
+     "index": 209,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[212] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "atca",
+     "index": 212,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[213] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1,
+     "landing": 0,
+     "table": "atca",
+     "index": 213,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[214] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "atca",
+     "index": 214,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[216] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 65546,
+     "landing": 65544,
+     "table": "atca",
+     "index": 216,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[218] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1629945856,
+     "landing": 1629945856,
+     "table": "atca",
+     "index": 218,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[221] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 282067712,
+     "landing": 282067712,
+     "table": "atca",
+     "index": 221,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[224] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 421527552,
+     "landing": 421527552,
+     "table": "atca",
+     "index": 224,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[227] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4291207168,
+     "landing": 4291207168,
+     "table": "atca",
+     "index": 227,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[230] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1630142464,
+     "landing": 1630142464,
+     "table": "atca",
+     "index": 230,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[233] beyond the 162-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "atca",
+     "index": 233,
+     "header_cgd": 0
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[236] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1400832,
+     "landing": 1400832,
+     "table": "atca",
+     "index": 236,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[238] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1630273536,
+     "landing": 1630273536,
+     "table": "atca",
+     "index": 238,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[240] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "atca",
+     "index": 240,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[242] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1630339072,
+     "landing": 1630339072,
+     "table": "atca",
+     "index": 242,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[246] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1630404608,
+     "landing": 1630404608,
+     "table": "atca",
+     "index": 246,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[248] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 438304768,
+     "landing": 438304768,
+     "table": "atca",
+     "index": 248,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[250] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1630470144,
+     "landing": 1630470144,
+     "table": "atca",
+     "index": 250,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[252] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "atca",
+     "index": 252,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[254] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1630535680,
+     "landing": 1630535680,
+     "table": "atca",
+     "index": 254,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[255] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 491520,
+     "landing": 491520,
+     "table": "atca",
+     "index": 255,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[256] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 455081984,
+     "landing": 455081984,
+     "table": "atca",
+     "index": 256,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[257] beyond the 162-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "atca",
+     "index": 257,
+     "header_cgd": 10052
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[258] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1630601216,
+     "landing": 1630601216,
+     "table": "atca",
+     "index": 258,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to atca[259] beyond the 162-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 499712,
+     "landing": 499712,
+     "table": "atca",
+     "index": 259,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[13] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 13,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[16] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 101056617,
+     "landing": 101056616,
+     "table": "caca",
+     "index": 16,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[18] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 18,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[19] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 19,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[20] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 20,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[21] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 21,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[23] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1663041536,
+     "landing": 1663041536,
+     "table": "caca",
+     "index": 23,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[24] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 24,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[27] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 27,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[28] beyond the 13-entry pointer table",
+     "cls": "in_buffer",
+     "word": 1024,
+     "landing": 1024,
+     "table": "caca",
+     "index": 28,
+     "header_cgd": 22
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[37] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 37,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[38] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4718592,
+     "landing": 4718592,
+     "table": "caca",
+     "index": 38,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to caca[39] beyond the 13-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "caca",
+     "index": 39,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to cbca[53] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 6,
+     "landing": 4,
+     "table": "cbca",
+     "index": 53,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to cbca[54] beyond the 30-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "cbca",
+     "index": 54,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[100] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4,
+     "landing": 4,
+     "table": "exca",
+     "index": 100,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[47] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 47,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[48] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1572868,
+     "landing": 1572868,
+     "table": "exca",
+     "index": 48,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[49] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 49,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[50] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "exca",
+     "index": 50,
+     "header_cgd": 515
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[51] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1625292800,
+     "landing": 1625292800,
+     "table": "exca",
+     "index": 51,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[52] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 52,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[53] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 53,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[54] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "exca",
+     "index": 54,
+     "header_cgd": 515
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[55] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1624571904,
+     "landing": 1624571904,
+     "table": "exca",
+     "index": 55,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[56] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 56,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[57] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 57,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[58] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "exca",
+     "index": 58,
+     "header_cgd": 515
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[59] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1624506368,
+     "landing": 1624506368,
+     "table": "exca",
+     "index": 59,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[60] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 60,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[61] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 61,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[62] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "exca",
+     "index": 62,
+     "header_cgd": 515
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[63] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1624440832,
+     "landing": 1624440832,
+     "table": "exca",
+     "index": 63,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[64] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 64,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[65] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 65,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[66] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "exca",
+     "index": 66,
+     "header_cgd": 515
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[67] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1624375296,
+     "landing": 1624375296,
+     "table": "exca",
+     "index": 67,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[68] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 68,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[69] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 69,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[70] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "exca",
+     "index": 70,
+     "header_cgd": 515
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[71] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1624309760,
+     "landing": 1624309760,
+     "table": "exca",
+     "index": 71,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[72] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 72,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[73] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 73,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[74] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 512,
+     "landing": 512,
+     "table": "exca",
+     "index": 74,
+     "header_cgd": 515
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[75] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1624244224,
+     "landing": 1624244224,
+     "table": "exca",
+     "index": 75,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[76] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 76,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[77] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 77,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[78] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 256,
+     "landing": 256,
+     "table": "exca",
+     "index": 78,
+     "header_cgd": 512
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[79] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1624244224,
+     "landing": 1624244224,
+     "table": "exca",
+     "index": 79,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[80] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 80,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[81] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 81,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[84] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 4055040,
+     "landing": 4055040,
+     "table": "exca",
+     "index": 84,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[85] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 85,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[86] beyond the 47-entry pointer table",
+     "cls": "in_buffer",
+     "word": 1536,
+     "landing": 1536,
+     "table": "exca",
+     "index": 86,
+     "header_cgd": 514
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[87] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1625030656,
+     "landing": 1625030656,
+     "table": "exca",
+     "index": 87,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[90] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 64000,
+     "landing": 64000,
+     "table": "exca",
+     "index": 90,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[91] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1625096192,
+     "landing": 1625096192,
+     "table": "exca",
+     "index": 91,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[98] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1,
+     "landing": 0,
+     "table": "exca",
+     "index": 98,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to exca[99] beyond the 47-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "exca",
+     "index": 99,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[102] beyond the 75-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "saca",
+     "index": 102,
+     "header_cgd": 768
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[103] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1693843456,
+     "landing": 1693843456,
+     "table": "saca",
+     "index": 103,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[104] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 104,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[105] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 105,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[106] beyond the 75-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "saca",
+     "index": 106,
+     "header_cgd": 768
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[115] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1694040064,
+     "landing": 1694040064,
+     "table": "saca",
+     "index": 115,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[116] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 116,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[76] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 538312708,
+     "landing": 538312708,
+     "table": "saca",
+     "index": 76,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[80] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 80,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[81] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 81,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[82] beyond the 75-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "saca",
+     "index": 82,
+     "header_cgd": 768
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[84] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 84,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[86] beyond the 75-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "saca",
+     "index": 86,
+     "header_cgd": 768
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[87] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1693581312,
+     "landing": 1693581312,
+     "table": "saca",
+     "index": 87,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[93] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 93,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[94] beyond the 75-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "saca",
+     "index": 94,
+     "header_cgd": 768
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[95] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1693712384,
+     "landing": 1693712384,
+     "table": "saca",
+     "index": 95,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[97] beyond the 75-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 97,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[98] beyond the 75-entry pointer table",
+     "cls": "in_buffer",
+     "word": 768,
+     "landing": 768,
+     "table": "saca",
+     "index": 98,
+     "header_cgd": 768
+    },
+    {
+     "what": "atca[89] cell 259: jump to koc 16384",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "atca[89] cell 261: jump to koc 24576",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "atca[89] cell 263: jump to koc -32768",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "atca[89] cell 265: jump to koc -32768",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "atca[89] cell 269: jump to koc 8192",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "atca[89] cell 271: jump to koc 16384",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    },
+    {
+     "what": "yuca[16] cell 2: jump to koc 9728",
+     "cls": "koc_out_of_range",
+     "word": null,
+     "landing": null
+    }
+   ],
    "unmodelled": [
     "yuca[16] cell 2: jump to koc 9728"
    ],
@@ -26682,6 +28944,11 @@
    ],
    "ovix_oob_ps2": [],
    "k7_dead_unmodelled": 2,
+   "k7_landing_script_start": 0,
+   "k7_landing_in_buffer": 0,
+   "k7_landing_out_of_buffer": 2,
+   "k7_landing_read_past_buffer": 0,
+   "k7_landing_koc_out_of_range": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 7,
@@ -26722,11 +28989,13 @@
    "manu_divergent": 2,
    "manu_oracle_raws": 1040,
    "manu_oracle_conflicts": 0,
+   "manu_sub_cutoff_obs": 0,
    "manu_cells_bracket_disagree": 22,
    "manu_cells_bracketed": 4,
    "manu_cells_direct": 96,
    "manu_cells_divergent": 5,
-   "manu_cells_unbracketed": 31,
+   "manu_cells_sub_cutoff": 31,
+   "manu_cells_unbracketed": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -26824,6 +29093,74 @@
     "unmodelled": []
    }
   },
+  "ovix_oob_targets": [
+   {
+    "index": 2048,
+    "byte": 4062456,
+    "past_ovix": 16136,
+    "section": "saca",
+    "section_offset": 2628,
+    "in_run": true,
+    "slots": [
+     512,
+     0,
+     0,
+     25900
+    ],
+    "slots_in_ovct": [
+     false,
+     true,
+     true,
+     false
+    ],
+    "ovct_parts": 42,
+    "live": false
+   },
+   {
+    "index": 2464,
+    "byte": 4065784,
+    "past_ovix": 19464,
+    "section": "saca",
+    "section_offset": 5956,
+    "in_run": true,
+    "slots": [
+     16,
+     7,
+     23,
+     1
+    ],
+    "slots_in_ovct": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "ovct_parts": 42,
+    "live": false
+   },
+   {
+    "index": 2608,
+    "byte": 4066936,
+    "past_ovix": 20616,
+    "section": "saca",
+    "section_offset": 7108,
+    "in_run": true,
+    "slots": [
+     50,
+     0,
+     0,
+     3
+    ],
+    "slots_in_ovct": [
+     false,
+     true,
+     true,
+     true
+    ],
+    "ovct_parts": 42,
+    "live": false
+   }
+  ],
   "ovct_dangling_hold": {
    "hit_stop": {
     "own_hs_me": 14,
@@ -27388,6 +29725,26 @@
    "k7_dead_unmodelled": [
     "X.C.O.P.Y. donor jump to saca[68] beyond the 64-entry pointer table",
     "X.C.O.P.Y. donor jump to saca[69] beyond the 64-entry pointer table"
+   ],
+   "k7_dead_landing_targets": [
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[68] beyond the 64-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 1769996288,
+     "landing": 1769996288,
+     "table": "saca",
+     "index": 68,
+     "header_cgd": null
+    },
+    {
+     "what": "X.C.O.P.Y. donor jump to saca[69] beyond the 64-entry pointer table",
+     "cls": "out_of_buffer",
+     "word": 0,
+     "landing": 0,
+     "table": "saca",
+     "index": 69,
+     "header_cgd": null
+    }
    ],
    "unmodelled": null,
    "throw_notes": [

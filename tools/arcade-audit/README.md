@@ -44,7 +44,9 @@ gate** (`manu_delta_gate()`, doc §29; trailing `manu:` column). That last one
 re-asks the class-(c) question for the scripts whose shape mismatch made
 `audit()` skip it, per raw `cg_number` rather than per cell index — verdicts
 `manu:C/N(dD+bB+zZ)` (confirmed direct / bracketed / nothing to adjudicate),
-`?n` for the unconfirmed residue, and `DIVERGENT(s,c)!` where the PS2 oracle
+`?n` for the unconfirmed residue (a raw below `CG_REMAP_CUTOFF` is **not** in it
+— `remap_cg_number` returns it verbatim, so its delta is +0 by construction and
+the gate scores it `sub_cutoff`, doc §32.4), and `DIVERGENT(s,c)!` where the PS2 oracle
 contradicts a remap delta. `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
 `unmodelled(n,in-range)` / `FOREIGN-OOB(k/n)!`). Every per-cell violation record also carries two independent verdict fields.
 `"dead"` is `cg_audit.py` -> `k7_entry_walk()`: no entry point can reach the
@@ -52,7 +54,11 @@ cell (doc §28; the seven OOB columns read `live+dead`). A character with a jump
 landing the model cannot compute — a `koc` outside `char_table[0..9]`, or a
 script index past the target pointer table — has **no** `dead` cell at all: the
 landing is not confined to a script, so the doubt is scoped to the whole
-character and the row ends `dead:void(n)` (doc §31.10). `"grid"` is
+character and the row ends `dead:void(n)` (doc §31.10). Where each of those
+landings actually goes is computed by `k7_landing_targets()` through
+`char_table_image()`'s mirror of `read_char_table`'s relocation, and printed as a
+`read_char_table relocation:` line; **none** resolves to a script start (that is
+asserted), so the voids stand for a measured reason (doc §32.2). `"grid"` is
 `grid_phase()` (doc §29): the two releases' bytes for a script are compared
 4-byte block by 4-byte block against the **per-field** cross-release transform
 (word 0/1/4/5 per-u16 byte swap, word 2 a full reversal because the releases
@@ -170,15 +176,19 @@ made `audit()` skip class (c), i.e. cells nothing looked at. `manu_delta_gate()`
 (doc §29) is what looks at them, and its two summary lines are the invariant:
 
 ```
-shape-mismatched (manu) scripts: 316 = 225 direct + 60 bracketed + 20 no-live-cells + 4 unresolved + 7 DIVERGENT
-  their live L-cells: 3320 = 2710 direct + 465 bracketed + 94 bracket-disagree + 0 unbracketed + 51 DIVERGENT
+shape-mismatched (manu) scripts: 316 = 221 direct + 65 bracketed + 20 no-live-cells + 6 unresolved + 4 DIVERGENT
+  their live L-cells: 3624 = 2928 direct + 552 bracketed + 35 sub-cutoff + 102 bracket-disagree + 0 unbracketed + 7 DIVERGENT
+  sub-cutoff band (raw < 0x400, remap_cg_number's early return): 5220 shape-ok observations cast-wide, every one delta +0 (asserted)
 ```
 
-The five script classes sum to `manu` by construction. The 51 divergent cells
-are Twelve's 44 (doc §8.S — a hole in `twelve_cg_ranges`, reported not fixed),
-Remy's 5 (§8.N) and Akuma's 2 (§8.P); the last two groups were already
-enumerated by hand, and the gate rediscovering exactly them is what validates
-it. **A fix for §8.S should drive `DIVERGENT` to 7 cells / 4 scripts.**
+The five script classes sum to `manu` by construction. `sub_cutoff` is a raw
+below `CG_REMAP_CUTOFF`, which `remap_cg_number` returns verbatim from an early
+return before it consults a range — the delta is +0 by construction and asserted
+per cell, so those cells are settled rather than residual (doc §32.4). The 7
+divergent cells are Remy's 5 (§8.N) and Akuma's 2 (§8.P); both groups were
+already enumerated by hand, and the gate rediscovering exactly them is what
+validates it. Twelve's 44 (§8.S — a hole in `twelve_cg_ranges`) were **fixed**
+2026-09-06, which is what took `DIVERGENT` from 51 cells / 7 scripts to 7 / 4.
 
 ## Inputs
 

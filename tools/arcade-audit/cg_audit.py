@@ -209,6 +209,138 @@ def arc_parse(ci, sec, idx, tabs):
             out.append(('L', r)); q = q2
     return cgd, out
 
+# ---------------------------------------------------------------- read_char_table's RELOCATION (doc §32.1)
+#
+# `arc_parse` above decodes the ROM.  What the ENGINE indexes is not the ROM: it is the buffer
+# `arcade_char_data.c` -> `read_char_table` builds, and the two differ in three ways that matter to
+# any question of the form "what does `char_table[koc][index]` hold".
+#
+#   1. RELOCATION.  The ROM's pointer table is a 0-terminated array of ABSOLUTE CPS3 addresses;
+#      `read_char_table` stores `value - BASE_OFFSET - location.offset` -- a byte offset from the
+#      table base -- and the 0 terminator verbatim.  `set_char_move_init2`'s non-CPS3 form is
+#      `wk->set_char_ad = wk->char_table[koc] + (wk->char_table[koc][index] / 4)`, and `char_table`
+#      is `u32*` (`include/structs.h`), so the landing is `base + 4 * (W // 4)` BYTES for the u32 `W`
+#      at `index`.  A valid index therefore lands on its own script's cell 0, whose header sits at
+#      `landing - 8` (`start_offset = script_offsets[i] - 8`).
+#   2. RE-EMISSION.  The buffer is not a copy.  Every field is written host-endian, `cg_type`/`cg_ctr`
+#      are un-packed into two bytes, `cg_hit_ix`/`cg_att_ix` are EXCHANGED, and `cg_se`/`cg_number`
+#      are remapped at parse time.
+#   3. HOLES.  `result` is memset to 0 and the C-cell branch SKIPS `max(cgd*4-8, 0)` bytes without
+#      writing them, so those bytes are 0 in the buffer and whatever the ROM says in the ROM.
+#
+# `char_table_image` mirrors all three, and `_assert_char_table_image` checks the mirror the only way
+# it can be checked from data alone: every one of the 200 script pointer tables (10 sections x 20
+# characters) must read back the exact relative offset the loader computed for it, and the
+# terminator must read back 0.
+def _parse_cg_se_pairs():
+    s = src("src/arcade/arcade_char_data.c")
+    tables = {}
+    for m in re.finditer(r'static const CgSeRemapPair (\w+)\[\]\s*=\s*\{(.*?)\};', s, re.S):
+        tables[m.group(1)] = [(int(p.group(1), 16), int(p.group(2), 16)) for p in
+                              re.finditer(r'\{\s*\.from\s*=\s*(0x[0-9A-Fa-f]+),\s*\.to\s*=\s*(0x[0-9A-Fa-f]+)\s*\}',
+                                          m.group(2))]
+    blk = re.search(r'static const CharacterCgSeMap cg_se_maps\[NUM_CHARS\]\s*=\s*\{(.*?)\n\};', s, re.S).group(1)
+    maps = {n: [] for n in NAMES}
+    for m in re.finditer(r'\[CHAR_(\w+)\]\s*=\s*\{\s*\.pairs\s*=\s*(\w+)', blk):
+        maps[m.group(1)] = tables[m.group(2)]
+    return [maps[n] for n in NAMES]
+
+CGSEMAP = _parse_cg_se_pairs()
+
+def remap_se(v, ci):
+    """arcade_char_data.c -> remap_cg_se: the pair list is keyed on the CODE (`value >> 4`) and the
+    low flip/priority nibble survives."""
+    code = v >> 4
+    for (f, t) in CGSEMAP[ci]:
+        if f == code: return ((t << 4) | (v & 0xF)) & 0xFFFF
+    return v
+
+_IMG_CACHE = {}
+def char_table_image(ci, sec):
+    """The in-memory bytes `read_char_table(rom, location_data[ci].<sec>, ci)` returns, and the
+    relative offsets its pointer table holds.  Returns (bytes, ents)."""
+    if (ci, sec) in _IMG_CACHE: return _IMG_CACHE[(ci, sec)]
+    off, size = LOC[ci][sec]
+    buf, ents, p = bytearray(size), [], off
+    while True:
+        v = struct.unpack_from('>I', ROM, p)[0]; p += 4
+        if v == 0: struct.pack_into('<I', buf, 4 * len(ents), 0); break
+        struct.pack_into('<I', buf, 4 * len(ents), (v - BASE_OFFSET - off) & 0xFFFFFFFF)
+        ents.append((v - BASE_OFFSET - off) & 0xFFFFFFFF)
+    so = sorted(ents)                                   # SDL_qsort, duplicates kept
+    for i, o in enumerate(so):
+        start = o - 8; end = size if i == len(so) - 1 else (so[i + 1] - 8)
+        q, w = off + start, start
+        cgd = struct.unpack_from('>h', ROM, q)[0]
+        struct.pack_into('<h', buf, w, cgd); w += 2; q += 2
+        for _ in range(6): buf[w] = ROM[q]; w += 1; q += 1
+        while w < end:
+            code = struct.unpack_from('>H', ROM, q)[0]; q += 2
+            if code < 0x100:                            # C cell: three s16, then a hole
+                struct.pack_into('<H', buf, w, code); w += 2
+                for _ in range(3):
+                    struct.pack_into('<h', buf, w, struct.unpack_from('>h', ROM, q)[0]); w += 2; q += 2
+                ltm = max(cgd * 4 - 8, 0); w += ltm; q += ltm      # NOT written: stays 0
+            else:                                       # L cell
+                buf[w] = code & 0xFF; w += 1
+                buf[w] = code >> 8;   w += 1
+                struct.pack_into('<H', buf, w, remap_se(struct.unpack_from('>H', ROM, q)[0], ci)); w += 2; q += 2
+                struct.pack_into('<H', buf, w, struct.unpack_from('>H', ROM, q)[0]); w += 2; q += 2
+                struct.pack_into('<H', buf, w, remap(struct.unpack_from('>H', ROM, q)[0], ci)); w += 2; q += 2
+                if cgd >= 4:                            # hit and att are EXCHANGED
+                    att = struct.unpack_from('>h', ROM, q)[0]; q += 2
+                    hit = struct.unpack_from('>H', ROM, q)[0]; q += 2
+                    struct.pack_into('<H', buf, w, hit); w += 2
+                    struct.pack_into('<h', buf, w, att); w += 2
+                    for _ in range(4): buf[w] = ROM[q]; w += 1; q += 1
+                if cgd == 6:
+                    for _ in range(3):
+                        struct.pack_into('<H', buf, w, struct.unpack_from('>H', ROM, q)[0]); w += 2; q += 2
+                    for _ in range(2): buf[w] = ROM[q]; w += 1; q += 1
+    _IMG_CACHE[(ci, sec)] = (bytes(buf), ents)
+    return _IMG_CACHE[(ci, sec)]
+
+def _ovct_image(ci):
+    """`read_ovct`: 16-byte OverlapPart, s16 hos_x, s16 hos_y, six u8, s16 mts, u16 nix, u16 char."""
+    off, size = LOC[ci]['ovct']; buf = bytearray(size)
+    for i in range(size // 16):
+        q, w = off + i * 16, i * 16
+        struct.pack_into('<hh', buf, w, *struct.unpack_from('>hh', ROM, q))
+        buf[w + 4:w + 10] = ROM[q + 4:q + 10]
+        struct.pack_into('<hHH', buf, w + 10, *struct.unpack_from('>hHH', ROM, q + 10))
+    return bytes(buf)
+
+def _rict_image(ci):
+    """`read_catch_table`: 8-byte CatchTable, s16 hos_x, s16 hos_y, u8 prio, u8 flip, s16 nix."""
+    off, size = LOC[ci]['rict']; buf = bytearray(size)
+    for i in range(size // 8):
+        q, w = off + i * 8, i * 8
+        struct.pack_into('<hh', buf, w, *struct.unpack_from('>hh', ROM, q))
+        buf[w + 4] = ROM[q + 4]; buf[w + 5] = ROM[q + 5]
+        struct.pack_into('<h', buf, w + 6, struct.unpack_from('>h', ROM, q + 6)[0])
+    return bytes(buf)
+
+def section_image(ci, sec):
+    """The in-memory bytes of any section this file can lay out.  `None` for one it cannot -- never
+    a guess, because every consumer below reports what it reads."""
+    if sec in KOC2SEC.values(): return char_table_image(ci, sec)[0]
+    if sec == 'ovct': return _ovct_image(ci)
+    if sec == 'rict': return _rict_image(ci)
+    return None
+
+def _assert_char_table_image():
+    """Every valid pointer-table index must read back the relative offset the loader stored, and the
+    0 terminator must read back 0.  200 tables, cast-wide."""
+    n = 0
+    for ci in range(20):
+        for sec in KOC2SEC.values():
+            buf, ents = char_table_image(ci, sec)
+            for i, e in enumerate(ents):
+                assert struct.unpack_from('<I', buf, 4 * i)[0] == e, (NAMES[ci], sec, i)
+            assert struct.unpack_from('<I', buf, 4 * len(ents))[0] == 0, (NAMES[ci], sec, 'terminator')
+            n += 1
+    return n
+
 # ---------------------------------------------------------------- PS2 parsing (AFS tail + 25-offset header)
 AFS = open(AFS_PATH, 'rb')
 assert AFS.read(4) == b'AFS\x00'
@@ -1149,13 +1281,14 @@ def _span_entry_seeds(ci):
     models bound a script differently: `span_closure`'s frame for `(sec, si)` is open-ended (it runs
     to the section size keeping the label) while `arc_parse` ends a script at the next pointer.  A
     reached position arc_parse parsed becomes a seed on the cell that covers it -- which re-files the
-    3,660 ran-into-the-next-script nodes under the script that really holds those bytes instead of
-    failing ~~211~~ **155** frames open for nothing (re-measured 2026-09-07, doc §31.11: the fail-open
-    count is `len(_span_entry_seeds(ci)[1])` summed over the cast).  The 3,660 was NOT re-derived this
-    pass and is not asserted: its wording admits more than one reading, and the nearest one -- nodes
-    whose byte position maps to a script index other than their frame label -- measures 123,444, which
-    is a different quantity rather than a drifted one.  Treat it as unverified until someone states the
-    predicate it counts.  A reached position arc_parse did NOT parse cannot be seeded
+    **3,660** ran-into-the-next-script nodes under the script that really holds those bytes instead of
+    opening the **211** frames they sit in for nothing.  Both numbers are RE-DERIVED and printed
+    (`span_refile_census()`): the predicate is "reached nodes whose byte position is at or past their
+    OWN frame's declared end", deduplicated over the two arms and summed cast-wide, and it reproduces
+    3,660/211 exactly.  ~~211 -> 155~~ and ~~3,660 unverified, nearest reading 123,444~~ are both
+    WITHDRAWN (doc §32.5): 155 is `len(_span_entry_seeds(ci)[1])` -- the frames that fail open TODAY,
+    a different set, printed under its own name -- and 123,444 counts nodes re-filed onto another
+    script index, per arm.  A reached position arc_parse did NOT parse cannot be seeded
     at all, so the script holding it fails open; that is exactly two things, and nothing else
     cast-wide: `arc_parse`'s last-script terminator cut (18 cells in DUDLEY `caca[6]`, DUDLEY
     `saca[87]` and ELENA `atca[159]` -- §19.6(b), and see `span_last_script_cut()`), and
@@ -1175,13 +1308,14 @@ def _span_entry_seeds(ci):
             st = 8 if cgd in (1, 2) else cgd * 4          # arc_parse's stride, both cell kinds
             for k in range(len(cells)): posmap[(sec, ents[si] + k * st)] = (si, k)
     last = {sec: max(range(len(tabs[sec])), key=lambda i: tabs[sec][i]) for sec in KOC2SEC.values()}
-    seeds, openf, cut = {}, set(), {}
+    seeds, openf, cut, ran_on = {}, set(), {}, set()
     for arm in ('base', 'xcopy'):
         for (f, k) in sr[arm][ci]['nodes']:
             base, st = frames.get(f, (None, None))
             if st is None: continue
             if st == 4: openf.add(f); continue           # cgd 1: the executor's grid is finer (§28.7)
             pos = base + k * st
+            if pos >= extent[f][1]: ran_on.add((f, k))   # ran into the next script -- see below
             hit = posmap.get((f[0], pos))
             if hit is None:
                 tgt = next((g for g in extent if g[0] == f[0]
@@ -1191,8 +1325,28 @@ def _span_entry_seeds(ci):
                     cut.setdefault(f, set()).add(k)      # the last-script terminator cut, below
                 continue
             seeds.setdefault((f[0], hit[0]), set()).add(hit[1])
-    _SPAN_SEED_CACHE[ci] = (seeds, openf, {k: sorted(v) for k, v in cut.items()})
+    _SPAN_SEED_CACHE[ci] = (seeds, openf, {k: sorted(v) for k, v in cut.items()},
+                            (len(ran_on), len(set(f for (f, k) in ran_on))))
     return _SPAN_SEED_CACHE[ci]
+
+def span_refile_census():
+    """The re-filing's own size: how many reached nodes lie AT OR PAST their own frame's declared end
+    (`extent[f][1]` -- the next pointer minus 8, or `location.size` for a table's last script), and how
+    many distinct frames those sit in.  Deduplicated over the two arms, summed over the cast.
+
+    This is the predicate behind the pair of numbers §31.1 wrote as "re-files the 3,660
+    ran-into-the-next-script nodes ... instead of failing 211 frames open for nothing", and it
+    reproduces BOTH of them exactly.  §31.11 could not place the 3,660 and marked it unverified,
+    having tried "nodes whose byte position maps to a script index other than their frame label"
+    (123,444 by arm / 62,189 deduplicated) -- a different predicate, because `span_closure`'s frames
+    are open-ended and a node re-filed onto a later script need not have passed its own declared end
+    in the same step.  §31.11 also replaced the 211 with **155**, which is `len(openf)` -- the frames
+    that fail open TODAY, a third predicate again.  Both original numbers stand; what drifted is the
+    two re-measurements (doc §32.5)."""
+    n = f = 0
+    for ci in range(20):
+        a, b = _span_entry_seeds(ci)[3]; n += a; f += b
+    return n, f
 
 def span_last_script_cut(ci):
     """What `arc_parse`'s LAST-script cut hides.  `arc_parse` stops decoding the last script of a
@@ -1239,6 +1393,109 @@ def k7_unresolved_landings(ci):
     _K7_UNRES_CACHE[ci] = sorted(out)
     return _K7_UNRES_CACHE[ci]
 
+_LANDING_RX = re.compile(r'(\w+)\[(\d+)\] beyond the (\d+)-entry pointer table')
+_LANDING_CACHE = {}
+def k7_landing_targets(ci):
+    """WHERE each of `k7_unresolved_landings`'s jumps actually lands, computed through
+    `char_table_image`'s relocation.  §31.12 recorded this as "computable from the ROM in principle
+    ... but that would need `read_char_table`'s relocation to be re-derived first ... Not attempted."
+    It is attempted here, and the relocation is checked rather than assumed
+    (`_assert_char_table_image`).
+
+    `set_char_move_init2` is `wk->set_char_ad = wk->char_table[koc] + (wk->char_table[koc][index] / 4)`
+    with `char_table` a `u32*` array, so the landing is `4 * (W // 4)` bytes from the table base for
+    the u32 `W` the buffer holds at `index`, and a script's cell 0 sits at exactly its own relative
+    offset.  Four outcomes, all `unmodelled` and none benign:
+
+      script_start        `W` names a script's cell 0.  This one WOULD be resolvable -- the jump is a
+                          real entry and `k7_entry_walk` could seed it.  ASSERTED to be empty: if a
+                          data change ever produces one, this model must grow the seed rather than
+                          keep voiding the character.
+      in_buffer           the landing is inside the table's own allocation but is not any script's
+                          entry.  The executor decodes from a byte that is not a cell boundary, and
+                          `setupCharTableData` takes `cgd_type` from `landing - 8`.
+      out_of_buffer       the landing is outside `location.size` (or `W` is 0/4, which puts the
+                          header before the allocation).  A wild pointer.
+      read_past_buffer    `4*index + 4 > location.size`: the WORD READ ITSELF is outside the
+                          allocation, so even `W` is not ROM-derivable.
+      koc_out_of_range    `char_table[koc]` for `koc` outside 0..9 (`u32* char_table[12]`,
+                          `charid.c` fills 0-9).  The BASE is read from outside the initialised
+                          array; nothing in the ROM answers it.
+
+    Because none of the four non-`script_start` outcomes puts the executor on a cell of one of this
+    character's scripts, and because the continuation of a garbage decode is unbounded (any command
+    it happens to decode carries its own `koc`/`ix`/`pat`), the character-scope void
+    `k7_unresolved_landings` imposes STAYS.  What changes is that it now rests on a computed result
+    instead of on "not attempted" (doc §32.2)."""
+    if ci in _LANDING_CACHE: return _LANDING_CACHE[ci]
+    rows = []
+    for w in k7_unresolved_landings(ci):
+        m = _LANDING_RX.search(w)
+        if not m:
+            rows.append(dict(what=w, cls='koc_out_of_range', word=None, landing=None)); continue
+        sec, ix = m.group(1), int(m.group(2))
+        buf, ents = char_table_image(ci, sec); size = LOC[ci][sec][1]
+        if 4 * ix + 4 > size:
+            rows.append(dict(what=w, cls='read_past_buffer', word=None, landing=None)); continue
+        W = struct.unpack_from('<I', buf, 4 * ix)[0]
+        land = 4 * (W // 4)
+        if land in set(ents):
+            cls = 'script_start'
+        elif 8 <= land <= size - 8:
+            cls = 'in_buffer'
+        else:
+            cls = 'out_of_buffer'
+        rows.append(dict(what=w, cls=cls, word=W, landing=land, table=sec, index=ix,
+                         header_cgd=(struct.unpack_from('<h', buf, land - 8)[0] if cls == 'in_buffer' else None)))
+    _LANDING_CACHE[ci] = rows
+    return rows
+
+_OVIXT_CACHE = {}
+def ovix_oob_targets(ci):
+    """What an OVIX index past the end of the OVIX actually reads.  §31.8 made such a read print
+    `reach-unmodelled(ovix-oob ...)` without saying what it lands on; §31.12 listed
+    "what Ibuki's `olc_ix_table[2277]` actually reads" as unestablished.
+
+    `charset.c` -> `check_cgd_patdat`/`check_cgd_patdat2` do `wk->cg_olc = wk->olc_ix_table[cg_olc_ix]`
+    with no bound, and `olc_ix_table` is `OverlapSelection*` = four `s16` (`include/structs.h`), so
+    the read is the 8 bytes at `ovix.offset + 8*index`.  Two things decide what those bytes ARE:
+
+      * `coalesce_adjacent_sections` merges every maximal run of sections with
+        `offset + size == next.offset` into ONE allocation, so a read past the OVIX stays inside the
+        allocation for as long as the run does -- `in_run` below.
+      * the bytes are the TARGET section's in-memory image, not the ROM: `read_ovct`, `read_catch_table`
+        and `read_char_table` each lay their section out differently, and only some fields are
+        byte-swapped.  `section_image` supplies the layout, or `None` when this file does not know it.
+
+    Each of the four `s16` is then an OVCT part index for one overlap `type`
+    (`eff01.c` -> `effect_01_init`: `ewk->wu.type = koolc`; `plcnt.c` -> `setup_other_data` creates
+    all four, `i` 0..3), so `slots` below is what the four overlap works would select (doc §32.3)."""
+    if ci in _OVIXT_CACHE: return _OVIXT_CACHE[ci]
+    rr = ovct_reachability(ci)
+    ob, osz = LOC[ci]['ovix']
+    secs = sorted(((k, v[0], v[0] + v[1]) for k, v in LOC[ci].items()), key=lambda t: t[1])
+    i = [j for j, s in enumerate(secs) if s[0] == 'ovix'][0]
+    lo = hi = i
+    while lo > 0 and secs[lo - 1][2] == secs[lo][1]: lo -= 1
+    while hi + 1 < len(secs) and secs[hi][2] == secs[hi + 1][1]: hi += 1
+    run = (secs[lo][1], secs[hi][2])
+    npart = LOC[ci]['ovct'][1] // 16
+    rows = []
+    for idx in sorted(set(rr['arcade']['ovix_oob'] or [])):
+        p = ob + idx * 8
+        t = next((s for s in secs if s[1] <= p < s[2]), None)
+        img = section_image(ci, t[0]) if t else None
+        slots = (list(struct.unpack_from('<4h', img, p - t[1]))
+                 if (img is not None and p - t[1] + 8 <= len(img)) else None)
+        rows.append(dict(index=idx, byte=p, past_ovix=p - (ob + osz),
+                         section=(t[0] if t else None), section_offset=(p - t[1] if t else None),
+                         in_run=bool(run[0] <= p < run[1]), slots=slots,
+                         slots_in_ovct=(None if slots is None else
+                                        [bool(0 <= v < npart) for v in slots]),
+                         ovct_parts=npart, live=bool(idx in (rr['arcade']['ovix_oob_pre'] or []))))
+    _OVIXT_CACHE[ci] = rows
+    return rows
+
 _K7_DEAD_CACHE = {}
 def k7_entry_walk(ci):
     """Which cells of each script can never execute.  §19's convention -- everything after the first
@@ -1279,7 +1536,7 @@ def k7_entry_walk(ci):
             if key[0] is None or key not in lens: continue     # not a reference into this character
             if 0 <= pat - 1 < lens[key]: entries[key].add(pat - 1)
             else: unknown.add(key)                             # fail open: landing off the end
-    sseeds, sopen, _cut = _span_entry_seeds(ci)                # entries the C forms, not the data
+    sseeds, sopen, _cut, _cen = _span_entry_seeds(ci)          # entries the C forms, not the data
     for key, ks in sseeds.items():
         if key in entries: entries[key] |= ks
     unknown |= (sopen & set(lens))
@@ -1940,6 +2197,16 @@ def manu_delta_gate(ci):
       bracket_disagree  the two bracketing observations measure different deltas: the band is not
                         uniform across the gap, so nothing is confirmed
       unbracketed       no observation below, or none above
+      sub_cutoff        `unbracketed` or `bracket_disagree` would have been the verdict, but the raw
+                        is below `CG_REMAP_CUTOFF`, where `arcade_char_data.c` -> `remap_cg_number`
+                        returns the value verbatim from an early return BEFORE it looks at any range.
+                        The delta is +0 by construction (asserted per cell), so a range oracle has
+                        nothing to confirm -- and a raw of 0 can never have an observation BELOW it,
+                        which is the only reason these were ever reported `unbracketed`.  A positive
+                        verdict, not a residue: cast-wide every sub-cutoff OBSERVATION measures +0 too
+                        (`sub_cutoff_obs`, asserted) and no sub-cutoff raw ever enters `conflict`
+                        (asserted).  Cells the oracle DID confirm keep `direct`/`bracketed`, which
+                        rest on an observation and are strictly stronger (doc §32.4).
       divergent         an observation -- direct, or a bracketing agreement -- CONTRADICTS our
                         delta.  This is the class-(c) finding the shape mismatch was hiding.
 
@@ -1959,6 +2226,7 @@ def manu_delta_gate(ci):
         b, z = sp[SECTIONS.index(sec)]
         pt[sec] = (b, z, ps2_offsets(blob, b))
     parsed, obs, conflict = [], {}, set()
+    subcut_obs = subcut_nonzero = 0
     for sec in KOC2SEC.values():                     # KOC2SEC is insertion-ordered: deterministic
         pn = len(pt[sec][2])
         for si in range(len(arc[sec])):
@@ -1972,11 +2240,15 @@ def manu_delta_gate(ci):
                 r, d = x[1]['num'], y[1]['num'] - x[1]['num']
                 if r in obs and obs[r] != d: conflict.add(r)   # two deltas for one raw: unusable
                 obs[r] = d
-    for r in conflict: obs.pop(r, None)
+                if r < CG_REMAP_CUTOFF: subcut_obs += 1; subcut_nonzero += (d != 0)
+    for r in conflict:
+        assert r >= CG_REMAP_CUTOFF, (NAMES[ci], r)   # a sub-cutoff raw can never be ambiguous
+        obs.pop(r, None)
+    assert subcut_nonzero == 0, (NAMES[ci], subcut_nonzero)
     keys = sorted(obs)
     dead_all = k7_entry_walk(ci)
     scripts, rows = {}, []
-    cellcls = dict(direct=0, bracketed=0, bracket_disagree=0, unbracketed=0, divergent=0)
+    cellcls = dict(direct=0, bracketed=0, bracket_disagree=0, unbracketed=0, sub_cutoff=0, divergent=0)
     for sec, si, a, p, ok in parsed:
         if p is None or ok or not a: continue        # exactly audit()'s `needs_manual_diff` set
         dead = dead_all[(sec, si)]
@@ -1996,6 +2268,9 @@ def manu_delta_gate(ci):
                 else:
                     want = obs[lo]
                     v = 'bracketed' if want == ours else 'divergent'
+                if v in ('unbracketed', 'bracket_disagree') and raw < CG_REMAP_CUTOFF:
+                    assert ours == 0, (NAMES[ci], raw, ours)   # remap_cg_number's early return
+                    want, v = 0, 'sub_cutoff'                  # settled, and NOT by the oracle
             vs.append(v); cellcls[v] += 1
             if v == 'divergent':
                 rows.append(dict(cls='manu_cg_delta_divergent', table=sec, script=si, cell=i,
@@ -2011,6 +2286,7 @@ def manu_delta_gate(ci):
         scripts[(sec, si)] = k
     out = dict(scripts=scripts, rows=rows, cells=cellcls,
                oracle_raws=len(obs), oracle_conflicts=len(conflict),
+               sub_cutoff_obs=subcut_obs,
                script_cls=collections.Counter(scripts.values()))
     _MANU_CACHE[ci] = out
     return out
@@ -2393,6 +2669,11 @@ def audit(cgmap_override=None, quiet=False):
             ps2=dict(entries=rr['ps2_entries'], seeds=runs(rr['ps2']['seeds']),
                      reach=runs(rr['ps2']['reach']), past_end=rr['ps2']['past_end'],
                      ovix_oob=rr['ps2']['ovix_oob'], unmodelled=rr['ps2']['unmodelled']))
+        # doc §32.3: what an OVIX index past the end of the OVIX actually reads -- the section the
+        # bytes belong to, whether coalesce_adjacent_sections keeps that inside one allocation, and
+        # the four OVCT part indices the read yields once the target section's own in-memory layout
+        # is applied.  §31.8 reported the hazard without ever decoding it.
+        rec['ovix_oob_targets'] = ovix_oob_targets(ci)
         # Dangling-walk hold model (doc §25): an exit past the table is a
         # hazard only if the master can hold the selecting olc for `need`
         # frames; `ovct_walk_past_end_reachable` lists the exits it can (or
@@ -2476,6 +2757,7 @@ def audit(cgmap_override=None, quiet=False):
         rec['span_reach'] = dict(tables=spans, reachable_cells=len(sb['nodes']), reachable_cells_xcopy=len(sx['nodes']),
                                  last_script_cut={"%s[%d]" % f: v for f, v in sorted(_cut.items())},
                                  k7_dead_unmodelled=k7_unresolved_landings(ci),
+                                 k7_dead_landing_targets=k7_landing_targets(ci),
                                  unmodelled=_rs(sb['unmodelled']), throw_notes=_rs(sb['throw_notes']),
                                  xcopy=dict(unmodelled=_rs(sx['unmodelled']), donor_notes=_rs(sx['donor_notes']),
                                             stale_consumers={k: len(v) for k, v in sx['stale'].items()}),
@@ -2497,6 +2779,12 @@ def audit(cgmap_override=None, quiet=False):
                             ovix_oob=rr['arcade']['ovix_oob'],
                             ovix_oob_ps2=rr['ps2']['ovix_oob'],
                             k7_dead_unmodelled=len(k7_unresolved_landings(ci)),
+                            # doc §32.2: where those landings actually go, through read_char_table's
+                            # relocation.  `script_start` is ASSERTED 0 cast-wide -- one would be a
+                            # real entry and would have to be seeded rather than voided.
+                            **{'k7_landing_' + k: len([r for r in k7_landing_targets(ci) if r['cls'] == k])
+                               for k in ('script_start', 'in_buffer', 'out_of_buffer',
+                                         'read_past_buffer', 'koc_out_of_range')},
                             ovix_oob_pre_terminator=rr['arcade']['ovix_oob_pre'],
                             ovix_arcade_shorter_by=max(0, p_ovix - a_ovix),
                             k7_foreign_cells=len([f for f in foreign if not f['dead']]),
@@ -2540,6 +2828,7 @@ def audit(cgmap_override=None, quiet=False):
                             manu_divergent=mg['script_cls'].get('divergent', 0),
                             manu_oracle_raws=mg['oracle_raws'],
                             manu_oracle_conflicts=mg['oracle_conflicts'],
+                            manu_sub_cutoff_obs=mg['sub_cutoff_obs'],
                             **{'manu_cells_' + k: v for k, v in sorted(mg['cells'].items())},
                             **cls)
         result[NAMES[ci]] = rec
@@ -2650,10 +2939,13 @@ if __name__ == "__main__":
     print("shape-mismatched (manu) scripts: %d = %d direct + %d bracketed + %d no-live-cells + %d unresolved + %d DIVERGENT"
           % (T['needs_manual'], T['manu_direct'], T['manu_bracketed'], T['manu_no_live_cells'],
              T['manu_unresolved'], T['manu_divergent']))
-    print("  their live L-cells: %d = %d direct + %d bracketed + %d bracket-disagree + %d unbracketed + %d DIVERGENT"
-          % (sum(T['manu_cells_' + k] for k in ('direct', 'bracketed', 'bracket_disagree', 'unbracketed', 'divergent')),
-             T['manu_cells_direct'], T['manu_cells_bracketed'], T['manu_cells_bracket_disagree'],
-             T['manu_cells_unbracketed'], T['manu_cells_divergent']))
+    print("  their live L-cells: %d = %d direct + %d bracketed + %d sub-cutoff + %d bracket-disagree + %d unbracketed + %d DIVERGENT"
+          % (sum(T['manu_cells_' + k] for k in ('direct', 'bracketed', 'sub_cutoff', 'bracket_disagree',
+                                                'unbracketed', 'divergent')),
+             T['manu_cells_direct'], T['manu_cells_bracketed'], T['manu_cells_sub_cutoff'],
+             T['manu_cells_bracket_disagree'], T['manu_cells_unbracketed'], T['manu_cells_divergent']))
+    print("  sub-cutoff band (raw < 0x%X, remap_cg_number's early return): %d shape-ok observations "
+          "cast-wide, every one delta +0 (asserted)" % (CG_REMAP_CUTOFF, T['manu_sub_cutoff_obs']))
     for n in NAMES:
         d = [v for v in res[n]['violations'] if v['cls'] == 'manu_cg_delta_divergent']
         for (sec, si) in sorted(set((v['table'], v['script']) for v in d)):
@@ -2702,6 +2994,35 @@ if __name__ == "__main__":
           % (sum(len(v) for _, _, v in _lsc), len(_lsc),
              (" -- " + ", ".join("%s %s c%s" % (n, k, "-".join(map(str, (v[0], v[-1]))) if len(v) > 1 else v[0])
                                  for n, k, v in _lsc)) if _lsc else ""))
+    # doc §32.1/§32.2: read_char_table's relocation, checked against the pointer tables it produced,
+    # and every jump landing k7_entry_walk cannot follow resolved through it.  A landing on a script
+    # start would be a real entry and is asserted absent -- the void must not outlive a computable
+    # answer.  Nothing else here lifts the void: a landing that is not a script start puts the
+    # executor on a byte that is not a cell boundary, and the continuation of that decode is unbounded.
+    _nimg = _assert_char_table_image()
+    _lt = collections.Counter(r['cls'] for n in NAMES for r in res[n]['span_reach']['k7_dead_landing_targets'])
+    assert _lt['script_start'] == 0, _lt
+    print("read_char_table relocation: %d script pointer tables reproduce exactly; %d unresolvable "
+          "landing(s) over %d character(s) resolve to %d script-start + %d in-buffer + %d out-of-buffer "
+          "+ %d read-past-buffer + %d koc-out-of-range -- the void stands, computed"
+          % (_nimg, sum(_lt.values()),
+             len([n for n in NAMES if res[n]['span_reach']['k7_dead_landing_targets']]),
+             _lt['script_start'], _lt['in_buffer'], _lt['out_of_buffer'],
+             _lt['read_past_buffer'], _lt['koc_out_of_range']))
+    # doc §32.3: an OVIX index past the OVIX, decoded.
+    for n in NAMES:
+        for t in res[n]['ovix_oob_targets']:
+            print("  OVIX overrun %-7s olc>>4 %5d -> %s+%d (%d B past the OVIX, in the coalesced "
+                  "allocation: %s) reads olc_ix %s -> OVCT parts %s of %d%s"
+                  % (n, t['index'], t['section'], t['section_offset'], t['past_ovix'], t['in_run'],
+                     t['slots'], ["ok" if v else "OOB" for v in (t['slots_in_ovct'] or [])],
+                     t['ovct_parts'], "  LIVE" if t['live'] else ""))
+    # doc §32.5: the re-filing's size -- nodes at or past their own frame's declared end, and the
+    # frames they sit in.  §31.1 wrote 3,660/211 for exactly this and §31.11 could not place either.
+    print("span re-file census: %d node(s) at or past their frame's declared end, over %d frame(s); "
+          "%d frame(s) fail open; the last-script cut accounts for %d cell(s)"
+          % (span_refile_census() + (sum(len(_span_entry_seeds(ci)[1]) for ci in range(20)),
+                                     sum(len(v) for ci in range(20) for v in span_last_script_cut(ci).values()))))
     print("slack gate: base closed %d/20, xcopy closed %d/20"
           % (len([n for n in NAMES if res[n]['stats']['span_gate'] == 'closed']), len([n for n in NAMES if res[n]['stats']['span_gate_xcopy'] == 'closed'])))
     for n in NAMES:

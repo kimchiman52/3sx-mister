@@ -661,6 +661,20 @@ if __name__ == "__main__":
         agree = sum(1 for b in rows if bool(b.get('after_terminator')) == bool(b.get('dead')))
         print("    %-24s before-terminator %4d | after-terminator %4d | agrees with reach %d/%d"
               % (kind, pre, len(rows) - pre, agree, len(rows)))
+    # doc §32.6.  §31.2 headlined "the two criteria agree on 394 of 394 rows"; that was measured
+    # before §31.10 made `dead` void at CHARACTER scope for a character with a jump landing the model
+    # cannot compute, which flipped 27 after-terminator rows from dead to live-by-fail-open.  The
+    # aggregate is printed here so the statistic is a number this tool emits rather than prose.  Every
+    # disagreement is one-directional -- the terminator says unreachable, the reach model fails open --
+    # and every one sits on a character §31.10 voids.
+    _rows = [b for n in NAMES for b in res[n]['bounds']]
+    _dis = [(n, b) for n in NAMES for b in res[n]['bounds']
+            if bool(b.get('after_terminator')) != bool(b.get('dead'))]
+    print("    %-24s agrees with reach %d/%d over all classes; %d disagreement(s), %d of them "
+          "after-terminator-but-live, on %s"
+          % ('ALL', len(_rows) - len(_dis), len(_rows), len(_dis),
+             sum(1 for _, b in _dis if b.get('after_terminator')),
+             ",".join(sorted({n for n, _ in _dis})) or "no character"))
     print()
     for n in NAMES:
         for note in res[n]['notes']:
