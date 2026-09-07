@@ -69,7 +69,8 @@ typedef struct CharacterCgMap {
 
 /* cg_se sound-code exception (doc §8.Q / §21). `from`/`to` are the upper 12
  * bits of the cell's cg_se field -- the low nibble is flip/priority
- * (charset.c -> check_cgd_data does `wk->cg_se >>= 4;` before dispatch) and
+ * (charset.c -> check_cgd_patdat does `wk->cg_se >>= 4;` before dispatch --
+ * check_cgd_patdat2 shifts too but dispatches no sound at all) and
  * is preserved by remap_cg_se. Keyed per character on purpose: 0x2FB is a
  * legitimate Urien voice and 0x3DF a legitimate Twelve voice, so a global
  * code->code table would silently break them (§21.8). */

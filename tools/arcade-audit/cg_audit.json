@@ -654,7 +654,7 @@
      2048
     ],
     "unmodelled": [
-     "olc index 2048 selects past the 146-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 2048 selects past the 146-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -4124,8 +4124,8 @@
      2224
     ],
     "unmodelled": [
-     "olc index 1136 selects past the 53-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2224 selects past the 53-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 1136 selects past the 53-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2224 selects past the 53-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -6378,9 +6378,9 @@
      2308
     ],
     "unmodelled": [
-     "olc index 2048 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2292 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2308 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 2048 selects past the 20-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2292 selects past the 20-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2308 selects past the 20-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -10522,7 +10522,7 @@
     ],
     "ovix_oob_post_terminator": [],
     "unmodelled": [
-     "olc index 2277 selects past the 2230-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 2277 selects past the 2230-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -10620,7 +10620,7 @@
      2277
     ],
     "unmodelled": [
-     "olc index 2277 selects past the 2235-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 2277 selects past the 2235-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    }
   },
@@ -16569,9 +16569,9 @@
      2224
     ],
     "unmodelled": [
-     "olc index 1264 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2048 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2224 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 1264 selects past the 20-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2048 selects past the 20-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2224 selects past the 20-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -19682,8 +19682,8 @@
      2048
     ],
     "unmodelled": [
-     "olc index 1030 selects past the 187-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2048 selects past the 187-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 1030 selects past the 187-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2048 selects past the 187-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -26798,9 +26798,9 @@
      2608
     ],
     "unmodelled": [
-     "olc index 2048 selects past the 31-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2464 selects past the 31-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
-     "olc index 2608 selects past the 31-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+     "olc index 2048 selects past the 31-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2464 selects past the 31-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2608 selects past the 31-entry OVIX: charset.c check_cgd_patdat's and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both copies, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {

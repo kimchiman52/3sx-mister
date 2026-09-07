@@ -271,9 +271,15 @@ def ps2_parse(blob, base, size, ents, idx):
 # Which OVCT parts can eff01.c ever index for a character? An `arcade_count >
 # ps2_count` tail (Elena, parts 85-90) is only a hazard if some part index in
 # it is reachable. Every writer of the part index, from the code:
-#   charset.c   check_cgd_data:  wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];
+#   charset.c   check_cgd_patdat / check_cgd_patdat2:
+#                                wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];
 #               (both copies) -> the cell's olc word >> 4 selects an OVIX entry,
-#               whose four s16 slots are the part indices, one per overlap type
+#               whose four s16 slots are the part indices, one per overlap type.
+#               In check_cgd_patdat the cg_olc write sits inside `if (work_id == 1)`;
+#               in check_cgd_patdat2 it is unconditional, but that copy is reached
+#               only from exset_char_move_init, whose two callers (plpdm.c
+#               Damage_17000 and pls00.c) both pass a PLW -- so for a player both
+#               copies write it and for a non-player neither does.
 #   plcnt.c     plcnt_init:      wk->wu.cg_olc_ix = 0            (OVIX[0])
 #   plpdm.c     Player_damage:   wk->wu.cg_olc_ix = datadrs[3]   (exdm_ix_data[b][character][3], NOT shifted)
 #   eff01.c     effect_01_move:  restart at the master's part index, then on
@@ -393,10 +399,11 @@ def _closure(ovix, nix, olc_indices, shift=None):
     set of indices actually READ, `past_end` the reads that leave the table.
 
     A selected OVIX index past the end of the table is NOT silently dropped:
-    `charset.c` -> `check_cgd_data` does `wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix]`
-    with no bound, so such a read produces four part indices this model cannot
-    know, and the closure below is then an under-approximation.  Every one is
-    reported in `unmodelled`, and the row gate opens on it (doc §31.8)."""
+    `charset.c` -> `check_cgd_patdat` and `check_cgd_patdat2` BOTH do
+    `wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix]` with no bound, so such a read
+    produces four part indices this model cannot know, and the closure below is then
+    an under-approximation.  Every one is reported in `unmodelled`, and the row gate
+    opens on it (doc §31.8)."""
     shift = shift or {t: (0,) for t in range(4)}
     ovix_oob = sorted(e for e in olc_indices if e >= len(ovix))
     seeds, by_slot = set(), {t: set() for t in range(4)}
@@ -417,8 +424,9 @@ def _closure(ovix, nix, olc_indices, shift=None):
                 reach.add(q)
                 n = nix[q] if nix[q] else s + 1
                 if n not in seen: stack.append(n)
-    unmodelled = ["olc index %d selects past the %d-entry OVIX: charset.c check_cgd_data's"
-                  " `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields"
+    unmodelled = ["olc index %d selects past the %d-entry OVIX: charset.c check_cgd_patdat's"
+                  " and check_cgd_patdat2's `olc_ix_table[cg_olc_ix]` is unbounded in both"
+                  " copies, so the four part indices it yields"
                   " are unknown and this closure is an under-approximation" % (e, len(ovix))
                   for e in ovix_oob]
     return dict(seeds=sorted(seeds), reach=sorted(reach), past_end=sorted(past_end),
@@ -1119,17 +1127,35 @@ def _span_entry_seeds(ci):
     was searched for."  `span_closure` models precisely those, and they exist: the eleven
     `SPAN_C_ENTRIES` (appear.c, win_pl.c, plpat00.c), the throw census's `cuca` seeds, plpdm.c
     `Damage_17000`'s carry into `dmca[dm17_to_nm23_change[ci]]`, win_pl.c's carry into `yuca[33|35]`,
-    pls00.c's Elena `nmca[36]` -> `nmca[0]` carry, and the X.C.O.P.Y. donor jumps.  **Measured**: 121
-    cells over 60 scripts that the sweep alone calls dead are reachable this way, so `dead` without
-    them is an UNDER-approximation of liveness -- the unsafe direction, and the same shape of defect
-    §28.2 fixed once already.  `span_closure` never calls `k7_entry_walk`, so there is no cycle.
+    pls00.c's Elena `nmca[36]` -> `nmca[0]` carry, and the X.C.O.P.Y. donor jumps.
+
+    ~~**Measured**: 121 cells over 60 scripts that the sweep alone calls dead are reachable this way.~~
+    WITHDRAWN 2026-09-07 (doc §31.11): that figure reproduces on neither this tree nor the walk it was
+    written against.  RE-MEASURED, by running `k7_entry_walk` cast-wide in SEPARATE PROCESSES on
+    identical inputs -- once as it stands, once with `_span_entry_seeds` returning `({}, set(), cut)` so
+    the sweep runs alone -- and differencing the two dead sets.  **On this tree: 338 cells over 82
+    scripts** (dead 10,234 -> 9,896; dead-bearing scripts 3,671 -> 3,593).  All 82 lie in the ten
+    characters `k7_unresolved_landings` does not void; for the other ten `dead` is empty on both arms,
+    so they can contribute nothing either way.  Suppressing the two halves separately does NOT partition
+    the total -- the seed dict alone accounts for 248 cells / 28 scripts and the fail-open frames alone
+    for 57 / 27 -- because a cell BOTH mechanisms revive survives either suppression on its own.
+    Neutering `k7_unresolved_landings` too recovers the pre-§31.10 walk and gives **523 cells over 171
+    scripts** (dead 16,437 -> 15,914), which is what the figure should have read when it was written.
+    Either way `dead` without these entries is an UNDER-approximation of liveness -- the unsafe
+    direction, and the same shape of defect §28.2 fixed once already.  `span_closure` never calls
+    `k7_entry_walk`, so there is no cycle.
 
     A node is translated through its BYTE POSITION, never trusted by its frame label, because the two
     models bound a script differently: `span_closure`'s frame for `(sec, si)` is open-ended (it runs
     to the section size keeping the label) while `arc_parse` ends a script at the next pointer.  A
     reached position arc_parse parsed becomes a seed on the cell that covers it -- which re-files the
     3,660 ran-into-the-next-script nodes under the script that really holds those bytes instead of
-    failing 211 frames open for nothing.  A reached position arc_parse did NOT parse cannot be seeded
+    failing ~~211~~ **155** frames open for nothing (re-measured 2026-09-07, doc §31.11: the fail-open
+    count is `len(_span_entry_seeds(ci)[1])` summed over the cast).  The 3,660 was NOT re-derived this
+    pass and is not asserted: its wording admits more than one reading, and the nearest one -- nodes
+    whose byte position maps to a script index other than their frame label -- measures 123,444, which
+    is a different quantity rather than a drifted one.  Treat it as unverified until someone states the
+    predicate it counts.  A reached position arc_parse did NOT parse cannot be seeded
     at all, so the script holding it fails open; that is exactly two things, and nothing else
     cast-wide: `arc_parse`'s last-script terminator cut (18 cells in DUDLEY `caca[6]`, DUDLEY
     `saca[87]` and ELENA `atca[159]` -- §19.6(b), and see `span_last_script_cut()`), and
@@ -1227,7 +1253,9 @@ def k7_entry_walk(ci):
     cursor backwards or forwards inside the same script (§27.1, restricted to same-frame edges).
     Script commands are not the only writers of the entry, though: the C writes one too, and those
     entries come from `_span_entry_seeds` (the §27 closure), because a sweep of the data can never
-    see them.  Without them `dead` is an UNDER-approximation of liveness -- 121 cells cast-wide.
+    see them.  Without them `dead` is an UNDER-approximation of liveness -- ~~121 cells cast-wide~~
+    **338 cells over 82 scripts** on this tree, re-measured 2026-09-07 (doc §31.11; the derivation and
+    the withdrawn figure are in `_span_entry_seeds`).
     Fail-open everywhere -- a landing outside the script, a koc this model does not map, a command
     code past `decode_chcmd`, a same-frame edge leaving the parsed cells, or a C-side entry landing on
     a byte `arc_parse` never parsed, marks the whole script live.  `dead` therefore never rests on

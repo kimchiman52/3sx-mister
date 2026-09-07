@@ -294,7 +294,9 @@ changed is where a refuted claim is marked and where a number was wrong.
 > rows changing status** (§31.2), and `arc_parse`'s last-script cut is measured
 > **unsound**, hiding exactly **18 cells in 3 scripts**, and made non-load-bearing
 > by failing those scripts open (§31.3). That pass also found `k7_entry_walk`
-> itself under-approximating liveness by **121 cells over 60 scripts** — it could
+> itself under-approximating liveness by ~~121 cells over 60 scripts~~ **338
+> cells over 82 scripts on this tree** (§31.11 — the 121/60 does not reproduce;
+> re-derived figure and method in §31.1) — it could
 > not see the entries the **C** writes (§31.1) — and read both of Ken's unread
 > links, which refute the defence rather than supporting it (§31.4). Still no C
 > touched; 12 computed values moved in `cg_audit.json` and no verdict did.
@@ -1686,8 +1688,46 @@ No default-delta observation lands anywhere inside `0x1E01..0x2095`, so the
 bands do not interleave and the band is measured uniform end to end. `0x1E01`
 and `0x2095` are themselves the lowest and highest **observed** `-0x600` raws,
 so the shipped row is the **measured hull** and extrapolates past neither end.
-It was not widened further, and must not be: the next observation above
-`0x2095` is `0x6C01`, which measures the default.
+It was not widened further, and must not be.
+
+> **Sharpened 2026-09-07 (§31.11).** ~~The next observation above `0x2095` is
+> `0x6C01`, which measures the default.~~ That is true of the **oracle
+> observations** — the 1,021 raws §29's oracle pins — and it was stated as
+> though it were true of the **data**. It is not. Three of Twelve's `L` cells
+> carry a raw in the gap: `nmca[46]` c10 `0x2096`, c13 `0x2098`, c16 `0x209A`.
+> Enumerated exhaustively over every `L` cell of every Twelve script, those
+> three are the *only* raws strictly between `0x2095` and `0x6C01`, so the
+> corrected sentence is: **the next raw above `0x2095` that any oracle
+> observation pins is `0x6C01`, which measures the default; the next raw the
+> data holds at all is `0x2096`, and no observation pins it or the two after
+> it.**
+>
+> **This is latent, not a rendering defect — the three cells cannot be
+> drawn.** `nmca[46]` is `cgd 4`, so `arc_parse`'s cell index and
+> `span_closure`'s record index share one 16-byte stride from one base and the
+> two numberings coincide. Cell 8 is a `C` command, code **17**, in
+> `SPAN_TERMINAL`; cell 9 is code 1, also terminal. `span_closure` reaches
+> records **0-8 and stops there on BOTH arms** (`base` and `xcopy`) — no
+> data-side successor and no C-side entry lands at or past record 9, so the
+> cells at 10, 13 and 16 are never reached and their raws are never remapped.
+>
+> **`k7_entry_walk` does NOT independently confirm this, and must not be cited
+> as if it did.** Twelve is one of the ten characters `k7_unresolved_landings`
+> voids under §31.10 — **117** unresolvable landings, **110** X.C.O.P.Y. donor
+> jumps past a section's pointer table and **7** jumps to an unmapped `koc`
+> (`atca[89]` c259/261/263/265/269/271 and `yuca[16]` c2) — so
+> **all 671 of Twelve's scripts return an empty `dead` set** and the walk
+> reports these three cells *live* by fail-open. The reach argument therefore
+> rests on `span_closure` alone, on one model rather than two.
+>
+> **Do not widen the band on the strength of this.** Dead-by-reach is a
+> statement about the executor, not about the remap: it says these three cells
+> cannot expose a wrong delta, not that `-0x600` is the right delta for them.
+> Since they cannot be drawn either way, no measurement can distinguish a band
+> that covers them from one that does not, and the pin at `0x2095` stays where
+> the observations put it. If the top of the band is ever moved, the argument
+> has to come from the band's **semantics** — what `cg_number` space Twelve's
+> `-0x600` region actually is — and never from these three cells' reachability.
 
 **Blast radius, enumerated exhaustively.** Every `L` cell of every Twelve
 script, live or dead, was checked for a raw inside the hull that the 17 rows
@@ -2877,8 +2917,12 @@ not proof.
 > "before/after a terminator" is still printed, now labelled as the descriptive
 > statistic it is. Note that the model they were re-derived under was itself
 > strengthened in the same pass — it could not see the entries the **C** writes,
-> which revive 121 cells cast-wide (§31.1) — though none of those 121 is one of
-> these rows.
+> which revive ~~121~~ **338** cells cast-wide (§31.1, re-derived §31.11) —
+> though none of those 338 is one of these rows. The revived cells all lie in
+> the ten script tables (`atca`, `caca`, `cuca`, `dmca`, `saca`, `yuca`); these
+> rows are `sernd`, `stxy`, `hiit` and `cg_rival` entries, so the two sets are
+> disjoint by construction, and `data_audit.py` re-run on this tree still
+> prints the same 92 / 70 / 22 / 300 / 31.
 
 ### 15.8 Stretch: the second ROM revision (`sfiii3`, 990608)
 
@@ -3490,10 +3534,24 @@ read as confirmation.** Every corpus replay runs at default Extra Options, where
 all seven modifiers are already the identity, so **every gated statement was
 numerically inert in every segment** — and `statcheck_compare.c` does not
 compare `super_arts[].gauge_len`, `store_max` or `piyori_type[].genkai` at all.
-The frame-data suite is pinned to PS2 balance by `configuration.test.enabled`,
-where the PS2 arm is unchanged statement for statement. The corpus is a
-regression check that the change moved nothing; it is not evidence for the
-change. **The gate rests on the disassembly alone.**
+~~The frame-data suite is pinned to PS2 balance by `configuration.test.enabled`~~
+— **reason corrected 2026-09-07 (§31.11); the conclusion is unchanged.** That
+pin is what `arcade_balance.c` -> `ArcadeBalance_Init` calls "What was here
+before". Balance is now selected by `--test-balance`: `configuration.test.enabled`
+resolves to PS2 only when no balance is named, and **five corpora do name
+arcade** — `corpus-hugo-arcade`, `corpus-q-arcade`, `corpus-remy-arcade`,
+`corpus-twelve-arcade`, `corpus-yun-sa3-arcade`, **139 entries** between them
+(30 / 73 / 16 / 17 / 3), each carrying `balance: arcade`. So the suite is *not*
+blind to the arcade engine, and has not been since task #108.
+
+**It is still blind to these seven statements, for the reason above and not for
+that one.** Every corpus entry — arcade-balance ones included — runs at default
+Extra Options, where all seven `*_omake` modifiers are already the identity, so
+every gated statement is numerically inert in the arcade arm exactly as it is in
+the PS2 arm; and `statcheck_compare.c` does not compare `super_arts[].gauge_len`,
+`store_max` or `piyori_type[].genkai` at all. The corpus is a regression check
+that the change moved nothing; it is not evidence for the change. **The gate
+rests on the disassembly alone.**
 
 Three residuals, recorded rather than papered over:
 
@@ -4561,9 +4619,11 @@ Every link read in code, at `90bc598d`:
    `SDL_ReadU16BE(rom, p); // cg_se ... cg_olc_ix`
    Contrast the next statement, `cg_number = remap_cg_number(cg_number, character);`
    — `cg_number` is the *only* translated value (§4.4).
-2. `charset.c` -> `check_cgd_data` does `wk->cg_se >>= 4;` then dispatches
+2. `charset.c` -> `check_cgd_patdat` does `wk->cg_se >>= 4;` then dispatches
    `sound_effect_request[wk->cg_se](wk, check_xcopy_filter_se_req(wk))`. The low
-   nibble is flip/priority, not part of the code.
+   nibble is flip/priority, not part of the code. (`check_cgd_patdat2` performs
+   the same shift but has no `sound_effect_request` call at all, so the dispatch
+   this link rests on is `check_cgd_patdat`'s and only its.)
 3. `se_data.c` -> `sound_effect_request[1024]`. For the codes at issue the entry
    is `Se_Myself` (`se.c`), which adds `uid * 0x300` for P2 and calls
    `SsRequestPan`.
@@ -5923,7 +5983,7 @@ put a value into `cg_ix`, and everything that feeds it:
 
 | # | Writer | Value | Elena, measured |
 |---|---|---|---|
-| 1 | `charset.c` -> `check_cgd_data` (both copies): `wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];` | the cell's `olc` word `>> 4` selects an OVIX entry; its four `s16` slots are the part indices, one per overlap `type` | `olc >> 4` over all 7,769 cells, all ten tables: pre-terminator `{0: 7596, 1..14: 3 each, 15: 5, 16: 5}`, post-terminator `{0: 121}`; **max 16**; all nonzero in `saca[48]` |
+| 1 | `charset.c` -> `check_cgd_patdat` and `check_cgd_patdat2` (both copies): `wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];` — `check_cgd_patdat` guards the `cg_olc` write with `work_id == 1`, `check_cgd_patdat2` does not, but the latter is reached only from `exset_char_move_init`, whose two callers (`plpdm.c` -> `Damage_17000`, `pls00.c`) both pass a `PLW`, so a player gets the write from both and a non-player from neither | the cell's `olc` word `>> 4` selects an OVIX entry; its four `s16` slots are the part indices, one per overlap `type` | `olc >> 4` over all 7,769 cells, all ten tables: pre-terminator `{0: 7596, 1..14: 3 each, 15: 5, 16: 5}`, post-terminator `{0: 121}`; **max 16**; all nonzero in `saca[48]` |
 | 2 | `plcnt.c` -> `plcnt_init`: `wk->wu.cg_olc_ix = wk->wu.cg_hit_ix = 0;` | OVIX[0] | `{0, 0, 0, 0}` |
 | 3 | `plpdm.c` -> `Player_damage`: `wk->wu.cg_olc_ix = datadrs[3];` with `datadrs = exdm_ix_data[wk->wu.dm_exdm_ix][wk->player_number]` — **unshifted**, and `player_number` is the **character** (`plcnt.c` -> `plcnt_init`: `wk->player_number = My_char[ix]`; `constants.h`: `CHAR_GILL = 0`) | `exdm_ix_data[b][8][3]` | rows `{ 30, 21, 1, 0, 10394 }` and `{ 40, 21, 1, 0, 10394 }` → **0**; the `cg_number` 10394 it also writes is group 9 |
 | 4 | `eff01.c` -> `effect_01_move` restart: `ewk->wu.cg_olc.olc_ix[type] = ewk->wu.cg_ix = mwk->cg_olc.olc_ix[type];` | the master's current selection, i.e. #1-#3 through the OVIX | slot 0 of `ovix[e]` for `e ∈ {0..16}` = `{0..16}`; slots 1-3 are 0 for all 91 entries, so overlap types 1-3 never leave `if (mwk->cg_olc.olc_ix[type] == 0) return;` |
@@ -7316,8 +7376,9 @@ never emitted. The `+31` half of a column is as load-bearing as the `0+`.
 > below are the ones *inside* a script. The entry set itself was also short: this
 > walk collects landings named by script **commands**, and the **C** writes
 > entries too (`SPAN_C_ENTRIES`, the throw seeds, and the `dmca`/`yuca`/`nmca`
-> carries — all of which `span_closure` already models). **Measured: 121 cells
-> over 60 scripts** that this walk called dead are reachable that way. No verdict
+> carries — all of which `span_closure` already models). ~~**Measured: 121 cells
+> over 60 scripts**~~ **Re-measured 2026-09-07 (§31.11): 338 cells over 82
+> scripts** that this walk called dead are reachable that way. No verdict
 > in this section changes, and Yang's `saca[44..47]` c41 stay dead a third time.
 
 §26.10.2 replaced §19's linear terminator scan with an entry-point closure, but
@@ -7880,15 +7941,28 @@ the house rule for this class of tooling (§24.5, §25.6, §26.7, §27.6, §28).
 is the other choice, and it is the set of `cgd_type`s the format has), and the
 classification does not turn on it. Sweeping it:
 
+> **Re-derived 2026-09-07 (§31.11).** The table below was measured before the
+> Twelve band fix (`92d89d8d`) widened `twelve_cg_ranges`, which moved the
+> whole grid census. Every row is re-run on the current tree; the previous
+> figures are kept beside them so the movement is visible, not erased. **The
+> two properties the table is here to show both survive**: 4/5/6 are still
+> bit-identical, and the last column is still `0` at every threshold.
+
 | `GRID_MIN_RECORDS` | aligned | phantom | unmodelled | switch scripts | signature: phantom / unmodelled / **aligned** |
 |---|---|---|---|---|---|
-| 2 | 165,446 | 2,747 | 328 | 145 | 1,347 / 55 / **0** |
-| 3 | 165,720 | 2,189 | 612 | 143 | 1,343 / 59 / **0** |
-| **4** | **165,738** | **2,169** | **614** | **143** | **1,343 / 59 / 0** |
-| 5 | 165,738 | 2,169 | 614 | 143 | 1,343 / 59 / **0** |
-| 6 | 165,738 | 2,169 | 614 | 143 | 1,343 / 59 / **0** |
-| 8 | 165,706 | 2,168 | 647 | 143 | 1,319 / 83 / **0** |
-| 12 | 165,706 | 2,168 | 647 | 143 | 1,319 / 83 / **0** |
+| 2 | 165,446 | 2,766 *(was 2,747)* | 309 *(was 328)* | 145 | 1,365 / 37 / **0** |
+| 3 | 165,720 | 2,212 *(was 2,189)* | 589 *(was 612)* | 143 | 1,365 / 37 / **0** |
+| **4** | **165,738** | **2,192** *(was 2,169)* | **591** *(was 614)* | **143** | **1,365 / 37 / 0** |
+| 5 | 165,738 | 2,192 | 591 | 143 | 1,365 / 37 / **0** |
+| 6 | 165,738 | 2,192 | 591 | 143 | 1,365 / 37 / **0** |
+| 8 | 165,706 | 2,191 *(was 2,168)* | 624 *(was 647)* | 143 | 1,341 / 61 / **0** |
+| 12 | 165,706 | 2,191 | 624 | 143 | 1,341 / 61 / **0** |
+
+The byte-signature total is **1,402** at every threshold, unmoved; what the
+band fix shifted is how many of them the walk can place (1,343 -> 1,365) and
+how many it declines (59 -> 37). The `aligned` count is unmoved at every
+threshold too — the fix moved cells between `phantom` and `unmodelled`, and
+across no other boundary.
 
 4 sits in the middle of a plateau (4, 5 and 6 are bit-identical), and the
 verdict on the OOB violation rows is the same at every value in the table. The
@@ -7907,16 +7981,20 @@ gate therefore discarded whole.)
 
 **The grid walk assigns role 2 to every one of them that it places at all.**
 The histogram over the role it gives each signature cell's word-0 block is
-`{2: 1343, None: 59}`: 1,343 placed, every single one at role **2** — the
-`cg_hit_ix`/`cg_att_ix` word — and 59 it declined to place, which come back
-`unmodelled`. **Not one is assigned role 0, and not one is `aligned`, at any
-value of `GRID_MIN_RECORDS` from 2 to 12.** The signature and the walk are
-independent instruments — one is a single u32 comparison at one offset, the
-other a segmentation of the whole script against a six-role field layout — and
-they agree on every cell.
+~~`{2: 1343, None: 59}`~~ **`{2: 1365, None: 37}`** (re-derived 2026-09-07,
+§31.11 — the band fix `92d89d8d` let the walk place 22 cells it had declined):
+1,365 placed, every single one at role **2** — the `cg_hit_ix`/`cg_att_ix` word
+— and 37 it declined to place, which come back `unmodelled`. **Not one is
+assigned role 0, and not one is `aligned`, at any value of `GRID_MIN_RECORDS`
+from 2 to 12.** The signature and the walk are independent instruments — one is
+a single u32 comparison at one offset, the other a segmentation of the whole
+script against a six-role field layout — and they agree on every cell. The
+1,402 total and its per-character split above are unmoved by the band fix; only
+the placed/declined split inside it moved.
 
-Cast-wide the walk finds **143 scripts with a phase switch** and **2,169
-phantom cells** against 165,738 aligned and 614 unmodelled. Named cases, from
+Cast-wide the walk finds **143 scripts with a phase switch** and ~~2,169~~
+**2,192 phantom cells** against 165,738 aligned and ~~614~~ **591** unmodelled
+(re-derived 2026-09-07, §31.11). Named cases, from
 `cg_audit.json` -> `grid_phase.off_grid_scripts`:
 
 | script | switches (block, period, phase) | phantom cells | what it is |
@@ -7925,7 +8003,7 @@ phantom cells** against 165,738 aligned and 614 unmodelled. Named cases, from
 | Dudley `saca[36..39]` | `[5, 4, 0]` | 19 each | the tail is on **16-byte** records while the header declares `cgd 6` |
 | Oro `saca[28..31]` | `[29, 6, 2]`, `[105, 6, 4]` | 29 each | §22.9's "two containers, two grids", re-derived without a terminator |
 | Remy `saca[63]` | `[125, 6, 2]`, `[489, 6, 4]` | 97 | carries 30 of the 53 `a_effinit_oob` rows |
-| Twelve `nmca[46]` | `[212, 4, 2]` | 1 | 29 signature cells at 12, 15, 18, 21 … — 24-byte records on a 16-byte grid that the walk declines to switch to (§30.5) |
+| Twelve `nmca[46]` | `[122, 4, 2]` *(was `[212, 4, 2]`)* | **24** *(was 1)* | 29 signature cells. Since `92d89d8d` the walk **does** switch, at block 122, and that switch places cells 30-53 as `phantom`; cells 9-29 stay `unmodelled` — the every-third-cell fingerprint at 12, 15, 18, 21, 24, 27 is 24-byte records on a 16-byte grid that no single (period, phase) clears the four-record bar for (§30.5) |
 
 ### 30.5 What changes status
 
@@ -7935,9 +8013,12 @@ grid is a second, independent axis. What changes is *which* rows the artifact
 story was entitled to excuse, and the answer is: fewer than it claimed, and for
 a different reason than it gave.
 
-**The 136 OOB-index rows split 119 / 17.**
+**The 136 OOB-index rows split ~~119 / 17~~ 120 / 16** (re-derived 2026-09-07,
+§31.11: the band fix `92d89d8d` moved Twelve `nmca[46]` c30 from `unmodelled`
+to `phantom`, which is the whole of the movement — the total 136 is unchanged
+and no row changed class).
 
-- **119 `phantom`** — 53 `a_effinit_oob`, 50 `a_koc_oob`, 16 `a_se_oob`. For
+- **120 `phantom`** — 53 `a_effinit_oob`, ~~50~~ **51** `a_koc_oob`, 16 `a_se_oob`. For
   these the audit now says *what the out-of-range index actually is*. All 53
   `a_effinit_oob` rows sit on cells whose word 3 — the one the decoder reports
   as `cg_extdat|cg_cancel|cg_effect|cg_eftype` — the walk places at role **1**,
@@ -7947,10 +8028,12 @@ a different reason than it gave.
   117/149…154 = `0x7441..0x7459`, `0x7595..0x759A`): they are a run of sprites.
   The role assigned to word 3 of those 53 cells is `{1: 53}` — every one, no
   exception. On the same measurement the 16 phantom `a_se_oob` rows and 44 of
-  the 50 phantom `a_koc_oob` rows have role **2** at word 0 (the `cg_se` /
-  `koc` the audit read is half of a `cg_hit_ix`/`cg_att_ix` pair); the other
-  six `a_koc_oob` rows are phantom on a different word of the cell.
-- **17 not** — and each stands on `"dead": true` alone:
+  the ~~50~~ **51** phantom `a_koc_oob` rows have role **2** at word 0 (the
+  `cg_se` / `koc` the audit read is half of a `cg_hit_ix`/`cg_att_ix` pair);
+  the other ~~six~~ **seven** `a_koc_oob` rows are phantom on a different word
+  of the cell. Re-derived 2026-09-07 (§31.11): the 44 is unmoved and the new
+  row — Twelve `nmca[46]` c30 — joins the second group, taking six to seven.
+- **16 not** — and each stands on `"dead": true` alone:
   - **16 `past_prefix`.** Fifteen `a_se_oob` rows, all Yun (`atca[30..32]` c25
     `se 0x4C8`; `atca[118/119/130/131/142/143]` c8 `se 0x600`; `saca[31]`
     c30/c95/c180 `se 0x400`; `saca[98]` c59/c60/c61), plus Hugo `nmca[49]` c24
@@ -7961,12 +8044,23 @@ a different reason than it gave.
     These are exactly the eight ROM locations §21.6's addendum recorded as "the
     8 that differ are all Yun's, whose PS2 spans do not line up", re-found by
     an instrument that knows nothing about that sentence.
-  - **1 `unmodelled`.** Twelve `nmca[46]` c30, `comm_jpss` with `koc 6144`. The
-    byte signature fires at cells 12, 15, 18, 21 … of this script — every third
-    cell, which is the fingerprint of 24-byte records decoded on a 16-byte grid
-    — but no single (period, phase) clears the four-record bar there, so the
-    walk refuses to call the cell `phantom` and leaves it to be adjudicated.
-    This is the house rule working: the model declines rather than guesses.
+  - ~~**1 `unmodelled`.** Twelve `nmca[46]` c30, `comm_jpss` with `koc 6144`.~~
+    **RESOLVED 2026-09-07 (§31.11) — this row is now `phantom`, and it is the
+    row that takes the count above from 119 to 120.** The band fix `92d89d8d`
+    changed what
+    `_grid_roles` can explain in this script, and the walk now takes a switch
+    at block 122 (`[122, 4, 2]`) that places cells 30-53, c30 among them. Its
+    word 0 is still unplaced but its word 2 lands at role 0, so it is phantom
+    on a different word — which is why it joins the "other seven" `a_koc_oob`
+    rows above rather than the 44. **Nothing was widened to achieve this and no
+    verdict rests on it**: the row's `"dead"` field reads `false` either way
+    (Twelve's `dead` set is void under §31.10, below), so it never stood on
+    `dead` alone in the first place — which is precisely why it sat in this
+    list. Cells 9-29 of the same script remain `unmodelled` for the original
+    reason: the byte signature fires at 12, 15, 18, 21, 24, 27 — every third
+    cell, the fingerprint of 24-byte records decoded on a 16-byte grid — and no
+    single (period, phase) clears the four-record bar there. That half is still
+    the house rule working: the model declines rather than guesses.
 
 **The 316 shape-mismatched scripts split four ways** (`grid` on each
 `needs_manual_diff` row), which retires §21.6's "explains most shape mismatch":
@@ -8107,11 +8201,37 @@ carry into `dmca[dm17_to_nm23_change[ci]]`, `win_pl.c`'s carry into
 X.C.O.P.Y. donor jumps. Neither model calls the other, so they are independent,
 and the comparison is just a set difference.
 
-> **Measured: `span_closure` reaches 121 cells, over 60 scripts, that
+> ~~**Measured: `span_closure` reaches 121 cells, over 60 scripts, that
 > `k7_entry_walk` called dead.** Every one is in `cuca[0]`, `cuca[1]`,
 > `cuca[24]`, `cuca[33]`, `yuca[16]`, `yuca[33]`, `yuca[35]`, `dmca[dm17]` or
-> Twelve's `saca[44]` — i.e. every one is a C-side or carried entry, exactly the
-> class the caveat named.
+> Twelve's `saca[44]`.~~
+>
+> **WITHDRAWN and RE-MEASURED 2026-09-07 (§31.11).** The 121/60 does not
+> reproduce — not on this tree, and not on the walk it was written against.
+> **Method**, so the next reader can repeat it rather than trust it:
+> `k7_entry_walk` is run cast-wide in **two separate processes on identical
+> inputs** (the module caches `dead` per character, so one process cannot hold
+> both arms), once unmodified and once with `_span_entry_seeds` stubbed to
+> return `({}, set(), cut)` — the cut is preserved so only the entry
+> contribution moves — and the two dead sets are differenced.
+>
+> **On this tree: 338 cells over 82 scripts.** Dead falls 10,234 -> 9,896 and
+> dead-bearing scripts 3,671 -> 3,593. Neutering `k7_unresolved_landings` as
+> well reproduces the pre-§31.10 walk and yields **523 cells over 171 scripts**
+> (dead 16,437 -> 15,914) — which is what this line should have read when it
+> was written, and which dates the drift to §31.10 rather than to any change in
+> the seeds.
+>
+> The two halves do **not** partition the total: suppressing only the seed dict
+> revives 248 cells / 28 scripts and suppressing only the fail-open frames
+> revives 57 / 27, because a cell both mechanisms reach survives either
+> suppression alone. The sections holding the 338 are `saca` 187, `yuca` 88,
+> `cuca` 38, `atca` 19, `dmca` 3, `caca` 3 — still every one a C-side or carried
+> entry or a frame the re-filing opens, which is the class the caveat named; but
+> the enumeration above was never the whole of it and is not restored. All 82
+> scripts lie in the **ten** characters `k7_unresolved_landings` does not void
+> (Alex, Yun, Dudley, Ibuki, Oro, Yang, Sean, Urien, Akuma, Chun-Li); for the
+> other ten `dead` is empty on both arms, so they cannot contribute either way.
 
 So `dead` was an **under**-approximation of liveness: the direction that fails
 toward "benign", which the house rule forbids. This is the same shape of defect
@@ -8123,7 +8243,7 @@ label: `span_closure`'s frame for `(sec, si)` is open-ended (it runs to the
 section size keeping the label) while `arc_parse` ends a script at the next
 pointer. A reached position `arc_parse` parsed becomes a seed on the cell that
 covers it — which re-files **3,660** ran-into-the-next-script nodes under the
-script that really holds those bytes, instead of failing 211 frames open for
+script that really holds those bytes, instead of failing ~~211~~ **155** frames open for
 nothing. A reached position `arc_parse` did **not** parse cannot be seeded at
 all, so the script holding it fails open.
 
@@ -8289,8 +8409,9 @@ reason §26.10.1 gave and with more evidence behind it.
   next bullet for what still is.
 - **§26.10.2 / §28.2**'s `k7_entry_walk` was itself an **under**-approximation
   of liveness, for the reason both sections named as unexamined and neither
-  measured: it sweeps script commands, and the C writes entries too. 121 cells
-  over 60 scripts (§31.1). Their verdicts are unchanged — Yang's `saca[44..47]`
+  measured: it sweeps script commands, and the C writes entries too. ~~121 cells
+  over 60 scripts~~ **338 cells over 82 scripts** (§31.1, re-derived §31.11).
+  Their verdicts are unchanged — Yang's `saca[44..47]`
   c41 stay dead under the stronger model, for the third time.
 - **§26.10.6**'s "Ken's gate is not closed. The two unread links are named
   exactly in §26.10.1" — both are now read (§31.4). The conclusion (gate open,
@@ -8397,7 +8518,8 @@ Three facts the rule depends on, each **measured or read**:
    It is re-read on every `get_new_parts_data` call, so a walk can move between
    the two domains mid-run; the closure therefore takes the **union** — from
    every state both `cg_ix` and `cg_ix + 1` are dereferenced.
-3. **`type == 0` is OVIX slot 0.** `charset.c` -> `check_cgd_data`:
+3. **`type == 0` is OVIX slot 0.** `charset.c` -> `check_cgd_patdat` and
+   `check_cgd_patdat2`, identically in both:
    `wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];` — the
    OVIX entry is four `s16`, one per overlap `type`, and `effect_01_init` fixes
    `type` from its `koolc` argument for the life of the effect work. Slots 1-3
@@ -8465,7 +8587,8 @@ REACHABLE part : 0` still holds, and was not suppressed to make it hold.**
 ## 31.8 A selected OVIX index past the end of the OVIX makes the reach closure `unmodelled`, not `ok`
 
 `_closure` seeded only `0 <= e < len(ovix)` and recorded the rest in
-`ovix_oob`, which nothing consumed. `charset.c` -> `check_cgd_data` does
+`ovix_oob`, which nothing consumed. `charset.c` -> `check_cgd_patdat` **and**
+`check_cgd_patdat2` both do
 `wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix]` with no bound, so such a read
 yields four part indices this file cannot know and everything downstream of it
 is an **under**-approximation — yet the row printed `ok`. It now prints
@@ -8642,6 +8765,92 @@ select `olc 0`), `k7_gate` is unchanged for every character, and
   whole script live" — described behaviour the code did not have. It does now,
   at character scope (§31.10).
 - **§29.5**'s unresolved residue grows from 4 scripts to **9** (§31.10).
+
+### Sixteenth pass, 2026-09-07 — four wrong claims, re-derived not copied
+
+Every figure below comes from a run made for this pass. Where an earlier
+review's number and this one disagree, the derivation is shown and this one
+stands.
+
+- **§31.1's "121 cells over 60 scripts" is WITHDRAWN — it reproduces nowhere.**
+  Re-measured by running `k7_entry_walk` cast-wide in two separate processes on
+  identical inputs, once unmodified and once with `_span_entry_seeds` stubbed
+  out, then differencing the dead sets. **This tree: 338 cells over 82 scripts**
+  (dead 10,234 -> 9,896; dead-bearing scripts 3,671 -> 3,593). With
+  `k7_unresolved_landings` neutered as well — the pre-§31.10 walk, i.e. what the
+  claim was written against — **523 cells over 171 scripts** (dead
+  16,437 -> 15,914). So the drift is §31.10's doing, not the seeds'. Nine sites
+  carried the old figure; all nine are marked, not overwritten. The 121/60
+  matches neither arm and no reading of the code was found that produces it.
+- **§31.1's enumeration of *which* scripts** ("every one is in `cuca[0]`,
+  `cuca[1]`, … or Twelve's `saca[44]`") was never the whole set and is retired
+  rather than repaired. The 338 sit in `saca` 187, `yuca` 88, `cuca` 38, `atca`
+  19, `dmca` 3, `caca` 3, across the ten characters §31.10 does not void.
+- **§31.1's "211 frames open" is now 155** (`len(_span_entry_seeds(ci)[1])`
+  summed over the cast). The **3,660** in the same sentence was **not**
+  re-derived and is explicitly not asserted: its wording admits more than one
+  predicate, and the nearest reading measures 123,444 — a different quantity,
+  not a drifted one. Unverified until someone states what it counts.
+- **§16.2's blindness REASON was wrong; its CONCLUSION stands.** The suite is
+  not pinned to PS2 by `configuration.test.enabled` — `arcade_balance.c` ->
+  `ArcadeBalance_Init` calls that "What was here before". Balance is chosen by
+  `--test-balance`, PS2 only by default, and five corpora name arcade
+  (`corpus-hugo-arcade`, `-q-`, `-remy-`, `-twelve-`, `-yun-sa3-`; 139 entries,
+  30/73/16/17/3). The seven statements are still invisible to the suite,
+  because every corpus — arcade ones included — runs at default Extra Options
+  where all seven modifiers are the identity, and because `statcheck_compare.c`
+  compares none of the three fields.
+- **§30's grid census is re-derived after `92d89d8d`.** Cast-wide
+  2,169 -> **2,192** phantom and 614 -> **591** unmodelled against an unmoved
+  165,738 aligned and 143 switch scripts; the whole `GRID_MIN_RECORDS` sweep
+  re-run (4/5/6 still bit-identical, `aligned` unmoved at every threshold, the
+  §30.6 assertion still 0 everywhere). The signature total is unmoved at
+  **1,402**; its placed/declined split moves `{2: 1343, None: 59}` ->
+  **`{2: 1365, None: 37}`**. Twelve `nmca[46]`'s switch is `[122, 4, 2]` with
+  **24** phantom cells, not `[212, 4, 2]` with 1. The OOB-index rows split
+  119/17 -> **120/16**: `a_koc_oob` phantom 50 -> **51**, of which 44 have role
+  2 at word 0 (unmoved) and the other six -> **seven** are phantom on another
+  word. §30.5's "1 `unmodelled` — Twelve `nmca[46]` c30" is resolved: that row
+  is now `phantom`, and it is the row that takes 119 to 120.
+- **§8.S's boundary sentence was true of the ORACLE, stated as if of the DATA.**
+  Three Twelve `L` cells carry a raw in the gap above `0x2095` — `nmca[46]` c10
+  `0x2096`, c13 `0x2098`, c16 `0x209A` — and an exhaustive sweep of every `L`
+  cell of every Twelve script finds exactly those three between `0x2095` and
+  `0x6C01`. They are **latent, not a rendering defect**: `nmca[46]` is `cgd 4`
+  so the two models share one stride and one base, cell 8 is command code 17
+  (`SPAN_TERMINAL`), and `span_closure` reaches records 0-8 and no further on
+  **both** arms. **The brief that raised this said they are dead under
+  `k7_entry_walk` too; they are not.** Twelve is voided by §31.10 (117
+  unresolvable landings), so all 671 of his scripts return an empty `dead` set
+  and the walk reports these three *live* by fail-open. The reach argument rests
+  on one model, not two. **The band was not widened and must not be** — see the
+  note in §8.S for why reachability cannot license widening it.
+- **`check_cgd_data` does not exist**, and never did; the functions are
+  `charset.c` -> `check_cgd_patdat` and `check_cgd_patdat2`. 25 references
+  across five files are corrected **per site, by behaviour, not by
+  search-and-replace**, because the two differ:
+  - `check_cgd_patdat` runs from `check_cm_extended_code` on every extended-code
+    cell, calls `setupCharTableData` first, handles `cg_add_xy`, dispatches
+    `effinitjptbl` and `sound_effect_request`, and guards `cg_olc` with
+    `work_id == 1` and `cg_ja`/`set_jugde_area` with `work_id < 16`.
+  - `check_cgd_patdat2` runs only from `exset_char_move_init`, does none of
+    that, and leaves `cg_olc`, `cg_ja` and `set_jugde_area` unguarded.
+  - The **`cg_se >>= 4` before a sound dispatch** sites therefore name
+    `check_cgd_patdat` alone — `check_cgd_patdat2` performs the shift but has no
+    `sound_effect_request` call at all.
+  - The **`olc_ix_table[cg_olc_ix]` unbounded read** sites name **both**: both
+    copies perform it unbounded, and the guard difference is immaterial here
+    because `exset_char_move_init`'s only two callers (`plpdm.c` ->
+    `Damage_17000`, `pls00.c`) both pass a `PLW`. For a player both copies write
+    `cg_olc`; for a non-player neither does.
+
+**Noticed but NOT fixed this pass, so it is not left unsaid.** §31.2's headline
+"the two criteria agree 394/394" no longer reproduces: `data_audit.py` on this
+tree prints `hiit_oob` 300/300 but `sernd_oob` **65/70** and `stxy_oob`
+**2/24**, because §31.10 changed the reach side of the comparison. The five
+counts §31.2 actually rests on are unmoved and were re-verified here (92 = 70 +
+22, 300, 31 = URIEN 3 + REMY 28), so no verdict moves; it is the agreement
+statistic that is stale. Re-deriving it needs §31.2's own pass.
 
 ## 31.12 What §31.7-§31.11 do not establish
 

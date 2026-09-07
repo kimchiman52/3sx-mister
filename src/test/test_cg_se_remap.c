@@ -13,7 +13,9 @@
  *
  *   1. The six pairs map as specified, for ALL 16 values of the low
  *      flip/priority nibble, which must survive untouched (charset.c ->
- *      check_cgd_data does `wk->cg_se >>= 4;` before dispatch).
+ *      check_cgd_patdat does `wk->cg_se >>= 4;` before dispatch).
+ *      check_cgd_patdat2 does the same shift but never dispatches a
+ *      sound, so the dispatch this rests on is check_cgd_patdat's.
  *   2. The remap is keyed per character: a full sweep of every
  *      (character, code, nibble) triple finds exactly the six mappings and
  *      nothing else. In particular Urien's 0x2FB and Twelve's 0x3DF --
