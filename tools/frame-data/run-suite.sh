@@ -237,6 +237,27 @@ case "$JOBS" in
         ;;
 esac
 
+# Throttling this suite is almost always a mistake, and an expensive one, so say
+# so out loud rather than leaving it to a doc nobody reads mid-run.
+#
+# Measured 2026-09-06 on a 4P+6E host: 1,491 labels across 100 corpora at the
+# tree's recorded 2.16 s/label is ~53.7 min serial. At the default width
+# (hw.logicalcpu - 1) the real run was 832 s -- 99/99 GREEN, zero drift. The
+# same suite at --jobs 3, with one sibling agent competing, took ~50 min: near
+# serial, for a ~14 min job. The throttle was added to "be polite" to a
+# concurrent agent and cost 3-4x on the critical path.
+#
+# The right answer is to give a gate run the machine, not to shrink it.
+FDH_JOBS_FLOOR="${FDH_JOBS_FLOOR:-6}"
+if [ -n "$JOBS_OVERRIDE" ] && [ "$JOBS" -lt "$FDH_JOBS_FLOOR" ] 2>/dev/null; then
+    echo "warning: --jobs $JOBS is below the recommended floor of $FDH_JOBS_FLOOR." >&2
+    echo "         The default (hw.logicalcpu - 1) is ~14 min for the full suite;" >&2
+    echo "         --jobs 3 measured ~50 min for the same work. Prefer the default" >&2
+    echo "         and give the gate run the machine to itself." >&2
+    echo "         Lower it only for repeated efficiency-core timeouts (exit 143)," >&2
+    echo "         and set FDH_JOBS_FLOOR to silence this deliberately." >&2
+fi
+
 # ---------------------------------------------------------------------
 # Build once
 # ---------------------------------------------------------------------
