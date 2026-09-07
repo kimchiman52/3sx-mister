@@ -60,7 +60,14 @@ All four produce a green run or a red one that means nothing:
    change under review. Snapshot the files to a scratch directory and
    restore from those.
 4. **Prove the restore.** Compare source md5s *and* object md5s against a
-   pre-mutation snapshot before trusting any result that follows.
+   pre-mutation snapshot before trusting any result that follows — but note
+   an object md5 moves when a **header** the TU includes changes, even by one
+   comment line, because DWARF line info shifts. Measured 2026-09-06:
+   inserting a single comment into `trials_demo.h` moved `trials_demo.c.o`
+   from `ec4995f8` to `78e404ee` and back on restore, with the `.c`
+   byte-identical. So object md5 proves a restore only when the headers are
+   held constant too; when they are not, the source md5 is the authority and
+   a moved object hash is not evidence of a failed restore.
 
 ## Gating
 
