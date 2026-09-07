@@ -20,7 +20,7 @@ Data sources:
   rom.bin                     decrypted CPS3 sfiii3nr1 (decrypt.py; SIMM sha256 == rom_load.c:41-45)
   SF33RD.AFS                  PS2 game data (AFS entry apfn, tail at to_chd)
 """
-import bisect, collections, json, re, struct, sys, os
+import bisect, collections, heapq, json, re, struct, sys, os
 
 import os as _os
 
@@ -285,6 +285,30 @@ def ps2_parse(blob, base, size, ents, idx):
 # with NO timing constraint (any hold length), so the closure is an upper
 # bound on what the C can index. A negative or past-the-end index is recorded
 # in `past_end`, not expanded: the C would read outside the table there.
+#
+# GILL'S +1 IS PART OF THE WALK, NOT JUST OF THE SEED (doc §31.7).  eff01.c ->
+# get_new_parts_data runs on EVERY step of the walk, restart and timer expiry
+# alike, and it is what dereferences the table:
+#     now_koc = cg_ix;
+#     if (type == 0 && mwk->player_number == 0 && mwk->wu.rl_flag) now_koc++;
+#     overlap_char_tbl = mwk->wu.overlap_char_tbl + now_koc;
+#     cg_ctr = overlap_char_tbl->parts_timer;
+# and effect_01_move's timer branch then reads `overlap_char_tbl->parts_nix`
+# through that already-shifted pointer.  So with the shift live the recurrence
+# is `cg_ix' = nix[cg_ix + 1] or cg_ix + 1` and the index actually READ is
+# `cg_ix + 1` -- a different walk, over different entries, from the unshifted
+# one.  `player_number` is the CHARACTER (plcnt.c -> plcnt_init:
+# `wk->player_number = My_char[ix]`; constants.h `CHAR_GILL = 0`; the same
+# idiom appears spelled out in hitcheck.c -> change_damage_attribute as
+# `as->player_number == CHAR_GILL && as->wu.rl_flag`), so the shift is Gill's
+# and only Gill's, and it applies only to overlap `type` 0 -- OVIX slot 0.
+# `rl_flag` is plmain.c -> plmv_1020's facing flag (0 for `wu.id` 0, 1 for
+# `wu.id` 1) and is re-read on every get_new_parts_data call, so a walk can
+# move between the two domains mid-run.  The closure therefore takes the UNION:
+# from every state both `cg_ix` and `cg_ix + 1` are dereferenced.
+# §24.3(3) named this rule and then dropped it ("not audited here"); with it
+# modelled, all 40 of Gill's slot-0 seeds run off the end of his 392-entry
+# arcade OVCT at index 392, where the unshifted walk was a self-loop.
 OVCT_ELEM, OVIX_ELEM = 16, 8
 OVCT_NIX_OFF = 12          # OverlapPart.parts_nix (u16), structs.h
 
@@ -353,21 +377,52 @@ def parse_exdm_olc_ix():
 
 EXDM_OLC_IX = parse_exdm_olc_ix()
 
-def _closure(ovix, nix, olc_indices):
+CHAR_GILL = 0                    # constants.h; also NAMES.index("GILL")
+
+def ovct_shift(ci):
+    """The offsets `get_new_parts_data` can add to `cg_ix` before dereferencing
+    `overlap_char_tbl`, per overlap `type`.  Slot 0 gets Gill's `+1` as well as
+    0 because `rl_flag` is re-read on every call; slots 1-3 never do (the test
+    is `ewk->wu.type == 0`)."""
+    return {0: ((0, 1) if ci == CHAR_GILL else (0,)), 1: (0,), 2: (0,), 3: (0,)}
+
+def _closure(ovix, nix, olc_indices, shift=None):
+    """Reachable OVCT part indices.  `shift` maps overlap slot -> the offsets
+    get_new_parts_data can add before the dereference (see the block comment
+    above); the default is the unshifted walk for every slot.  `reach` is the
+    set of indices actually READ, `past_end` the reads that leave the table.
+
+    A selected OVIX index past the end of the table is NOT silently dropped:
+    `charset.c` -> `check_cgd_data` does `wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix]`
+    with no bound, so such a read produces four part indices this model cannot
+    know, and the closure below is then an under-approximation.  Every one is
+    reported in `unmodelled`, and the row gate opens on it (doc §31.8)."""
+    shift = shift or {t: (0,) for t in range(4)}
     ovix_oob = sorted(e for e in olc_indices if e >= len(ovix))
-    seeds = set()
+    seeds, by_slot = set(), {t: set() for t in range(4)}
     for e in olc_indices:
         if 0 <= e < len(ovix):
-            for v in ovix[e]:
-                if v != 0: seeds.add(v)
-    reach, past_end, stack = set(), set(), sorted(seeds)
-    while stack:
-        p = stack.pop()
-        if p in reach or p in past_end: continue
-        if p < 0 or p >= len(nix): past_end.add(p); continue
-        reach.add(p)
-        stack.append(nix[p] if nix[p] else p + 1)
-    return dict(seeds=sorted(seeds), reach=sorted(reach), past_end=sorted(past_end), ovix_oob=ovix_oob)
+            for t, v in enumerate(ovix[e]):
+                if v != 0: seeds.add(v); by_slot[t].add(v)
+    reach, past_end = set(), set()
+    for t, s0 in by_slot.items():
+        seen, stack = set(), sorted(s0)
+        while stack:
+            s = stack.pop()
+            if s in seen: continue
+            seen.add(s)
+            for d in shift[t]:
+                q = s + d
+                if q < 0 or q >= len(nix): past_end.add(q); continue
+                reach.add(q)
+                n = nix[q] if nix[q] else s + 1
+                if n not in seen: stack.append(n)
+    unmodelled = ["olc index %d selects past the %d-entry OVIX: charset.c check_cgd_data's"
+                  " `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields"
+                  " are unknown and this closure is an under-approximation" % (e, len(ovix))
+                  for e in ovix_oob]
+    return dict(seeds=sorted(seeds), reach=sorted(reach), past_end=sorted(past_end),
+                ovix_oob=ovix_oob, unmodelled=unmodelled)
 
 _REACH_CACHE = {}
 
@@ -377,13 +432,15 @@ def ovct_reachability(ci):
     if ci in _REACH_CACHE: return _REACH_CACHE[ci]
     pre, post = emitted_olc_indices(ci)
     idx = pre | post | {0} | EXDM_OLC_IX[ci]
-    a = _closure(arc_ovix(ci), arc_ovct_nix(ci), idx)
+    sh = ovct_shift(ci)
+    a = _closure(arc_ovix(ci), arc_ovct_nix(ci), idx, sh)
     a['ovix_oob_pre'] = sorted(e for e in pre if e >= len(arc_ovix(ci)))
     a['ovix_oob_post'] = sorted(e for e in post if e >= len(arc_ovix(ci)))
     ppre, ppost = ps2_olc_indices(ci)
     povix, pnix = ps2_ovix_nix(ci)
-    p = _closure(povix, pnix, ppre | ppost | {0} | EXDM_OLC_IX[ci])
-    r = dict(arcade=a, ps2=p, arcade_entries=len(arc_ovct_nix(ci)), ps2_entries=len(pnix))
+    p = _closure(povix, pnix, ppre | ppost | {0} | EXDM_OLC_IX[ci], sh)
+    r = dict(arcade=a, ps2=p, arcade_entries=len(arc_ovct_nix(ci)), ps2_entries=len(pnix),
+             shift={str(t): list(v) for t, v in sorted(sh.items())})
     _REACH_CACHE[ci] = r
     return r
 
@@ -417,10 +474,29 @@ def ovct_reachability(ci):
 # Everything else moves the player to a damage/catch/caught state first --
 # hitplpl.c plef_at_vs_player_damage_union writes ds->routine_no[1] = 1 and
 # routine_no[3] = 0 at contact, so check_hit_stop()'s dm_stop branch reaches
-# Player_damage (a new script, hence a new `olc`) on the next frame. A contact
-# needs att_hit_ok, which only a RENEWAL cell (negative `att`, charset.c
-# set_new_attnum) sets and which hitcheck.c clears on any contact, so each
-# renewal cell in the run buys at most ONE positive hit_stop.
+# Player_damage (a new script, hence a new `olc`) on the next frame.
+#
+# ~~A contact needs att_hit_ok, which only a RENEWAL cell (negative `att`,
+# charset.c set_new_attnum) sets and which hitcheck.c clears on any contact, so
+# each renewal cell in the run buys at most ONE positive hit_stop.~~
+# WITHDRAWN 2026-09-07 (doc §31.9): "only a renewal cell" was an INCOMPLETE
+# enumeration. `att_hit_ok = 1` has FIVE sites (att_hit_ok_setters(), derived
+# from source below), and hitplef.c -> player_at_vs_effect_dm is a second one
+# that lands on a PLAYER:
+#     if (ds->wu.work_id == 2 && ds->wu.id != 122 && ds->wu.id != 123) {
+#         as->wu.att_hit_ok = 1; as->wu.hit_stop /= 2; ds->wu.dm_stop /= 2; }
+# `as` there is the attacking PLW and `ds` an effect, so the attacker takes a
+# fresh positive hit_stop (dm_status_copy's att.hs_me, halved) AND a fresh
+# att_hit_ok in the same frame, without decoding a cell and without entering a
+# damage state -- the run is not left, and nothing in the CG data bounds how
+# many times it can repeat. `renewals * per_renewal` is therefore a LOWER bound
+# on the hold, not an upper one; it is still reported, as `hold_max_renewal_only`,
+# but the gate no longer rests on it and every exit is reported reachable.
+# What is NOT established, and is not claimed: that such a contact chain is
+# attainable during the specific run that selects a dangling seed. Bounding it
+# would need the effect census (which work_id 2 effects can coexist, where they
+# are, whether the frozen attacker's atix keeps overlapping one) -- none of
+# which is in the CG data this file reads.
 #
 # The model is deliberately conservative where the script is not a plain run:
 # a run that contains a C command (a loop or a jump could re-enter it, comm_stop
@@ -435,6 +511,55 @@ def parse_parry_hit_stop():
     add = re.search(r'hit_stop = sel_hs_add_tbl\[hsadix\] \+ (\d+);', s)
     assert tbl and add, "hitcheck.c parry hit-stop not found"
     return max(int(v) for v in tbl.group(1).split(',')) + int(add.group(1))
+
+# Every `att_hit_ok = 1` in the engine, and whose flag each one sets.  §25 and
+# commit 34a54e83 both said "only a RENEWAL cell (charset.c set_new_attnum)
+# sets it"; there are five, and two of them land on a player.  Keyed by
+# (path under src/sf33rd/Source/Game/, enclosing function) so a sixth appearing
+# is an AssertionError rather than a silently weaker bound.
+ATT_HIT_OK_SETTERS = {
+    ("engine/charset.c", "set_new_attnum"):
+        ("player", "renewal cell: `cg_att_ix < 0` after check_cgd_patdat's `cg_att_ix >>= 6`"
+                   " -- the term §25 modelled"),
+    ("engine/hitplef.c", "player_at_vs_effect_dm"):
+        ("player", "`as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect,"
+                   " in the same block that halves the fresh hit_stop -- NO renewal cell, and the"
+                   " attacker is not moved to a damage state"),
+    ("engine/hitcheck.c", "set_struck_status"):
+        ("effect", "case 2 of `(as->work_id == 1) + ((ds->work_id == 1) * 2)`: `as` is the"
+                   " non-player side, so this sets an EFFECT's flag"),
+    ("engine/hitefef.c", "effect_at_vs_effect_dm"):
+        ("effect", "`as` is a WORK_Other on the effect-vs-effect path"),
+    ("effect/eff13.c", "check_tengu_attack"):
+        ("effect", "`ewk` is the tama work, not a player"),
+}
+
+def _enclosing_fn(lines, i):
+    """The name of the function whose body line `i` (0-based) is in: the nearest preceding line that
+    starts in column 0 with an identifier and carries a parameter list."""
+    for j in range(i, -1, -1):
+        m = re.match(r'^[A-Za-z_][\w \t\*]*?(\w+)\s*\(', lines[j])
+        if m and not lines[j].lstrip().startswith('#'): return m.group(1)
+    return None
+
+def att_hit_ok_setters():
+    """Enumerate `att_hit_ok = 1` over the engine and check it against ATT_HIT_OK_SETTERS.
+    Returns the sites that set a PLAYER's flag WITHOUT a renewal cell -- the term §25 missed."""
+    root = os.path.join(REPO, "src/sf33rd/Source/Game")
+    found = {}
+    for dirpath, _, names in os.walk(root):
+        for n in sorted(names):
+            if not n.endswith('.c'): continue
+            p = os.path.join(dirpath, n)
+            rel = os.path.relpath(p, root)
+            lines = open(p).read().split('\n')
+            for i, ln in enumerate(lines):
+                if re.search(r'\batt_hit_ok\s*=\s*1\s*;', ln):
+                    found[(rel, _enclosing_fn(lines, i))] = ln.strip()
+    assert set(found) == set(ATT_HIT_OK_SETTERS), \
+        "att_hit_ok = 1 sites moved: %s" % sorted(set(found) ^ set(ATT_HIT_OK_SETTERS))
+    return sorted("%s -> %s: %s" % (k[0], k[1], ATT_HIT_OK_SETTERS[k][1])
+                  for k in found if ATT_HIT_OK_SETTERS[k][0] == "player" and k[1] != "set_new_attnum")
 
 def arc_atit_hs(ci):
     """(max positive hs_me, max |hs_you|) over the character's arcade ATIT
@@ -467,16 +592,34 @@ def atemi_hit_stop_max():
     _ATEMI_CACHE['v'] = (best, who)
     return _ATEMI_CACHE['v']
 
-def _walk_frames(nix, timers, seed):
-    """Effect frames from seed until the walk index leaves the table (or None if
-    it never does). parts_timer is a u8 loaded into the u8 cg_ctr and
-    pre-decremented, so a 0 timer is 256 frames."""
-    p, total, seen = seed, 0, set()
-    while 0 <= p < len(nix):
-        if p in seen: return None
-        seen.add(p); total += timers[p] or 256
-        p = nix[p] if nix[p] else p + 1
-    return total
+def _walk_exits(nix, timers, seed, shift=(0,)):
+    """Every index the walk from `seed` can leave the table at, mapped to the FEWEST effect frames
+    that reach it.  parts_timer is a u8 loaded into the u8 cg_ctr and pre-decremented, so a 0 timer
+    is 256 frames, and the timer that gates a step is the one on the entry the step DEREFERENCED.
+    With `shift` more than one offset (Gill, above) the walk is not a single line -- rl_flag is
+    re-read every step -- so the cheapest schedule is a shortest path over the union graph, which is
+    what a hold bound has to be compared against.  For `shift == (0,)` this is exactly the old
+    single-line sum."""
+    dist, out = {seed: 0}, {}
+    heap = [(0, seed)]
+    while heap:
+        d, s = heapq.heappop(heap)
+        if d > dist.get(s, d): continue
+        for k in shift:
+            q = s + k
+            if not (0 <= q < len(nix)):
+                if d < out.get(q, 1 << 60): out[q] = d
+                continue
+            n = nix[q] if nix[q] else s + 1
+            w = d + (timers[q] or 256)
+            if w < dist.get(n, 1 << 60):
+                dist[n] = w; heapq.heappush(heap, (w, n))
+    return out
+
+def _walk_frames(nix, timers, seed, shift=(0,)):
+    """Effect frames from seed until the walk index leaves the table (or None if it never does)."""
+    ex = _walk_exits(nix, timers, seed, shift)
+    return min(ex.values()) if ex else None
 
 def olc_runs(ci, k):
     """Maximal runs of consecutive cells selecting OVIX index k in every arcade
@@ -517,25 +660,35 @@ def ovct_dangling_hold(ci, rr):
     parry = parse_parry_hit_stop()
     atemi, atemi_who = atemi_hit_stop_max()
     hs_max = max(own_me, parry, atemi, 4)
-    hs = dict(own_hs_me=own_me, parry=parry, atemi=atemi, atemi_characters=atemi_who, aiuchi_ko=4, per_renewal=hs_max)
+    # The withdrawn "one positive hit_stop per renewal cell" term (see the block comment above).
+    # Non-empty => `renewals * per_renewal` bounds nothing and every exit is reported reachable.
+    beyond = att_hit_ok_setters()
+    hs = dict(own_hs_me=own_me, parry=parry, atemi=atemi, atemi_characters=atemi_who, aiuchi_ko=4,
+              per_renewal=hs_max, att_hit_ok_setters_beyond_renewal=beyond)
+    shift = ovct_shift(ci)
     exits = {}
     for exit_ in rr['arcade']['past_end']:
         seeds = {}
         for s in rr['arcade']['seeds']:
-            p, seen = s, set()
-            while 0 <= p < len(nix) and p not in seen:
-                seen.add(p); p = nix[p] if nix[p] else p + 1
-            if p != exit_: continue
-            need = _walk_frames(nix, timers, s)
+            # Which overlap slots can hold this seed decides which shift applies to its walk.
+            slots = sorted({t for e in ovix for t, v in enumerate(e) if v == s})
+            sh = tuple(sorted({d for t in slots for d in shift[t]}))
+            ex = _walk_exits(nix, timers, s, sh)
+            if exit_ not in ex: continue
+            need = ex[exit_]
             ks = sorted(k for k, e in enumerate(ovix) if s in e)
             runs = [dict(olc=k, **r) for k in ks for r in olc_runs(ci, k)]
             exdm = sorted(e for e in EXDM_OLC_IX[ci] if e in ks)
             for r in runs:
-                r['hold_max'] = None if r['unmodelled'] else r['frames'] + r['renewals'] * hs_max
+                # §25's number, kept so the withdrawal is visible rather than silent.
+                r['hold_max_renewal_only'] = None if r['unmodelled'] else r['frames'] + r['renewals'] * hs_max
+                r['hold_max'] = None if beyond else r['hold_max_renewal_only']
             holds = [r['hold_max'] for r in runs]
-            unmod = [r for r in runs if r['unmodelled']] or exdm
+            unmod = beyond or [r for r in runs if r['unmodelled']] or exdm
             hold_max = None if unmod else (max(holds) if holds else 0)
-            seeds[s] = dict(need=need, olc=ks, exdm_olc=exdm, runs=runs, hold_max=hold_max,
+            seeds[s] = dict(need=need, shift=list(sh), olc=ks, exdm_olc=exdm, runs=runs, hold_max=hold_max,
+                            hold_max_renewal_only=(None if [r for r in runs if r['unmodelled']] or exdm
+                                                   else (max([r['hold_max_renewal_only'] for r in runs]) if runs else 0)),
                             reachable=(hold_max is None or hold_max >= need))
         exits[exit_] = dict(seeds=seeds, reachable=any(v['reachable'] for v in seeds.values()) or not seeds)
     return dict(hit_stop=hs, exits=exits)
@@ -1034,6 +1187,32 @@ def span_last_script_cut(ci):
     cross-release cell alignment in this file."""
     return _span_entry_seeds(ci)[2]
 
+_K7_UNRES_CACHE = {}
+def k7_unresolved_landings(ci):
+    """Jump landings that are reachable and whose target this file cannot compute.  Two shapes, both
+    from `charset.c` -> `set_char_move_init2`, whose whole job is
+    `wk->set_char_ad = wk->char_table[koc] + (wk->char_table[koc][index] / 4)`:
+
+      koc outside 0..9      `u32* char_table[12]` (structs.h) is filled for koc 0..9 by charid.c, so
+                            the base pointer itself is read from outside the initialised array.
+      index past the table  the pointer table is a 0-terminated `u32` array at the head of the
+                            section, so the word read is script data, and the landing is that word
+                            over 4 -- an offset with no bound.
+
+    Neither is confined to one script, or even to one table, so the honest scope of the doubt is the
+    whole character: `k7_entry_walk` returns no `dead` cell for a character that has one.  Taken from
+    `span_closure`'s `unmodelled` list -- BOTH arms, because `_span_entry_seeds` already seeds
+    `k7_entry_walk` from both -- so the entries the two models can and cannot follow are the same set
+    by construction, which is the property whose absence produced this defect (doc §31.10)."""
+    if ci in _K7_UNRES_CACHE: return _K7_UNRES_CACHE[ci]
+    sr = span_results()
+    out = set()
+    for arm in ('base', 'xcopy'):
+        for w in (sr[arm][ci]['unmodelled'] or []):
+            if 'pointer table' in w or 'jump to koc ' in w: out.add(w)
+    _K7_UNRES_CACHE[ci] = sorted(out)
+    return _K7_UNRES_CACHE[ci]
+
 _K7_DEAD_CACHE = {}
 def k7_entry_walk(ci):
     """Which cells of each script can never execute.  §19's convention -- everything after the first
@@ -1052,7 +1231,14 @@ def k7_entry_walk(ci):
     Fail-open everywhere -- a landing outside the script, a koc this model does not map, a command
     code past `decode_chcmd`, a same-frame edge leaving the parsed cells, or a C-side entry landing on
     a byte `arc_parse` never parsed, marks the whole script live.  `dead` therefore never rests on
-    something the model declined to follow."""
+    something the model declined to follow.
+
+    ~~a koc this model does not map ... marks the whole script live~~ -- the sweep below used to
+    `continue` past both of the landings it cannot resolve (a `koc` outside `char_table[0..9]`, and a
+    script index past the target section's pointer table), which is the OPPOSITE direction: the
+    docstring claimed fail-open and the code failed closed.  `k7_unresolved_landings` supplies them
+    now, taken from `span_closure`'s own list so the two models cannot disagree about them again
+    (doc §31.10)."""
     if ci in _K7_DEAD_CACHE: return _K7_DEAD_CACHE[ci]
     allc = list(_all_cells(ci))
     lens = {(sec, si): len(cells) for sec, si, _, cells in allc}
@@ -1069,6 +1255,7 @@ def k7_entry_walk(ci):
     for key, ks in sseeds.items():
         if key in entries: entries[key] |= ks
     unknown |= (sopen & set(lens))
+    if k7_unresolved_landings(ci): unknown |= set(lens)         # the landing is not confined to a script
     out = {}
     for sec, si, cgd, cells in allc:
         key = (sec, si)
@@ -2169,13 +2356,15 @@ def audit(cgmap_override=None, quiet=False):
                 else: out.append([x, x])
             return ["%d" % a if a == b else "%d-%d" % (a, b) for a, b in out]
         rec['ovct_reachability'] = dict(
+            shift=rr['shift'],
             arcade=dict(entries=rr['arcade_entries'], seeds=runs(rr['arcade']['seeds']),
                         reach=runs(reach), past_end=rr['arcade']['past_end'],
                         ovix_oob_pre_terminator=rr['arcade']['ovix_oob_pre'],
-                        ovix_oob_post_terminator=rr['arcade']['ovix_oob_post']),
+                        ovix_oob_post_terminator=rr['arcade']['ovix_oob_post'],
+                        unmodelled=rr['arcade']['unmodelled']),
             ps2=dict(entries=rr['ps2_entries'], seeds=runs(rr['ps2']['seeds']),
                      reach=runs(rr['ps2']['reach']), past_end=rr['ps2']['past_end'],
-                     ovix_oob=rr['ps2']['ovix_oob']))
+                     ovix_oob=rr['ps2']['ovix_oob'], unmodelled=rr['ps2']['unmodelled']))
         # Dangling-walk hold model (doc §25): an exit past the table is a
         # hazard only if the master can hold the selecting olc for `need`
         # frames; `ovct_walk_past_end_reachable` lists the exits it can (or
@@ -2258,6 +2447,7 @@ def audit(cgmap_override=None, quiet=False):
         _cut = span_last_script_cut(ci)
         rec['span_reach'] = dict(tables=spans, reachable_cells=len(sb['nodes']), reachable_cells_xcopy=len(sx['nodes']),
                                  last_script_cut={"%s[%d]" % f: v for f, v in sorted(_cut.items())},
+                                 k7_dead_unmodelled=k7_unresolved_landings(ci),
                                  unmodelled=_rs(sb['unmodelled']), throw_notes=_rs(sb['throw_notes']),
                                  xcopy=dict(unmodelled=_rs(sx['unmodelled']), donor_notes=_rs(sx['donor_notes']),
                                             stale_consumers={k: len(v) for k, v in sx['stale'].items()}),
@@ -2275,6 +2465,10 @@ def audit(cgmap_override=None, quiet=False):
                             ovct_walk_hold=[(e, max(d['hold_max'] for d in v['seeds'].values()),
                                              min(d['need'] for d in v['seeds'].values()))
                                             for e, v in hold['exits'].items() if not v['reachable']],
+                            ovct_reach_unmodelled=len(rr['arcade']['unmodelled']),
+                            ovix_oob=rr['arcade']['ovix_oob'],
+                            ovix_oob_ps2=rr['ps2']['ovix_oob'],
+                            k7_dead_unmodelled=len(k7_unresolved_landings(ci)),
                             ovix_oob_pre_terminator=rr['arcade']['ovix_oob_pre'],
                             ovix_arcade_shorter_by=max(0, p_ovix - a_ovix),
                             k7_foreign_cells=len([f for f in foreign if not f['dead']]),
@@ -2364,9 +2558,18 @@ if __name__ == "__main__":
             # doc §25: the walk leaves the table, but no writer can hold the
             # selecting olc for the frames the walk needs (hold bound / need).
             return "walk>end-unreached[%s]" % ", ".join("%d:hold<=%d/%d" % t for t in s['ovct_walk_hold'])
+        if s['ovct_reach_unmodelled']:
+            # doc §31.8: a cell emits an olc index past the OVIX, so what it selects is not
+            # in the model and the closure below it is an under-approximation. No `unreached`
+            # verdict is available for this character, and `ok` would be one.
+            return "reach-unmodelled(ovix-oob %s)" % ",".join(str(e) for e in s['ovix_oob'])
         if s['ovct_unpatched_tail']:
             return "tail-unreached(%d)" % s['ovct_unpatched_tail']
         return "ok"
+    def dead_flag(s):
+        # doc §31.10: `dead` is void for a character with a jump landing this model cannot
+        # compute -- every cell is reported live, so the `l+d` columns above read `n+0`.
+        return "" if not s['k7_dead_unmodelled'] else "  dead:void(%d)" % s['k7_dead_unmodelled']
     def xcopy_flag(s):
         # doc §26: a `cg_type 30` cell outside the rebirth script that selects a
         # live olc is a hazard only if K7 case 4 can fire there (gate open) AND
@@ -2403,12 +2606,12 @@ if __name__ == "__main__":
     for n in NAMES:
         r = res[n]; s = r['stats']
         for k, v in s.items(): T[k] = T.get(k, 0) + (v if isinstance(v, int) else 0)
-        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %s | %d/%d r<=%d %s  %d/%d %s  %s  %s  %s"
+        print("%-7s %5d | %4d %4d %5d %5d %5d %5d | %s | %d/%d r<=%d %s  %d/%d %s  %s  %s  %s%s"
               % ((n, s['cells'], s['a_oob'], s['b_gap'], s['c_wrong_group'], s['c_same_group'], s['needs_manual'],
                   s['extra_script'], oob_cols(s))
                  + (s['ovct_arcade'], s['ovct_ps2'], s['ovct_reach_max'], ovct_flag(s),
                     s['ovix_arcade'], s['ovix_ps2'], "short" if s['ovix_arcade_shorter_by'] else "ok",
-                    xcopy_flag(s), slack_flag(s), manu_flag(s))))
+                    xcopy_flag(s), slack_flag(s), manu_flag(s), dead_flag(s))))
     print("-"*len(hdr))
     print("TOTAL         | %4d %4d %5d %5d %5d %5d | %s"
           % (T['a_oob'], T['b_gap'], T['c_wrong_group'], T['c_same_group'], T['needs_manual'], T['extra_script'],

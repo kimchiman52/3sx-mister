@@ -343,7 +343,13 @@ def audit():
         # table slot. `part_reachable` says whether any writer of the part
         # index can ever land on that slot (cg_audit.ovct_reachability, doc
         # §24) — a violation on an unreachable slot is latent data, not a door.
-        part_reach = set(CG.ovct_reachability(ci)['arcade']['reach'])
+        # If that closure is UNMODELLED for this character (an emitted olc index
+        # past the OVIX, cg_audit._closure), it is an under-approximation and
+        # `part_reachable = False` would be a benign verdict resting on it, so
+        # every slot is reported reachable instead (doc §31.8).
+        _rr = CG.ovct_reachability(ci)['arcade']
+        part_reach = set(_rr['reach'])
+        reach_unmodelled = bool(_rr['unmodelled'])
         for i, v in enumerate(post):
             verdict, g, n, L = classify(v, lengths)
             if verdict == 'ok' or verdict == 'gap':
@@ -352,7 +358,8 @@ def audit():
             result['ovct_violations'].append(dict(
                 cls=verdict, char=NAMES[ci], part=i, parts_char=v, group=g,
                 residual=n, table_len=L, patched_from_ps2=(i < common),
-                part_reachable=(i in part_reach),
+                part_reachable=(i in part_reach or reach_unmodelled),
+                part_reach_unmodelled=reach_unmodelled,
                 arcade_parts=a_cnt, ps2_parts=p_cnt,
                 group_reachability=kind, group_loaded_when=why))
         for i, v in enumerate(p_char):

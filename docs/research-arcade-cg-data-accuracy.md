@@ -222,11 +222,14 @@ command and its observed output, or a named primary source. Things that were
 | Full-cast crash-class audit, door 2 (residual) | **CLOSED** — 6 cells, Remy only (§17.3) |
 | Elena crash fix | **LANDED** `23326679` — range applied in `src/arcade/arcade_char_data.c`; gate `cg_audit.py` class (a) 66 → 0 (§8.A) |
 | Remy crash fix | **LANDED** `a5bc6a5b` — range applied in `src/arcade/arcade_char_data.c`; gate `residual_audit.py` residual-OOB 6 → 0 (§8.K) |
-| Elena OVCT unpatched tail | **CLOSED 2026-09-06 — unreachable, defended by the audit** (§24). Parts 17-90 are indexed by no writer: the OVIX is the identity and no cell emits `olc >> 4` above 16, and the `eff01.c` timer walk is stationary (`parts_nix[i] == i` for all 91). No code change; `cg_audit.py` -> `ovct_reachability()` and `residual_audit.py` R2b `part_reachable` enforce it. Corrects §18's "undefended" |
-| Dudley dangling OVCT next-index (arcade entry 177 → 178) | **CLOSED 2026-09-06 — unreachable, defended by the audit** (§25). The walk needs 297 (seed 130) / 594 (seed 82) consecutive frames of one `olc`; the master can hold those for ≤ 179 / 148 — the run's script frames plus one positive `hit_stop` per renewal cell, bounded at 23 by the largest value any writer hands an attacker. No code change; `cg_audit.py` -> `ovct_dangling_hold()` re-derives the bound; row `walk>end-unreached[178:hold<=179/297]` |
+| Elena OVCT unpatched tail | **CLOSED 2026-09-06 — unreachable, defended by the audit** (§24). **Unchanged 2026-09-07 (§31.7), but the model that produced it was short a walk:** §24.3(3)'s dropped Gill `+1` is now modelled and Gill's own walk runs off the end of his 392-entry table (new row below). Elena is character 8, the shift is not hers, and her reach is still 1-16. Parts 17-90 are indexed by no writer: the OVIX is the identity and no cell emits `olc >> 4` above 16, and the `eff01.c` timer walk is stationary (`parts_nix[i] == i` for all 91). No code change; `cg_audit.py` -> `ovct_reachability()` and `residual_audit.py` R2b `part_reachable` enforce it. Corrects §18's "undefended" |
+| Dudley dangling OVCT next-index (arcade entry 177 → 178) | **RE-OPENED 2026-09-07 — §25's bound rested on an incomplete enumeration of `att_hit_ok = 1` (§31.9): five sites, and `hitplef.c` -> `player_at_vs_effect_dm` re-arms an attacking PLAYER's on contact with a `work_id == 2` effect, with a fresh positive `hit_stop`, no renewal cell and no damage state. The audit fails open; row `walk>end[178](arcade-only)`. Attainability of the contact chain is unproven in both directions.** ~~CLOSED 2026-09-06 — unreachable, defended by the audit~~ (§25). The walk needs 297 (seed 130) / 594 (seed 82) consecutive frames of one `olc`; the master can hold those for ≤ 179 / 148 — the run's script frames plus one positive `hit_stop` per renewal cell, bounded at 23 by the largest value any writer hands an attacker. No code change; `cg_audit.py` -> `ovct_dangling_hold()` re-derives the bound; row `walk>end-unreached[178:hold<=179/297]` |
 | 1,694 wrong-sprite cells (measured against the audit's oracle reach — §11.2 notes 162 more scripts, 2,441 cells, with no oracle at all) | **MOSTLY LANDED** items D, E, N (§8.D, §8.E, §8.N) — class (c) 1688 (post-§8.K baseline) → 89; item F (Chun-Li, 72 of the 89) investigated, deliberately left as-is (§8.F); remaining 17 enumerated with reasons (§8.D's Urien 0x52D9 ambiguity, and 7 of Necro/Hugo/Yun/Akuma's 9 smaller own-group cells — the same per-raw-value ambiguity; Akuma's other 2, `0x546B`, are a no-oracle block on a unanimous delta, not an ambiguity — §8.P) |
 | Shape-divergent scripts (316) | **CLOSED 2026-09-06 — adjudicated, defended by the audit, and one real divergence found** (§29). A shape mismatch only means `audit()` skipped class (c) there; the question is decidable without the cell pairing, because `remap()` is a pure function of the raw `cg_number`, so a raw appearing in any shape-ok script is pinned by that script's PS2 counterpart. All 316: **225 direct + 60 bracketed + 20 no-live-cells + 4 unresolved + 7 DIVERGENT**; their 3,320 live L-cells: 2,710 + 465 + 94 bracket-disagree + 0 unbracketed + 51 divergent. Of the 51, **44 were new — Twelve `dmca[3]/[90]/[91]`, a hole in `twelve_cg_ranges`**; those are now **FIXED 2026-09-06** (§8.S) by replacing that table's 17 point rows with one row over the band's measured hull `0x1E01`-`0x2095`, taking the census to **225 direct + 63 bracketed + 20 no-live-cells + 4 unresolved + 4 DIVERGENT** and its cells to **2,710 + 509 + 94 + 0 + 7**. The remaining 7 are §8.N's and §8.P's already-enumerated cells, independently rediscovered and still scoped out. The 4 unresolved are named with exactly what is unread (§29.5). §29 itself made no code change; the one that followed is §8.S's single `CgRemapRange` row. `cg_audit.py` -> `manu_delta_gate()` re-derives the whole census every run, so the verdict moved without an edit to §29. §11.4's hardware oracle was assessed and **could not** answer this predicate — CPS3 RAM reports arcade numbering, not the PS2-side index the remap targets (§29.6) |
 | **The "converter artifact" class** (§21.6) | **CLOSED 2026-09-06 — the class does not exist** (§30). The u32 byte relation it was identified by is the `cg_hit_ix`/`cg_att_ix` word's own cross-release relation (the two releases store the pair in opposite order), so every one of the 1,402 hits is that word read at a cell boundary the data does not have. The verdict §21.6 reached is unchanged and now stands on `grid_phase()` + `k7_entry_walk`; its stated mechanism is withdrawn |
+| **Gill's OVCT walk leaves the table** (arcade index 392, past a 392-entry table) | **OPEN, arcade-only, new 2026-09-07** (§31.7). `eff01.c` -> `get_new_parts_data` applies the `player_number == CHAR_GILL && rl_flag` `+1` on every walk step and to the pointer `parts_nix` is read through, turning his `parts_nix[i] == i` fixed points into a `+1` march. All 40 selected slot-0 seeds exit at index 392 (cheapest 6,417 effect frames); all 42 PS2 seeds stay inside the 396-entry PS2 table, so §6.1 does not excuse it. The bytes at 392 are Gill's `rict` (coalesced into the same allocation) and decode to `parts_char 1` — in `obj_group_table`, so a wrong sprite rather than a fault — with `nix 513`, which continues the walk. No code change; row `walk>end[392](arcade-only)` |
+| **`k7_entry_walk` fails open on unresolvable jump landings** | **CHANGED 2026-09-07** (§31.10). It was silently dropping a `koc` outside `char_table[0..9]` and a script index past the target pointer table — fail-CLOSED, against its own docstring. Ten characters have one, so their `dead` sets are void: §28.1's `0+31 / 0+53 / 0+52` become `5+26 / 30+23 / 9+43`, and §29.5's unresolved residue grows 4 → 9 scripts |
+| **Selected OVIX index past the OVIX** | **CHANGED 2026-09-07** (§31.8). Seven characters (Ibuki's live one from §18.6(i), six more post-terminator) now read `reach-unmodelled(ovix-oob …)` instead of `ok`; `residual_audit.py` forces `part_reachable` for them. The §6.1 verdict on Ibuki's overrun itself is unchanged |
 | Upstream issue #363 | **OPEN** upstream; our findings not yet reported (§13) |
 | **The other 13 sections** (issue **#325**) | **AUDITED, no defect** — differences enumerated and classified (§15) |
 | **Arcade command tables** (input recognition) | **CLOSED — no bug** (§16). §16's one residual — `cmd_data_set` applying the PS2-only `blok_b_omake`/`blok_r_omake` System Direction modifiers to arcade command records with no gate — is **LANDED 2026-09-06** (§16.1): the arcade's own `cmd_data_set` (`0x060B299C`) is 310 straight-line bytes with no branch and no call, so it applies neither; both are now gated to 0 under arcade balance, PS2 arm unchanged. Digest unmoved (`e96e88beec2ac2b5`), as §8.O predicted. §16.1 also settles the netplay question §16 left open: System Direction is never exchanged, hashed or checked, but the netplay arm reads `system_dir[2]`, which nothing writes after boot |
@@ -793,6 +796,17 @@ the clamp behaving as written, producing wrong sprites rather than a fault.
   table is 2,235, so it overruns there too — pre-existing, not an adaptation
   defect. The other 19 characters are in range. (Confirmed PS2's own `dmca[82..89]` *does* use
   `olc = 112/128` → `cg_olc_ix` 7/8, where arcade uses 0.)
+  **The AUDIT did not fail open on it until 2026-09-07 (§31.8)** — the row read
+  `ok`; it now reads `reach-unmodelled(ovix-oob 2277)`, and six characters with
+  post-terminator out-of-range emitters join it.
+- **GILL's OVCT walk leaves his 392-entry arcade table, and the PS2's does not
+  (new 2026-09-07, §31.7).** `eff01.c` -> `get_new_parts_data` adds 1 to the
+  part index for `player_number == CHAR_GILL && rl_flag` on *every* step and to
+  the pointer `parts_nix` is read through, which turns his `parts_nix[i] == i`
+  fixed points into a `+1` march. All 40 selected slot-0 seeds exit at index
+  **392**, cheapest 6,417 effect frames; all 42 PS2 seeds stay inside the
+  396-entry PS2 table. **Arcade-only — §6.1 does not excuse it.** The row reads
+  `walk>end[392](arcade-only)`.
 
 ### 7.6 Over-declared `location_data` sizes (new finding, low priority)
 
@@ -1586,7 +1600,16 @@ release-note under §8.O. Rationale in §21.13.
 > the boot log's "Arcade balance auto-selected" line against the same
 > verified romset. Not merged to `mister`, not on-device verified.
 
-### R. Dudley's dangling OVCT next-index — arcade entry 177 → 178, past a 178-entry table (§24.6(i)) — CLOSED 2026-09-06 (§25)
+### R. Dudley's dangling OVCT next-index — arcade entry 177 → 178, past a 178-entry table (§24.6(i)) — ~~CLOSED 2026-09-06 (§25)~~ **RE-OPENED 2026-09-07 (§31.9)**
+
+> §25's bound rested on an incomplete enumeration of `att_hit_ok = 1` (one
+> site, not five). The audit now reports exit 178 **reachable**
+> (`walk>end[178](arcade-only)`). §25.4's 179-vs-297 is kept in the JSON as
+> `hold_max_renewal_only`. Whether the contact chain that breaks the bound is
+> attainable in the `olc`-40 run is unproven in both directions.
+
+> **GILL joins this item 2026-09-07 (§31.7)**: his walk exits a 392-entry
+> arcade OVCT at index 392, also arcade-only (the PS2 table terminates).
 
 Found by the §24 reachability sweep, **arcade-only** (PS2 control: none).
 Dudley's arcade OVCT has 178 entries; entry 177 is `{timer 250, parts_char 0,
@@ -4006,6 +4029,14 @@ by the §6.1 discriminator this is a hazard the shipped PS2 build carries too,
 hits. It is still an unbounded read of 43-48 entries past the end of a live
 table, and worth a guard.
 
+> **The AUDIT was silent on it until 2026-09-07 (§31.8).** `_closure` seeded
+> only in-range OVIX indices and recorded the rest in a field nothing read, so
+> Ibuki's row printed `ok` and no invariant failed open on a defect this
+> document had disclosed in prose twice. It now prints
+> `reach-unmodelled(ovix-oob 2277)`, six more characters join it on
+> post-terminator emitters, and `residual_audit.py` forces `part_reachable` for
+> them. The §6.1 verdict on the defect itself is unchanged.
+
 **(ii) The arcade OVCT/OVIX tables really are two entries shorter**, not
 under-declared. Elena is the only character with `arcade > ps2` (91 vs 85, for
 *both* sections); every other character is `arcade == ps2 − 2`. Elena's `ovix`
@@ -5921,8 +5952,16 @@ by every dormant frame, so the first live frame is always a restart (#4).
    **{1..16}**, and `cg_ix + 1` **never executes for Elena**. Reachable parts
    = **1-16**; unreachable = **17-90**, including all six unpatched ones.
 3. **Gill's +1 does not apply.** `mwk->player_number == 0` is `CHAR_GILL`;
-   Elena is 8. (For Gill it is a left-facing part offset — his `parts_nix`
-   pairs make that consistent; not audited here.)
+   Elena is 8. ~~(For Gill it is a left-facing part offset — his `parts_nix`
+   pairs make that consistent; not audited here.)~~ **AUDITED 2026-09-07 —
+   §31.7, and the parenthesis was wrong.** The `+1` is applied inside
+   `get_new_parts_data`, i.e. on *every* step of the walk and to the pointer the
+   next `parts_nix` is read through, so the recurrence becomes
+   `cg_ix' = nix[cg_ix + 1]` and a `parts_nix[i] == i` fixed point becomes a
+   `+1` **march**. All 40 of Gill's selected slot-0 seeds run off the end of his
+   392-entry arcade OVCT; the PS2's 396-entry table terminates and does not.
+   Nothing in this section's Elena result changes — she is character 8 and the
+   shift is not hers — but the model that produced it was short by one walk.
 4. **The X.C.O.P.Y. window is closed by data.** `effk7.c` -> `K7_move_type_0`
    rebinds `overlap_char_tbl`/`olc_ix_table` to the target's tables
    (`set_base_data_metamorphose` -> `set_char_base_data`) when Twelve's
@@ -6067,7 +6106,20 @@ them is below `common_count`, so it holds a PS2-patched `parts_char`;
 
 ---
 
-## 25. Dudley's dangling OVCT next-index: CLOSED — the hold is bounded by data, and the audit now checks it (ninth pass, 2026-09-06)
+## 25. Dudley's dangling OVCT next-index: ~~CLOSED — the hold is bounded by data~~ **RE-OPENED 2026-09-07 (§31.9)**, and the audit now checks it (ninth pass, 2026-09-06)
+
+> **HEADLINE WITHDRAWN 2026-09-07 — §31.9.** The bound below rests on "a contact
+> needs `att_hit_ok`, which only a RENEWAL cell sets", and that enumeration was
+> incomplete: `att_hit_ok = 1` has **five** sites, and `hitplef.c` ->
+> `player_at_vs_effect_dm` re-arms the *attacking player's* on contact with a
+> `work_id == 2` effect, in the same block that gives him a fresh positive
+> `hit_stop` — no renewal cell, no damage state, no cell decode. So
+> `renewals * per_renewal` is a lower bound on the hold, not an upper one, and
+> §25.4's 179-vs-297 does not close anything. The audit fails open: Dudley's row
+> reads `walk>end[178](arcade-only)` and §8.R is re-opened. Everything below is
+> kept as written; §25.4's number survives in the JSON as
+> `hold_max_renewal_only`. **What is NOT claimed is that the contact chain is
+> attainable** — that was not shown either way.
 
 **Citation style for this section.** As in §21-§24: this document is not in
 `tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
@@ -6569,6 +6621,12 @@ before; R2b `on a REACHABLE part : 0`.
 - **§24.7** said `cg_audit.py` "does not model the swap generically". It now
   models both directions; the forward one (§25.5's all-`olc 0` sweep) is
   still a per-marker data fact rather than a function, and is listed below.
+- **2026-09-07 (§31.10):** every verdict in §26 stands — `k7_fwd_gate` is still
+  `closed`, every per-character `k7_gate` is unchanged — but Twelve's
+  forward-swap census moves 36 live / 4 dead to **40 / 0**, because his `dead`
+  set is now void (117 unresolvable jump landings). All four newly-live
+  `cg_type 20` markers still select `olc 0`, which is the fact the gate rests
+  on, so the census number moved and nothing else did.
 
 ### 26.9 What this does not establish
 
@@ -7237,6 +7295,17 @@ cell that plays is 100% live.** That is the shape you would predict — an index
 nobody can form is data nobody decodes — but it had never been measured, and
 it is now a property the audit re-derives rather than a sentence someone wrote.
 
+> **"The separation is total" WITHDRAWN 2026-09-07 — §31.10.** `k7_entry_walk`
+> was silently dropping the jump landings it could not compute (`koc` outside
+> `char_table[0..9]`, or a script index past the target pointer table), which is
+> a fail-**closed**: a script it called dead could be the one such a landing
+> revives. Ten characters have one. Their `dead` sets are now void, and the
+> table above reads `a_se_oob` **5 live / 26 dead**, `a_effinit_oob`
+> **30 / 23**, `a_koc_oob` **9 / 43**. Every row is still emitted and still
+> counted; what is gone is the clean split, and with it the argument that the
+> classes adjudicate themselves for those 44 rows. `c_mismatch_own_group` is
+> unaffected: 89 live / 0 dead.
+
 **Dead rows are counted, not suppressed.** A future data change that revives
 one has to show up as a live row appearing, and it cannot appear if the row was
 never emitted. The `+31` half of a column is as load-bearing as the `0+`.
@@ -7555,7 +7624,7 @@ where they are also fixed (2026-09-06). The numbers in this section are the
 **pre-fix** measurement, kept as the record of what the pass found; the
 post-fix census is in §8.S and is what `cg_audit.py` now prints.
 
-### 29.5 The unresolved residue — 4 scripts, 94 cells, each named
+### 29.5 The unresolved residue — ~~4 scripts, 94 cells~~ **9 scripts as of 2026-09-07**, each named
 
 - **URIEN `yuca[37]`, `yuca[39]`, `yuca[65]` — 25 cells each (75).** Raw
   `0x5315..0x532D`, bracketed by `0x52EC` (measures `-3192`) and `0x5334`
@@ -7573,6 +7642,22 @@ post-fix census is in §8.S and is what `cg_audit.py` now prints.
 - Remy `dmca[91]`'s 8 further `bracket_disagree` cells and Akuma's 2 sit in
   scripts already classed `divergent`, so they are counted in the cell totals
   but not among the 4 unresolved *scripts*.
+
+**Five more joined on 2026-09-07 (§31.10)**, all of them scripts whose cells
+became live when `k7_entry_walk` stopped dropping the jump landings it cannot
+compute. They are not new data — they are cells whose remap delta was never
+checked because the model called them dead:
+
+| script | live L-cells | raw `cg_number` range | distinct raws |
+|---|---|---|---|
+| NECRO `caca[5]` | 59 | `0x2012..0x20DE` | 39 |
+| NECRO `saca[48]` | 19 | `0x1E23..0x2098` | 15 |
+| NECRO `saca[49]` | 19 | `0x1E23..0x2098` | 15 |
+| TWELVE `nmca[46]` | 14 | `0x1E3C..0x6C4C` | 13 |
+| REMY `saca[63]` | 55 | `0x20CB..0x759E` | 24 |
+
+**Unread:** whether each unbracketed raw's delta agrees with the range table.
+`?N` is never benign; these are work items, not a documented exception.
 
 Nothing else in the 316 is unread.
 
@@ -8246,3 +8331,339 @@ reason §26.10.1 gave and with more evidence behind it.
   cells can execute; the identical question for `ps2_parse` was not asked.
 - **The CPS3's own overlay engine was still not disassembled** (§24.7, §26.9,
   §26.10.6).
+
+---
+
+## 31.7 Gill's OVCT `+1` is part of the WALK, and with it modelled his walk runs off the end — arcade-only (fifteenth pass, 2026-09-07)
+
+**Citation style for this section and §31.8-§31.11.** As above: symbols and
+exact line text, never line numbers. Code read at `new-stuff` @ `d248bee7`.
+Every number marked **measured** comes from `tools/arcade-audit/cg_audit.py`
+against the same `rom.bin` (md5 `909f5abec4b6b21bf7d2a452a03fdfcc`).
+
+**Why this pass happened.** §24.3(3) states the Gill rule and then drops it —
+"For Gill it is a left-facing part offset — his `parts_nix` pairs make that
+consistent; **not audited here**." `cg_audit.py` -> `_closure` implemented the
+unshifted walk for all twenty characters and printed Gill `392/396 r<=391 ok`
+with `past_end: []`, so `ovct_dangling_hold` never ran for him and
+`residual_audit.py`'s `on a REACHABLE part : 0` inherited the gap. A benign
+verdict was resting on a rule the file's own comment said it had not modelled.
+
+### 31.7.1 The `+1` semantics, re-derived
+
+`eff01.c` -> `get_new_parts_data` is what dereferences the table, and it runs on
+**every** step of the walk — the restart in `effect_01_move` case 1 and the
+timer-expiry branch both call it:
+
+```c
+ewk->wu.now_koc = ewk->wu.cg_ix;
+if (ewk->wu.type == 0 && mwk->player_number == 0 && mwk->wu.rl_flag) {
+    ewk->wu.now_koc++;
+}
+ewk->wu.overlap_char_tbl = mwk->wu.overlap_char_tbl + ewk->wu.now_koc;
+ewk->wu.cg_ctr = ewk->wu.overlap_char_tbl->parts_timer;
+```
+
+and `effect_01_move`'s timer branch then reads `parts_nix` **through that
+already-shifted pointer**:
+
+```c
+if (--ewk->wu.cg_ctr == 0) {
+    if (ewk->wu.overlap_char_tbl->parts_nix) { ewk->wu.cg_ix = ewk->wu.overlap_char_tbl->parts_nix; }
+    else                                     { ewk->wu.cg_ix++; }
+    ewk->wu.now_koc = ewk->wu.cg_ix;
+    get_new_parts_data(ewk, (PLW*)mwk);
+}
+```
+
+So with the shift live the recurrence is `cg_ix' = nix[cg_ix + 1]` (else
+`cg_ix + 1`), and the entry actually **read** each step is `cg_ix + 1`. It is a
+different walk over different entries, not the same walk with a shifted seed.
+`effect_01_move` case 1 also applies the increment before calling
+`get_new_parts_data`, which immediately recomputes `now_koc` from `cg_ix` and
+applies it again — so the shift lands exactly once either way.
+
+Three facts the rule depends on, each **measured or read**:
+
+1. **`player_number` is the CHARACTER, not the player slot.** `plcnt.c` ->
+   `plcnt_init`: `wk->player_number = My_char[ix];` and `constants.h`
+   `CHAR_GILL = 0`. The same idiom is spelled out in `hitcheck.c` ->
+   `change_damage_attribute`: `as->player_number == CHAR_GILL && as->wu.rl_flag`
+   (it swaps `attr_flame_tbl` for `attr_freeze_tbl`). So the `+1` is Gill's and
+   only Gill's — §24.3(3) had this right, and §18.3(2) had it wrong.
+2. **`rl_flag` reaches 1.** `plmain.c` -> `plmv_1020` writes
+   `wk->wu.rl_flag = 0` for `wu.id == 0` and `= 1` for the other side. Gill on
+   the 2P side has it set from round start, and it flips on every crossover.
+   It is re-read on every `get_new_parts_data` call, so a walk can move between
+   the two domains mid-run; the closure therefore takes the **union** — from
+   every state both `cg_ix` and `cg_ix + 1` are dereferenced.
+3. **`type == 0` is OVIX slot 0.** `charset.c` -> `check_cgd_data`:
+   `wk->cg_olc_ix >>= 4; wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix];` — the
+   OVIX entry is four `s16`, one per overlap `type`, and `effect_01_init` fixes
+   `type` from its `koolc` argument for the life of the effect work. Slots 1-3
+   are walked unshifted.
+
+### 31.7.2 Result: 40 seeds, all of them off the end, arcade only
+
+Gill's arcade OVCT is **392** entries (`0x1D6E4C`, `0x1880` bytes). His OVIX
+entries **47-113** carry a nonzero slot 0, all even, `74, 76, … 224` with the
+gaps `176 -> 186` and `196 -> 206`; **40** of those entries are selected by a
+cell, `plcnt_init` or `exdm_ix_data` — **measured**.
+
+**Unshifted, every one of the 40 is a fixed point**: `parts_nix[i] == i` over
+that whole region, so `cg_ix = parts_nix` leaves `cg_ix` where it was and the
+overlay is a still image. That is why `past_end` was empty.
+
+**Shifted, the same fixed point is a march.** At state `s` the read is `s + 1`,
+`nix[s + 1] == s + 1`, so `cg_ix' = s + 1`, and the walk advances one entry per
+timer expiry through the rest of the table. `nix[391] == 391` — the entry §24
+would call a terminal self-loop — steps to **392**, one past the end.
+
+> **Measured: all 40 slot-0 seeds leave the table at index 392.** Cheapest is
+> seed 222 (OVIX 113) at **6,417** effect frames; dearest is seed 166 (OVIX 93)
+> at 15,629. Frames are the shortest path over the union graph, because `rl_flag`
+> can change every step and the cheapest schedule mixes the two domains.
+
+> **Measured, §6.1 control: the PS2 data does NOT do this.** Gill's PS2 OVCT is
+> **396** entries and its tail terminates — `nix[391] = 391`, `nix[392] = 392`,
+> `nix[393] = 393`, `nix[394] = 393` — so the shifted walk closes in a two-entry
+> loop at 393/394, inside the table. All **42** PS2 slot-0 seeds stay in bounds.
+> This is an **arcade-only** out-of-bounds read; §6.1 does not excuse it.
+
+**What is at 392.** `LOC[GILL]['ovct']` ends at `0x1D86CC`, which is exactly
+where his `rict` begins — the adjacency §18.6(ii) found for Alex. `read_char_table`
+-> `coalesce_adjacent_sections` merges a run of sections whose
+`current.offset + current.size == next.offset`, and `ovix`/`ovct`/`rict` are
+one such run for Gill, so the installed buffer really does hold those bytes.
+Decoded as an `OverlapPart` they are **measured**
+`hos_x -100, hos_y 0, colmd 2, colcd 1, prio 0, flip 1, timer 255, disp 149,
+mts 0, nix 513, parts_char 1`. `parts_char 1` is in `obj_group_table` (group 1),
+so this particular read is not a class-(a) fault — it is a wrong sprite, held
+for 255 frames, and `nix 513` then continues the walk a further 121 entries past
+the table (still inside the coalesced allocation, which `rict` extends by
+`0x1800` bytes). The audit models the **first** step past the end and no more.
+
+### 31.7.3 Why the row reports it reachable — and it is not because of §31.9
+
+`ovct_dangling_hold` now runs for Gill. Of the 40 seeds, **36** have a hold
+bound from the run-shape model of at most **27** frames against a need of at
+least 6,417 — nowhere near. The exit is reported reachable because the other
+**four** — seeds 148, 208, 212 and 222 (OVIX 84, 106, 107 and 113) — sit on
+`olc` runs the model declines to bound (a C command inside the run, or a run
+touching a script boundary), which has always been an `unmodelled` -> open
+result. So Gill's `walk>end[392]` does **not** depend on §31.9's withdrawal of
+the hit-stop bound; it survives the older, stronger hold model.
+
+**Row**: `392/396 r<=391 ok` -> `392/396 r<=391 walk>end[392](arcade-only)`.
+`reach` grows from 96 discrete indices to `1-27, 29-30, 62-86, 88-108,
+110-124, 126-138, 140-158, 160-176, 178-196, 198-391`.
+
+`residual_audit.py` is unaffected: its six `ovct_violations` are all Elena's
+parts 85-90, Elena is not Gill, and her reach set is unchanged. **`on a
+REACHABLE part : 0` still holds, and was not suppressed to make it hold.**
+
+## 31.8 A selected OVIX index past the end of the OVIX makes the reach closure `unmodelled`, not `ok`
+
+`_closure` seeded only `0 <= e < len(ovix)` and recorded the rest in
+`ovix_oob`, which nothing consumed. `charset.c` -> `check_cgd_data` does
+`wk->cg_olc = wk->olc_ix_table[wk->cg_olc_ix]` with no bound, so such a read
+yields four part indices this file cannot know and everything downstream of it
+is an **under**-approximation — yet the row printed `ok`. It now prints
+`reach-unmodelled(ovix-oob …)` and `residual_audit.py` forces
+`part_reachable = True` for that character.
+
+**Measured, seven characters** (the union of pre- and post-terminator emitters,
+because the seed set has never applied a liveness filter and applying one here
+would be a narrowing):
+
+| character | out-of-range `olc >> 4` | OVIX entries | live? |
+|---|---|---|---|
+| IBUKI | 2277 | 2230 | **yes** — `cuca[37]` c29, `k7_entry_walk` says live (§18.6(i)) |
+| GILL | 2048 | 146 | post-terminator only |
+| ALEX | 1136, 2224 | 53 | post-terminator only |
+| YUN | 2048, 2292, 2308 | 20 | post-terminator only |
+| YANG | 1264, 2048, 2224 | 20 | post-terminator only |
+| URIEN | 1030, 2048 | 187 | post-terminator only |
+| REMY | 2048, 2464, 2608 | 31 | post-terminator only |
+
+Gill's row shows `walk>end[392]` instead, which outranks it; his `ovix_oob` is
+still in the JSON and in `stats.ovct_reach_unmodelled`.
+
+§7.5 and §18.6(i) already disclosed Ibuki's overrun **in prose**, and §6.1 still
+applies to the *defect* — the PS2 cell is byte-identical and PS2's OVIX is 2,235
+entries, so it overruns there too. What was wrong was the **row**: a disclosed
+hazard that no invariant fails open on is a hazard the next data change can
+silently walk through.
+
+## 31.9 `att_hit_ok` has five setters, two of them on a player — Dudley's 179-vs-297 bound is WITHDRAWN
+
+§25 and commit `34a54e83` both say a contact "needs `att_hit_ok`, which only a
+RENEWAL cell (negative `att`, `charset.c` `set_new_attnum`) sets", and derive
+from it "each renewal cell in the run buys at most ONE positive hit_stop" —
+which is what turns `frames + renewals * per_renewal` into an **upper** bound.
+
+`att_hit_ok_setters()` now enumerates the sites instead, from source, and
+asserts the set against a hand-classification keyed by `(file, function)` so a
+sixth appearing is an `AssertionError`. **Measured: five.**
+
+| site | whose flag | what it is |
+|---|---|---|
+| `charset.c` -> `set_new_attnum` | **player** | the renewal cell — the term §25 modelled |
+| `hitplef.c` -> `player_at_vs_effect_dm` | **player** | **the missing term** |
+| `hitcheck.c` -> `set_struck_status` | effect | case 2 of `(as->work_id == 1) + ((ds->work_id == 1) * 2)`: `as` is the non-player side |
+| `hitefef.c` -> `effect_at_vs_effect_dm` | effect | effect-vs-effect |
+| `eff13.c` -> `check_tengu_attack` | effect | the tama work |
+
+`player_at_vs_effect_dm` declares `PLW* as = (PLW*)q_hit_push[ix2];` — the
+attacking **player** — and ends:
+
+```c
+dm_status_copy(&as->wu, &ds->wu);                 /* as->hit_stop = as->att.hs_me */
+if (ds->wu.work_id == 2 && ds->wu.id != 122 && ds->wu.id != 123) {
+    as->wu.att_hit_ok = 1;
+    as->wu.hit_stop /= 2;
+    ds->wu.dm_stop /= 2;
+}
+```
+
+So contacting a `work_id == 2` effect gives the attacker a fresh positive
+`hit_stop` **and** a fresh `att_hit_ok` in the same frame, without decoding a
+cell and without entering a damage state. `hit_stop` is *assigned*, not
+accumulated, so each contact re-arms rather than stacks — but `check_hit_stop`
+withholds `char_move` for as long as it is positive, the effect's `cg_ctr` keeps
+decrementing regardless, and nothing in the CG data bounds how many times the
+loop can run. `renewals * per_renewal` is therefore a **lower** bound on the
+hold, not an upper one.
+
+**Consequence, measured.** Dudley's exit 178 needed 297 effect frames against a
+bound of 179 — slack 118, and `hs_me` max 12 halves to 6 per contact, so ~20
+contacts would close it. Whether ~20 are attainable during the `olc`-40 run was
+never established and is **not** established here either: it would need the
+effect census (which `work_id == 2` effects can coexist, where they are, whether
+the frozen attacker's `atix` keeps overlapping one), none of which is in the CG
+data. **This is an incomplete proof, not a refuted one.** The audit therefore
+fails open: every run's `hold_max` is `null`, every exit is reported reachable,
+and §25's number is kept verbatim as `hold_max_renewal_only` so the withdrawal
+is visible rather than silent.
+
+**Row**: Dudley `walk>end-unreached[178:hold<=179/297]` ->
+`walk>end[178](arcade-only)`.
+
+## 31.10 `k7_entry_walk` failed CLOSED on the jump landings `span_closure` fails OPEN on
+
+`k7_entry_walk`'s entry sweep had
+
+```py
+key = (KOC2SEC.get(koc), ix)
+if key[0] is None or key not in lens: continue     # not a reference into this character
+```
+
+— two different unknowns dropped in silence, and its own docstring already
+claimed the opposite ("a `koc` this model does not map … marks the whole script
+live"). `span_closure` -> `triple` records exactly these, as
+`"koc %d"` and `"%s[%d] beyond the %d-entry pointer table"`, and they are real:
+36 for MAKOTO (`atca[108..143]` c0 -> `cbca[38]` on a 30-entry table), one for
+REMY (`saca[63]` c46 -> `nmca[16384]` on a 51-entry table), plus GILL
+`yuca` -> `nmca[1024]` and ELENA `saca` -> `yuca[3072]` that only
+`span_closure`'s grid sees.
+
+**Why the scope is the character, not the script.** `charset.c` ->
+`set_char_move_init2` is `wk->set_char_ad = wk->char_table[koc] + (wk->char_table[koc][index] / 4);`.
+With `index` past the 0-terminated `u32` pointer table the word read is script
+data and the landing is that word over 4 — no bound. With `koc` outside 0..9 the
+*base* is read from outside the initialised part of `u32* char_table[12]`
+(`structs.h`; `charid.c` fills 0-9). Neither landing is confined to a script or
+to a table, so the honest scope of the doubt is every script of that character:
+`k7_entry_walk` now returns no `dead` cell for one that has any.
+
+`k7_unresolved_landings` takes the list from `span_closure`'s own `unmodelled`,
+**both arms** — because `_span_entry_seeds` already seeds `k7_entry_walk` from
+both — so the entries the two models can and cannot follow are the same set by
+construction. That is the property whose absence produced this defect, and
+§31.1's, and it is now structural rather than a coincidence to be re-checked.
+
+**Measured, ten characters**: GILL 23, RYU 1, NECRO 4, HUGO 2, ELENA 22, KEN 3,
+MAKOTO 38, Q 2, TWELVE 117, REMY 2. Printed as `dead:void(n)` at the end of the
+row.
+
+**Effect on the counts — this is the expensive one, and it is not vacuous.**
+
+| counter | before | after |
+|---|---|---|
+| `a_se_oob` live+dead | 0+31 | **5+26** |
+| `a_effinit_oob` live+dead | 0+53 | **30+23** |
+| `a_koc_oob` live+dead | 0+52 | **9+43** |
+| `data_audit.py` `sernd_oob` live | 0 | 5 |
+| `data_audit.py` `stxy_oob` live | 2 | 24 |
+| `data_audit.py` REMY off-model `cg_rival` live | 0 | 28 |
+| §29 `manu` unresolved scripts | 4 | **9** |
+| Twelve `xcopy_case0` live/dead | 36 / 4 | 40 / 0 |
+
+The `manu` movement is the one that leaves work behind: five newly-live scripts
+have live L-cells with no remap witness — **NECRO `caca[5]` (59 live L-cells,
+39 distinct raw `cg_number` `0x2012..0x20DE`), NECRO `saca[48]` and `saca[49]`
+(19 each, `0x1E23..0x2098`), TWELVE `nmca[46]` (14, `0x1E3C..0x6C4C`), REMY
+`saca[63]` (55, `0x20CB..0x759E`)** — joining §29.5's four. `?N` is never
+benign; these are work items, listed in §29.5.
+
+`k7_fwd_gate` stays `closed` (the four newly-live `cg_type 20` markers still
+select `olc 0`), `k7_gate` is unchanged for every character, and
+`cells audited` stays **133,901** — the census does not depend on liveness.
+
+## 31.11 Corrections to earlier sections (recorded, not silently edited)
+
+- **§24.3(3)** — "For Gill it is a left-facing part offset — his `parts_nix`
+  pairs make that consistent; **not audited here**." Audited now (§31.7). The
+  pairs are not a still-image pair under the rule: `parts_nix[i] == i` over the
+  whole region makes the shifted walk a **march**, and it runs off the end of
+  the arcade table at 392. Everything §24 says about **Elena** is unchanged —
+  she is character 8, the shift is not hers, and her reach is still 1-16.
+- **§24.2's writer table, row 5** describes the timer walk as
+  `cg_ix = parts_nix ? parts_nix : cg_ix + 1` without the shift on the
+  dereference. Correct for 19 characters, incomplete for Gill.
+- **§7.5 / §18.6(i)** — Ibuki's OVIX overrun is unchanged as a *finding* (still
+  §6.1 pre-existing, still worth a guard) but the audit no longer prints `ok`
+  for it, and six more characters join it (§31.8).
+- **§25.3's** "Every writer of an attacking player's `hit_stop`" table is
+  intact; what is withdrawn is §25's **att_hit_ok premise** and therefore
+  §25.4's bound and §25's headline "CLOSED — the hold is bounded by data"
+  (§31.9). §8.R is re-opened by the same stroke: the row it points at now reads
+  `walk>end[178](arcade-only)`.
+- **§26**'s X.C.O.P.Y. verdicts are unchanged in substance —
+  `k7_fwd_gate` `closed`, every per-character `k7_gate` as it was — but Twelve's
+  forward-swap census moves 36/4 to 40/0 because his `dead` set is now void
+  (§31.10). §31.1 had already moved it 33/7 -> 36/4 for a different reason.
+- **§28.1**'s "the separation is total … every class that is an out-of-range
+  *index* is 100% dead" **no longer holds**: 44 of the 136 dead rows are on
+  characters whose `dead` set is void, so they are reported live (§31.10). The
+  rows are still emitted and still counted; what is withdrawn is the claim that
+  the split is clean.
+- **§28.2**'s docstring quote — "a `koc` the model does not map … marks the
+  whole script live" — described behaviour the code did not have. It does now,
+  at character scope (§31.10).
+- **§29.5**'s unresolved residue grows from 4 scripts to **9** (§31.10).
+
+## 31.12 What §31.7-§31.11 do not establish
+
+- **That Gill's 392 read is ever actually taken in play.** The cheapest schedule
+  needs 6,417 effect frames of a held `olc`, and the four seeds that carry the
+  verdict carry it because their runs are `unmodelled`, not because a hold that
+  long was shown. What is shown is that nothing in the data stops it and that
+  the PS2 data does stop it.
+- **What happens after the first step past the end.** `nix` at 392 is 513, so
+  the walk continues; the audit models one step and reports `past_end` once.
+- **Whether ~20 effect contacts are attainable in Dudley's `olc`-40 run**
+  (§31.9). Neither shown nor refuted; the gate is open because it is unproven,
+  not because it was disproven.
+- **What Ibuki's `olc_ix_table[2277]` actually reads**, and therefore what the
+  six post-terminator OVIX overruns would select. The read is 47 entries past a
+  2,230-entry table; the bytes were not decoded and the four slots were not
+  followed. `unmodelled` is the whole answer.
+- **Where a `koc`-out-of-range or past-the-pointer-table jump lands** (§31.10).
+  `char_table[koc][index] / 4` is computable from the ROM in principle — the
+  pointer table is followed by the section's own script data — but that would
+  need `read_char_table`'s relocation to be re-derived first, and the value can
+  point outside the section anyway. Not attempted.
+- **The PS2 side still has no entry model** (§31.6), so none of the fail-open
+  changes above have a §6.1 control on the *liveness* half of their verdicts —
+  only on the data half.

@@ -134,7 +134,7 @@
     "cell": 27,
     "koc": 16384,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -144,7 +144,7 @@
     "cell": 28,
     "koc": 16384,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -153,7 +153,7 @@
     "script": 15,
     "cell": 30,
     "se": 1536,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -173,7 +173,7 @@
     "cell": 27,
     "koc": 16384,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -183,7 +183,7 @@
     "cell": 28,
     "koc": 16384,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -192,7 +192,7 @@
     "script": 16,
     "cell": 30,
     "se": 1536,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -212,7 +212,7 @@
     "cell": 27,
     "koc": 16384,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -222,7 +222,7 @@
     "cell": 28,
     "koc": 16384,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -231,7 +231,7 @@
     "script": 17,
     "cell": 30,
     "se": 1536,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -481,10 +481,20 @@
    "ovct_unpatched_tail": 0,
    "ovct_reach_max": 391,
    "ovct_reach_unpatched": 0,
-   "ovct_walk_past_end": [],
+   "ovct_walk_past_end": [
+    392
+   ],
    "ovct_walk_past_end_ps2": [],
-   "ovct_walk_past_end_reachable": [],
+   "ovct_walk_past_end_reachable": [
+    392
+   ],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 1,
+   "ovix_oob": [
+    2048
+   ],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 23,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 5,
@@ -518,16 +528,16 @@
    "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
-   "manu_direct": 5,
-   "manu_bracketed": 3,
+   "manu_direct": 4,
+   "manu_bracketed": 4,
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
    "manu_oracle_raws": 824,
    "manu_oracle_conflicts": 0,
    "manu_cells_bracket_disagree": 0,
-   "manu_cells_bracketed": 48,
-   "manu_cells_direct": 57,
+   "manu_cells_bracketed": 64,
+   "manu_cells_direct": 77,
    "manu_cells_divergent": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
@@ -537,25 +547,40 @@
    "needs_manual": 8,
    "extra_script": 43,
    "extra_cells": 570,
-   "se_oob": 0,
+   "se_oob": 3,
    "eff_oob": 0,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 0,
+   "koc_oob": 6,
    "idx_oob": 0,
-   "se_oob_dead": 3,
+   "se_oob_dead": 0,
    "eff_oob_dead": 0,
    "tama_oob_dead": 0,
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
-   "koc_oob_dead": 6,
+   "koc_oob_dead": 0,
    "idx_oob_dead": 0,
    "oob_phantom": 9,
    "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0,
+     1
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 392,
     "seeds": [
@@ -612,52 +637,24 @@
     "reach": [
      "1-27",
      "29-30",
-     "62-74",
-     "76",
-     "78",
-     "80",
-     "82",
-     "84",
-     "94",
-     "96",
-     "98",
-     "100",
-     "102",
-     "104",
-     "106",
-     "132",
-     "134",
-     "136",
-     "148",
-     "150",
-     "152",
-     "154",
-     "156",
-     "166",
-     "168",
-     "170",
-     "172",
-     "174",
-     "186",
-     "188",
-     "190",
-     "192",
-     "194",
-     "206",
-     "208",
-     "210",
-     "212",
-     "214",
-     "216",
-     "218",
-     "220",
-     "222",
-     "255-391"
+     "62-86",
+     "88-108",
+     "110-124",
+     "126-138",
+     "140-158",
+     "160-176",
+     "178-196",
+     "198-391"
     ],
-    "past_end": [],
+    "past_end": [
+     392
+    ],
     "ovix_oob_pre_terminator": [],
     "ovix_oob_post_terminator": [
      2048
+    ],
+    "unmodelled": [
+     "olc index 2048 selects past the 146-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -718,50 +715,18 @@
     "reach": [
      "1-27",
      "29-30",
-     "62-74",
-     "76",
-     "78",
-     "80",
-     "82",
-     "84",
-     "94",
-     "96",
-     "98",
-     "100",
-     "102",
-     "104",
-     "106",
-     "132",
-     "134",
-     "136",
-     "148",
-     "150",
-     "152",
-     "154",
-     "156",
-     "166",
-     "168",
-     "170",
-     "172",
-     "174",
-     "186",
-     "188",
-     "190",
-     "192",
-     "194",
-     "206",
-     "208",
-     "210",
-     "212",
-     "214",
-     "216",
-     "218",
-     "220",
-     "222",
-     "255-394"
+     "62-86",
+     "88-108",
+     "110-124",
+     "126-138",
+     "140-158",
+     "160-176",
+     "178-196",
+     "198-395"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -774,9 +739,2231 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
-   "exits": {}
+   "exits": {
+    "392": {
+     "seeds": {
+      "74": {
+       "need": 13573,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        47
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 47,
+         "table": "atca",
+         "script": 6,
+         "cells": "4-4",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 47,
+         "table": "atca",
+         "script": 7,
+         "cells": "4-4",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 47,
+         "table": "atca",
+         "script": 8,
+         "cells": "4-4",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "76": {
+       "need": 13063,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        48
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 48,
+         "table": "atca",
+         "script": 6,
+         "cells": "5-5",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 48,
+         "table": "atca",
+         "script": 7,
+         "cells": "5-5",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 48,
+         "table": "atca",
+         "script": 8,
+         "cells": "5-5",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 1,
+       "reachable": true
+      },
+      "78": {
+       "need": 12553,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        49
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 49,
+         "table": "atca",
+         "script": 6,
+         "cells": "6-6",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 49,
+         "table": "atca",
+         "script": 7,
+         "cells": "6-6",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 49,
+         "table": "atca",
+         "script": 8,
+         "cells": "6-6",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 1,
+       "reachable": true
+      },
+      "80": {
+       "need": 12043,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        50
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 50,
+         "table": "atca",
+         "script": 6,
+         "cells": "7-7",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 50,
+         "table": "atca",
+         "script": 7,
+         "cells": "7-7",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 50,
+         "table": "atca",
+         "script": 8,
+         "cells": "7-7",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 25,
+       "reachable": true
+      },
+      "82": {
+       "need": 11533,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        51
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 51,
+         "table": "atca",
+         "script": 6,
+         "cells": "8-8",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 51,
+         "table": "atca",
+         "script": 7,
+         "cells": "8-8",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 51,
+         "table": "atca",
+         "script": 8,
+         "cells": "8-8",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "84": {
+       "need": 11023,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        52
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 52,
+         "table": "atca",
+         "script": 6,
+         "cells": "9-9",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 52,
+         "table": "atca",
+         "script": 7,
+         "cells": "9-9",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 52,
+         "table": "atca",
+         "script": 8,
+         "cells": "9-9",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "94": {
+       "need": 14079,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        57
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 57,
+         "table": "atca",
+         "script": 15,
+         "cells": "5-5",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 57,
+         "table": "atca",
+         "script": 16,
+         "cells": "5-5",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 57,
+         "table": "atca",
+         "script": 17,
+         "cells": "5-5",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "96": {
+       "need": 13569,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        58
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 58,
+         "table": "atca",
+         "script": 15,
+         "cells": "6-6",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 58,
+         "table": "atca",
+         "script": 16,
+         "cells": "6-6",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 58,
+         "table": "atca",
+         "script": 17,
+         "cells": "6-6",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "98": {
+       "need": 13059,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        59
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 59,
+         "table": "atca",
+         "script": 15,
+         "cells": "7-8",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 59,
+         "table": "atca",
+         "script": 16,
+         "cells": "7-8",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 59,
+         "table": "atca",
+         "script": 17,
+         "cells": "7-8",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 4,
+       "reachable": true
+      },
+      "100": {
+       "need": 12549,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        60
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 60,
+         "table": "atca",
+         "script": 15,
+         "cells": "9-9",
+         "frames": 3,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 26,
+         "hold_max": null
+        },
+        {
+         "olc": 60,
+         "table": "atca",
+         "script": 16,
+         "cells": "9-9",
+         "frames": 3,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 26,
+         "hold_max": null
+        },
+        {
+         "olc": 60,
+         "table": "atca",
+         "script": 17,
+         "cells": "9-9",
+         "frames": 3,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 26,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 26,
+       "reachable": true
+      },
+      "102": {
+       "need": 12039,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        61
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 61,
+         "table": "atca",
+         "script": 15,
+         "cells": "10-10",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 61,
+         "table": "atca",
+         "script": 16,
+         "cells": "10-10",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 61,
+         "table": "atca",
+         "script": 17,
+         "cells": "10-10",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 25,
+       "reachable": true
+      },
+      "104": {
+       "need": 11529,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        62
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 62,
+         "table": "atca",
+         "script": 15,
+         "cells": "11-11",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 62,
+         "table": "atca",
+         "script": 16,
+         "cells": "11-11",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 62,
+         "table": "atca",
+         "script": 17,
+         "cells": "11-11",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "106": {
+       "need": 11019,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        63
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 63,
+         "table": "atca",
+         "script": 15,
+         "cells": "12-12",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 63,
+         "table": "atca",
+         "script": 16,
+         "cells": "12-12",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 63,
+         "table": "atca",
+         "script": 17,
+         "cells": "12-12",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "132": {
+       "need": 12043,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        76
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 76,
+         "table": "atca",
+         "script": 24,
+         "cells": "1-1",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 76,
+         "table": "atca",
+         "script": 25,
+         "cells": "1-1",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 76,
+         "table": "atca",
+         "script": 26,
+         "cells": "1-1",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "134": {
+       "need": 11533,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        77
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 77,
+         "table": "atca",
+         "script": 24,
+         "cells": "2-2",
+         "frames": 1,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 24,
+         "hold_max": null
+        },
+        {
+         "olc": 77,
+         "table": "atca",
+         "script": 25,
+         "cells": "2-2",
+         "frames": 1,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 24,
+         "hold_max": null
+        },
+        {
+         "olc": 77,
+         "table": "atca",
+         "script": 26,
+         "cells": "2-2",
+         "frames": 1,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 24,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 24,
+       "reachable": true
+      },
+      "136": {
+       "need": 11023,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        78
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 78,
+         "table": "atca",
+         "script": 24,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 78,
+         "table": "atca",
+         "script": 25,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 78,
+         "table": "atca",
+         "script": 26,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 25,
+       "reachable": true
+      },
+      "148": {
+       "need": 13063,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        84
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 84,
+         "table": "atca",
+         "script": 33,
+         "cells": "0-0",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": "run starts at script start",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 84,
+         "table": "atca",
+         "script": 34,
+         "cells": "0-0",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": "run starts at script start",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 84,
+         "table": "atca",
+         "script": 35,
+         "cells": "0-0",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": "run starts at script start",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": null,
+       "reachable": true
+      },
+      "150": {
+       "need": 12553,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        85
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 85,
+         "table": "atca",
+         "script": 33,
+         "cells": "1-2",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 85,
+         "table": "atca",
+         "script": 34,
+         "cells": "1-2",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 85,
+         "table": "atca",
+         "script": 35,
+         "cells": "1-2",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "152": {
+       "need": 12043,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        86
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 86,
+         "table": "atca",
+         "script": 33,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 86,
+         "table": "atca",
+         "script": 34,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        },
+        {
+         "olc": 86,
+         "table": "atca",
+         "script": 35,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 25,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 25,
+       "reachable": true
+      },
+      "154": {
+       "need": 11533,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        87
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 87,
+         "table": "atca",
+         "script": 33,
+         "cells": "4-4",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 87,
+         "table": "atca",
+         "script": 34,
+         "cells": "4-4",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 87,
+         "table": "atca",
+         "script": 35,
+         "cells": "4-4",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "156": {
+       "need": 11023,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        88
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 88,
+         "table": "atca",
+         "script": 33,
+         "cells": "5-5",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 88,
+         "table": "atca",
+         "script": 34,
+         "cells": "5-5",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 88,
+         "table": "atca",
+         "script": 35,
+         "cells": "5-5",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "166": {
+       "need": 15629,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        93
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 93,
+         "table": "atca",
+         "script": 40,
+         "cells": "2-2",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 93,
+         "table": "atca",
+         "script": 41,
+         "cells": "2-2",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "168": {
+       "need": 15119,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        94
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 94,
+         "table": "atca",
+         "script": 40,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 94,
+         "table": "atca",
+         "script": 41,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "170": {
+       "need": 14609,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        95
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 95,
+         "table": "atca",
+         "script": 40,
+         "cells": "4-4",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 95,
+         "table": "atca",
+         "script": 41,
+         "cells": "4-4",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 1,
+       "reachable": true
+      },
+      "172": {
+       "need": 14099,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        96
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 96,
+         "table": "atca",
+         "script": 40,
+         "cells": "5-5",
+         "frames": 1,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 24,
+         "hold_max": null
+        },
+        {
+         "olc": 96,
+         "table": "atca",
+         "script": 41,
+         "cells": "5-5",
+         "frames": 1,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 24,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 24,
+       "reachable": true
+      },
+      "174": {
+       "need": 13589,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        97
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 97,
+         "table": "atca",
+         "script": 40,
+         "cells": "6-6",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 97,
+         "table": "atca",
+         "script": 41,
+         "cells": "6-6",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "186": {
+       "need": 13063,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        99
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 99,
+         "table": "atca",
+         "script": 46,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 99,
+         "table": "atca",
+         "script": 47,
+         "cells": "3-3",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "188": {
+       "need": 12553,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        100
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 100,
+         "table": "atca",
+         "script": 46,
+         "cells": "4-4",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 100,
+         "table": "atca",
+         "script": 47,
+         "cells": "4-4",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 1,
+       "reachable": true
+      },
+      "190": {
+       "need": 12043,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        101
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 101,
+         "table": "atca",
+         "script": 46,
+         "cells": "5-5",
+         "frames": 1,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 24,
+         "hold_max": null
+        },
+        {
+         "olc": 101,
+         "table": "atca",
+         "script": 47,
+         "cells": "5-5",
+         "frames": 1,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 24,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 24,
+       "reachable": true
+      },
+      "192": {
+       "need": 11533,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        102
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 102,
+         "table": "atca",
+         "script": 46,
+         "cells": "6-6",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 102,
+         "table": "atca",
+         "script": 47,
+         "cells": "6-6",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "194": {
+       "need": 11023,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        103
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 103,
+         "table": "atca",
+         "script": 46,
+         "cells": "7-7",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 103,
+         "table": "atca",
+         "script": 47,
+         "cells": "7-7",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 3,
+       "reachable": true
+      },
+      "206": {
+       "need": 10497,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        105
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 105,
+         "table": "saca",
+         "script": 29,
+         "cells": "3-3",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 27,
+         "hold_max": null
+        },
+        {
+         "olc": 105,
+         "table": "saca",
+         "script": 30,
+         "cells": "3-3",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 27,
+         "hold_max": null
+        },
+        {
+         "olc": 105,
+         "table": "saca",
+         "script": 31,
+         "cells": "3-3",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 27,
+         "hold_max": null
+        },
+        {
+         "olc": 105,
+         "table": "saca",
+         "script": 32,
+         "cells": "3-3",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": null,
+         "hold_max_renewal_only": 27,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 27,
+       "reachable": true
+      },
+      "208": {
+       "need": 9987,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        106
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 106,
+         "table": "saca",
+         "script": 29,
+         "cells": "4-6",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [103]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 106,
+         "table": "saca",
+         "script": 30,
+         "cells": "4-6",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [103]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 106,
+         "table": "saca",
+         "script": 31,
+         "cells": "4-6",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [103]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 106,
+         "table": "saca",
+         "script": 32,
+         "cells": "4-6",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [103]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": null,
+       "reachable": true
+      },
+      "210": {
+       "need": 9477,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        107
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 107,
+         "table": "saca",
+         "script": 29,
+         "cells": "7-7",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 107,
+         "table": "saca",
+         "script": 30,
+         "cells": "7-7",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 107,
+         "table": "saca",
+         "script": 31,
+         "cells": "7-7",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        },
+        {
+         "olc": 107,
+         "table": "saca",
+         "script": 32,
+         "cells": "7-7",
+         "frames": 2,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 2,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 2,
+       "reachable": true
+      },
+      "212": {
+       "need": 8967,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        108
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 29,
+         "cells": "8-11",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": "C cells inside run: [47, 49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 29,
+         "cells": "18-18",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 30,
+         "cells": "8-11",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": "C cells inside run: [47, 49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 30,
+         "cells": "18-18",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 31,
+         "cells": "8-11",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": "C cells inside run: [47, 49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 31,
+         "cells": "18-18",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        },
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 32,
+         "cells": "8-11",
+         "frames": 4,
+         "renewals": 1,
+         "unmodelled": "C cells inside run: [47, 49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 108,
+         "table": "saca",
+         "script": 32,
+         "cells": "18-18",
+         "frames": 1,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 1,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": null,
+       "reachable": true
+      },
+      "214": {
+       "need": 8457,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        109
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 29,
+         "cells": "12-12",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 29,
+         "cells": "19-19",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 30,
+         "cells": "12-12",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 30,
+         "cells": "19-19",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 31,
+         "cells": "12-12",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 31,
+         "cells": "19-19",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 32,
+         "cells": "12-12",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 109,
+         "table": "saca",
+         "script": 32,
+         "cells": "19-19",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 4,
+       "reachable": true
+      },
+      "216": {
+       "need": 7947,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        110
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 29,
+         "cells": "13-13",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 29,
+         "cells": "20-20",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 30,
+         "cells": "13-13",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 30,
+         "cells": "20-20",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 31,
+         "cells": "13-13",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 31,
+         "cells": "20-20",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 32,
+         "cells": "13-13",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 110,
+         "table": "saca",
+         "script": 32,
+         "cells": "20-20",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 4,
+       "reachable": true
+      },
+      "218": {
+       "need": 7437,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        111
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 29,
+         "cells": "14-14",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 29,
+         "cells": "21-21",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 30,
+         "cells": "14-14",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 30,
+         "cells": "21-21",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 31,
+         "cells": "14-14",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 31,
+         "cells": "21-21",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 32,
+         "cells": "14-14",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 111,
+         "table": "saca",
+         "script": 32,
+         "cells": "21-21",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 4,
+       "reachable": true
+      },
+      "220": {
+       "need": 6927,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        112
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 29,
+         "cells": "15-15",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 29,
+         "cells": "22-22",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 30,
+         "cells": "15-15",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 30,
+         "cells": "22-22",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 31,
+         "cells": "15-15",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 31,
+         "cells": "22-22",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        },
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 32,
+         "cells": "15-15",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 112,
+         "table": "saca",
+         "script": 32,
+         "cells": "22-22",
+         "frames": 4,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 4,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": 4,
+       "reachable": true
+      },
+      "222": {
+       "need": 6417,
+       "shift": [
+        0,
+        1
+       ],
+       "olc": [
+        113
+       ],
+       "exdm_olc": [],
+       "runs": [
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 29,
+         "cells": "16-17",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 29,
+         "cells": "23-23",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 30,
+         "cells": "16-17",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 30,
+         "cells": "23-23",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 31,
+         "cells": "16-17",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 31,
+         "cells": "23-23",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        },
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 32,
+         "cells": "16-17",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": "C cells inside run: [49]",
+         "hold_max_renewal_only": null,
+         "hold_max": null
+        },
+        {
+         "olc": 113,
+         "table": "saca",
+         "script": 32,
+         "cells": "23-23",
+         "frames": 3,
+         "renewals": 0,
+         "unmodelled": null,
+         "hold_max_renewal_only": 3,
+         "hold_max": null
+        }
+       ],
+       "hold_max": null,
+       "hold_max_renewal_only": null,
+       "reachable": true
+      }
+     },
+     "reachable": true
+    }
+   }
   },
   "xcopy_case4": {
    "gate": {
@@ -1430,6 +3617,31 @@
    "reachable_cells": 8336,
    "reachable_cells_xcopy": 8552,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "yuca[68] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[69] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[70] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[71] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[72] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[73] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[74] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[75] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[76] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[77] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[78] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[79] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[80] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[81] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[82] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[83] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[84] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[85] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[86] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[87] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[88] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[89] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
+    "yuca[90] cell 9: jump to nmca[1024] beyond the 63-entry pointer table"
+   ],
    "unmodelled": [
     "yuca[68] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
     "yuca[69] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
@@ -1800,6 +4012,13 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 2,
+   "ovix_oob": [
+    1136,
+    2224
+   ],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -1871,6 +4090,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 57,
     "seeds": [
@@ -1889,6 +4122,10 @@
     "ovix_oob_post_terminator": [
      1136,
      2224
+    ],
+    "unmodelled": [
+     "olc index 1136 selects past the 53-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2224 selects past the 53-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -1905,7 +4142,8 @@
      "50-58"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -1918,7 +4156,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -2751,6 +4992,7 @@
    "reachable_cells": 7681,
    "reachable_cells_xcopy": 7730,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16361 for caught ALEX outside its 1080-row RICT",
@@ -2947,6 +5189,10 @@
    ],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 1,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -3018,6 +5264,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 54,
     "seeds": [
@@ -3043,7 +5303,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 56,
@@ -3073,7 +5334,8 @@
      57,
      58
     ],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -3086,7 +5348,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 52
+    "per_renewal": 52,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -3424,6 +5689,9 @@
    "reachable_cells": 6435,
    "reachable_cells_xcopy": 6543,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to saca[69] beyond the 69-entry pointer table"
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16362 for caught RYU outside its 1080-row RICT",
@@ -4001,6 +6269,14 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 3,
+   "ovix_oob": [
+    2048,
+    2292,
+    2308
+   ],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -4072,6 +6348,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 6,
     "seeds": [
@@ -4086,6 +6376,11 @@
      2048,
      2292,
      2308
+    ],
+    "unmodelled": [
+     "olc index 2048 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2292 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2308 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -4097,7 +6392,8 @@
      "1-7"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -4110,7 +6406,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -4458,6 +6757,7 @@
    "reachable_cells": 8955,
    "reachable_cells_xcopy": 9092,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16363 for caught YUN outside its 1080-row RICT",
@@ -5004,14 +7304,14 @@
     178
    ],
    "ovct_walk_past_end_ps2": [],
-   "ovct_walk_past_end_reachable": [],
-   "ovct_walk_hold": [
-    [
-     178,
-     179,
-     297
-    ]
+   "ovct_walk_past_end_reachable": [
+    178
    ],
+   "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 3,
@@ -5083,6 +7383,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 178,
     "seeds": [
@@ -5106,7 +7420,8 @@
      178
     ],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 180,
@@ -5129,7 +7444,8 @@
      "73-179"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -5142,13 +7458,19 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {
     "178": {
      "seeds": {
       "82": {
        "need": 594,
+       "shift": [
+        0
+       ],
        "olc": [
         39
        ],
@@ -5162,7 +7484,8 @@
          "frames": 33,
          "renewals": 5,
          "unmodelled": null,
-         "hold_max": 148
+         "hold_max_renewal_only": 148,
+         "hold_max": null
         },
         {
          "olc": 39,
@@ -5172,7 +7495,8 @@
          "frames": 33,
          "renewals": 5,
          "unmodelled": null,
-         "hold_max": 148
+         "hold_max_renewal_only": 148,
+         "hold_max": null
         },
         {
          "olc": 39,
@@ -5182,7 +7506,8 @@
          "frames": 33,
          "renewals": 5,
          "unmodelled": null,
-         "hold_max": 148
+         "hold_max_renewal_only": 148,
+         "hold_max": null
         },
         {
          "olc": 39,
@@ -5192,14 +7517,19 @@
          "frames": 33,
          "renewals": 5,
          "unmodelled": null,
-         "hold_max": 148
+         "hold_max_renewal_only": 148,
+         "hold_max": null
         }
        ],
-       "hold_max": 148,
-       "reachable": false
+       "hold_max": null,
+       "hold_max_renewal_only": 148,
+       "reachable": true
       },
       "130": {
        "need": 297,
+       "shift": [
+        0
+       ],
        "olc": [
         40
        ],
@@ -5213,7 +7543,8 @@
          "frames": 18,
          "renewals": 7,
          "unmodelled": null,
-         "hold_max": 179
+         "hold_max_renewal_only": 179,
+         "hold_max": null
         },
         {
          "olc": 40,
@@ -5223,7 +7554,8 @@
          "frames": 18,
          "renewals": 7,
          "unmodelled": null,
-         "hold_max": 179
+         "hold_max_renewal_only": 179,
+         "hold_max": null
         },
         {
          "olc": 40,
@@ -5233,7 +7565,8 @@
          "frames": 18,
          "renewals": 7,
          "unmodelled": null,
-         "hold_max": 179
+         "hold_max_renewal_only": 179,
+         "hold_max": null
         },
         {
          "olc": 40,
@@ -5243,14 +7576,16 @@
          "frames": 18,
          "renewals": 7,
          "unmodelled": null,
-         "hold_max": 179
+         "hold_max_renewal_only": 179,
+         "hold_max": null
         }
        ],
-       "hold_max": 179,
-       "reachable": false
+       "hold_max": null,
+       "hold_max_renewal_only": 179,
+       "reachable": true
       }
      },
-     "reachable": false
+     "reachable": true
     }
    }
   },
@@ -6183,6 +8518,7 @@
      16
     ]
    },
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16364 for caught DUDLEY outside its 1080-row RICT",
@@ -6271,7 +8607,7 @@
     "cell": 24,
     "koc": 6144,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -6440,6 +8776,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 4,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -6473,18 +8813,18 @@
    "grid_signature_unmodelled": 26,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
-   "manu_direct": 10,
-   "manu_bracketed": 6,
+   "manu_direct": 8,
+   "manu_bracketed": 5,
    "manu_no_live_cells": 0,
-   "manu_unresolved": 0,
+   "manu_unresolved": 3,
    "manu_divergent": 0,
    "manu_oracle_raws": 971,
    "manu_oracle_conflicts": 1,
    "manu_cells_bracket_disagree": 0,
-   "manu_cells_bracketed": 38,
-   "manu_cells_direct": 214,
+   "manu_cells_bracketed": 55,
+   "manu_cells_direct": 258,
    "manu_cells_divergent": 0,
-   "manu_cells_unbracketed": 0,
+   "manu_cells_unbracketed": 4,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -6497,20 +8837,34 @@
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 0,
+   "koc_oob": 1,
    "idx_oob": 0,
    "se_oob_dead": 0,
    "eff_oob_dead": 0,
    "tama_oob_dead": 0,
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
-   "koc_oob_dead": 1,
+   "koc_oob_dead": 0,
    "idx_oob_dead": 0,
    "oob_phantom": 1,
    "oob_not_phantom": 0
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 46,
     "seeds": [
@@ -6525,7 +8879,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 48,
@@ -6540,7 +8895,8 @@
      "1-47"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -6553,7 +8909,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -6967,6 +9326,12 @@
    "reachable_cells": 7793,
    "reachable_cells_xcopy": 7853,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to exca[44] beyond the 43-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[45] beyond the 43-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[68] beyond the 67-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[69] beyond the 67-entry pointer table"
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16365 for caught NECRO outside its 1080-row RICT",
@@ -7052,7 +9417,7 @@
     "cell": 24,
     "koc": 6144,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "past_prefix"
    },
    {
@@ -7218,6 +9583,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 2,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 2,
@@ -7260,7 +9629,7 @@
    "manu_oracle_conflicts": 1,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 0,
-   "manu_cells_direct": 139,
+   "manu_cells_direct": 182,
    "manu_cells_divergent": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
@@ -7275,14 +9644,14 @@
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 0,
+   "koc_oob": 1,
    "idx_oob": 0,
    "se_oob_dead": 0,
    "eff_oob_dead": 0,
    "tama_oob_dead": 0,
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
-   "koc_oob_dead": 1,
+   "koc_oob_dead": 0,
    "idx_oob_dead": 0,
    "oob_phantom": 0,
    "oob_not_phantom": 1
@@ -7297,6 +9666,20 @@
    }
   ],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 71,
     "seeds": [
@@ -7308,7 +9691,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 73,
@@ -7320,7 +9704,8 @@
      "1-72"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -7333,7 +9718,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -7673,6 +10061,10 @@
    "reachable_cells": 7381,
    "reachable_cells_xcopy": 7481,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table"
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16366 for caught HUGO outside its 1080-row RICT",
@@ -7941,6 +10333,14 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 1,
+   "ovix_oob": [
+    2277
+   ],
+   "ovix_oob_ps2": [
+    2277
+   ],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [
     2277
    ],
@@ -8014,6 +10414,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 2286,
     "seeds": [
@@ -8106,7 +10520,10 @@
     "ovix_oob_pre_terminator": [
      2277
     ],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": [
+     "olc index 2277 selects past the 2230-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
+    ]
    },
    "ps2": {
     "entries": 2296,
@@ -8201,6 +10618,9 @@
     "past_end": [],
     "ovix_oob": [
      2277
+    ],
+    "unmodelled": [
+     "olc index 2277 selects past the 2235-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    }
   },
@@ -8214,7 +10634,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -11165,6 +13588,7 @@
    "reachable_cells": 9927,
    "reachable_cells_xcopy": 9960,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16367 for caught IBUKI outside its 1080-row RICT",
@@ -11425,6 +13849,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 22,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 0,
    "k7_foreign_cells": 0,
@@ -11467,7 +13895,7 @@
    "manu_oracle_conflicts": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 24,
-   "manu_cells_direct": 136,
+   "manu_cells_direct": 169,
    "manu_cells_divergent": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
@@ -11511,6 +13939,20 @@
    }
   ],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 91,
     "seeds": [
@@ -11521,7 +13963,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 85,
@@ -11534,7 +13977,8 @@
      "33-84"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -11547,7 +13991,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -11842,6 +14289,30 @@
      24
     ]
    },
+   "k7_dead_unmodelled": [
+    "saca[10] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[11] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[12] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[13] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[14] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[15] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[16] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[17] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[18] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[19] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[20] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[21] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[22] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[23] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[2] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[3] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[4] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[5] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[6] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[7] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[8] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
+    "saca[9] cell 1: jump to yuca[3072] beyond the 91-entry pointer table"
+   ],
    "unmodelled": [
     "saca[10] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
     "saca[11] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
@@ -12093,6 +14564,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -12164,6 +14639,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 67,
     "seeds": [
@@ -12179,7 +14668,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 69,
@@ -12195,7 +14685,8 @@
      "1-68"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -12208,7 +14699,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -12638,6 +15132,7 @@
    "reachable_cells": 7512,
    "reachable_cells_xcopy": 7584,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16369 for caught ORO outside its 1080-row RICT",
@@ -13965,6 +16460,14 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 3,
+   "ovix_oob": [
+    1264,
+    2048,
+    2224
+   ],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -14036,6 +16539,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 20,
     "seeds": [
@@ -14050,6 +16567,11 @@
      1264,
      2048,
      2224
+    ],
+    "unmodelled": [
+     "olc index 1264 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2048 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2224 selects past the 20-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -14065,7 +16587,8 @@
      "20-21"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -14078,7 +16601,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -15055,6 +17581,7 @@
    "reachable_cells": 10060,
    "reachable_cells_xcopy": 10198,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16370 for caught YANG outside its 1080-row RICT",
@@ -15202,6 +17729,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 3,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 6,
@@ -15273,6 +17804,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 42,
     "seeds": [
@@ -15283,7 +17828,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 44,
@@ -15294,7 +17840,8 @@
      "31-43"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -15307,7 +17854,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -15887,6 +18437,11 @@
    "reachable_cells": 6443,
    "reachable_cells_xcopy": 6549,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to saca[68] beyond the 65-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[69] beyond the 65-entry pointer table",
+    "saca[44] cell 81: jump to koc 5641"
+   ],
    "unmodelled": [
     "saca[44] cell 81: jump to koc 5641"
    ],
@@ -16040,6 +18595,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -16119,6 +18678,20 @@
    }
   ],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 25,
     "seeds": [
@@ -16131,7 +18704,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 27,
@@ -16144,7 +18718,8 @@
      "10-26"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -16157,7 +18732,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -16459,6 +19037,7 @@
    "reachable_cells": 6982,
    "reachable_cells_xcopy": 7058,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16372 for caught SEAN outside its 1080-row RICT",
@@ -16975,6 +19554,13 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 2,
+   "ovix_oob": [
+    1030,
+    2048
+   ],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -17054,6 +19640,20 @@
    }
   ],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 329,
     "seeds": [
@@ -17080,6 +19680,10 @@
     "ovix_oob_post_terminator": [
      1030,
      2048
+    ],
+    "unmodelled": [
+     "olc index 1030 selects past the 187-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2048 selects past the 187-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -17109,7 +19713,8 @@
      "288-351"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -17122,7 +19727,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -17761,6 +20369,7 @@
    "reachable_cells": 7813,
    "reachable_cells_xcopy": 7927,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16373 for caught URIEN outside its 1080-row RICT",
@@ -18097,6 +20706,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -18168,6 +20781,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 115,
     "seeds": [
@@ -18184,7 +20811,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 117,
@@ -18203,7 +20831,8 @@
      "115-116"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -18216,7 +20845,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 32
+    "per_renewal": 32,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -18516,6 +21148,7 @@
    "reachable_cells": 7451,
    "reachable_cells_xcopy": 7546,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16374 for caught AKUMA outside its 1080-row RICT",
@@ -19886,6 +22519,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 0,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -19957,6 +22594,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 75,
     "seeds": [
@@ -19967,7 +22618,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 78,
@@ -19980,7 +22632,8 @@
      "75-77"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -19993,7 +22646,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -20272,6 +22928,7 @@
    "reachable_cells": 8384,
    "reachable_cells_xcopy": 8502,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16376 for caught CHUNLI outside its 1080-row RICT",
@@ -20482,6 +23139,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 38,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -20524,7 +23185,7 @@
    "manu_oracle_conflicts": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 0,
-   "manu_cells_direct": 95,
+   "manu_cells_direct": 127,
    "manu_cells_divergent": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
@@ -20553,6 +23214,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 252,
     "seeds": [
@@ -20588,7 +23263,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 254,
@@ -20624,7 +23300,8 @@
      "207-253"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -20637,7 +23314,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 34
+    "per_renewal": 34,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -20951,6 +23631,46 @@
    "reachable_cells": 8274,
    "reachable_cells_xcopy": 8422,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to koc 16384",
+    "X.C.O.P.Y. donor jump to koc 8192",
+    "atca[108] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[109] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[110] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[111] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[112] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[113] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[114] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[115] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[116] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[117] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[118] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[119] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[120] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[121] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[122] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[123] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[124] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[125] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[126] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[127] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[128] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[129] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[130] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[131] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[132] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[133] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[134] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[135] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[136] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[137] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[138] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[139] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[140] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[141] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[142] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
+    "atca[143] cell 0: jump to cbca[38] beyond the 30-entry pointer table"
+   ],
    "unmodelled": [
     "atca[108] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
     "atca[109] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
@@ -21233,6 +23953,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 2,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -21275,7 +23999,7 @@
    "manu_oracle_conflicts": 0,
    "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 0,
-   "manu_cells_direct": 126,
+   "manu_cells_direct": 146,
    "manu_cells_divergent": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
@@ -21304,6 +24028,20 @@
   },
   "over_declared_sections": [],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 18,
     "seeds": [
@@ -21316,7 +24054,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 20,
@@ -21329,7 +24068,8 @@
      "15-19"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -21342,7 +24082,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 24
+    "per_renewal": 24,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -21628,6 +24371,10 @@
    "reachable_cells": 8741,
    "reachable_cells_xcopy": 8882,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to saca[68] beyond the 68-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[69] beyond the 68-entry pointer table"
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16378 for caught Q outside its 1080-row RICT",
@@ -21712,7 +24459,7 @@
     "cell": 30,
     "koc": 6144,
     "ix": 0,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -21809,6 +24556,10 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 0,
+   "ovix_oob": [],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 117,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 0,
@@ -21842,16 +24593,16 @@
    "grid_signature_unmodelled": 6,
    "caua_hosa_over_declared": 0,
    "caua_hosa_tail_reached": 0,
-   "manu_direct": 6,
+   "manu_direct": 5,
    "manu_bracketed": 5,
    "manu_no_live_cells": 0,
-   "manu_unresolved": 0,
+   "manu_unresolved": 1,
    "manu_divergent": 0,
    "manu_oracle_raws": 1021,
    "manu_oracle_conflicts": 0,
-   "manu_cells_bracket_disagree": 0,
-   "manu_cells_bracketed": 46,
-   "manu_cells_direct": 57,
+   "manu_cells_bracket_disagree": 3,
+   "manu_cells_bracketed": 48,
+   "manu_cells_direct": 71,
    "manu_cells_divergent": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
@@ -21866,14 +24617,14 @@
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
-   "koc_oob": 0,
+   "koc_oob": 1,
    "idx_oob": 0,
    "se_oob_dead": 0,
    "eff_oob_dead": 0,
    "tama_oob_dead": 0,
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
-   "koc_oob_dead": 1,
+   "koc_oob_dead": 0,
    "idx_oob_dead": 0,
    "oob_phantom": 1,
    "oob_not_phantom": 0
@@ -21888,6 +24639,20 @@
    }
   ],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 133,
     "seeds": [
@@ -21900,7 +24665,8 @@
     ],
     "past_end": [],
     "ovix_oob_pre_terminator": [],
-    "ovix_oob_post_terminator": []
+    "ovix_oob_post_terminator": [],
+    "unmodelled": []
    },
    "ps2": {
     "entries": 135,
@@ -21913,7 +24679,8 @@
      "118-134"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -21926,7 +24693,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -22486,7 +25256,7 @@
       0,
       0
      ],
-     "dead": true
+     "dead": false
     },
     {
      "table": "exca",
@@ -22499,7 +25269,7 @@
       0,
       0
      ],
-     "dead": true
+     "dead": false
     },
     {
      "table": "exca",
@@ -22569,7 +25339,7 @@
       0,
       0
      ],
-     "dead": true
+     "dead": false
     },
     {
      "table": "exca",
@@ -22582,7 +25352,7 @@
       0,
       0
      ],
-     "dead": true
+     "dead": false
     },
     {
      "table": "exca",
@@ -22645,8 +25415,8 @@
      "dead": false
     }
    ],
-   "live": 36,
-   "dead": 4,
+   "live": 40,
+   "dead": 0,
    "unmodelled": null
   },
   "grid_phase": {
@@ -23036,6 +25806,125 @@
    "reachable_cells": 8936,
    "reachable_cells_xcopy": 9727,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to atca[200] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[201] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[203] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[205] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[206] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[207] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[208] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[209] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[212] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[213] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[214] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[216] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[218] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[221] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[224] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[227] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[230] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[233] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[236] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[238] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[240] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[242] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[246] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[248] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[250] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[252] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[254] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[255] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[256] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[257] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[258] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to atca[259] beyond the 162-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[13] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[16] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[18] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[19] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[20] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[21] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[23] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[24] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[27] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[28] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[37] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[38] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to caca[39] beyond the 13-entry pointer table",
+    "X.C.O.P.Y. donor jump to cbca[53] beyond the 30-entry pointer table",
+    "X.C.O.P.Y. donor jump to cbca[54] beyond the 30-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[100] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[47] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[48] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[49] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[50] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[51] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[52] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[53] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[54] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[55] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[56] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[57] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[58] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[59] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[60] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[61] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[62] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[63] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[64] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[65] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[66] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[67] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[68] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[69] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[70] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[71] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[72] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[73] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[74] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[75] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[76] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[77] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[78] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[79] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[80] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[81] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[84] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[85] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[86] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[87] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[90] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[91] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[98] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to exca[99] beyond the 47-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[102] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[103] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[104] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[105] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[106] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[115] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[116] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[76] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[80] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[81] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[82] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[84] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[86] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[87] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[93] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[94] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[95] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[97] beyond the 75-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[98] beyond the 75-entry pointer table",
+    "atca[89] cell 259: jump to koc 16384",
+    "atca[89] cell 261: jump to koc 24576",
+    "atca[89] cell 263: jump to koc -32768",
+    "atca[89] cell 265: jump to koc -32768",
+    "atca[89] cell 269: jump to koc 8192",
+    "atca[89] cell 271: jump to koc 16384",
+    "yuca[16] cell 2: jump to koc 9728"
+   ],
    "unmodelled": [
     "yuca[16] cell 2: jump to koc 9728"
    ],
@@ -23379,7 +26268,7 @@
     "script": 63,
     "cell": 30,
     "se": 1024,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23388,7 +26277,7 @@
     "script": 63,
     "cell": 72,
     "se": 1536,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23398,7 +26287,7 @@
     "cell": 82,
     "eff": 116,
     "data": 65,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23408,7 +26297,7 @@
     "cell": 83,
     "eff": 116,
     "data": 66,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23418,7 +26307,7 @@
     "cell": 84,
     "eff": 116,
     "data": 67,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23428,7 +26317,7 @@
     "cell": 85,
     "eff": 116,
     "data": 68,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23438,7 +26327,7 @@
     "cell": 86,
     "eff": 116,
     "data": 70,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23448,7 +26337,7 @@
     "cell": 87,
     "eff": 116,
     "data": 71,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23458,7 +26347,7 @@
     "cell": 88,
     "eff": 116,
     "data": 72,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23468,7 +26357,7 @@
     "cell": 89,
     "eff": 116,
     "data": 73,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23478,7 +26367,7 @@
     "cell": 90,
     "eff": 116,
     "data": 74,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23488,7 +26377,7 @@
     "cell": 91,
     "eff": 116,
     "data": 75,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23498,7 +26387,7 @@
     "cell": 92,
     "eff": 116,
     "data": 76,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23508,7 +26397,7 @@
     "cell": 93,
     "eff": 116,
     "data": 77,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23518,7 +26407,7 @@
     "cell": 94,
     "eff": 116,
     "data": 78,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23528,7 +26417,7 @@
     "cell": 95,
     "eff": 116,
     "data": 79,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23538,7 +26427,7 @@
     "cell": 96,
     "eff": 116,
     "data": 80,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23548,7 +26437,7 @@
     "cell": 97,
     "eff": 116,
     "data": 81,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23558,7 +26447,7 @@
     "cell": 98,
     "eff": 116,
     "data": 82,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23568,7 +26457,7 @@
     "cell": 99,
     "eff": 116,
     "data": 83,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23578,7 +26467,7 @@
     "cell": 100,
     "eff": 116,
     "data": 84,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23588,7 +26477,7 @@
     "cell": 101,
     "eff": 116,
     "data": 85,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23598,7 +26487,7 @@
     "cell": 102,
     "eff": 116,
     "data": 86,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23608,7 +26497,7 @@
     "cell": 103,
     "eff": 116,
     "data": 87,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23618,7 +26507,7 @@
     "cell": 104,
     "eff": 116,
     "data": 88,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23628,7 +26517,7 @@
     "cell": 105,
     "eff": 116,
     "data": 89,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23638,7 +26527,7 @@
     "cell": 106,
     "eff": 117,
     "data": 149,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23648,7 +26537,7 @@
     "cell": 107,
     "eff": 117,
     "data": 150,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23658,7 +26547,7 @@
     "cell": 108,
     "eff": 117,
     "data": 151,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23668,7 +26557,7 @@
     "cell": 109,
     "eff": 117,
     "data": 152,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23678,7 +26567,7 @@
     "cell": 110,
     "eff": 117,
     "data": 153,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23688,7 +26577,7 @@
     "cell": 111,
     "eff": 117,
     "data": 154,
-    "dead": true,
+    "dead": false,
     "grid": "phantom"
    },
    {
@@ -23785,6 +26674,14 @@
    "ovct_walk_past_end_ps2": [],
    "ovct_walk_past_end_reachable": [],
    "ovct_walk_hold": [],
+   "ovct_reach_unmodelled": 3,
+   "ovix_oob": [
+    2048,
+    2464,
+    2608
+   ],
+   "ovix_oob_ps2": [],
+   "k7_dead_unmodelled": 2,
    "ovix_oob_pre_terminator": [],
    "ovix_arcade_shorter_by": 2,
    "k7_foreign_cells": 7,
@@ -23818,18 +26715,18 @@
    "grid_signature_unmodelled": 0,
    "caua_hosa_over_declared": 1699,
    "caua_hosa_tail_reached": 0,
-   "manu_direct": 7,
+   "manu_direct": 6,
    "manu_bracketed": 3,
    "manu_no_live_cells": 0,
-   "manu_unresolved": 1,
+   "manu_unresolved": 2,
    "manu_divergent": 2,
    "manu_oracle_raws": 1040,
    "manu_oracle_conflicts": 0,
-   "manu_cells_bracket_disagree": 17,
+   "manu_cells_bracket_disagree": 22,
    "manu_cells_bracketed": 4,
    "manu_cells_direct": 96,
    "manu_cells_divergent": 5,
-   "manu_cells_unbracketed": 0,
+   "manu_cells_unbracketed": 31,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -23837,15 +26734,15 @@
    "needs_manual": 13,
    "extra_script": 0,
    "extra_cells": 0,
-   "se_oob": 0,
-   "eff_oob": 0,
+   "se_oob": 2,
+   "eff_oob": 30,
    "tama_oob": 0,
    "sasign_oob": 0,
    "code_oob": 0,
    "koc_oob": 0,
    "idx_oob": 0,
-   "se_oob_dead": 2,
-   "eff_oob_dead": 30,
+   "se_oob_dead": 0,
+   "eff_oob_dead": 0,
    "tama_oob_dead": 0,
    "sasign_oob_dead": 0,
    "code_oob_dead": 0,
@@ -23864,6 +26761,20 @@
    }
   ],
   "ovct_reachability": {
+   "shift": {
+    "0": [
+     0
+    ],
+    "1": [
+     0
+    ],
+    "2": [
+     0
+    ],
+    "3": [
+     0
+    ]
+   },
    "arcade": {
     "entries": 42,
     "seeds": [
@@ -23885,6 +26796,11 @@
      2048,
      2464,
      2608
+    ],
+    "unmodelled": [
+     "olc index 2048 selects past the 31-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2464 selects past the 31-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation",
+     "olc index 2608 selects past the 31-entry OVIX: charset.c check_cgd_data's `olc_ix_table[cg_olc_ix]` is unbounded, so the four part indices it yields are unknown and this closure is an under-approximation"
     ]
    },
    "ps2": {
@@ -23904,7 +26820,8 @@
      "19-43"
     ],
     "past_end": [],
-    "ovix_oob": []
+    "ovix_oob": [],
+    "unmodelled": []
    }
   },
   "ovct_dangling_hold": {
@@ -23917,7 +26834,10 @@
      "REMY"
     ],
     "aiuchi_ko": 4,
-    "per_renewal": 23
+    "per_renewal": 23,
+    "att_hit_ok_setters_beyond_renewal": [
+     "engine/hitplef.c -> player_at_vs_effect_dm: `as` is the attacking PLW; re-armed on contact with a `work_id == 2` effect, in the same block that halves the fresh hit_stop -- NO renewal cell, and the attacker is not moved to a damage state"
+    ]
    },
    "exits": {}
   },
@@ -24465,6 +27385,10 @@
    "reachable_cells": 6888,
    "reachable_cells_xcopy": 6900,
    "last_script_cut": {},
+   "k7_dead_unmodelled": [
+    "X.C.O.P.Y. donor jump to saca[68] beyond the 64-entry pointer table",
+    "X.C.O.P.Y. donor jump to saca[69] beyond the 64-entry pointer table"
+   ],
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16380 for caught REMY outside its 1080-row RICT",

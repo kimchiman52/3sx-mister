@@ -34,7 +34,8 @@ PASS
 `cg_audit.py` covers sprite indices in the 10 script tables, plus OVCT/OVIX
 coverage, the OVCT **reachability** model (`ovct_reachability()`; table
 column `ovct a/p reach`, verdicts `ok` / `tail-unreached(n)` /
-`walk>end-unreached[exit:hold<=H/N]` / `walk>end[...]` / `TAIL-REACHED(n)!`),
+`reach-unmodelled(ovix-oob …)` / `walk>end-unreached[exit:hold<=H/N]` /
+`walk>end[...]` / `TAIL-REACHED(n)!`),
 the dangling-walk **hold** model (`ovct_dangling_hold()`, doc §25) and the
 X.C.O.P.Y. **reverse-swap gate** (`k7_swap_gate()` / `k7_foreign_cells()`,
 doc §26; trailing `xcopy:` column, verdicts `none` / `gated(n)` /
@@ -47,7 +48,11 @@ re-asks the class-(c) question for the scripts whose shape mismatch made
 contradicts a remap delta. `data_audit.py` covers **the other 13 sections** — STXY MVXY SERND
 `unmodelled(n,in-range)` / `FOREIGN-OOB(k/n)!`). Every per-cell violation record also carries two independent verdict fields.
 `"dead"` is `cg_audit.py` -> `k7_entry_walk()`: no entry point can reach the
-cell (doc §28; the seven OOB columns read `live+dead`). `"grid"` is
+cell (doc §28; the seven OOB columns read `live+dead`). A character with a jump
+landing the model cannot compute — a `koc` outside `char_table[0..9]`, or a
+script index past the target pointer table — has **no** `dead` cell at all: the
+landing is not confined to a script, so the doubt is scoped to the whole
+character and the row ends `dead:void(n)` (doc §31.10). `"grid"` is
 `grid_phase()` (doc §29): the two releases' bytes for a script are compared
 4-byte block by 4-byte block against the **per-field** cross-release transform
 (word 0/1/4/5 per-u16 byte swap, word 2 a full reversal because the releases
@@ -104,15 +109,35 @@ OVCT parts any writer of the part index can land on (the cell's `olc >> 4`
 through the OVIX, `plcnt_init`'s 0, `exdm_ix_data[*][character][3]`, and the
 closure of `eff01.c`'s timer walk over `parts_nix` with no timing constraint).
 Elena's reachable set is parts 1-16; parts 17-90 are cold (doc §24, worklist
-item **B**, CLOSED 2026-09-06). The same model finds **Dudley**'s arcade
-entry 177 pointing one past the table (`ovct_walk_past_end = [178]`, doc
-§24.6(i)); `ovct_dangling_hold()` then bounds how long the master can hold the
-selecting `olc` — the run's script frames plus one positive `hit_stop` per
-renewal cell, the per-renewal value taken from `hitcheck.c`'s parry constant
-and the ATITs — against the frames the walk needs, so the row reads
-`walk>end-unreached[178:hold<=179/297]` (item **R**, CLOSED 2026-09-06, doc
-§25). A run the model cannot read (a C cell inside it, or a script boundary)
-is reported `unmodelled` and keeps the exit flagged `walk>end[...]`.
+item **B**, CLOSED 2026-09-06). The walk is **character-aware**: `eff01.c` ->
+`get_new_parts_data` adds 1 to the part index for `player_number == CHAR_GILL
+&& rl_flag` on every step *and* to the pointer `parts_nix` is read through, so
+Gill's slot-0 walk is `cg_ix' = nix[cg_ix + 1]` and the closure takes the union
+of both domains (`rl_flag` is re-read every step). `ovct_shift()` is that
+model. The same model finds two walks leaving their table: **Dudley**'s arcade
+entry 177 pointing one past it (`ovct_walk_past_end = [178]`, doc §24.6(i)) and
+**Gill**'s march off the end at 392 (doc §31.7) — both arcade-only, neither
+reproduced by the PS2 data.
+
+`ovct_dangling_hold()` then asks how long the master can hold the selecting
+`olc`. Its bound — the run's script frames plus one positive `hit_stop` per
+renewal cell — is **withdrawn as an upper bound** (doc §31.9):
+`att_hit_ok_setters()` enumerates the five `att_hit_ok = 1` sites from source
+and asserts them against a classification, and `hitplef.c` ->
+`player_at_vs_effect_dm` re-arms an attacking *player's* on contact with a
+`work_id == 2` effect, with a fresh positive `hit_stop`, no renewal cell and no
+damage state. So `hold_max` is `null` everywhere, every exit is reported
+reachable (`walk>end[178](arcade-only)`, `walk>end[392](arcade-only)`), and
+§25's number is kept beside it as `hold_max_renewal_only`. A run the model
+cannot read (a C cell inside it, or a script boundary) was, and still is,
+reported `unmodelled`.
+
+An `olc >> 4` past the end of the character's OVIX makes the whole closure an
+under-approximation (`olc_ix_table[cg_olc_ix]` is unbounded), so the reach is
+reported `unmodelled`, the row reads `reach-unmodelled(ovix-oob …)` instead of
+`ok`, and `residual_audit.py` reports every part of that character reachable
+(doc §31.8). Seven characters are in that state; Elena is not one of them, so
+`on a REACHABLE part : 0` still means what it says.
 
 The `xcopy:` column is the cross-character question (doc §26): `effk7.c`
 rebinds a morphed Twelve's tables back to his own on a `cg_type 30` cell, and

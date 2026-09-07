@@ -1115,7 +1115,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1127,7 +1127,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1139,7 +1139,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1151,7 +1151,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1163,7 +1163,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1175,7 +1175,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1187,7 +1187,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1199,7 +1199,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1211,7 +1211,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1223,7 +1223,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1235,7 +1235,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -1247,7 +1247,7 @@
     "arcade_entries": 226,
     "ps2_entries": 226,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -4984,7 +4984,7 @@
     "arcade_entries": 1,
     "ps2_entries": 1,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -4996,7 +4996,7 @@
     "arcade_entries": 1,
     "ps2_entries": 1,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    }
   ],
@@ -13198,7 +13198,7 @@
     "arcade_entries": 1,
     "ps2_entries": 1,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13210,7 +13210,7 @@
     "arcade_entries": 1,
     "ps2_entries": 1,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13222,7 +13222,7 @@
     "arcade_entries": 1,
     "ps2_entries": 1,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13234,7 +13234,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13246,7 +13246,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13258,7 +13258,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13270,7 +13270,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13282,7 +13282,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13294,7 +13294,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13306,7 +13306,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13318,7 +13318,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13330,7 +13330,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    },
    {
@@ -13342,7 +13342,7 @@
     "arcade_entries": 512,
     "ps2_entries": 512,
     "after_terminator": true,
-    "dead": true,
+    "dead": false,
     "verdict": "no_oracle_shape_differs"
    }
   ],
@@ -13350,7 +13350,7 @@
    {
     "check": "rict_rival_model",
     "bad": 28,
-    "bad_live": 0,
+    "bad_live": 28,
     "bad_before_terminator": 0,
     "examples": [
      {
@@ -13359,7 +13359,7 @@
       "cell": 23,
       "cg_rival": 4,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      },
      {
       "table": "saca",
@@ -13367,7 +13367,7 @@
       "cell": 25,
       "cg_rival": 32768,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      },
      {
       "table": "saca",
@@ -13375,7 +13375,7 @@
       "cell": 26,
       "cg_rival": 32768,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      },
      {
       "table": "saca",
@@ -13383,7 +13383,7 @@
       "cell": 27,
       "cg_rival": 40960,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      },
      {
       "table": "saca",
@@ -13391,7 +13391,7 @@
       "cell": 28,
       "cg_rival": 49152,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      },
      {
       "table": "saca",
@@ -13399,7 +13399,7 @@
       "cell": 29,
       "cg_rival": 40960,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      },
      {
       "table": "saca",
@@ -13407,7 +13407,7 @@
       "cell": 30,
       "cg_rival": 49152,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      },
      {
       "table": "saca",
@@ -13415,7 +13415,7 @@
       "cell": 31,
       "cg_rival": 57344,
       "after_terminator": true,
-      "dead": true
+      "dead": false
      }
     ]
    },
