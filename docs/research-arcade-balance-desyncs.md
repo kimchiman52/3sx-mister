@@ -15,8 +15,48 @@ constant in `pow_data.c`, its values are correct, and the defect is an `if`.
 Filing engine behaviour into a data-fidelity document reproduces that blind
 spot. Keep them separate.
 
-**Both `Random_ix16` masks were removed on 2026-09-05**, which is the newest
-work here. The oracle no longer force-syncs the field (it asserts it) and the
+## STATUS AS OF 2026-09-06 — read this before any dated block below
+
+**Nine engine divergences are fixed and gated; none is outstanding on any
+corpus; nothing has been tested on the device.**
+
+| | |
+|---|---|
+| **Fixed and gated** | E1a, E4, E5 (a+b), E6, E7, E8, E9a, E9b, E9c |
+| **Established, deliberately not changed** | E9d (`bonus_game_win_pause` passes `bs_scrrrl`; no live port value to pass) |
+| **Retracted** | E1b, E2b, E3 — all three were harness artifacts, not engine defects |
+| **Harness fixed** | H1, H2, H3, H4b, H5, H5b; plus the seed audit (SA), the freeze pair (FP) and the `cg_ix` compare (CG) |
+| **Corpora** | 2026-09-05 (143), 2026-09-06 (185), 2026-09-06b (135) — 463 records, **447 of 447 eligible PASS**. The manifests hold the `0b811794` sweep; the later E9a and E9b/c sweeps were run `--no-manifest` (deliberately, so the recorded rows stay the "before") and returned the same 447/447 |
+| **Frame-data suite** | 99 GREEN, zero drift (this is the PS2-arm identity check: 94 of its 99 corpora resolve to `DEFAULT_BALANCE = "ps2"`) |
+| **Device test** | **none, for any of E4-E9** — everything below is host-only |
+
+**Four gates rest on the disassembly alone.** E9a, E9b and E9c changed **zero**
+verdict lines across all three corpora, and E1a was byte-identical over the
+16-segment corpus it was measured on — in each case because the oracle does not
+compare anything they change. See "What the oracle can and cannot see" under
+"How this was measured", and do not read a clean sweep as support for any of
+them.
+
+**The gates that are corpus-supported, and by how much:** E4 (1 verdict line
+moved), E5a (7), E6 (26), E7 (3), E8 (1). **E5b is a fifth case and a distinct
+one** — it moved no verdict line either, but it is not disassembly-only: with
+the old `{6, 0}` rows the port wrote `bg_w.quake_y_index = 0` on **12 events
+across 10 segments** where the archive holds 2 then 1, and that field *is*
+asserted, so the corpus corroborates the table change directly even though no
+segment's verdict turned on it.
+
+**Every block dated 2026-09-05 or earlier below is a snapshot, not the current
+state.** They are kept because the negative results in them — what was tried,
+measured and abandoned — exist nowhere else. Where a later pass refuted an
+earlier claim, the refutation is marked at the earlier claim; if you meet an
+unmarked claim that contradicts this table, the table is right and the
+annotation is missing.
+
+---
+
+**Both `Random_ix16` masks were removed on 2026-09-05**, which was the newest
+work here when this paragraph was written (E6-E9, FP, CG, H5 and H5b are all
+later). The oracle no longer force-syncs the field (it asserts it) and the
 viewer no longer repairs it on v2 files. See M1/M2 in the worklist, "The
 instrumentation" for what the oracle change cost and bought, D1 for the viewer
 half, and **E5** for the seven divergences that were hiding behind the oracle's
@@ -26,7 +66,11 @@ screen-quake writers, not the unimported state it looked like — and **E4 is no
 fixed** too, a single misassociated `/ 2` in `cal_move_dir_forecast`. With both
 masks off the 143-segment corpus is **143 PASS / 0 FAIL**.
 
-**Status (2026-09-05).** Fixed: **E2a** in the statcheck oracle (`f63507b7`)
+**Status (2026-09-05) — SUPERSEDED by the 2026-09-06 table above; kept as the
+snapshot it was.** In particular "the usable corpus is down to six segments" and
+"no engine divergence outstanding" were both true of the 16-segment corpus and
+of that day only: the corpus is now 463 records across three sets, and E6, E7,
+E8 and E9a were all found in it afterwards. Fixed: **E2a** in the statcheck oracle (`f63507b7`)
 and now in the shipped viewer too (`.3sr` v2 carries `players_timer`); **D2**
 on the viewer (`c6a75572`, confirmed on hardware); **E1a** applied (the
 `Play_Type` damage pin, gated on arcade balance) with **E1b RETRACTED** — see
@@ -78,6 +122,122 @@ Two properties of the harness matter for reading anything below:
   `test_runner.c` includes the header and calls neither. A mask over code
   nothing runs hides nothing, so it was left alone rather than changed
   unverifiably; there is no corpus that exercises that path to re-grade against.
+
+### Re-verifying the CPS3 addresses in this document
+
+Every arcade address below was originally derived with a throwaway Capstone
+script. They are now re-derivable with a tracked one: **`tools/cps3-disasm/cps3.py`**
+(`find`, `refs`, `dis`, `fn`, `nocall`, `table --index-by`, `pin`, `selftest`),
+whose `selftest` reproduces the load-bearing anchors of this document — the
+`win_jp_tbl` / `winner_type_tbl` construction, `Win_00000`/`Win_01000`/
+`Win_13000`, `Normal_normal_Winner`, `lose_jp_tbl`, E7's negative over
+`Win_01000` with `random_16` as the positive control, E9a's `0x1000` mask and
+its two switch words, and `bonus_game_win_pause`'s fourth call site. It needs
+the decrypted image at `tools/arcade-audit/rom.bin` (gitignored, md5
+`909f5abec4b6b21bf7d2a452a03fdfcc`; rebuild with
+`python3 tools/arcade-audit/decrypt.py`, or point at an existing copy with
+`ARCADE_AUDIT_ROM=...`). **Do not write another ad-hoc disassembly script** —
+that is what left the addresses here unverifiable for as long as they were.
+
+One trap the tool documents and this document should too: `refs`'s "enclosing
+routine starts ~X" is a **heuristic** and runs past a `jmp @Rn` + delay-slot tail
+call. It reports `Setup_Play_Type`'s caller as the enclosing routine of the
+`&Play_Type` load; the disassembly shows `jmp @r3` / `nop` at
+`0x060914D0`/`0x060914D2` ending that routine, so `Setup_Play_Type` really does
+start at **`0x060914D4`** as E1a says. Confirm a routine start with `dis`, never
+with the annotation alone. The same heuristic overran a tail jump at
+`meta_lose_pause` (`0x060C5B2C`, which the doc has right) — twice in one sweep,
+so treat it as the normal case, not the exception.
+
+**Audit of 2026-09-06: what was re-checked, and the four addresses that were
+wrong.** Roughly 60 load-bearing addresses across E1a, E1b, E2a, E2b, E4, E5,
+E6, E7, E8, E9, FP, H2 and the stage-17 section were re-derived with this tool.
+**Four were wrong; each is corrected in place, and none changes a conclusion:**
+
+| where | recorded | actual |
+|---|---|---|
+| E4, evidence item 3 | `dir_sel_table`'s second literal referrer is `caldir_pos_032` `0x06090270` | the load is at `0x060907F4`, in an unidentified routine at `0x060907A4`; `0x06090270` loads no literal and reaches the table through `caldir_pos_256` |
+| E4, "The arcade halves the square once" | `check_buttobi_type2` = `0x0611EA24` | **`0x0611E974`**; `0x0611EA24` is a different routine and never loads `0x06090E1C` |
+| E5, "Defect one" | `effect_02_move` = `0x060DC890..0x060DCC7E` | extent is `..`**`0x060DCC32`**; the old window was 0x4C bytes too wide (harmless for a negative) |
+| E5, `BG_W_QUAKE_Y_INDEX_OFFSET` table | `mov.l <0x02026BD8>` at `0x060F9476` / `0x060DCBE6` | **`0x060F9478`** / **`0x060DCBE8`**; the recorded addresses hold the preceding `mov #98,r0` |
+
+**Two claims in this document were NOT re-verified and are flagged as such:**
+`dir_sel_table`'s "all **16,384 bytes are identical**" (the referrer count and
+the two `mov.w` constants were re-checked; the byte-for-byte comparison was
+not), and the per-site `jsr` address column of "The other 59 sites,
+adjudicated" beyond the routine starts, which were spot-checked for
+plausibility only. Everything else in the list above re-derived clean, including
+every anchor `selftest` covers.
+
+### What the oracle can and cannot see — `statcheck_compare.c`'s field list is the authority (2026-09-06)
+
+**Read this before quoting any clean sweep as evidence for a fix.** A `447/447
+PASS` says the fix did not move anything the oracle compares. Whether that is
+*support* for the fix depends entirely on whether the oracle compares anything
+the fix can move, and for several fixes in this document it does not. E9b
+demonstrated that directly: a control binary that removed the correction pair
+**outright** still returned 447/447, identical to the treatment. A clean corpus
+is not evidence about a field the corpus never reads.
+
+**The compared set**, read out of `statcheck_compare.c` at `6ecfe75c`, is
+exactly this — everything else in the engine is invisible:
+
+| function | gate | fields asserted |
+|---|---|---|
+| `compare_service_values()` (first half) | none — every compared frame | `Game_timer`, `Counter_hi`, `Counter_low`, `Random_ix16`, `Random_ix32`, `bg_w.quake_y_index`, `EXE_flag`, `Game_pause`, `cmb_stock[0..1]`, `cmb_all_stock[0]`, `C_No[0..3]`, `G_No[1..3]` |
+| `compare_service_values()` (second half) | `compare_characters` | per player: `caution_flag`, `cat_break_ok_timer`, `cat_break_reserve`, `hazusenai_flag`, `do_not_move`, `wu.routine_no[0..7]`, `wu.dm_stop`, `wu.hit_stop`, `sa_stop_flag`, `wu.cg_add_xy` |
+| `compare_main_values()` | `compare_characters` | `Allow_a_battle_f`, `round_timer`; per player: the four `wu.mvxy` `.sp`, `wu.xyz[0]/[1].disp.pos`, `wu.vital_new`, `wu.cg_ix`, `piyori_type.now.quantity.h`, `super_arts.gauge.s.h`, `super_arts.store` |
+| `compare_lvr()` | `frame - start_frame > 5` | 33 of `T_PL_LVR`'s 34 fields per player (`waza_no` is the exception) |
+| `compare_waza_work()` | warm-up **and** `waza_flag[j] != -1` | 12 of `WAZA_WORK`'s 13 fields per live entry (`w_ptr` excluded) |
+| `compare_wcp()` | warm-up | `waza_type[i]`; every `WORK_CP` scalar; `waza_flag[0..55]` unconditionally; `reset`/`btix`/`waza_r`/`exdt` for live entries only |
+
+`compare_characters` is `G_No[1] == 2 && G_No[2] == 1`. Three further
+restrictions bound the whole thing: `G_No[0]` is excluded from its own loop
+(`if (i != 0)`); the archive's `Game_pause == -1` is rewritten to `1` before the
+assert (§FP, with its positive control); and the run **stops before the deciding
+round's win/lose sequence** — `StatcheckRunner_Prologue` calls `finish()` on
+`game_ended()`, which is `PL_Wins[0] == 2 || PL_Wins[1] == 2`
+(`statcheck_runner.c`).
+
+**Nothing else is compared, and the reason is structural, not an oversight.**
+The archive holds all 512 KB of CPS3 main RAM per frame (`RAM_FRAME_SIZE`,
+`ram_archive.c`), so this is a *selection*: the observable universe is the
+`_OFFSET` table in `src/arcade/arcade_constants.h` (56 entries at `6ecfe75c`),
+and an engine field with no offset there cannot be compared at all. Verified
+absent from both `statcheck_compare.c` and `arcade_constants.h` by name search
+(zero hits each):
+
+- **`micchaku_flag`, `hos_fi_flag`, `hosei_amari`** — three of the four fields
+  `set_field_hosei_flag()` writes. This is what makes the corpus blind to E9b
+  and E9c; only the fourth, `wu.xyz[0].disp.pos`, is asserted, and only when the
+  clamp actually moves the subject. See E9b.
+- **The entire effect free-work pool** — `frw`, `frwctr`, `frwque`, `head_ix`,
+  `tail_ix`, `listix` (`effect/effect.c`). **No effect's existence, id, routine
+  or position is compared anywhere.** A spurious or missing effect spawn is
+  observable *only* if it draws RNG, and only on the frame it draws — which is
+  the whole reason E2a, E5, E6 and E8 all present as `Random_ix16` deltas rather
+  than as anything named. An effect that spawns and draws nothing is invisible.
+- **All camera and background state except `bg_w.quake_y_index`** — no
+  `bg_w.bgw[].xy[]`/`wxy[]`, no `bg_w.pos_offset`, no `scrr`/`scrl`, no
+  `bg_w.quake_x_index`, no `Scrn_Renew` or `Irl_*` output. (Consequence recorded
+  under §FP's `tate00.c` item.)
+- **`cg_att_ix`, `cg_number`, `cg_zoom`, `cg_effect`** — only `cg_ix` and
+  `cg_add_xy` are compared. §CG.
+- **`PL_Wins`, `win_rno`, `win_free`, `pcon_rno`, `bg_app_stop`, `SLOW_flag`,
+  `T_PL_LVR::waza_no` (per frame), `WAZA_WORK::w_ptr`, `WORK::curr_rca`.**
+- **`Round_Level`** is seeded and audited at the seed frame, and **not asserted
+  on any compared frame** — so a mid-segment `Round_Level` divergence is
+  reachable only through `vital_new`, and only if a hit lands afterwards inside
+  the window. That is the mechanical reason E1a "demonstrates on nothing".
+
+**The rule this yields.** A fix whose entire effect lands outside that table
+gets no evidence from a sweep, however large — the honest form is *"the gate
+rests on the disassembly alone"*, and it is used in this document for **E1a,
+E9a, E9b and E9c**. A fix that moves a compared field gets real evidence, and
+the measure of it is the number of **verdict lines that changed**, not the
+number that passed: E4 moved 1, E5 moved 7, E6 moved 26, E7 moved 3, E8 moved 1,
+H5b moved 11. Zero moved lines plus a field the oracle does not carry is not a
+result.
 
 **Reproduction** (the CWD and interpreter both matter):
 
@@ -336,6 +496,16 @@ the match-end decrement above. The offset was previously taken on trust from an
 external fork; it is now **confirmed by disassembly** (see the address table in
 E1b).
 
+**And say what that support is not.** `Round_Level` is seeded and audited at the
+seed frame; **no compared frame asserts it** — it appears in none of
+`compare_service_values()`, `compare_main_values()`, `compare_lvr()`,
+`compare_waza_work()` or `compare_wcp()`. A mid-segment `Round_Level`
+divergence is therefore reachable by the oracle only through `vital_new`, and
+only if a hit lands after it inside the compared window. That, together with the
+seed audit's own `=2` dump (`Round_Level` is **3 on both sides of all 143**
+segments), is the mechanical reason E1a demonstrates on nothing: the gate rests
+on the disassembly alone.
+
 ### E2a — `effect_G9` spawn phase (ROOT-CAUSED; oracle FIXED `f63507b7`)
 
 **Symptom.** Our engine spawned `effect_G9` a few frames later than CPS3. Each
@@ -499,9 +669,17 @@ forecast.
 **The arcade halves the square once, before either multiply.**
 `cal_move_dir_forecast` is CPS3 `0x06090E1C`. The only two sites in the
 decrypted image that reach it — by constant-pool literal or by `bsr`, both
-searched exhaustively — are `check_buttobi_type` (`0x0611E926`) and
-`check_buttobi_type2` (`0x0611EA24`), whose `mov.l` literals are `dir32_skydm`
-`0x065EB724` and `dir32_grddm` `0x065EB764`. With r13 = `tm` and r14 = `wk`:
+searched exhaustively — are `check_buttobi_type` (`0x0611E926`, pool slot
+`0x0611E96C` loaded at `0x0611E934`, `mov.l` literal `dir32_skydm`
+`0x065EB724`) and `check_buttobi_type2` (**`0x0611E974`**, pool slot
+`0x0611EA60` loaded at `0x0611E982`, literal `dir32_grddm` `0x065EB764`, with
+`mov #5,r5` in the `jsr`'s delay slot — the `tm == 5` every caller passes).
+
+**CORRECTION (2026-09-06):** `check_buttobi_type2` was recorded here as
+`0x0611EA24`. **That address is wrong by 0xB0 bytes.** `0x0611EA24` is a real
+routine start, but its first pool load is `0x02068C6B` and it never touches
+`0x06090E1C`; `refs 0x06090E1C` names `0x0611E974`. The caller *count* — two,
+and only two — is unchanged, so nothing downstream of it moves. With r13 = `tm` and r14 = `wk`:
 
 ```
 06090e40  mul.l  r13,r13     ; macl = tm * tm
@@ -547,12 +725,25 @@ instruction against `0x06090E40..0x06090EA6`: the WORK offsets it indexes are
    accumulators were all ruled out by measurement, not by argument.
 3. **The tables were ruled out against the ROM.** `dir_sel_table[128][128]`
    (`caldir.c`) occurs exactly once in the decrypted image, at CPS3
-   `0x0618F664`, and all **16,384 bytes are identical**; its only two literal
-   referrers are `caldir_pos_256` (`0x0609016C`) and `caldir_pos_032`
-   (`0x06090270`), both of which disassemble to the port's code exactly,
-   including the two constants the port writes as `0x80` and `0xFF`
-   (`mov.w` literals at `0x060902A4` / `0x060902A6`). `dir32_skydm` and
-   `dir32_grddm` are byte-exact at `0x065EB724` / `0x065EB764`.
+   `0x0618F664`, and all **16,384 bytes are identical**. `caldir_pos_256` is
+   `0x0609016C` and disassembles to the port's code exactly, including the two
+   constants the port writes as `0x80` and `0xFF` — pool words `0x060902A4` /
+   `0x060902A6`, loaded at `0x060901B0` / `0x06090204`, both inside
+   `caldir_pos_256`. `dir32_skydm` and `dir32_grddm` are byte-exact at
+   `0x065EB724` / `0x065EB764`.
+
+   **CORRECTION (2026-09-06, re-derived with `tools/cps3-disasm/cps3.py`):**
+   this item used to say the table's "only two literal referrers are
+   `caldir_pos_256` (`0x0609016C`) and `caldir_pos_032` (`0x06090270`)".
+   **`caldir_pos_032` is not one of them.** `refs 0x0618F664` gives pool slots
+   `0x060902A8` (loaded at `0x060901E8`, inside `caldir_pos_256`) and
+   `0x060908B8` (loaded at `0x060907F4`, inside a **different** routine at
+   `0x060907A4`, not identified here). `0x06090270` loads no pool literal at
+   all — it is a 52-byte wrapper that `bsr`s `0x0609016C` and then does
+   `add #4` / `shar` / `shar` / `shar` / `and #31`, which *is* the port's
+   `caldir_pos_032` (`(tent + 4) >> 3`, masked to 32 ways). So the routine
+   identification stands; only the claim that it references the table was
+   wrong, and nothing in E4 rested on it.
 4. **That left only the arithmetic**, and the arithmetic is where it was.
    With the port's association, `ps[1] = trunc(-28672*25/2) + (-393216*5) +
    618496 = -1705984`, high word **-27**; with the arcade's,
@@ -627,12 +818,19 @@ the only line that changed** (`FAIL at archive frame 3090` ->
 byte-identical compared frame range and passed in both runs, so every field the
 oracle compares is unchanged for them.
 
-**Re-conversion consequence, same shape as E5's.** The fix changes
+**~~Re-conversion consequence, same shape as E5's.~~ REFUTED 2026-09-05 — read
+the correction before the paragraph.** The fix changes
 `plw[i].wu.xyz[0].disp.pos`, which *is* in the checkpoint window, on any replay
 containing a bucket flip that changes the table value. Measured rate on this
 corpus: **1 of 143 segments (0.7%)** — far smaller than E5's 7/143, and it needs
-no `.3sr` format change, but a pre-fix `.3sr` for such a match will mismatch on
-a post-fix build. Not decided here.
+no `.3sr` format change. ~~But a pre-fix `.3sr` for such a match will mismatch on
+a post-fix build.~~ **That last clause is wrong and is kept only as the record
+of what was believed.** `compute_checksum()` (`tools/fcade-replays/make_3sr.py`)
+hashes its 13 fields out of the **CPS3 RAM archive frame**, never out of engine
+output, so a `.3sr`'s checkpoints are arcade ground truth no matter which engine
+converted the file — and a post-fix engine matches them *better*. No
+re-conversion follows from E4. See "CORRECTION: pre-fix `.3sr` files do NOT need
+re-conversion (2026-09-05)".
 
 #### Still open
 
@@ -783,14 +981,25 @@ Read off the sfiii3nr1 SH-2 program instruction by instruction:
   `sound_effect_request[se]` (via the literal `0x0618CCE4`) or store 0 to
   `Last_Called_SE`, then tail-jump to `push_effect_work` (`0x060DB8DC`). No
   store, no quake.
-- `effect_02_move` CPS3 `0x060DC890..0x060DCC7E`. Same shape at
+- `effect_02_move` CPS3 `0x060DC890..`**`0x060DCC32`**. Same shape at
   `0x060DC918..0x060DC93E`, with `urian_guard_se_check` in place of the SE
   table, then the same tail-jump.
+  (**CORRECTION 2026-09-06:** the end address was recorded as `0x060DCC7E`.
+  The routine ends at `0x060DCC32` — `060dcc2e rts / 060dcc30 mov.l @r15+,r14`,
+  and `0x060DCC32` is the next routine's `mov.l r14,@-r15`. The old window was
+  0x4C bytes too wide, which for a *negative* scan is harmless: a wider window
+  can only find more, and it found nothing. Re-run over the true extent, the
+  negative below still holds.)
 - Neither function's range contains a single reference to `&bg_w`
-  (`0x02026BAC`). Each touches `bg_w.quake_y_index` exactly once, in the case-1
+  (`0x02026BAC`) — re-verified over `0x060DC890..0x060DCC32` and
+  `0x060F9194..0x060F94F8` against all 253 pool slots / 281 referrers of
+  `0x02026BAC` image-wide: **none falls in either range.** Each touches
+  `bg_w.quake_y_index` exactly once, in the case-1
   `scr_mv_x` countdown, and does it through the **whole address** `0x02026BD8`
-  as a literal — `effect_A7_move` at `0x060F9476`, `effect_02_move` at
-  `0x060DCBE6`. That is the port's other quake write, and the port has it right.
+  as a literal — `effect_A7_move` at **`0x060F9478`**, `effect_02_move` at
+  **`0x060DCBE8`** (the addresses previously recorded, `0x060F9476` and
+  `0x060DCBE6`, hold the `mov #98,r0` one instruction earlier; corrected
+  2026-09-06). That is the port's other quake write, and the port has it right.
 
 `pp_screen_quake()` is PS2 pad rumble (`io/pulpul.c` -> `pulpul_request`), so
 the port's block looks like a PS2 addition that reached for
@@ -849,8 +1058,8 @@ loading the whole address:
 | `eff19_quake_sub` | `0x060E4BF8` | `mov.l <&bg_w>,r12` / `mov #44,r0` / `mov.w @(r0,r12),r3` / `cmp/gt` 2, then 8, then 14 | `<= 2`, `< 8`, `> 14` selecting `eff19_s/m/l_tbl` |
 | `eff94_2000_0` | `0x060F6D30` | same load, `cmp/gt` 3 then `cmp/ge` 24 | `> 3`, `>= 24` |
 | `eff11_quake_sub` | `0x060E0A1A` | same load, `cmp/gt` 1, then `shll` + index `eff11_quake_index_tbl` | `> 1` |
-| `effect_A7_move` | `0x060F9476` | `mov.l <0x02026BD8>,r1` / `mov.w @(98,r14),r2` / `mov.w r2,@r1` | `bg_w.quake_y_index = ewk->wu.scr_mv_y` |
-| `effect_02_move` | `0x060DCBE6` | same | same |
+| `effect_A7_move` | `0x060F9478` | `mov #98,r0` (`0x060F9476`) / `mov.l <0x02026BD8>,r1` / `mov.w @(r0,r14),r2` / `mov.w r2,@r1` | `bg_w.quake_y_index = ewk->wu.scr_mv_y` |
+| `effect_02_move` | `0x060DCBE8` | same (`mov #98,r0` at `0x060DCBE6`) | same |
 
 The tables that anchor those functions each occur exactly once in the decrypted
 image and have exactly one literal referrer, which is how the functions were
@@ -867,16 +1076,24 @@ and nothing else's.
 
 #### Still open
 
-- **The `.3sr` files already published were produced by the pre-fix engine.**
+- ~~**The `.3sr` files already published were produced by the pre-fix engine.**~~
+  **REFUTED 2026-09-05, and the refutation belongs here rather than 2,700 lines
+  down.** The claim was:
   `bg_w.quake_y_index` is not itself in the viewer's 13-field checkpoint window
   (`gather_live_fields()`, `replay_player.c`), but `Random_ix16` is (index 5),
-  and on a quake-reactive stage the fix changes `Random_ix16`. Pre-fix, 7 of 143
-  corpus segments (4.9%) had a divergent `Random_ix16` stream; those are exactly
-  the ones whose recorded checkpoints encode the wrong stream and will mismatch
-  on a post-fix build. **No `.3sr` format change is needed** — nothing has to be
-  imported, so there is no v3 field to add — but the ~22,682 v1 files on the VPS
-  and the published v2 files were converted by the old engine and a share of
-  them now need re-conversion. Not decided here.
+  and on a quake-reactive stage the fix changes `Random_ix16`; pre-fix, 7 of 143
+  corpus segments (4.9%) had a divergent `Random_ix16` stream, so the ~22,682 v1
+  files on the VPS and the published v2 files would need re-converting.
+  **The premise is false.** `compute_checksum()`
+  (`tools/fcade-replays/make_3sr.py`) unpacks `CHECKSUM_FIELDS` big-endian from
+  the **CPS3 RAM archive frame**, via `extract_scrd_game` — it never hashes what
+  our engine produced. A `.3sr`'s checkpoints are therefore arcade ground truth
+  independent of the converting engine, and a post-fix engine agrees with them
+  *better*. **No re-conversion campaign follows from E5.** The parts that
+  survive: no `.3sr` format change is needed (nothing has to be imported, so
+  there is no v3 field to add), and the measured 7-of-143 divergent-`Random_ix16`
+  rate stands as a statement about the pre-fix *engine*, not about the files.
+  See "CORRECTION: pre-fix `.3sr` files do NOT need re-conversion (2026-09-05)".
 - **The device test.** Everything above is host-only.
 
 ### E6 — `effect_C08_move`'s routine 2 ran ungated (FIXED and GATED, 2026-09-06)
@@ -984,6 +1201,21 @@ same condition `2d74225d` corrected for E4 and E5. Gating the **spawn** rather
 than the body is the right shape here: `effc08.c` and `effc74.c` exist only to
 reproduce CPS3, so there is no PS2 arm for their bodies to select — under PS2
 balance the correct behaviour is for the work not to exist.
+
+**Why that leaves the PS2 arm bit-identical, including the dispatch table.**
+`afc16ad2` also changed `effmovejptbl[]` (`effect/effxx.c`) slots **87** and
+**88** from `effect_dummy_move` to `effect_C74_move` / `effect_C08_move`, and
+that table is shared with PS2 — so the obvious objection is that PS2 now
+dispatches differently. It does not, and the reason is a property of the whole
+tree rather than of this file: `effmovejptbl` is indexed by `wu.id`, and **the
+only two assignments of ids 87 and 88 anywhere in `src/` are
+`effc74.c` -> `effect_C74_init()` (`ewk->wu.id = 87`) and
+`effc08.c` -> `effect_C08_init()` (`ewk->wu.id = 88`)** — the two calls now
+behind the balance gate, each with exactly one call site
+(`bg0301_init00`, `bg1902_init00`). With the gate false no work ever carries
+either id, so neither slot is ever reached and the table change is inert. The
+array's length is unchanged (229), so no other index shifted. Verified by name
+search at `6ecfe75c`, not argued from the diff.
 
 #### Result
 
@@ -1137,8 +1369,14 @@ Exactly **3** verdict lines changed, all `divergent -> pass`, all in session
   pair**. E7 is a singleton, not the first of a family.
 - **Whether any other character's win routine can strand the same way.** The
   `± 320` exit is `jijii_jump`'s, i.e. Oro's. Other win routines have other
-  exits, and a clamp that is harmless in one may not be in another. Not
-  examined.
+  exits, and a clamp that is harmless in one may not be in another. ~~Not
+  examined.~~ **Answered 2026-09-06 as a port question and no further:** with
+  E7 gated, every remaining pair in `win_pl.c` and `lose_pl.c` is one the
+  arcade also makes, so a clamp that stranded an exit would strand it on the
+  arcade too — a property of the game, not a divergence — and the one ordering
+  difference that could have produced a port-only strand (E9b) is now gated.
+  Whether an *arcade* routine strands itself was not chased. See the end of
+  "The other 59 sites, adjudicated" and E9b.
 
 #### The other 59 sites, adjudicated (2026-09-06)
 
@@ -1230,7 +1468,10 @@ arcade lacked the pair here too, E7 would have been the small half of the
 defect; it does not, and E7 stays a singleton.
 
 That is **24 pairs in `win_pl.c`** (48 calls) and **6 in `lose_pl.c`** (12),
-which is the whole population. The adjudication is recorded in both files as a
+which is the whole population — 60 calls, of which `Win_01000`'s pair is 2, so
+this section adjudicates 58 and the "59" in its own heading is one off. The
+heading is left alone because several places cross-reference it by name; the
+pair counts in the table above are the authoritative numbers. The adjudication is recorded in both files as a
 header comment carrying the addresses, so it does not have to be re-derived.
 
 **What was NOT established at the time, and how it stands now (E9, second
@@ -1374,9 +1615,14 @@ nothing.
 PS2 arm is bit-identical to what the function has always done — proven against
 the CPS3 program and not against the PS2 binary, the rule from `2d74225d`.
 
-`win_pl.c` -> `Win_13000()` carries the **identical `& 1` gate** (the alternate
+~~`win_pl.c` -> `Win_13000()` carries the **identical `& 1` gate** (the alternate
 final-win pose, the same easter egg) and is **deliberately left alone**: the
-arcade counterpart of `Win_13000` was not read out. See *Still open*.
+arcade counterpart of `Win_13000` was not read out.~~ **SUPERSEDED the same day,
+2026-09-06.** `Win_13000`'s arcade counterpart *was* read out — it is
+`win_jp_tbl[13]` = `0x060C4D22`, it masks `0x1000` off the same two raw switch
+words, and it is now fixed and gated exactly as `effl7.c` is. See **E9a**. The
+sentence is kept because it records the deliberate choice not to fix by analogy;
+it is no longer the state of the code.
 
 #### Result
 
@@ -1394,9 +1640,13 @@ remaining non-PASS results are 1 `rc=4` (H5's Twelve segment) and 2 `rc=3`
 
 #### Still open
 
-- **`Win_13000()`'s identical `& 1` gate is UNADJUDICATED.** Same easter egg,
+- ~~**`Win_13000()`'s identical `& 1` gate is UNADJUDICATED.** Same easter egg,
   same shape, arcade counterpart never read. It was left alone on purpose
-  rather than fixed by analogy.
+  rather than fixed by analogy.~~ **CLOSED 2026-09-06 — read and FIXED, see
+  E9a.** `win_jp_tbl[13]` is `0x060C4D22` and it masks `0x1000`, not `1`; the
+  fix is this section's, character for character. Note the standing that came
+  with it: unlike E8, E9a moved **no** verdict line on any of the three corpora,
+  so that gate rests on the disassembly alone.
 - **Bit 12 == START is unproven**, as above. The fix does not rest on it, but
   any future claim that it *is* START needs its own evidence.
 - **`work_id`: a real, unexplained difference.** The arcade routine makes **no
@@ -1655,6 +1905,22 @@ around a stationary lose animation agrees either way — which is what 447/447
 with it in place says") was an inference the corpus could not support. Sweep
 logs are kept at `<corpus>/sweeps/e9bcd-after/` and
 `<corpus>/sweeps/e9b-control-nopair/`.
+
+**Scope the blindness to these routines — it is not a blanket property of
+`set_field_hosei_flag`, and E7 is the counter-example.** The argument above is a
+conjunction of three facts, and all three are about the *lose* routines and
+`twelve_win_backjump`: (i) `micchaku_flag`, `hos_fi_flag` and `hosei_amari` have
+no offset in `arcade_constants.h` and no assert anywhere in
+`statcheck_compare.c`; (ii) the position half is `if (hami)`-conditional, so a
+subject already inside `scrl..scrr` writes nothing; (iii) `game_ended()` cuts
+the compared window at `PL_Wins == 2`, before the deciding lose sequence. Only
+(i) is unconditional. In `Win_01000` the clamped work is the **winner**,
+mid-`jijii_jump` flight and genuinely outside the bound, so (ii) does not apply,
+`plw[i].wu.xyz[0].disp.pos` *is* asserted (`pos_3sx.x` /
+`pos_cps3.x`, `compare_main_values()`), and gating that one pair moved **3
+verdict lines** on session `1788572346231-3523`. The rule that generalises is
+narrow: **the oracle sees this pair exactly when the pair moves a compared
+position, and never otherwise.**
 
 Note this routine also carries the **fourth** call site that the
 register-tracking call graph missed: `0x060C5384` is a `jsr @r11` whose `r11`
@@ -2045,9 +2311,12 @@ whose `wk->cg_ix += (ctc->pat - 1) * wk->cgd_type` at the literal `0x0204` is
 what established `WORK_CG_IX_OFFSET` in the first place (see the
 `TEST_FLAG_OFFSET` block comment in `arcade/arcade_constants.h`) — advances it
 the same way. So the two sides share an index space by construction, and the
-port's `CHAR_ARCADE_TO_3SX` character remap (`research-arcade-cg-data-accuracy.md`
-§8.A) does not enter it: it renumbers *characters*, while `cg_ix` is relative to
-whichever character's script is already loaded.
+port's `CHAR_ARCADE_TO_3SX` character remap (`src/constants.h` ->
+`CHAR_ARCADE_TO_3SX`, `(c) > CHAR_AKUMA ? (c) - 1 : (c)`; its inverse
+`CHAR_3SX_TO_ARCADE` is the one `research-arcade-cg-data-accuracy.md` §15.4
+exercises, where arcade slot 15 is Shin Akuma) does not enter it: it renumbers
+*characters*, while `cg_ix` is relative to whichever character's script is
+already loaded.
 
 That is the explanation, not the evidence. The evidence is below, and the
 question was left genuinely open until it was run.
@@ -2326,8 +2595,13 @@ whether the harness could reproduce them, and the "costs 57% of the corpus"
 framing elsewhere in this document should be read as *of the ground-truth
 corpus*, not of anything shippable. Do not spend effort trying to recover CPU
 segments; the H4b investigation additionally showed they are not reproducible
-from the archive (the AI reads cabinet state the archive does not carry, and
-clearing `wu_operator` discards the archive's own pinned input word).
+from the archive — clearing `wu_operator` discards the archive's own pinned
+input word (measured: both E3 segments then fail at frame 7 on `w_lvr`), and
+`wu_operator == 0` inside the harness's synthetic VERSUS match is a state the
+cabinet never had (measured: frame 11 on `routine_no`). ~~The AI reads cabinet
+state the archive does not carry~~ was offered as a third reason and is
+**withdrawn** — see reason 2 below. The product decision above does not depend
+on any of the three.
 
 `statcheck_runner.c` taps `SWK_START` for player 2 at
 `PHASE_CHARACTER_SELECT`, and `ScrdGame_Init()` never imported `wu_operator`.
@@ -2368,19 +2642,38 @@ a single wrong frame is unattributable. Measured: with the operators imported
 and nothing else changed, both E3 segments fail at **frame 7** on
 `w_lvr (-32760) != (-32764)` — the lever work itself, i.e. the pinned input.
 
-**2. The AI reads cabinet state the import set does not carry.**
+**2. ~~The AI reads cabinet state the import set does not carry.~~ THIS REASON
+NO LONGER HOLDS (corrected 2026-09-06). Reasons 1 and 3 carry H4b on their own,
+and both were confirmed by experiment; 2 never was.** The argument as written
+was:
 `Setup_Lv18(save_w[Present_Mode].Difficulty)` (`com_pl.c`, `com_sub.c`) and
 `asagh_zuru[save_w[Present_Mode].Difficulty]` in `add_sp_arts_gauge_paring()` /
 `_tokushu()` / `_ukemi()` / `_nagenuke()` (`pls02.c`, each guarded by
-`wu_operator == 0`) all index the cabinet's service difficulty.
-`Statcheck_SyncValues()` (`statcheck_compare.c`) imports `Random_ix16`,
-`Random_ix32`, `players_timer`, `t_pl_lvr` and `Round_Level` — and nothing
-else. `arcade_constants.h` has no offset for `Difficulty` and none was derived,
-so the AI's difficulty scaling cannot be reconstructed from the archive.
+`wu_operator == 0`) all index the cabinet's service difficulty, and
+`arcade_constants.h` had no offset for `Difficulty`.
+
+**It has one now.** `SAVE_W_DIFFICULTY_OFFSET 0x6AC63` and
+`SAVE_W_DAMAGE_LEVEL_OFFSET 0x6AC64` were derived on the CAB trip (see "The
+seven, resolved"), and the header records the measurement: **`Difficulty` is 2
+and `Damage_Level` 1 on all 143 corpus segments**, which is `Game_Default_Data`
+(`sys_sub.c`) verbatim, i.e. **our side already holds the value the archive
+does**. So the AI's difficulty scaling is reconstructible from the archive, and
+on this corpus it needs no reconstruction at all. Reason 2 is withdrawn.
+
+The other half of the sentence is also out of date and is corrected here rather
+than left to be read as current: `Statcheck_SyncValues()`
+(`statcheck_compare.c`) imports `Random_ix16`, `Random_ix32`, `players_timer`,
+`t_pl_lvr`, `Round_Level`, **`Country`** (with `CC_Value` / `Limit_Time`
+re-derived by `Setup_Difficult_V()` / `Setup_Limit_Time()` rather than
+imported) and **`waza_work[i][48..pl_cmd_num[My_char[i]][6])` through
+`sync_waza_work_carried()`** (H5b). It was five fields when this paragraph was
+written; it is seven groups now.
+
 (`com_pl.c` and `com_sub.c` between them reference 87 of the globals defined in
 `workuser.c`; `Com_Initialize()` resets most of them at battle start, which is
-why this entry rests on `Difficulty`, an input it demonstrably does not reset,
-rather than on the size of that surface.)
+why this entry rested on `Difficulty` rather than on the size of that surface.
+With `Difficulty` resolved, nothing in that surface has been shown unimportable
+— the reason to reject CPU segments is 1 and 3, not 2.)
 
 **3. `wu_operator == 0` inside the harness's VERSUS match is a state the
 cabinet never had.** The CPU recordings are arcade-mode matches;
@@ -2747,7 +3040,9 @@ warrant different evidence. For the **16 Twelve segments** the full
 the only five that differ are the five that had no PASS line before, and the
 five zero-residue Twelve segments are untouched down to their allowlisted-
 difference counts. For the other **447 segments the loop is statically
-unreachable** — it runs `j` from 48 to `pl_cmd_num[My_char[i]][6]`, and that
+unreachable** — that is 463 sweep records less the 16 Twelve segments, and it
+collides numerically with the 447 *eligible* count above by coincidence; the two
+447s are different sets — it runs `j` from 48 to `pl_cmd_num[My_char[i]][6]`, and that
 bound is at most 48 for all nineteen non-Twelve characters, so
 `sync_waza_work_carried()` reads nothing and writes nothing on them; their
 verdict lines (rc, fail frame, assert, seed verdict) are measured identical on
@@ -2776,12 +3071,28 @@ top of that.
 
 ## The seed audit (2026-09-05)
 
-Seven defects in this body of work shared one shape: **the arcade carries state
+~~Seven~~ **Six** defects in this body of work shared one shape: **the arcade
+carries state
 across a match boundary and the harness resets it.** `Round_Level` (E1a),
-`bg_w.stage` (H2), `t_pl_lvr` (H3), `players_timer` (E2a), `wu_operator` (H4b),
-the match-start predicate (H1) and `bg_w.quake_y_index` (E5). Each cost a
+`bg_w.stage` (H2), `t_pl_lvr` (H3), `players_timer` (E2a), `wu_operator` (H4b)
+and the match-start predicate (H1). Each cost a
 separate investigation, and **two were written up as engine defects and reported
 before being retracted.**
+
+**CORRECTION (2026-09-06): `bg_w.quake_y_index` (E5) was listed here as the
+seventh and does not belong.** E5's own section says so in as many words — "the
+mechanism was NOT unimported state, and that was worth measuring": both sides
+enter every corpus segment with the field at 0, there was nothing to import, and
+seeding it would have masked a real divergence in 48 of 143 segments instead of
+failing in 7. The field is **asserted, never seeded**, which is the opposite
+call. The count "six" at line-of-sight elsewhere in this document ("The seeding
+gap, sized") is the right one.
+
+**A genuine seventh arrived later:** `waza_work[][48..55]` (H5/H5b). `cmd_init()`
+deliberately clears only entries 0..47 under `ArcadeBalance_IsEnabled()`, so
+those eight carry across the match boundary on both sides while a synthetic
+session enters at zero — the exact shape, found twice, and now seeded by
+`sync_waza_work_carried()`.
 
 The cost pattern never varied: the seed is wrong at frame 0, nothing notices,
 and the mismatch surfaces at archive frame 300 or 3,090 looking exactly like an
@@ -2808,7 +3119,11 @@ archive frames a..b of n` lines are **string-identical** before and after.
 
 ### What it audits — 170 fields — and what it cannot
 
-`arcade_constants.h` carries ~46 offsets. Not all of them name a value that can
+`arcade_constants.h` carried ~46 offsets when this was written; at `6ecfe75c` it
+carries **56** (`grep -c '^#define .*_OFFSET'`), the CAB, FP and CG trips having
+added the rest. That table is the whole observable universe — an engine field
+with no offset in it cannot be audited or compared at all. Not all of them name
+a value that can
 be soundly compared, and the audit does not invent a comparison it cannot
 justify:
 
@@ -3010,8 +3325,25 @@ both players' `pos.x`/`pos.y`, `P1SW_0`/`P2SW_0`.
 `T_PL_LVR` including `s1_cnt`, `G_No[1..3]`, `Counter_hi/low`, `cmb_stock`,
 `mvxy`, `super_arts.*`, `hit_stop`, `dm_stop`, `waza_work`, `wcp`.
 
-So of what is still standing, only **E2a** is on-device detectable — E2b and
-E3 are retracted (H4b), and E1 lives entirely outside the window.
+~~So of what is still standing, only **E2a** is on-device detectable~~ — **STALE
+as written, corrected 2026-09-06.** True when only E1-E3 existed: E2b and E3 are
+retracted (H4b) and E1 lives entirely outside the window (`vital_new` is not a
+checkpoint field). Re-graded against the window as it stands, and against the
+nine landed fixes:
+
+| fix | in the 13-field window? | how |
+|---|---|---|
+| E2a | **yes** | `Random_ix16` (index 5) — the original case |
+| E4 | **yes** | `plw[1].wu.xyz[0].disp.pos` is field 9; measured diverging at archive frame 3104, 14 frames after the oracle-only `routine_no[2]` |
+| E5 | **yes**, indirectly | `bg_w.quake_y_index` is not in the window, but on a quake-reactive stage the fix moves `Random_ix16` |
+| E6, E8, E9a | **yes**, indirectly | all three are `Random_ix16` deltas by construction |
+| E7 | **yes** | `plw[i].wu.xyz[0].disp.pos`, field 9 |
+| E1a | **no** | `vital_new` is outside the window |
+| E9b, E9c | **no** | `micchaku_flag` / `hos_fi_flag` / `hosei_amari` are outside it, and so is every camera field they feed |
+
+So the window covers seven of the nine, six of them only through
+`Random_ix16` — which is the same channel `probe_random_ix16()` used to repair,
+and the reason gating that repair to v1 (M2) mattered.
 
 Checkpoint interval is 60, verified three ways (`DEFAULT_CHECKSUM_INTERVAL`,
 `kTrackChecksumInterval`, and all 507 device `.3sr` headers parsing as
@@ -3400,13 +3732,38 @@ exactly the evidence that would supply such proof. So they are all gated.
 
 E1a was gated when it landed. **E4 and E5 shipped ungated and are now gated
 too** — they had been changing the simulation in every mode, so the port's
-"PS2" engine no longer matched the original PS2 engine:
+"PS2" engine no longer matched the original PS2 engine. **E6, E7, E8, E9a, E9b
+and E9c were all gated in the change that landed them** (E6 had one ungated
+predecessor, `afc16ad2`'s two spawn calls, which the same change corrected).
+So the full gated set is **E1a, E4, E5a, E5b, E6, E7, E8, E9a, E9b, E9c** —
+ten gates across nine findings, every one of them verified against the CPS3
+disassembly and none against the PS2 binary. E4 and E5 first:
 
 | fix | site | PS2 path | arcade path |
 |---|---|---|---|
 | **E4** | `cal_move_dir_forecast()` (`engine/caldir.c`) | `(d.sp * (tm * tm)) / 2` — the halving binds to the product, as decompiled | `d.sp * ((tm * tm) / 2)` — the halving binds to `tm * tm`, as CPS3 `0x06090E40`-`0x06090E58` |
 | **E5a** | `effect_A7_move` (`effect/effa7.c`), `effect_02_move` (`effect/eff02.c`), the `tad->hits == 0` early-out | `bg_w.quake_y_index = gqdt_active()[tad->quake][1];` then `pp_screen_quake(bg_w.quake_y_index)` — the write restored | `pp_screen_quake(...)` only; no state write, as CPS3 `0x060F91EC` / `0x060DC918` |
 | **E5b** | `gqdt` (`effect/eff02.c`) | `gqdt` rows 7/8 `{6, 0}` / `{6, 0}`, as decompiled | `gqdt_arcade` rows 7/8 `{6, 4}` / `{6, 2}`, as CPS3 `0x061B941A` |
+
+**The 2026-09-06 fixes were gated from the start, and their shapes differ —
+recorded here so the whole gated set is in one place.** Verified in the source
+at `6ecfe75c`, not from the sections' own assertions:
+
+| fix | site | shape of the gate | PS2 arm |
+|---|---|---|---|
+| **E6** | `bg030.c` -> `bg0301_init00()`, `bg190.c` -> `bg1902_init00()` | **the spawn**, `if (ArcadeBalance_IsEnabled()) { effect_C08_init(); }` / `effect_C74_init()` | no spawn at all — the pre-`afc16ad2` call sequence exactly. The bodies in `effc08.c` / `effc74.c` carry **no** balance gate and need none: they exist only to reproduce CPS3, and `effmovejptbl[87]/[88]` is unreachable when no work takes those ids (see E6) |
+| **E7** | `win_pl.c` -> `Win_01000()` | **negative**, `if (!ArcadeBalance_IsEnabled())` around the existing `set_field_hosei_flag` pair | the pair, unchanged |
+| **E8** | `effl7.c` -> `effect_L7_init()` | **value select**, `ArcadeBalance_IsEnabled() ? SWK_START : SWK_UP` | `SWK_UP`, which is `1 << 0` — bit-identical to the literal `& 1` it replaced |
+| **E9a** | `win_pl.c` -> `Win_13000()` | same value select | same, `& 1` |
+| **E9b** | `lose_pl.c` ×6 (through the new static `loser_field_hosei()`), `win_pl.c` -> `twelve_win_backjump()` ×2 | **paired**, `if (ArcadeBalance_IsEnabled())` at the head and `if (!ArcadeBalance_IsEnabled())` at the tail | the tail pair and nothing else — statement for statement what both files always had |
+| **E9c** | `win_pl.c` -> `meta_win_pause()` | head pair under the gate, then `if (ArcadeBalance_IsEnabled()) { return; }` before the original block | the original three-pair `if (Bonus_Game_Flag)` block after the dispatch, untouched |
+
+The one thing to check when reading these: a *paired* gate (E9b) has two
+`ArcadeBalance_IsEnabled()` tests that must be exact complements, and an
+early-`return` gate (E9c) puts the PS2 code after a statement the arcade arm
+never reaches. Both are easier to get wrong than the negative and value-select
+forms, and both were re-read against the pre-change source when this table was
+compiled.
 
 **How E5b is gated.** `gqdt` is a `const s16[19][2]` read at five sites across
 two files, so a branch at each read would have been five places to get wrong.
@@ -3429,6 +3786,16 @@ its 99 non-smoke corpora carry an explicit `balance: arcade` key and the other
 94 carry no `balance:` key at all, so they resolve to `DEFAULT_BALANCE = "ps2"`
 (`compile_corpus.py` -> `resolve_balance`); `run.sh` passes the resolved value
 through as `--test-balance`.
+
+**The consequence, which is easy to misread and matters for every "still 447/447
+after the fix" line in this document:** because statcheck always resolves to
+arcade, **the PS2 arm of every gate above is never executed by any corpus
+sweep**. A sweep cannot regress the PS2 arm and cannot confirm it either; the
+frame-data suite's 99 goldens are the whole of the PS2-arm evidence, and what
+they assert is *identity with the pre-gate behaviour*, which is the right test
+for a gate but says nothing about whether the PS2 arm is faithful to the PS2
+binary. Nothing here has been read against that binary — see "What remains
+open" below.
 
 **What remains open.** The gating makes both modes correct *by the rule*; it
 does not answer which of the three is a decompilation error. Each would be
@@ -3456,6 +3823,14 @@ post-fix engine matches them **better**, not worse.
 Existing files are correct and need nothing. The genuinely open item is the
 opposite one: segments the eligibility gate *rejected* before `3f04f0bb` were
 never converted at all, which is a deploy question, not a re-conversion one.
+
+**Scope this correction precisely — it is about checksums, not about `.3sr`
+v1 vs v2.** Those are two independent properties of a file. A v1 `.3sr` is
+still missing `players_timer` from its header (E2a), and that *is* a file
+property that only re-conversion fixes; the viewer keeps the `Random_ix16`
+repair on v1 files for exactly that reason (D1, M2). What this correction
+retires is only the claim that a pre-fix engine baked a wrong *checkpoint hash*
+into the file. It did not: the hashes come from the archive.
 
 ## Coverage is CLOSED at 18/20 stages — stage 17 is excluded by code (2026-09-06)
 
@@ -3614,7 +3989,7 @@ the reported symptom was on a *passing* prefix, and nothing here matched it.
 | M1 | the oracle force-synced `Random_ix16` every frame | **REMOVED** — `compare_service_values()` now asserts it. Corpus 142/1 -> 135/8; the 7 new failures were E5, and fixing E5 took it back to 142/1 with the assert standing. Every `Random_ix16` verdict in this document dated before 2026-09-05 was made under the mask |
 | M3 | the DEBUG comparer force-syncs `Random_ix16` too | **NO ACTION, and stated so** — `test_runner_compare.c` -> `compare_service_values` carries the identical line, but `compare_values`/`sync_values` have no caller anywhere in `src/` (`test_runner.c` includes the header and calls neither). It masks nothing because nothing runs it |
 | M2 | the viewer repaired `Random_ix16` at every checkpoint | **GATED to v1** — `check_checkpoint()` repairs only when `!has_players_timer`; a v2 file fails an ix16-only mismatch and names the field (D1). v1 kept because an A/B twin desyncs at checkpoint 18/189 without it, against ~23,300 shipped v1 files |
-| E3 | `pos.x` +32 at round start | **RETRACTED, not an engine divergence** — both instances are `(1,0)` CPU segments and now exit 3. The proposed `Appear_24000`/`Appear_25000` mechanism is refuted by measurement (`routine_no[4]` is 1 and 21 in both, never 24/25). Unreachable in (1,1) play: every `wu_operator`-conditioned round-start-X path needs an operator flag clear. **NOT proven**: which write produced the +32 (candidate: the `set_field_hosei_flag` clamp against an unimported camera, `bg_w.bgw[1].wxy[0]`) |
+| E3 | `pos.x` +32 at round start | **RETRACTED, not an engine divergence** — both instances are `(1,0)` CPU segments and now exit 3. The proposed `Appear_24000`/`Appear_25000` mechanism is refuted by measurement (`routine_no[4]` is 1 and 21 in both, never 24/25). Unreachable in (1,1) play: every `wu_operator`-conditioned round-start-X path needs an operator flag clear. **NOT proven**: which write produced the +32. ~~Candidate: the `set_field_hosei_flag` clamp against an unimported camera, `bg_w.bgw[1].wxy[0]`.~~ **That candidate is RETIRED (2026-09-06):** E3's own body dropped it as "wrong", and E7 then read `Win_01000` out of the arcade and gated the one clamp that was genuinely absent — "about the right function", but not this write. The `+32` writer remains unidentified and no candidate stands |
 | H1 | `ScrdGame_Init` post-KO false positive | **FIXED** — require `Game2_0()`'s `Game_timer=0`/`G_No[2]=3`; matchless segments exit 2, not 1 |
 | H2 | stage not imported | **FIXED** — `BG_W_STAGE_OFFSET 0x26BB0` from disassembly; pinned via `Debug_w[DEBUG_STAGE_SELECT]` |
 | H3 | lever counters never cleared | **FIXED** — seed `t_pl_lvr` in `Statcheck_SyncValues` like `players_timer`; the warm-up was never the defect |
@@ -3624,22 +3999,53 @@ the reported symptom was on a *passing* prefix, and nothing here matched it.
 | D1 | `vital_new` outside the hash window | E1 is undetectable on device by design — decide whether to widen |
 | D2 | no rescan path | **FIXED** `c6a75572`; verified on device (13 -> 507 entries, desync detected) |
 | CAB | **the seven cabinet / service globals** — `Max_vitality`, `No_Death`, `test_flag`, `ixbfw_cut`, `Country`, `CC_Value`, `Limit_Time` | **RESOLVED, 2026-09-05** — all seven addressed by disassembly and recorded with their evidence chains in `arcade_constants.h`, then measured over every frame of all 143 corpus segments. Four are **identical on both sides** (`Max_vitality` 160, `No_Death` 0, `test_flag` 0, `ixbfw_cut` 0) and are **asserted**, not seeded — a negative result that closes four of the forty hand-verified carried globals. `Country` is the one real difference (ours 4, arcade 1) and is **seeded**; `CC_Value` and `Limit_Time` are then **re-derived** by `Setup_Difficult_V()` / `Setup_Limit_Time()` and asserted, so one address resolves three and the import self-tests its own derivation. Latent, not fatal: the difference gates `effb8_normal_or_senyou()`'s `random_16()` draw, which the honest `Random_ix16` assert proves is never reached in a compared frame on this corpus. Sweep **143/143 -> 143/143**, zero PASS lines changed; detection control (seed removed) goes **143/143 DIRTY** naming all four. `save_w.Difficulty` / `.Damage_Level` came on the same trip and also agree |
-| SA | **the seed audit** — announce imported-state gaps at the seed frame | **BUILT, 2026-09-05** — `src/test/statcheck_seed_audit.c`, run from `StatcheckRunner_Prologue` right after `Statcheck_SyncValues` and before the engine executes any compared frame; 168 fields, read-only. Corpus **CLEAN 143/143**, sweep unchanged at 143 PASS / 0 FAIL with **byte-identical** compared-frame ranges. A comparison failure with a dirty seed now exits **4**, not 1 — H1/H4b's rule, a fourth typed code, so rc 1 gets stronger. Retrodicts `players_timer` (143/143 named; 126 runs move from rc 1 to rc 4) and `t_pl_lvr` (the H3 segment's exact `s1_cnt` numbers, and 143/143 on the wide corpus via `waza_no` — a carried field the oracle never compares). `Round_Level` and `bg_w.stage` are **inert on both corpora** (`=2` dump: 3 and matching on every segment); their detection paths are proven by a deliberate skew instead |
+| SA | **the seed audit** — announce imported-state gaps at the seed frame | **BUILT, 2026-09-05** — `src/test/statcheck_seed_audit.c`, run from `StatcheckRunner_Prologue` right after `Statcheck_SyncValues` and before the engine executes any compared frame; **170** fields, read-only (150 at landing, 158 after the seven cabinet globals, 168 before the freeze pair, 170 with it -- see "What it audits"). Corpus **CLEAN 143/143**, sweep unchanged at 143 PASS / 0 FAIL with **byte-identical** compared-frame ranges. A comparison failure with a dirty seed now exits **4**, not 1 — H1/H4b's rule, a fourth typed code, so rc 1 gets stronger. Retrodicts `players_timer` (143/143 named; 126 runs move from rc 1 to rc 4) and `t_pl_lvr` (the H3 segment's exact `s1_cnt` numbers, and 143/143 on the wide corpus via `waza_no` — a carried field the oracle never compares). `Round_Level` and `bg_w.stage` are **inert on both corpora** (`=2` dump: 3 and matching on every segment); their detection paths are proven by a deliberate skew instead |
 
-**For a reviewer:** the 16-segment corpus reports **no engine divergence at
-all** — 6 PASS, 8 rejected as unreproducible (H4b), 2 with no match (H1). Every
-one of the eleven failures this document opened with had a harness cause. E1a
-is applied; E1b, E2b and E3 are retracted; H1, H2, H3 and H4b have landed.
-**That sentence was written while the oracle was still masking `Random_ix16`.**
-On the 143-segment corpus with the mask removed the count was 135 PASS / 8 FAIL:
-E4, plus the seven E5 segments. **E5 is now fixed** (two port defects in the
-quake writers) and **E4 is now fixed** (one misassociated `/ 2` in
-`cal_move_dir_forecast`), so the count is **143 PASS / 0 FAIL** and no engine
-divergence is outstanding on this corpus.
+**For a reviewer (2026-09-06).** Start at the STATUS table at the top of this
+document, not here. Short form: **447 of 447 eligible segments across three
+corpora PASS**, no engine divergence is outstanding, and **nothing has been
+tested on the device**. Nine fixes are landed and gated (E1a, E4, E5, E6, E7,
+E8, E9a, E9b, E9c); three claims are retracted (E1b, E2b, E3); one is
+established and deliberately unchanged (E9d).
 
-That is a statement about *this* corpus, and its main consequence is that the
-corpus is now too small to say much: 6 usable segments, all human-vs-human, all
-from four sessions. The next useful move is more (1,1) ground truth, not more
-analysis of these sixteen. Two things are known-open rather than closed —
-E3's actual +32 write (never identified, only shown to be unreachable in (1,1)
-play), and E2a's device test.
+**The two things most worth a reviewer's scepticism:**
+
+1. **Four of the nine gates have no corpus evidence at all** — E1a, E9a, E9b
+   and E9c moved zero verdict lines, because `statcheck_compare.c` does not
+   compare anything they change. E9b proved this with a control binary that
+   removed the correction outright and still returned 447/447. Read "What the
+   oracle can and cannot see" before treating any sweep number as support.
+2. **No fix in this document was checked against the PS2 binary**, which is
+   exactly why every one of them is gated. See "SETTLED: every CPS3-derived
+   engine change is gated".
+
+**Known-open, in order of cost:** the device test for E4-E9; E3's actual `+32`
+write (never identified, only shown unreachable in (1,1) play); `TATE00()`'s
+dead `Game_pause & 0x80` gate and the uncompared camera behind it (§FP);
+`EXE_obroll`, which has no CPS3 address and is structurally dead on our side;
+E8's unexplained `work_id = 16`; and E9d.
+
+**~~The paragraph this section used to end on~~, kept as the record of a reading
+that the next three days falsified:**
+
+> the 16-segment corpus reports **no engine divergence at
+> all** — 6 PASS, 8 rejected as unreproducible (H4b), 2 with no match (H1). Every
+> one of the eleven failures this document opened with had a harness cause. E1a
+> is applied; E1b, E2b and E3 are retracted; H1, H2, H3 and H4b have landed.
+> **That sentence was written while the oracle was still masking `Random_ix16`.**
+> On the 143-segment corpus with the mask removed the count was 135 PASS / 8 FAIL:
+> E4, plus the seven E5 segments. **E5 is now fixed** and **E4 is now fixed**,
+> so the count is **143 PASS / 0 FAIL** and no engine divergence is outstanding
+> on this corpus.
+>
+> That is a statement about *this* corpus, and its main consequence is that the
+> corpus is now too small to say much: 6 usable segments, all human-vs-human, all
+> from four sessions. The next useful move is more (1,1) ground truth, not more
+> analysis of these sixteen.
+
+**That last recommendation was right, and acting on it is what found E6, E7, E8
+and E9a.** Widening from 16 to 463 records turned "no engine divergence
+outstanding" into 32 `rc=1` failures overnight. The lesson is not that the
+verdict was wrong; it is that **"no divergence outstanding" is a statement about
+the corpus in hand and expires the moment the corpus grows** — which is the
+single most repeated failure mode in this document.
