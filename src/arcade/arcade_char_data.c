@@ -1254,23 +1254,31 @@ static const CgRemapRange q_cg_ranges[] = {
 // §7.3(i)); resolves via Necro's -0x600.
 static const CgRemapRange twelve_cg_ranges[] = {
     { .first = 0x7136, .last = 0x7140, .delta = -0x0C46 },
-    { .first = 0x1E01, .last = 0x1E01, .delta = -0x600 },
-    { .first = 0x1E21, .last = 0x1E24, .delta = -0x600 },
-    { .first = 0x1E26, .last = 0x1E27, .delta = -0x600 },
-    { .first = 0x1E3B, .last = 0x1E3D, .delta = -0x600 },
-    { .first = 0x1E40, .last = 0x1E43, .delta = -0x600 },
-    { .first = 0x1E68, .last = 0x1E69, .delta = -0x600 },
-    { .first = 0x1E71, .last = 0x1E72, .delta = -0x600 },
-    { .first = 0x1E76, .last = 0x1E7D, .delta = -0x600 },
-    { .first = 0x1FCC, .last = 0x1FCD, .delta = -0x600 },
-    { .first = 0x1FD7, .last = 0x1FD8, .delta = -0x600 },
-    { .first = 0x1FDA, .last = 0x1FDC, .delta = -0x600 },
-    { .first = 0x2033, .last = 0x2033, .delta = -0x600 },
-    { .first = 0x2035, .last = 0x2036, .delta = -0x600 },
-    { .first = 0x203C, .last = 0x203C, .delta = -0x600 },
-    { .first = 0x2074, .last = 0x2074, .delta = -0x600 },
-    { .first = 0x2090, .last = 0x2090, .delta = -0x600 },
-    { .first = 0x2095, .last = 0x2095, .delta = -0x600 },
+    /* The Necro-bank band, as ONE row over its measured hull (doc §8.S).
+       Twelve's raw CG space is two clean, non-overlapping regions -- the
+       oracle §29 builds from his 660 shape-ok scripts observes 1021 distinct
+       raws with zero conflicts, and every one of them lands in exactly one
+       of: 0x1E01..0x2095 -> -0x600 (40 obs), 0x6C01..0x706F -> -0xB80, his
+       default_delta (969 obs), 0x7136..0x7140 -> -0xC46 (11 obs, the row
+       above). NO default-delta observation falls anywhere inside
+       0x1E01..0x2095: the bands do not interleave, so the band is measured
+       uniform end to end.
+
+       This row was 17 discrete rows covering exactly those 40 measured
+       points and nothing else -- fitted by the cell-index diff, which can
+       only see raws appearing in a shape-OK script. 19 further raws occur in
+       Twelve's data strictly inside the hull and were never covered, so they
+       fell through to -0xB80 -- the OTHER band's delta -- sending 44 live
+       cells of dmca[3]/[90]/[91] to texture group 4/5 where the oracle
+       measures 6, plus 2 dead cells in nmca[46]. dmca[3] alternated group 6
+       and group 4 frame by frame inside one damage animation; a damage
+       animation does not change texture group between consecutive frames.
+
+       0x1E01 and 0x2095 are the lowest and highest OBSERVED -0x600 raws, so
+       this row is the measured hull and extrapolates past neither end. Do
+       not widen it further: the next observation above 0x2095 is 0x6C01,
+       which measures the default. */
+    { .first = 0x1E01, .last = 0x2095, .delta = -0x600 },
 };
 
 static const CgRemapRange remy_cg_ranges[] = {
