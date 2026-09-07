@@ -10,10 +10,17 @@
  * GS_SAVE set (src/netplay/game_state.c), so everything here is
  * rollback-visible state. That is fine offline and prohibited during a
  * session — qt_refusal() rejects requests while a session, direct-P2P
- * orchestration, netplay nav, or a replay session is active, and the tick
- * aborts defensively if a session ever activates mid-sequence (netplay's
+ * orchestration, netplay nav, or a --play-replay session is active, and the
+ * tick aborts defensively if a session ever activates mid-sequence (netplay's
  * own session entry re-normalizes Exec_Wipe/Stop_SG/Gap_Timer,
  * netplay.c -> the `Exec_Wipe = 0` block).
+ *
+ * THE SHUFFLE VIEWER IS NOT IN THAT LIST. --watch-replays is the one session
+ * this feature TERMINATES rather than defers to: the request stops the
+ * playlist (ReplayShuffle_Stop) and qt_begin() tears the loaded replay down,
+ * because "Quick Training" and "Watch Replays" are two rows of the same OSD
+ * and picking the second one has to mean leaving the first. Everything else
+ * in the list owns state this sequence must not yank out from under it.
  */
 
 #include "quick_training.h"
@@ -128,11 +135,26 @@ static const char* qt_refusal(void) {
     if (NetplayNav_IsActive()) {
         return "netplay menu navigation active";
     }
-    if (ReplayPlayer_IsActive()) {
-        return "replay playback active";
-    }
-    if (ReplayShuffle_IsEnabled()) {
-        return "shuffle-viewer session";
+    /* The --play-replay BOOT path, and only that one.
+     *
+     * `ReplayPlayer_IsActive()` alone would be wrong, because during a
+     * --watch-replays session a replay is essentially always loaded — the
+     * plain check refused every press in the very mode this escape exists
+     * for. `!ReplayShuffle_IsEnabled()` narrows it to the boot path: the CLI
+     * flag is process-lifetime, so it separates the two modes for the whole
+     * session and keeps doing so after the viewer has been stopped.
+     *
+     * Refused rather than terminated, for a reason that is about the mode
+     * and not about difficulty. --play-replay is a one-file viewer whose
+     * terminal state is SDLApp_Exit() (replay_player.c -> tick_terminal):
+     * the process is the session, and there is nothing behind it to return
+     * to. It is also not reachable from the device OSD at all — the wrapper's
+     * replay_play_handoff() has no caller, and the only replay row wired to a
+     * menu bit is "Watch Replays" -> replay_shuffle_handoff()
+     * (thirdsarm_wrapper.cpp). So this refusal can only ever be hit by
+     * someone who typed the flag. */
+    if (!ReplayShuffle_IsEnabled() && ReplayPlayer_IsActive()) {
+        return "--play-replay session (the process ends with the replay; nothing behind it)";
     }
 #if defined(DEBUG)
     if (configuration.test.enabled && !QuickTraining_TestActive()) {
@@ -170,6 +192,40 @@ static void qt_begin(void) {
     qt_params.stage = -1;
     qt_params.pin_rng = false;
     TrainingConfig_GetLastUsed(qt_params.chars, qt_params.arts);
+
+    /* Tear down the shuffle viewer's loaded replay, if there is one. The
+     * PLAYLIST was already stopped when the request was accepted (see
+     * ReplayShuffle_Stop in QuickTraining_Tick), so nothing can start
+     * another; what is left here is the .3sr and, crucially, the frame
+     * freeze.
+     *
+     * WHY THE FREEZE MATTERS. ReplayPlayer_Destroy() clears s_stall_frame, so
+     * from this frame on main.c stops holding the engine and njUserMain()
+     * runs again. That hold is deliberate: it keeps a terminal replay's LIVE
+     * post-match flow from reaching Game_Manage_10th and tripping
+     * push_effect_work's bound check (effect.c, "qix is out of range").
+     * Releasing it costs a bounded free-run — the 8 frames of WipeOut
+     * (sc_sub.c, WipeLimit 0..7) plus the single frame QT_GOTO_TITLE takes to
+     * raise Game_pause = 0x81 / Request_LDREQ_Break() / effect_work_init().
+     * The player freezes at C_No[0] > 6 (replay_player.c -> PHASE_POSTMATCH),
+     * and the shortest measured path from C_No[0] == 7 to Game_Manage_10th's
+     * Switch_Screen_Init(0) is ~198 frames of fixed countdowns under NEUTRAL
+     * pads — which this sequence holds, because every phase but QT_WIPE_IN
+     * zeroes p1sw_buff/p2sw_buff. Nine frames against ~198.
+     *
+     * WHY THIS IS NOT THE ABORT PATH'S BUG. replay_player.c's hold-START
+     * abort calls Soft_Reset_Sub() — whose first statement is
+     * FadeOut(1, 0xFF, 8) — while leaving the freeze to RE-ASSERT on the next
+     * tick, so exactly one njUserMain() runs, the 8-step fade advances by one
+     * and never finishes, and TASK_INIT never walks. Here the freeze is gone
+     * for good (ReplayPlayer_Tick early-returns on !loaded with s_stall_frame
+     * already false), so every frame of the fade QT_GOTO_TITLE's own
+     * Soft_Reset_Sub() starts actually runs. */
+    if (ReplayPlayer_IsActive()) {
+        SDL_Log("quick-training: tearing down the loaded replay (status=%d) — the shuffle viewer is stopped",
+                (int)ReplayPlayer_GetStatus());
+        ReplayPlayer_Destroy();
+    }
 
     /* Wipe-out over whatever is on screen, in the game's own transition
      * language: Switch_Screen_Init then Switch_Screen(1) per frame until
@@ -237,6 +293,22 @@ void QuickTraining_Tick(void) {
         qt_phase = QT_IDLE;
         qt_request = false;
         return;
+    }
+
+    /* Stop the shuffle viewer the moment the press is ACCEPTED, not when the
+     * sequence finally starts. The deferral below can hold the request for up
+     * to QT_DEFER_MAX_FRAMES, and ReplayShuffle_Tick() — which runs AFTER this
+     * one (main.c -> game_step_0) — would happily reach the end of the current
+     * replay and start the next one inside that window, so the user would see
+     * the viewer visibly move on from a press that was meant to end it.
+     *
+     * Same gate as the consumption below (idle + no refusal), so every request
+     * that reaches qt_begin() has passed through here first. Idempotent, and
+     * it stops only the PLAYLIST: the loaded replay may be freezing the engine
+     * frame, and that freeze is torn down in qt_begin() instead, one call
+     * before the engine goes back under a cover. */
+    if (qt_request && qt_phase == QT_IDLE && qt_refusal() == NULL) {
+        ReplayShuffle_Stop("quick training requested");
     }
 
     /* Hold, do not start, while an engine transition owns WipeLimit

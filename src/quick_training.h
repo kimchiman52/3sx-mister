@@ -20,12 +20,30 @@
  *
  * Context policy (the edge cases, decided): a request is IGNORED (with a
  * log line) during a netplay session, active direct-P2P orchestration,
- * netplay menu navigation, or a replay/shuffle-viewer session — those own
- * the engine and/or make wipe state rollback-visible. From every OFFLINE
- * state (attract, title, menus, character select, a live match, even the
- * pause menu) the request is honored: states past the title are torn down
- * through the same soft-reset flow the shipped START+BACK reset uses.
- * A request while a Quick Training sequence is already running is ignored.
+ * netplay menu navigation, or a --play-replay boot session — those own the
+ * engine and/or make wipe state rollback-visible, and --play-replay ends the
+ * process with its one replay, so there is nothing behind it to return to.
+ * From every OFFLINE state (attract, title, menus, character select, a live
+ * match, even the pause menu) the request is honored: states past the title
+ * are torn down through the same soft-reset flow the shipped START+BACK reset
+ * uses. A request while a Quick Training sequence is already running is
+ * ignored.
+ *
+ * The --watch-replays SHUFFLE VIEWER is honored, not refused, and the request
+ * ENDS it: the playlist is stopped (ReplayShuffle_Stop) and the loaded replay
+ * is torn down (ReplayPlayer_Destroy) before the wipe-out, so the sequence
+ * runs from the replay's own scene exactly as it would from a live match.
+ * "Quick Training" and "Watch Replays" are two rows of the same OSD; picking
+ * one has to mean leaving the other. The viewer stays off for the rest of the
+ * session — its only re-entry is the OSD row, which restarts the core.
+ *
+ * NOT UNDONE, and named here because it is the one visible carry-over: a
+ * --watch-replays boot applies ReplayPlayer_PinConfig() for the whole process
+ * (console game mode + balance + IDENTITY button mapping), and this feature
+ * does not restore it. So a training match reached this way runs on the
+ * default pad mapping rather than the user's. Scoped save/restore of that pin
+ * is the "Stage F2a" future work the pin's own comment already names
+ * (replay_player.c -> ReplayPlayer_PinConfig); it is a separate change.
  */
 
 #include <stdbool.h>

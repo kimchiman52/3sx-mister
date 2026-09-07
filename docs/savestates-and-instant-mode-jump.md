@@ -83,6 +83,7 @@ No findings overlap between them.
 | SJ-27 | The chain omitted TWO character-select steps: the training-config load and `init_omop()`. The match ran on zeroed settings, zeroed engine DIP tables, and flushed the zeros back over the user's file | §10.6 | A jump must replicate the exit's ENGINE work, not just its scene work |
 | SJ-28 | The training-config save is a whole-HARNESS-CLASS hazard, not a Quick Training one: every `--test-enable` session that reaches `Setup_NTr_Data()` persists its own selection over the user's file | §10.7 | Suppressed in `TrainingConfig_Save()` for test sessions |
 | SJ-26 | `WipeLimit` is SHARED with the engine's own transitions, and `WipeOut` increments it OUTSIDE its `!No_Trans` guard — a cover hides the drawing, never the counter | §10.5 | Quick Training must defer, not start, on an in-flight wipe |
+| SJ-29 | The `--watch-replays` shuffle viewer is the one replay mode Quick Training can END rather than defer to; `RS_OFF` is the only stop with no surviving path to `rs_start_next()`, and the player's freeze must be released ONLY once the sequence is about to re-cover the engine | §10.8 | Quick Training terminates the viewer; `--play-replay` still refused |
 
 ## Revision log
 
@@ -95,6 +96,7 @@ No findings overlap between them.
 | 2026-09-02 | **Moved into the repo** (this file) and re-validated at `762b5052`. Load-bearing citations converted to durable `file -> symbol` anchors — the fix for the drift problem the audit found; the old `path:line` audit table is superseded by the conversion and removed. New findings SJ-15..SJ-21 from the `--test-instant-jump` prototype (built this revision, same commit): §9 open questions #1 and #2 settled. Stale facts fixed: `EXPECTED_GAME_STATE_SIZE` moved to `game_state.h` (17772 @ `762b5052`); `netplay_nav.c` is 494 lines; `Netplay_TickMatchmaking` no longer exists; `--headless` now has consumers. |
 | 2026-09-02 | **Quick Training SHIPPED** (this lane, on `a8250882`). The SJ-06 chain promoted from the spike into `src/scene_jump.c`; the OSD feature in `src/quick_training.c`; OSD row + wrapper + signal wired. New findings SJ-22..SJ-25, new §10. The spike now calls the shared chain, so `--test-instant-jump` still proves it (PASS, same numbers: drain=24, jump->live=62). |
 | 2026-09-05 | **Fix pass on the review of the above** (same day): P1 — `docs/training-score.md`'s new correction named two functions that do not exist (real sites are `combo_window_push()` / `combo_window_trans()`); `--test-instant-jump` was rewriting the user's training file, now closed at the harness (§10.7, SJ-28). P2 — the teardown restore put the runtime signals back to `SIG_DFL` (terminate) before `ConsoleMode_Exit()`, now `SIG_IGN`; the "SHA256 sweep" justification for the boot window was false (`PORT_MISTER` excludes `CHECKSUM`), `SA_RESTART` added; the DIP masks' "bits 4..11" / "bits 16..19" rationales were false and are now enumerated; the DIP assertion pins a *configuration* and says so; the SELECT-reset stage covers one of four presets and now keys off `Suicide[0]` rather than `routine_no != 4`; a PASS now names its skipped assertions. |
+| 2026-09-07 | **Quick Training now ends the shuffle viewer** (§10.8, SJ-29): pressing it under `--watch-replays` was a deliberate refusal that read as a dead button. New `ReplayShuffle_Stop()`; the refusal narrowed to the `--play-replay` boot path, which stays refused because its terminal state is `SDLApp_Exit()` and it has no device OSD caller. UNVERIFIED AT RUNTIME — headlessly unreachable; §10.8 carries the on-device checklist. |
 | 2026-09-05 | **Engine defects found by review and fixed** (§10.6, SJ-27): the chain skipped character select's training-config load AND its `init_omop()`, so the match ran on zeroed settings and zeroed engine DIP tables — and then wrote the zeros over the user's config. Measured before/after, both players now land byte-identical to the stock select path. Corrections to this document in the same pass: SJ-25's "byte-identical" claim was true only against an already-zero config (§10.4); the §10.4 RTL bit list omitted `status[28:25]` and `status[46:43]`; §10.5's deferral bound expired into a silent drop and now expires into a start. `SIGRTMIN+5` made non-fatal in the boot and version-skew windows (§10.4, device-unverifiable). |
 
 ---
@@ -845,9 +847,22 @@ the player has the OSD open. `src/quick_training.c` (`QuickTraining_Tick`, a
 - **Refused** (logged, no-op) when the engine is not the feature's to drive:
   a netplay session (`Netplay_GetSessionState() != NETPLAY_SESSION_IDLE`),
   direct-P2P orchestration (`DirectP2P_GetState() != DIRECT_P2P_IDLE`),
-  netplay nav (`NetplayNav_IsActive()`), or a replay / shuffle-viewer session
-  (`ReplayPlayer_IsActive()` / `ReplayShuffle_IsEnabled()`). This is the
+  netplay nav (`NetplayNav_IsActive()`), or a `--play-replay` boot session
+  (`!ReplayShuffle_IsEnabled() && ReplayPlayer_IsActive()`). This is the
   netplay prohibition the constraints demand — see §10.3.
+- **Terminates the `--watch-replays` shuffle viewer** rather than refusing it.
+  The decision: "Quick Training" and "Watch Replays" are two rows of the same
+  OSD, so picking one means leaving the other; a press that did nothing read
+  as a broken button. `QuickTraining_Tick` calls `ReplayShuffle_Stop()` the
+  frame the press is ACCEPTED — before the `Exec_Wipe` deferral, which could
+  otherwise hold the request long enough for the viewer to start the next
+  replay — and `qt_begin()` then calls `ReplayPlayer_Destroy()`.
+  The two are split on purpose: `Stop()` makes `RS_OFF` (the viewer's only
+  permanent state, checked on `ReplayShuffle_Tick`'s first line) unreachable
+  from `rs_start_next()`, while the `Destroy()` is what clears the player's
+  `s_stall_frame` freeze — and that freeze is load-bearing, so it is released
+  only once the sequence is about to put the engine back under a cover. See
+  §10.8.
 - **From the title idle** (`G_No {2,0,1}`): fire the chain directly, as the
   spike does.
 - **From any other offline scene** — attract, a menu, character select, a
@@ -896,7 +911,8 @@ cover-to-wipe handoff has no one-frame gap.
 in the `GS_SAVE` set (`game_state.c`), so driving the wipe is
 rollback-visible. The wipe is driven **only** from `QuickTraining_Tick`, which
 runs offline: `qt_refusal()` rejects every request while any session /
-orchestration / nav / replay is active (§10.2), and the tick additionally
+orchestration / nav / `--play-replay` session is active (§10.2), and the tick
+additionally
 aborts defensively if a session ever activates mid-sequence. So the wipe is
 unreachable from a live netplay session, exactly as required. This lane
 touches neither `GameState` nor the `GS_SAVE` set — `EXPECTED_GAME_STATE_SIZE`
@@ -1041,8 +1057,9 @@ already drive (`Switch_Screen_Init` call sites throughout `game.c`, plus
 (`GS_SAVE(Exec_Wipe)` / `GS_SAVE(Exec_Wipe_F)`, `game_state.c`) and gates
 effect routines -> RNG consumption. **That consequence does not reach Quick
 Training**: `qt_refusal()` rejects netplay sessions, direct-P2P orchestration,
-netplay nav, replay playback and the shuffle viewer, and the tick aborts if a
-session activates mid-sequence. The reachable damage here is an offline engine
+netplay nav and `--play-replay` playback, and the tick aborts if a session
+activates mid-sequence. The shuffle viewer is offline too, so terminating it
+(§10.8) does not reach this. The reachable damage here is an offline engine
 transition being silently retimed.
 
 **Fix: defer, don't refuse.** `QuickTraining_Tick` now holds the request while
@@ -1222,6 +1239,85 @@ byte-identity assertion pass on an empty write.
 
 The spike now runs inside the `quick-training` gate for the same seeded-home
 config diff, which is the only runner it can have.
+
+### 10.8 [SJ-29] Quick Training ends the shuffle viewer instead of refusing it
+
+**The report:** pressing Quick Training while `--watch-replays` was running did
+nothing. Not a silent failure — a deliberate refusal, one of five in
+`qt_refusal()`.
+
+**The decision.** Four of the five stay. A netplay session, direct-P2P
+orchestration and netplay nav each own engine state this sequence must not yank
+away, and `--play-replay` is a one-file viewer whose terminal state is
+`SDLApp_Exit()`: the process *is* the session, so there is nothing behind it to
+return to, and it is not reachable from the device OSD anyway
+(`replay_play_handoff()` in `thirdsarm_wrapper.cpp` has no caller — the only
+replay row wired to a menu bit is "Watch Replays" -> `replay_shuffle_handoff()`).
+The shuffle viewer is the odd one out: it is another row of the *same* OSD, it
+is fully offline, and it owns its player through `s_browser_owned` — so it can
+be stopped rather than deferred to.
+
+**Why `RS_OFF` is the stop, not a player teardown.** `ReplayPlayer_Destroy()`
+alone makes it *worse*: `ReplayShuffle_Tick()` reads `REPLAY_PLAYER_INACTIVE`
+as terminal, runs the inter-replay transition and starts the **next** replay.
+Clearing the CLI flag does nothing either — `ReplayShuffle_IsEnabled()` is only
+consulted in `RS_UNINIT` and by the boot-time config pin. `RS_OFF` is the state
+machine's only permanent state and `ReplayShuffle_Tick()` returns on its first
+line while in it, so it is the one change that leaves **no** surviving path to
+`rs_start_next()`. That is the difference between correct and merely
+sufficient. `ReplayShuffle_Stop()` also stops `RS_UNINIT`, so a press landing
+before the viewer's first tick cannot be overtaken by `RS_UNINIT ->
+RS_WAIT_BOOT -> rs_start_next()`.
+
+**Why the stop and the teardown are two calls.** `Stop()` runs the frame the
+press is **accepted**, before the `Exec_Wipe` deferral (§10.5) — which can hold
+a request for up to 240 frames, easily long enough for the viewer to reach the
+end of the current replay and announce the next one. `ReplayPlayer_Destroy()`
+runs later, in `qt_begin()`, because it clears the player's `s_stall_frame` and
+that freeze is load-bearing: it is what keeps a terminal replay's *live*
+post-match flow away from `Game_Manage_10th` and the `push_effect_work` bound
+check (`effect.c`, "qix is out of range").
+
+**The freeze release is bounded, and it is not the abort path's bug.** After
+`Destroy()` the engine free-runs for the 8 frames of `WipeOut` (`sc_sub.c`,
+`WipeLimit` 0..7) plus the one frame `QT_GOTO_TITLE` takes to raise
+`Game_pause = 0x81` / `Request_LDREQ_Break()` / `effect_work_init()`. The
+player freezes at `C_No[0] > 6` (`replay_player.c` -> `PHASE_POSTMATCH`), and
+the shortest measured path from `C_No[0] == 7` to `Game_Manage_10th`'s
+`Switch_Screen_Init(0)` is ~198 frames of fixed countdowns under neutral pads —
+which this sequence holds, since every phase but `QT_WIPE_IN` zeroes
+`p1sw_buff`/`p2sw_buff`. Nine frames against ~198.
+
+The distinct trap this avoids is `replay_player.c`'s own hold-START abort: it
+calls `Soft_Reset_Sub()` (first statement `FadeOut(1, 0xFF, 8)`) while leaving
+the freeze to **re-assert** on the next tick, so exactly one `njUserMain()`
+runs, the 8-step fade advances by one and never finishes, and the `TASK_INIT`
+walk back to the title never happens. Here the freeze is gone for good —
+`ReplayPlayer_Tick()` early-returns on `!loaded` with `s_stall_frame` already
+false — so every frame of the fade `QT_GOTO_TITLE`'s `Soft_Reset_Sub()` starts
+actually runs.
+
+**Ordering is free.** `QuickTraining_Tick()` runs *before* `ReplayShuffle_Tick()`
+and `ReplayPlayer_Tick()` in `game_step_0`, so neither module is being torn down
+from inside its own tick.
+
+**Not undone, and deliberately so.** A `--watch-replays` boot applies
+`ReplayPlayer_PinConfig()` for the whole process — console game mode, balance,
+and **identity button mapping**. Quick Training does not restore it, so a
+training match reached this way runs on the default pad mapping rather than the
+user's. Scoped save/restore of that pin is the "Stage F2a" future work the pin's
+own comment already names; it is a separate change, not a regression this one
+introduced.
+
+**UNVERIFIED AT RUNTIME.** None of this is reachable headlessly — the viewer
+needs a replay cache and the OSD row needs the wrapper. The on-device check:
+boot "Watch Replays", let a replay reach battle, open the OSD and pick
+"Quick Training". Expected: a diagonal wipe-out, then a live training match.
+The log must show `quick-training: tearing down the loaded replay (status=...)`
+and `replay-shuffle: viewer stopped for the rest of this session — quick
+training requested`, and must **not** show any later
+`replay-shuffle: now playing #...` or
+`replay-shuffle: user held START N frames — skipping to the next replay`.
 
 ## Appendix A — reproducing the measurements
 

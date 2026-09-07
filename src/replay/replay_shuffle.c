@@ -75,7 +75,9 @@
  *
  * WHO OWNS START. This module does, for every replay it launches, and START
  * is the ONLY binding the viewer has: hold it ~1 s to skip. There is no
- * hold-to-exit — the MiSTer OSD is how you leave — and there is exactly one
+ * hold-to-exit on the pad — the MiSTer OSD is how you leave, and its
+ * "Quick Training" row leaves THROUGH ReplayShuffle_Stop() rather than by
+ * restarting the core (src/quick_training.c) — and there is exactly one
  * hint on screen, because the C1 player's own abort AND its
  * "HOLD START TO EXIT" hint are both suppressed on a viewer-owned launch
  * (point 5 above). The two gestures were never really two: the player's
@@ -1134,14 +1136,38 @@ void ReplayShuffle_Draw(void) {
     draw_skip_hint();
 }
 
-void ReplayShuffle_Destroy(void) {
-    if (s_state == RS_UNINIT || s_state == RS_OFF) {
+/* See the header for why RS_OFF is the stop and why the player is left alone.
+ *
+ * RS_UNINIT is stopped too, silently: ReplayShuffle_Tick() has not run yet, so
+ * there is nothing to report, but leaving it UNINIT would let the very next
+ * tick walk RS_UNINIT -> RS_WAIT_BOOT and start replay #1 underneath whoever
+ * just asked the viewer to stop. Only reachable if a request lands before the
+ * first game_step_0 tick; cheaper to close than to reason about. */
+void ReplayShuffle_Stop(const char* reason) {
+    if (s_state == RS_OFF) {
         return;
     }
 
+    if (s_state != RS_UNINIT) {
+        SDL_Log("replay-shuffle: viewer stopped for the rest of this session — %s", reason);
+    }
+
+    s_state = RS_OFF;
+}
+
+void ReplayShuffle_Destroy(void) {
+    if (s_state == RS_UNINIT) {
+        return;
+    }
+
+    ReplayShuffle_Stop("cleanup");
+
     /* The viewer owns every replay it started (s_browser_owned), so it owns
      * the teardown too. Nothing here is heap-allocated — the entry table is
-     * static — so this only releases the player. */
+     * static — so this only releases the player. Run unconditionally rather
+     * than under the old RS_OFF early-return: the viewer can now be stopped
+     * mid-session (ReplayShuffle_Stop) while a replay is still loaded, and
+     * cleanup() must not skip the free just because the state machine is
+     * already off. ReplayPlayer_Destroy() is a no-op when nothing is loaded. */
     ReplayPlayer_Destroy();
-    s_state = RS_OFF;
 }
