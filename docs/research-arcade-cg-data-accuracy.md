@@ -19,6 +19,13 @@ OVCT tail CLOSED · §25 Dudley's dangling OVCT next-index CLOSED · §26 +
 artifact" class shown not to exist. **Six of the seven close an item with no
 code change** and put the model in `cg_audit.py` instead of in prose; §29 is
 the one that found a new defect, §8.S.)
+· **2026-09-07** (fifteenth through eighteenth passes — §31.7-§31.12 · §32
+`read_char_table`'s relocation re-derived · **§33 the cross-character (owner)
+oracle**: a second, independent delta oracle built from the other nineteen
+characters' shape-ok scripts, which reads REMY `saca[63]`'s five raws, REMY
+`dmca[90]`/`[91]`'s seventeen and TWELVE `nmca[46]`'s three — 25 cells, all
+`XCHAR-DIVERGENT` — and gives the thirteen OVIX overruns their §6.1 control.
+No code change; the range-table work items are listed in §33.9.)
 **Repo:** `/Users/sb/Developer/3sx-mister`
 **Branch examined:** `upstream-engine-fixes`; second pass verified in the
 worktree `/Users/sb/Developer/3sx-mister-arcade`, branch `fix/arcade-cg-mapping`
@@ -7685,7 +7692,7 @@ where they are also fixed (2026-09-06). The numbers in this section are the
 **pre-fix** measurement, kept as the record of what the pass found; the
 post-fix census is in §8.S and is what `cg_audit.py` now prints.
 
-### 29.5 The unresolved residue — ~~4 scripts, 94 cells~~ ~~**9 scripts as of 2026-09-07**~~ **6 scripts as of 2026-09-07 (§32.4)**, each named
+### 29.5 The unresolved residue — ~~4 scripts, 94 cells~~ ~~**9 scripts as of 2026-09-07**~~ ~~**6 scripts as of 2026-09-07 (§32.4)**~~ **3 scripts as of 2026-09-07 (§33.8)** — URIEN `yuca[37]`/`[39]`/`[65]` and nothing else, each named
 
 - **URIEN `yuca[37]`, `yuca[39]`, `yuca[65]` — 25 cells each (75).** Raw
   `0x5315..0x532D`, bracketed by `0x52EC` (measures `-3192`) and `0x5334`
@@ -7699,7 +7706,11 @@ post-fix census is in §8.S and is what `cg_audit.py` now prints.
   bracketed by `0x0744` (`+0x20`) and `0x0C01` (`-0x1E0`), which disagree.
   §8.N warned in as many words that `0x0C01` "must **not** be swept into the
   same range"; the gate reproduces that warning as a bracket disagreement.
-  **Unread:** which of the two bands these nine distinct raws belong to.
+  ~~**Unread:** which of the two bands these nine distinct raws belong to.~~
+  **READ 2026-09-07 (§33.4), and the answer is NEITHER band:** ALEX's own oracle
+  observes all nine raws directly at `+0x20`, and ours is the identity (Remy's
+  default underflows and §7.4's clamp returns the raw), so the nine are
+  `xchar_divergent`. `dmca[91]`'s eight join them.
 - Remy `dmca[91]`'s 8 further `bracket_disagree` cells and Akuma's 2 sit in
   scripts already classed `divergent`, so they are counted in the cell totals
   but not among the 4 unresolved *scripts*.
@@ -7725,12 +7736,19 @@ verbatim from its `value < CG_REMAP_CUTOFF` early return — the delta is +0 by
 construction, so no range oracle can confirm it and none needs to (5,220
 sub-cutoff observations cast-wide, every one +0, asserted). TWELVE `nmca[46]`'s
 three cells are §8.S's `0x2096`/`0x2098`/`0x209A`, which is a **decision** not to
-widen the band, not an unread link. What remains unread is REMY `saca[63]`'s
+widen the band, not an unread link. ~~What remains unread is REMY `saca[63]`'s
 five raws `0x20CB`..`0x20EA`, and the reason is named in §32.4: Remy's shape-ok
-scripts observe no raw at all in `0x0C02`..`0x7140`.
+scripts observe no raw at all in `0x0C02`..`0x7140`.~~ **READ 2026-09-07 (§33.3),
+by an oracle that is not Remy's:** NECRO owns all five raws and observes them
+directly at `-0x600`, and ours lands them in DUDLEY's group — a group no
+character but Dudley is ever observed to use. TWELVE `nmca[46]`'s three are
+refuted the same way (§33.4), without widening §8.S's row.
 `?N` is never benign; these are work items, not a documented exception.
 
-Nothing else in the 316 is unread.
+Nothing else in the 316 is unread — the residue is URIEN `yuca[37]`/`[39]`/`[65]`
+(75 cells, §8.D's staircase) plus AKUMA `nmca[27]`/`[28]`'s 2 cells inside
+already-`divergent` scripts, and §33.7 says exactly why both new instruments are
+silent on them.
 
 ### 29.6 §11.4's hardware oracle was NOT used, and could not be
 
@@ -9102,8 +9120,11 @@ alternatives; they are four concurrent works each reading its own.
 
 `get_new_parts_data` then reads `parts_timer` through that pointer,
 `effect_01_move` reads `parts_nix`, and `parts_char` becomes `cg_number` — so
-slot 3 is a read of unallocated memory, three fields deep, once per timer
-expiry. That is a strictly worse class than the wrong-sprite §7.5 and §18.6(i)
+slot 3 is a read of unallocated memory, ~~three~~ **five (§33.6: `parts_timer`,
+`parts_colmd`, `parts_colcd`, `parts_char`, `parts_disp`, plus `parts_flip`/
+`parts_hos_x`/`parts_hos_y`/`parts_nix` in `effect_01_move` — the whole 16-byte
+record, and `colmd`/`colcd` are themselves unchecked indices into 4- and 28-byte
+`.rodata` tables)** fields deep, once per timer expiry. That is a strictly worse class than the wrong-sprite §7.5 and §18.6(i)
 describe, and it was invisible while the row said `unmodelled`.
 
 **§6.1 still applies to the *defect*, and only to it.** §7.5 records that the
@@ -9191,22 +9212,26 @@ many words that **the band was not widened and must not be**. It stays
 `unresolved` because the gate cannot confirm what the range table deliberately
 excludes; nothing about it is unread.
 
-**REMY `saca[63]`'s five remaining cells are genuinely unread, and here is the
-link.** Raws `0x20CB`, `0x20D3`, `0x20DA`, `0x20E2`, `0x20EA`; our delta
+~~**REMY `saca[63]`'s five remaining cells are genuinely unread, and here is the
+link.**~~ **CORRECTED 2026-09-07 (§33.3/§33.8): unread by REMY's oracle, which was
+the only one that existed — a cross-character (owner) oracle reads all five.**
+Raws `0x20CB`, `0x20D3`, `0x20DA`, `0x20E2`, `0x20EA`; our delta
 `-3328`; bracketed by `0x0C01` (`-480`) and `0x7141` (`-1985`), which disagree.
-**Unread:** which band these five belong to — and the reason no bracket can
+~~**Unread:** which band these five belong to~~ — and the reason no bracket can
 answer it is that Remy's shape-ok scripts observe **no raw at all** anywhere in
 `0x0C02`..`0x7140`, so the gap the five sit in has 1,040 oracle raws around it
-and none inside.
+and none inside. That sentence is re-verified and still true; what it does not
+say is that **NECRO** observes all five directly, at `-0x600`.
 
-**The six that remain, each with its unread link named:**
+**The six that remain, each with its unread link named** (~~six~~ **three as of
+§33.8** — the two REMY entries and TWELVE `nmca[46]` are now `xchar_divergent`):
 
 | script | cells | why it is not confirmed |
 |---|---|---|
 | URIEN `yuca[37]`, `yuca[39]`, `yuca[65]` | 25 each | §8.D's per-value delta staircase across `0x52EC`(`-3192`)..`0x5334`(`-3168`). **Unread:** whether the staircase continues across the gap |
-| REMY `dmca[90]` | 9 | §8.N's two bands, `0x0744`(`+32`) vs `0x0C01`(`-480`). **Unread:** which band the nine raws belong to |
-| REMY `saca[63]` | 5 | `0x20CB`..`0x20EA`. **Unread:** the band — and no observation exists anywhere in `0x0C02`..`0x7140` to bracket it |
-| TWELVE `nmca[46]` | 3 | §8.S's `0x2096`/`0x2098`/`0x209A`. **Not unread — a decision**: the band must not be widened |
+| ~~REMY `dmca[90]`~~ | 9 | §8.N's two bands, `0x0744`(`+32`) vs `0x0C01`(`-480`). ~~**Unread:** which band the nine raws belong to~~ **READ §33.4: neither — ALEX owns them at `+0x20`, ours is the identity** |
+| ~~REMY `saca[63]`~~ | 5 | `0x20CB`..`0x20EA`. ~~**Unread:** the band~~ **READ §33.3: NECRO owns them at `-0x600`; ours lands in DUDLEY's group** |
+| ~~TWELVE `nmca[46]`~~ | 3 | §8.S's `0x2096`/`0x2098`/`0x209A`. **The band is still a decision and was not widened** — but §33.4 refutes the current value the same way (NECRO owns the raws) |
 
 ### 32.5 The `3,660` is found, and it never drifted — two re-measurements did
 
@@ -9331,18 +9356,400 @@ to add up.
 - **What the executor does after a garbage landing.** §32.2 computes the first
   step and stops there deliberately: the second step reads bytes whose meaning
   depends on a `cgd_type` that is already off-model.
-- **What the PS2 does at `olc_ix_table[2277]`.** §7.5's "PS2 overruns too" is a
+- ~~**What the PS2 does at `olc_ix_table[2277]`.** §7.5's "PS2 overruns too" is a
   statement about the index and the cell, not about the PS2's section layout,
   adjacency or allocation, none of which was measured here. So slot 3's
   85,724-byte overshoot has **no §6.1 control** and is not claimed to be
-  pre-existing.
+  pre-existing.~~ **MEASURED AND CLOSED 2026-09-07 (§33.6)** for all 13 overruns:
+  the PS2's OVIX and OVCT are adjacent as the arcade's are, index 2277 lands 336 B
+  past its 2,235-entry OVIX on `OverlapPart[21]` bytes 0..8, and its four slots
+  `[-4, 91, 0, 1]` are **all in bounds** of its 2,296 parts. **13 of 13 overruns
+  read bytes that are not identical to the arcade read**, so §6.1 covers the index
+  and not the consequence: the overshoot is **arcade-only**.
 - **Whether IBUKI's slot-3 read faults or merely reads garbage.** That depends
   on the allocator's behaviour beyond the 185,432-byte run, which is not in the
   data.
-- **The five REMY `saca[63]` raws and §29.5's older four** (§32.4). Each has its
-  unread link named; none is claimed benign.
+- ~~**The five REMY `saca[63]` raws and §29.5's older four** (§32.4). Each has its
+  unread link named; none is claimed benign.~~ **The five are READ 2026-09-07
+  (§33.3)** and so are REMY `dmca[90]`/`[91]` and TWELVE `nmca[46]` (§33.4). Of
+  §29.5's older four, URIEN `yuca[37]`/`[39]`/`[65]` remain unread and §33.7 says
+  why: their raws are owned by nobody but URIEN, so the second oracle is silent by
+  construction.
 - **The PS2 side still has no entry model** (§31.6), so §32.6's adjudication is
   a statement about the arcade closure only.
 - **§31.12's first and third bullets are untouched** — Gill's 392 read and
   Dudley's ~20 effect contacts both need a play-reachability model that does not
   exist, and none was manufactured here.
+
+---
+
+## 33. The cross-character (owner) oracle: REMY `saca[63]`'s five raws are READ, and so are twenty more — and the OVIX overruns get their §6.1 control (eighteenth pass, 2026-09-07)
+
+**Citation style for this section.** As in §21-§32: this document is not in
+`tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line, never a line number.
+Code was read at `new-stuff` @ `ad2fa2f1`. Every number marked **measured** is
+emitted by `tools/arcade-audit/cg_audit.py` on this tree against the same
+`rom.bin` (md5 `909f5abec4b6b21bf7d2a452a03fdfcc`), on a run made for this
+section; where a figure here differs from an earlier one, the derivation is given.
+
+**Headline.** §32.4 left REMY `saca[63]`'s five raws unread and named the reason:
+"no observation exists anywhere in `0x0C02`..`0x7140` to bracket it". That is a
+true statement about **Remy's** oracle, and it was taken for a statement about
+*the* oracle. It is not. Nineteen other characters' shape-ok scripts are a second
+oracle, independent of Remy's, and it had never been built. Built here, it reads
+all five — **negatively, and twice over**. It also reads three more items §29.5
+and §32.4 carried, for **25 cells across four scripts**. §32.8's "what the PS2
+does at `olc_ix_table[2277]`" is measured, for all thirteen OVIX overruns
+cast-wide, and the answer is that **§6.1 covers none of them**. No code change:
+`src/` was not this pass's to touch, and every item below is recorded as a work
+item with its evidence (§33.9), not applied.
+
+### 33.1 Why a second oracle exists, and the law it rests on
+
+`manu_delta_gate` builds its oracle from **one** character's shape-ok scripts, so
+a raw that character's shape-ok scripts never touch is unconfirmable by it. But
+the arcade `cg_number` is a **global** index: `remap_cg_number`'s delta is
+per-character only because each character's own sprites sit in a different place
+in the two releases. Which character a raw *belongs* to is therefore readable
+from the PS2 side — `obj_group_table[ps2_index]` names the owning group, and
+group == character index + 1 for the twenty character groups (the `own_group`
+already in the JSON). **Measured: the groups are contiguous index runs — group 2
+(ALEX) 1,568..2,568, group 3 (RYU) 2,592..3,530, group 5 (DUDLEY) 4,992..6,115,
+group 6 (NECRO) 6,144..7,373, group 14 (URIEN) 16,800..18,246, group 15 (AKUMA)
+18,272..19,438, group 20 (REMY) 25,856..27,018.**
+
+> **owner(raw)** — the unique character X whose own shape-ok observation of
+> `raw` lands in X's **own** group; i.e. `raw` is X's sprite.
+
+and the law the gate rests on, which is **measured and has no exception**:
+
+> **BORROW LAW.** Every shape-ok observation whose PS2 index lands **outside**
+> the observing character's own group uses the **owner's** delta.
+>
+> **Measured, cast-wide: 17,787 raws at or above `CG_REMAP_CUTOFF` are observed,
+> 17,778 of them uniquely owned, 8 claimed by two or more characters
+> (`0x0C92`..`0x0CC5`, excluded by construction), 124 shared by two or more
+> observers. 128 observations land outside the observer's own group; 117 of them
+> use the owner's delta and 0 use another. The converse set — an observation
+> landing in the observer's own group while the raw is owned by somebody else —
+> is EMPTY.**
+>
+> Both zeros are **asserted** in `cross_char_owners()`, so they are re-checked on
+> every run rather than described here.
+
+Nothing in that is fitted to the cells it adjudicates. It is the same fact three
+already-landed range rows each encode one instance of: `remy_cg_ranges`' `0x0601`
+row (§8.K — an Alex sprite in Remy's script, taking **Alex's** `+0x20`), its
+nineteen Alex-bank siblings (§8.N), and `twelve_cg_ranges`' `0x1E01..0x2095` row
+(§8.S — Necro sprites in Twelve's scripts, taking **Necro's** `-0x600`). The law
+is what those rows are instances of; it was never stated or measured.
+
+**The 8 excluded raws are the honest exception, and they are excluded, not
+explained away.** `0x0C92`, `0x0C95`, `0x0C97`, `0x0C9C`, `0x0CAB`, `0x0CB4`,
+`0x0CBB`, `0x0CC5` are each claimed by two or more characters at once — RYU
+measures `0x0CB4` at `-480` into group 3, while SEAN measures the same raw at
+`+12640` into group 13, KEN at `+11584` into group 12 and AKUMA at `+15200` into
+group 15, each into their **own** group. A shoto sprite the PS2 gave four
+characters their own copy of is exactly the case where the arcade->PS2 map is not
+global, so those raws own nothing and the gate never speaks about them.
+
+### 33.2 What the gate does, and what it deliberately does not do
+
+`manu_delta_gate` gains two verdicts, reached **only** where its own oracle has
+already declined (`unbracketed` / `bracket_disagree`), so **no confirmed cell is
+reclassified and no cell's verdict is weakened**:
+
+| verdict | when |
+|---|---|
+| `xchar` | the raw's owner pins the delta and ours equals it |
+| `xchar_divergent` | the raw's owner pins the delta and ours **differs** |
+
+Two ways in, both requiring the witnesses to be **owner** observations: the raw
+is itself uniquely owned (**direct**), or the nearest owned raw below and above
+have the **same owner and the same delta** (**bracket**). Two owners, or two
+deltas, and the cell keeps `bracket_disagree`.
+
+**The positive verdict is recorded and not acted on.** A cross-character witness
+is weaker than a same-character one, so `xchar` may not clear anything; only
+`xchar_divergent` is believed. That is the house rule applied in the only
+direction it can be applied safely — the gate can find, never absolve. (Measured:
+`xchar` fires on **0** cells on this tree, so the asymmetry costs nothing today;
+it is in the code so that it costs nothing later either.)
+
+**A third gate needs no delta oracle at all.** `group_unobserved_gate` compares
+only the **owning group of the index the port actually produces** against the set
+of groups that character's own shape-ok pairings are *measured* to land in. A
+character's observed set is its own group plus the banks it is measured to borrow
+from — **measured: REMY `{2, 3, 20}`, TWELVE `{6, 19}`, YUN `{4}`, and DUDLEY is
+the only character with group 5 in its set** — so a landing outside it is a
+sprite from a bank nothing shows that character ever reaching into. It runs over
+**every** live L-cell, not only the `manu` ones, so it also reaches the
+`extra_script_no_oracle` scripts the PS2 release does not have and where no delta
+oracle can ever exist.
+
+> **Measured: 125,165 live L-cells cast-wide carry a raw at or above the cutoff.
+> 19 of them land in a group their character is never observed to use.** It is a
+> set-membership test with no threshold to tune, and that is what makes it
+> usable: 19 in 125,165 is not a signal that had to be extracted. Cells already
+> caught by `a_ogt_oob` (index past the table) or `b_group_gap` (group 0) are
+> left to those classes.
+
+Eight of the 19 are the REMY/TWELVE cells the owner gate already reports and are
+not re-reported; the remaining **11** are printed under `d_group_unobserved`.
+
+### 33.3 Result: REMY `saca[63]`'s five, read twice
+
+The five cells are `saca[63]` c30, c43, c53, c62, c72 — raws `0x20CB`, `0x20D3`,
+`0x20DA`, `0x20E2`, `0x20EA`. Taking §32.4's four suggested instruments in turn:
+
+- **Reachability does not settle them.** `k7_entry_walk(REMY)[('saca', 63)]` is
+  **measured empty** — not one cell of the script is dead. The cheap answer was
+  checked first and it is not available.
+- **The band's semantics.** `-3328` is `remy_cg_ranges`' `default_delta`
+  (`-0x0D00`), reached because no row of Remy's table covers `0x20CB`..`0x20EA`.
+  It is a **measured** delta — **1,008 of Remy's 1,040 oracle raws measure it** —
+  but its measured hull is **`0x7201`..`0x767F`**, some 20,000 raws above the
+  five. Ours extrapolates a measured band across two disagreeing observations,
+  into a **25,919-raw-wide** region Remy never touches.
+- **The cross-character oracle settles it.** **Measured: NECRO's own shape-ok
+  scripts observe all five raws directly, each at `-0x600`.** NECRO owns the whole
+  neighbourhood — **834 observations in `0x1E01`..`0x2200`, every one `-0x600`,
+  every one landing in group 6**. TWELVE borrows the same band at the same
+  `-0x600` (**40 observations**), which is what §8.S's row is. Ours is `-0x0D00`.
+- **The group gate settles it independently.** Ours sends the five to
+  **5,067 / 5,075 / 5,082 / 5,090 / 5,098 — group 5, DUDLEY**. REMY's observed
+  landing groups are `{2, 3, 20}`, and **DUDLEY is a lender to nobody**: group 5
+  appears in exactly one character's observed set, Dudley's own.
+
+> **VERDICT: `xchar_divergent`.** The delta the five *should* carry is read
+> — `-0x600`, from their owner NECRO, which puts them at 6,859 / 6,867 / 6,874 /
+> 6,882 / 6,890, all in group 6. What is settled beyond doubt is the negative:
+> **`-0x0D00` is wrong**, because it draws a **Dudley** sprite where the arcade
+> draws a **Necro** one. Both of the only two mechanisms the data exhibits —
+> borrow at the owner's delta (group 6), or a self-copy in the borrower's own
+> group (group 20, the `0x0CB4` pattern) — exclude group 5.
+
+The §30 decoder-grid model was **not** the instrument. It compares bytes at a
+cell's word 0 and adjudicates *decode alignment*; it has nothing to say about
+which PS2 index a correctly-decoded `cg_number` should map to. It was considered
+and set aside, not used and not needed.
+
+### 33.4 The same gate reads twenty more cells — including §29.5's REMY `dmca[90]`
+
+| script | cells | raws | ours | owner says | group: ours -> owner |
+|---|---|---|---|---|---|
+| REMY `saca[63]` | 5 | `0x20CB`..`0x20EA` | `-3328` | NECRO `-1536` | 5 -> 6 |
+| REMY `dmca[90]` | 9 | `0x0828`..`0x08D7` | `+0` | ALEX `+32` | 2 -> 2 |
+| REMY `dmca[91]` | 8 | `0x0827`..`0x08D6` | `+0` | ALEX `+32` | 2 -> 2 |
+| TWELVE `nmca[46]` | 3 | `0x2096`..`0x209A` | `-2944` | NECRO `-1536` | 5 -> 6 |
+
+**REMY `dmca[90]` and `dmca[91]` — §8.N's deliberate gap, now readable.** §8.N
+declined to sweep the gaps into the Alex-bank `+0x20` rows in as many words: "the
+gaps between them hold `dmca[3]`/`[90]`/`[91]` cells whose scripts decode a
+different shape (cgd) than their PS2 counterparts, so `cg_audit.py` has no oracle
+for those raw values — sweeping them in would be unverified." That was right, and
+it is no longer true: **ALEX's own oracle observes every one of these seventeen
+raws directly, each at `+0x20`, each landing in group 2.** Ours is not `-0x0D00`
+here — Remy's default underflows (`0x0828 - 0x0D00 < 0`) and `remap_cg_number`'s
+`if (adjusted < 0 || adjusted > UINT16_MAX) { return value; }` clamp (§7.4)
+returns the raw **unchanged**, so ours is the identity. Right group, wrong sprite
+by exactly 32 — the same defect §8.K's `0x0601` row fixes one instance of, and
+which `dmca[3]`'s four `manu_cg_delta_divergent` cells (already reported, by
+Remy's own oracle, `+0` vs `+32`) already demonstrate. Seventeen more cells now
+carry the same evidence.
+
+**TWELVE `nmca[46]` — §8.S's decision stands, and the value is still wrong.**
+§32.4 classed this "not unread — a decision": §8.S's `0x1E01..0x2095` row is at
+its **measured hull** on Twelve-side evidence and must not be widened past it.
+That remains exactly true and nothing here widens it. What the owner oracle adds
+is a *different measurement*: **NECRO directly observes `0x2098` and `0x209A` at
+`-0x600`**, and `0x2096` — observed by nobody — is bracketed **inside NECRO's own
+oracle** by `0x2095` and `0x2098`, which **agree** at `-0x600`. So the two
+statements now on record are consistent and both hold: the row may not be widened
+on Twelve's evidence, **and** the value the three cells currently get is refuted.
+Measured: `-0x0B80` sends them to **5,398 / 5,400 / 5,402 — group 5 (DUDLEY)**,
+while `0x2095`, the raw immediately below and inside §8.S's row, correctly reaches
+6,805 in group 6. The measured hull of the `-0x600` band taken **cast-wide**
+rather than Twelve-only is `0x1E01`..`0x2200`; that is the number a future range
+change is entitled to use, and it is recorded here rather than applied.
+
+### 33.5 The one thing the group gate found on its own: YUN `nmca[53]`
+
+> **Measured: YUN `nmca[53]` c0..c10, raws `0x9080`..`0x908A`, remap to
+> 35,936..35,946 — group 61.** YUN's observed landing group set is `{4}`. All 11
+> cells are live (`k7_entry_walk(YUN)[('nmca', 53)]` is empty), and the script is
+> one of YUN's seven `extra_script_no_oracle` scripts: **the arcade `nmca` table
+> has 58 scripts and the PS2's has 51**, so script 53 has no counterpart and no
+> delta oracle can ever exist for it.
+
+Two further measured facts and no more: `obj_group_table[0x9080]` is **0** — the
+raw's own slot is a gap, not a character — and group 61 is the contiguous run
+35,904..36,094, a non-character group. What group 61 *is* was not established and
+no attempt was made to guess; the row is emitted as `d_group_unobserved`, which is
+a statement about the landing and not about the sprite. Under the house rule this
+is a finding, not a benign curiosity: eleven live cells in an arcade-only script
+send `cg_number` into a bank nothing shows Yun ever using.
+
+### 33.6 `olc_ix_table[2277]`'s slot 3: consumed, five fields deep, and NOT covered by §6.1
+
+**Slot 3 is consumed; slot 1's zero is the only inert one.** Traced in code, not
+inferred. `plcnt.c` -> `setup_other_data` runs
+`for (i = 0; i < 4; i++) { effect_01_init(&wk->wu, i); }` for every player at
+round start, and `eff01.c` -> `effect_01_init` sets `ewk->wu.type = koolc` for the
+life of the work, so the four slots are four concurrent works, each reading its
+own. `effect_01_move` case 1's **only** guard is
+`if (mwk->cg_olc.olc_ix[ewk->wu.type] == 0)` — that is what makes slot 1's `0`
+inert, and **11516 is not 0**, so slot 3 falls straight through to
+`ewk->wu.cg_ix = 11516`, `now_koc = 11516`, `get_new_parts_data`.
+
+**The pointer.** `charid.c` sets `wk->overlap_char_tbl = cdat->ovct` — the base,
+and the only writer of the master's copy anywhere in `src/sf33rd/`;
+`get_new_parts_data` then forms
+`ewk->wu.overlap_char_tbl = mwk->wu.overlap_char_tbl + ewk->wu.now_koc`. So the
+read is `ovct + 16 * 11516` = **OVCT byte 184,256**, confirming §32.3 exactly:
+147,680 B past the 36,576-byte OVCT, and **85,724 B past the end of the
+185,432-byte coalesced `nmca`..`cbca` allocation** (`ovct` begins 86,900 B into
+that run).
+
+**How deep the read goes — five fields, not three.** §32.3 said "three fields
+deep". Read against the source, it is the whole 16-byte record:
+`get_new_parts_data` reads `parts_timer` (into `cg_ctr`, a `u8`), `parts_colmd`,
+`parts_colcd` and `parts_char` (into `cg_number`); `effect_01_move` then reads
+`parts_flip`, `parts_hos_x`, `parts_hos_y` and, at the next `cg_ctr` expiry,
+`parts_nix`; `set_parts_disp_flag` reads `parts_disp`. Because `cg_ctr` is a
+`u8`, a garbage `parts_timer` of 0 does not stop the walk — it decrements to 255
+and re-reads 256 frames later.
+
+**And two of those fields are themselves unchecked indices.**
+`parts_colmd_table` is `const s16 [2]` and `parts_colcd_table` is
+`const s16 [14]`, both in `eff01.c`, and `get_new_parts_data` indexes them with
+the part's `u8` fields with no bound: `parts_colmd_table[parts_colmd]` for any
+`colmd >= 2` (0 takes the else, 1 takes the target-work branch) and
+`parts_colcd_table[parts_colcd]` for **every** nonzero `colcd`. What comes back
+becomes `my_col_mode` and `my_col_code` — collision state, not cosmetics.
+
+> **Measured, cast-wide over all 4,299 real `OverlapPart`s: `parts_colmd` takes
+> only the value 0, and `parts_colcd` only `{0, 2..12}` — 0 and 0 past their
+> tables.** Real data can never index either out of range. The only way to reach
+> those two reads is a part fetched from outside the data, which is exactly what
+> slot 3 does. (`parts_col_census()`, printed every run.)
+
+**§6.1 does NOT cover it — measured, not assumed.** §32.8 recorded "no §6.1
+control" because "the PS2 side's layout, adjacency and allocation … were not
+measured here". They are measured now, from the PS2's own image, for every one of
+the thirteen overruns; `ovix_oob_targets` prints a `PS2 control` line for each.
+
+> **IBUKI, index 2277.** The PS2's OVIX ends exactly where its OVCT begins, as
+> the arcade's does. The PS2 OVIX has **2,235** entries, so the same index is
+> **336 B** past it — where the arcade's is 376 B past a 2,230-entry OVIX — and
+> lands on the PS2's `OverlapPart[21]` bytes 0..8, a *different* sub-record,
+> because the two releases' sections are different sizes. **The PS2 slots are
+> `[-4, 91, 0, 1]`, and all four are in bounds of its 2,296 parts.** The arcade
+> port's are `[255, 0, 23, 11516]`.
+>
+> **Cast-wide: 13 of 13 overruns read bytes that are NOT identical to the arcade
+> read** — `ps2_identical` is `false` on every row, for GILL, ALEX ×2, YUN ×3,
+> IBUKI, YANG ×3, URIEN ×2 and REMY ×3.
+
+So the *defect* — a cell selecting an OVIX index past the end of the OVIX — is
+shared, exactly as §7.5 says. The *consequence* is not: the PS2 reads four
+in-bounds part indices; the arcade port reads one 85,724 B outside its allocation.
+§6.1's test is that the value is identical on both sides, and it is not. **The
+overrun is arcade-only.**
+
+### 33.7 What this does not establish
+
+- **Whether IBUKI's slot-3 read faults or merely reads garbage.** Unchanged from
+  §32.8, and narrowed only by arithmetic: 85,724 B is 46% more than the whole
+  185,432-byte allocation, so those bytes cannot be that allocation's own rounding
+  slack under any allocator that rounds to a page or to a size class of it. What
+  is actually mapped there depends on the allocator and on the rest of the heap at
+  that moment, neither of which is in the data. No build was run and none was
+  needed to say that.
+- **Which delta REMY `saca[63]`'s five cells should carry, on Remy-side
+  evidence.** §32.4's statement — Remy's own scripts observe no raw in
+  `0x0C02`..`0x7140`, re-verified here — is still true and still unfixable by a
+  Remy-side oracle. What is read is the owner's delta and the refutation of ours;
+  a same-character confirmation does not exist and none was manufactured.
+- **URIEN `yuca[37]`, `yuca[39]`, `yuca[65]` — 75 cells, still unread, and now
+  for a sharper reason.** Raws `0x5315`..`0x532D`. **Measured: not one of those
+  raws is owned by any character other than URIEN**, so the owner oracle is silent
+  by construction, and ours lands them in group 14 — URIEN's own — so the group
+  gate is silent too. §8.D's per-value staircase across
+  `0x52EC`(`-3192`)..`0x5334`(`-3168`) is exactly as unread as it was; both new
+  instruments degenerate to the per-character one here, as they must.
+- **AKUMA `nmca[27]`, `nmca[28]` — 2 cells, still unread.** Raw `0x546C`,
+  **measured: not in the owner map at all** (observed by nobody), ours landing in
+  group 15, Akuma's own. Both scripts are already `divergent` on a *different*
+  cell — raw `0x546B`, ours `-3232` vs the oracle's `-3266`, both in group 15 —
+  so they were never part of the unresolved *script* count.
+- **What group 61 is** (§33.5), and therefore whether YUN `nmca[53]`'s eleven
+  cells are wrong or merely unlike anything else Yun does.
+- **Whether any of this is reachable in play.** The gate adjudicates every cell
+  `k7_entry_walk` leaves live, which for these characters includes §31.10's
+  fail-open. No timing or play-reachability model exists and none was built —
+  which is also why §31.12's first and third bullets (Gill's 392 read, Dudley's
+  ~20 effect contacts) are **untouched**.
+- **The PS2 side still has no entry model** (§31.6).
+
+### 33.8 Corrections to earlier sections (recorded, not silently edited)
+
+- **§32.4's "REMY `saca[63]`'s five remaining cells are genuinely unread" is
+  CORRECTED.** They were unread by the per-character oracle, which was the only
+  one that existed; a second oracle does exist and reads them (§33.3). §32.4's
+  reason — no Remy observation in `0x0C02`..`0x7140` — is re-verified and
+  unchanged; what was wrong was treating it as exhausting the evidence.
+- **§29.5's "REMY `dmca[90]` … **Unread:** which of the two bands these nine
+  distinct raws belong to" is CLOSED, negatively** (§33.4): neither band. ALEX
+  owns the raws at `+0x20`, and ours is the identity via §7.4's clamp.
+- **§8.N's "sweeping them in would be unverified" was right when written and is
+  now superseded** for `dmca[90]`/`dmca[91]`'s seventeen raws: ALEX's own oracle
+  verifies them. §8.N's discrete-rows-only decision for the raws it *did* have
+  evidence for is untouched.
+- **§32.4's "TWELVE `nmca[46]` … nothing about it is unread" is CORRECTED to "the
+  band is a decision; the current value is refuted"** (§33.4). §8.S's instruction
+  not to widen the row past its Twelve-side measured hull is **re-affirmed**, and
+  no row was widened.
+- **§32.3's "slot 3 is a read of unallocated memory, three fields deep" is
+  CORRECTED to five fields of the 16-byte record, two of which are themselves
+  unchecked indices into 4- and 28-byte `.rodata` tables** (§33.6). Its byte
+  figures — 184,256 / 147,680 / 85,724 / 185,432 / 86,900 — all reproduce exactly.
+- **§32.8's "What the PS2 does at `olc_ix_table[2277]` … has no §6.1 control" is
+  CLOSED** (§33.6): the control is measured for all 13 overruns and **none** of
+  them reads identical bytes, so §6.1 covers the index and not the consequence.
+- **§29.3's script census moves to 221 direct + 65 bracketed + 20 no-live-cells +
+  3 unresolved + 0 xchar + 3 XCHAR-DIVERGENT + 4 DIVERGENT** (316), and its cell
+  census to **2,928 direct + 552 bracketed + 35 sub-cutoff + 77 bracket-disagree +
+  0 unbracketed + 0 xchar + 25 XCHAR-DIVERGENT + 7 DIVERGENT** (3,624). The three
+  scripts that move out of `unresolved` are REMY `saca[63]`, REMY `dmca[90]` and
+  TWELVE `nmca[46]`; REMY `dmca[91]` and AKUMA `nmca[27]`/`[28]` were already
+  `divergent` and stay so. **`cells audited` is 133,901 and the TOTAL violation
+  row is byte-for-byte unchanged** — the new classes are violation rows and census
+  lines, not new columns.
+- **§29.5's / §32.4's unresolved residue is 3 scripts, not 6** — URIEN `yuca[37]`,
+  `yuca[39]`, `yuca[65]`, and nothing else.
+- **A statistic §33.1 does not inherit.** The cast-wide raw count here (17,787) is
+  taken **after** `char_oracle` drops the 7 ambiguous raws (`conflict`: YUN
+  `0x129B`, NECRO `0x1E5F`, HUGO `0x26C9`, URIEN `0x52D9`, AKUMA `0x5440`/
+  `0x5441`/`0x546A`). Any count taken before that drop reads 17,794 and is the
+  wrong number to reason from: an ambiguous raw must never own anything.
+
+### 33.9 The work items this leaves, with their evidence
+
+None of these is applied here; `src/` was out of scope for this pass. Each is a
+range-table change in `arcade_char_data.c` whose witness is a direct owner
+observation `cg_audit.py` prints on every run.
+
+| character | row to add | evidence |
+|---|---|---|
+| REMY | `0x20CB`..`0x20EA` at `-0x600` | NECRO observes all five raws directly at `-0x600`; ours lands in DUDLEY's group |
+| REMY | the seventeen raws in `0x0827`..`0x08D7` at `+0x20` | ALEX observes every one directly at `+0x20`; ours is the identity via the §7.4 clamp |
+| TWELVE | `0x2096`..`0x209A` at `-0x600` | NECRO observes `0x2098`/`0x209A` directly and brackets `0x2096` at `-0x600`; ours lands in DUDLEY's group |
+
+A landed fix must keep §8.C's first-match-wins guard in view
+(`check_range_overlaps` asserts it every run), must add **discrete rows** for the
+raws with evidence rather than sweeping the gaps between them (§8.N's standing
+rule), and must **not** widen `twelve_cg_ranges`' existing `0x1E01..0x2095` row —
+the new evidence justifies a separate row, not a wider one, because §8.S's hull
+statement is about Twelve's own observations and is still exactly true.

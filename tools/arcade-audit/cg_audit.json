@@ -538,6 +538,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 881,
    "manu_oracle_raws": 824,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 5167,
@@ -547,6 +551,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -571,6 +577,9 @@
    "oob_phantom": 9,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   1
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -757,7 +766,24 @@
      true
     ],
     "ovct_parts": 392,
-    "live": false
+    "live": false,
+    "ps2_entries": 148,
+    "ps2_past_ovix": 15200,
+    "ps2_section": "yuca",
+    "ps2_slots": [
+     43,
+     28,
+     22,
+     0
+    ],
+    "ps2_ovct_parts": 396,
+    "ps2_slots_in_ovct": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "ps2_identical": false
    }
   ],
   "ovct_dangling_hold": {
@@ -4302,6 +4328,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 6245,
    "manu_oracle_raws": 808,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 23,
@@ -4311,6 +4341,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -4335,6 +4367,9 @@
    "oob_phantom": 5,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   2
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -4414,7 +4449,24 @@
      true
     ],
     "ovct_parts": 57,
-    "live": false
+    "live": false,
+    "ps2_entries": 55,
+    "ps2_past_ovix": 8648,
+    "ps2_section": "rict",
+    "ps2_slots": [
+     -95,
+     0,
+     257,
+     2
+    ],
+    "ps2_ovct_parts": 59,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     false,
+     true
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2224,
@@ -4436,7 +4488,24 @@
      true
     ],
     "ovct_parts": 57,
-    "live": false
+    "live": false,
+    "ps2_entries": 55,
+    "ps2_past_ovix": 17352,
+    "ps2_section": "rict",
+    "ps2_slots": [
+     -93,
+     0,
+     257,
+     2
+    ],
+    "ps2_ovct_parts": 59,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     false,
+     true
+    ],
+    "ps2_identical": false
    }
   ],
   "ovct_dangling_hold": {
@@ -5530,6 +5599,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 5099,
    "manu_oracle_raws": 675,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -5539,6 +5612,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -5563,6 +5638,9 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -6567,6 +6645,171 @@
     "sa": null,
     "grid": "phantom",
     "grid_prefix_cells": 32
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 0,
+    "raw": 36992,
+    "remapped": 35936,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 1,
+    "raw": 36993,
+    "remapped": 35937,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 2,
+    "raw": 36994,
+    "remapped": 35938,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 3,
+    "raw": 36995,
+    "remapped": 35939,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 4,
+    "raw": 36996,
+    "remapped": 35940,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 5,
+    "raw": 36997,
+    "remapped": 35941,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 6,
+    "raw": 36998,
+    "remapped": 35942,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 7,
+    "raw": 36999,
+    "remapped": 35943,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 8,
+    "raw": 37000,
+    "remapped": 35944,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 9,
+    "raw": 37001,
+    "remapped": 35945,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
+   },
+   {
+    "cls": "d_group_unobserved",
+    "table": "nmca",
+    "script": 53,
+    "cell": 10,
+    "raw": 37002,
+    "remapped": 35946,
+    "group": 61,
+    "observed_groups": [
+     4
+    ],
+    "owner": null,
+    "owner_delta": null,
+    "dead": false
    }
   ],
   "stats": {
@@ -6633,6 +6876,10 @@
    "manu_no_live_cells": 10,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 11,
+   "group_gate_live_cells": 7390,
    "manu_oracle_raws": 1008,
    "manu_oracle_conflicts": 1,
    "manu_sub_cutoff_obs": 0,
@@ -6642,6 +6889,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -6666,6 +6915,9 @@
    "oob_phantom": 0,
    "oob_not_phantom": 15
   },
+  "observed_landing_groups": [
+   4
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -6737,7 +6989,24 @@
      true
     ],
     "ovct_parts": 6,
-    "live": false
+    "live": false,
+    "ps2_entries": 22,
+    "ps2_past_ovix": 16208,
+    "ps2_section": "yuca",
+    "ps2_slots": [
+     8192,
+     0,
+     0,
+     0
+    ],
+    "ps2_ovct_parts": 8,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     true,
+     true
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2292,
@@ -6759,7 +7028,24 @@
      true
     ],
     "ovct_parts": 6,
-    "live": false
+    "live": false,
+    "ps2_entries": 22,
+    "ps2_past_ovix": 18160,
+    "ps2_section": "yuca",
+    "ps2_slots": [
+     1,
+     0,
+     0,
+     0
+    ],
+    "ps2_ovct_parts": 8,
+    "ps2_slots_in_ovct": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2308,
@@ -6781,7 +7067,24 @@
      true
     ],
     "ovct_parts": 6,
-    "live": false
+    "live": false,
+    "ps2_entries": 22,
+    "ps2_past_ovix": 18288,
+    "ps2_section": "yuca",
+    "ps2_slots": [
+     -1281,
+     0,
+     0,
+     4419
+    ],
+    "ps2_ovct_parts": 8,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     true,
+     false
+    ],
+    "ps2_identical": false
    }
   ],
   "ovct_dangling_hold": {
@@ -7744,6 +8047,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 6961,
    "manu_oracle_raws": 746,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -7753,6 +8060,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -7777,6 +8086,10 @@
    "oob_phantom": 33,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   5
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -9221,6 +9534,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 6480,
    "manu_oracle_raws": 971,
    "manu_oracle_conflicts": 1,
    "manu_sub_cutoff_obs": 0,
@@ -9230,6 +9547,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 4,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -9254,6 +9573,10 @@
    "oob_phantom": 1,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   6
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -10074,6 +10397,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 5952,
    "manu_oracle_raws": 761,
    "manu_oracle_conflicts": 1,
    "manu_sub_cutoff_obs": 0,
@@ -10083,6 +10410,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -10107,6 +10436,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 1
   },
+  "observed_landing_groups": [
+   3,
+   7
+  ],
   "over_declared_sections": [
    {
     "table": "saca",
@@ -10858,6 +11191,10 @@
    "manu_no_live_cells": 2,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 8063,
    "manu_oracle_raws": 1153,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -10867,6 +11204,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -10891,6 +11230,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   8
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -11124,7 +11467,24 @@
      false
     ],
     "ovct_parts": 2286,
-    "live": true
+    "live": true,
+    "ps2_entries": 2235,
+    "ps2_past_ovix": 336,
+    "ps2_section": "ovct",
+    "ps2_slots": [
+     -4,
+     91,
+     0,
+     1
+    ],
+    "ps2_ovct_parts": 2296,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     true,
+     true
+    ],
+    "ps2_identical": false
    }
   ],
   "ovct_dangling_hold": {
@@ -14400,6 +14760,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 7769,
    "manu_oracle_raws": 1276,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -14409,6 +14773,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -14433,6 +14799,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   9
+  ],
   "over_declared_sections": [
    {
     "table": "saca",
@@ -15257,6 +15627,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 5677,
    "manu_oracle_raws": 935,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -15266,6 +15640,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -15290,6 +15666,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   10
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -17166,6 +17546,10 @@
    "manu_no_live_cells": 6,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 8335,
    "manu_oracle_raws": 1015,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 5,
@@ -17175,6 +17559,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -17199,6 +17585,10 @@
    "oob_phantom": 27,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   11
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -17274,7 +17664,24 @@
      true
     ],
     "ovct_parts": 20,
-    "live": false
+    "live": false,
+    "ps2_entries": 22,
+    "ps2_past_ovix": 9936,
+    "ps2_section": "rict",
+    "ps2_slots": [
+     0,
+     0,
+     258,
+     1
+    ],
+    "ps2_ovct_parts": 22,
+    "ps2_slots_in_ovct": [
+     true,
+     true,
+     false,
+     true
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2048,
@@ -17296,7 +17703,24 @@
      true
     ],
     "ovct_parts": 20,
-    "live": false
+    "live": false,
+    "ps2_entries": 22,
+    "ps2_past_ovix": 16208,
+    "ps2_section": "yuca",
+    "ps2_slots": [
+     512,
+     0,
+     0,
+     13472
+    ],
+    "ps2_ovct_parts": 22,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     true,
+     false
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2224,
@@ -17318,7 +17742,24 @@
      false
     ],
     "ovct_parts": 20,
-    "live": false
+    "live": false,
+    "ps2_entries": 22,
+    "ps2_past_ovix": 17616,
+    "ps2_section": "yuca",
+    "ps2_slots": [
+     1024,
+     10544,
+     0,
+     14170
+    ],
+    "ps2_ovct_parts": 22,
+    "ps2_slots_in_ovct": [
+     false,
+     false,
+     true,
+     false
+    ],
+    "ps2_identical": false
    }
   ],
   "ovct_dangling_hold": {
@@ -18507,6 +18948,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 5056,
    "manu_oracle_raws": 694,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -18516,6 +18961,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -18540,6 +18987,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   4,
+   12
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -19407,6 +19858,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 5547,
    "manu_oracle_raws": 711,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -19416,6 +19871,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -19440,6 +19897,9 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   13
+  ],
   "over_declared_sections": [
    {
     "table": "caca",
@@ -20378,6 +20838,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 3,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 6208,
    "manu_oracle_raws": 691,
    "manu_oracle_conflicts": 1,
    "manu_sub_cutoff_obs": 0,
@@ -20387,6 +20851,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -20411,6 +20877,10 @@
    "oob_phantom": 12,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   14
+  ],
   "over_declared_sections": [
    {
     "table": "saca",
@@ -20519,7 +20989,24 @@
      true
     ],
     "ovct_parts": 329,
-    "live": false
+    "live": false,
+    "ps2_entries": 189,
+    "ps2_past_ovix": 6728,
+    "ps2_section": "rict",
+    "ps2_slots": [
+     -16,
+     118,
+     258,
+     7
+    ],
+    "ps2_ovct_parts": 352,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     true,
+     true
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2048,
@@ -20541,7 +21028,24 @@
      true
     ],
     "ovct_parts": 329,
-    "live": false
+    "live": false,
+    "ps2_entries": 189,
+    "ps2_past_ovix": 14872,
+    "ps2_section": "yuca",
+    "ps2_slots": [
+     768,
+     0,
+     0,
+     17167
+    ],
+    "ps2_ovct_parts": 352,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     true,
+     false
+    ],
+    "ps2_identical": false
    }
   ],
   "ovct_dangling_hold": {
@@ -21502,6 +22006,7 @@
     "oracle_group": 15,
     "witness_lo": 21611,
     "witness_hi": 21611,
+    "owner": null,
     "dead": false
    },
    {
@@ -21518,6 +22023,7 @@
     "oracle_group": 15,
     "witness_lo": 21611,
     "witness_hi": 21611,
+    "owner": null,
     "dead": false
    }
   ],
@@ -21581,6 +22087,10 @@
    "manu_no_live_cells": 2,
    "manu_unresolved": 0,
    "manu_divergent": 2,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 5880,
    "manu_oracle_raws": 692,
    "manu_oracle_conflicts": 3,
    "manu_sub_cutoff_obs": 0,
@@ -21590,6 +22100,8 @@
    "manu_cells_divergent": 2,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -21614,6 +22126,9 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   15
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -23403,6 +23918,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 6675,
    "manu_oracle_raws": 1085,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -23412,6 +23931,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -23436,6 +23957,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   0,
+   16
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -24032,6 +24557,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 7192,
    "manu_oracle_raws": 1332,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -24041,6 +24570,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -24065,6 +24596,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   17
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -25192,6 +25727,10 @@
    "manu_no_live_cells": 0,
    "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 0,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 7178,
    "manu_oracle_raws": 1141,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
@@ -25201,6 +25740,8 @@
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 0,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -25225,6 +25766,10 @@
    "oob_phantom": 0,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   3,
+   18
+  ],
   "over_declared_sections": [],
   "ovct_reachability": {
    "shift": {
@@ -25761,6 +26306,57 @@
     "sa": null,
     "grid": "aligned_prefix",
     "grid_prefix_cells": 15
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "nmca",
+    "script": 46,
+    "cell": 10,
+    "raw": 8342,
+    "remapped": 5398,
+    "group": 5,
+    "delta": -2944,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6806,
+    "oracle_group": 6,
+    "witness_lo": 8341,
+    "witness_hi": 8343,
+    "owner": "NECRO",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "nmca",
+    "script": 46,
+    "cell": 13,
+    "raw": 8344,
+    "remapped": 5400,
+    "group": 5,
+    "delta": -2944,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6808,
+    "oracle_group": 6,
+    "witness_lo": 8344,
+    "witness_hi": 8344,
+    "owner": "NECRO",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "nmca",
+    "script": 46,
+    "cell": 16,
+    "raw": 8346,
+    "remapped": 5402,
+    "group": 5,
+    "delta": -2944,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6810,
+    "oracle_group": 6,
+    "witness_lo": 8346,
+    "witness_hi": 8346,
+    "owner": "NECRO",
+    "dead": false
    }
   ],
   "stats": {
@@ -25821,17 +26417,23 @@
    "manu_direct": 5,
    "manu_bracketed": 5,
    "manu_no_live_cells": 0,
-   "manu_unresolved": 1,
+   "manu_unresolved": 0,
    "manu_divergent": 0,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 1,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 7243,
    "manu_oracle_raws": 1021,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 25,
-   "manu_cells_bracket_disagree": 3,
+   "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 48,
    "manu_cells_direct": 71,
    "manu_cells_divergent": 0,
    "manu_cells_sub_cutoff": 0,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 3,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -25856,6 +26458,10 @@
    "oob_phantom": 1,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   6,
+   19
+  ],
   "over_declared_sections": [
    {
     "table": "saca",
@@ -28856,6 +29462,7 @@
     "oracle_group": 2,
     "witness_lo": 1668,
     "witness_hi": 1680,
+    "owner": null,
     "dead": false
    },
    {
@@ -28872,6 +29479,7 @@
     "oracle_group": 2,
     "witness_lo": 1656,
     "witness_hi": 1660,
+    "owner": null,
     "dead": false
    },
    {
@@ -28888,6 +29496,7 @@
     "oracle_group": 2,
     "witness_lo": 1656,
     "witness_hi": 1660,
+    "owner": null,
     "dead": false
    },
    {
@@ -28904,6 +29513,296 @@
     "oracle_group": 2,
     "witness_lo": 1656,
     "witness_hi": 1660,
+    "owner": null,
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 1,
+    "raw": 2262,
+    "remapped": 2262,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2294,
+    "oracle_group": 2,
+    "witness_lo": 2262,
+    "witness_hi": 2262,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 2,
+    "raw": 2263,
+    "remapped": 2263,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2295,
+    "oracle_group": 2,
+    "witness_lo": 2263,
+    "witness_hi": 2263,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 3,
+    "raw": 2088,
+    "remapped": 2088,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2120,
+    "oracle_group": 2,
+    "witness_lo": 2088,
+    "witness_hi": 2088,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 4,
+    "raw": 2094,
+    "remapped": 2094,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2126,
+    "oracle_group": 2,
+    "witness_lo": 2094,
+    "witness_hi": 2094,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 5,
+    "raw": 2089,
+    "remapped": 2089,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2121,
+    "oracle_group": 2,
+    "witness_lo": 2089,
+    "witness_hi": 2089,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 6,
+    "raw": 2090,
+    "remapped": 2090,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2122,
+    "oracle_group": 2,
+    "witness_lo": 2090,
+    "witness_hi": 2090,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 7,
+    "raw": 2091,
+    "remapped": 2091,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2123,
+    "oracle_group": 2,
+    "witness_lo": 2091,
+    "witness_hi": 2091,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 8,
+    "raw": 2092,
+    "remapped": 2092,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2124,
+    "oracle_group": 2,
+    "witness_lo": 2092,
+    "witness_hi": 2092,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 90,
+    "cell": 9,
+    "raw": 2093,
+    "remapped": 2093,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2125,
+    "oracle_group": 2,
+    "witness_lo": 2093,
+    "witness_hi": 2093,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 1,
+    "raw": 2262,
+    "remapped": 2262,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2294,
+    "oracle_group": 2,
+    "witness_lo": 2262,
+    "witness_hi": 2262,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 2,
+    "raw": 2087,
+    "remapped": 2087,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2119,
+    "oracle_group": 2,
+    "witness_lo": 2087,
+    "witness_hi": 2087,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 3,
+    "raw": 2098,
+    "remapped": 2098,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2130,
+    "oracle_group": 2,
+    "witness_lo": 2098,
+    "witness_hi": 2098,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 4,
+    "raw": 2099,
+    "remapped": 2099,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2131,
+    "oracle_group": 2,
+    "witness_lo": 2099,
+    "witness_hi": 2099,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 5,
+    "raw": 2100,
+    "remapped": 2100,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2132,
+    "oracle_group": 2,
+    "witness_lo": 2100,
+    "witness_hi": 2100,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 6,
+    "raw": 2095,
+    "remapped": 2095,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2127,
+    "oracle_group": 2,
+    "witness_lo": 2095,
+    "witness_hi": 2095,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 7,
+    "raw": 2096,
+    "remapped": 2096,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2128,
+    "oracle_group": 2,
+    "witness_lo": 2096,
+    "witness_hi": 2096,
+    "owner": "ALEX",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "dmca",
+    "script": 91,
+    "cell": 8,
+    "raw": 2097,
+    "remapped": 2097,
+    "group": 2,
+    "delta": 0,
+    "oracle_delta": 32,
+    "oracle_remapped": 2129,
+    "oracle_group": 2,
+    "witness_lo": 2097,
+    "witness_hi": 2097,
+    "owner": "ALEX",
     "dead": false
    },
    {
@@ -28920,6 +29819,92 @@
     "oracle_group": 2,
     "witness_lo": 1537,
     "witness_hi": 1621,
+    "owner": null,
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "saca",
+    "script": 63,
+    "cell": 30,
+    "raw": 8395,
+    "remapped": 5067,
+    "group": 5,
+    "delta": -3328,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6859,
+    "oracle_group": 6,
+    "witness_lo": 8395,
+    "witness_hi": 8395,
+    "owner": "NECRO",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "saca",
+    "script": 63,
+    "cell": 43,
+    "raw": 8403,
+    "remapped": 5075,
+    "group": 5,
+    "delta": -3328,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6867,
+    "oracle_group": 6,
+    "witness_lo": 8403,
+    "witness_hi": 8403,
+    "owner": "NECRO",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "saca",
+    "script": 63,
+    "cell": 53,
+    "raw": 8410,
+    "remapped": 5082,
+    "group": 5,
+    "delta": -3328,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6874,
+    "oracle_group": 6,
+    "witness_lo": 8410,
+    "witness_hi": 8410,
+    "owner": "NECRO",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "saca",
+    "script": 63,
+    "cell": 62,
+    "raw": 8418,
+    "remapped": 5090,
+    "group": 5,
+    "delta": -3328,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6882,
+    "oracle_group": 6,
+    "witness_lo": 8418,
+    "witness_hi": 8418,
+    "owner": "NECRO",
+    "dead": false
+   },
+   {
+    "cls": "manu_cg_delta_xchar_divergent",
+    "table": "saca",
+    "script": 63,
+    "cell": 72,
+    "raw": 8426,
+    "remapped": 5098,
+    "group": 5,
+    "delta": -3328,
+    "oracle_delta": -1536,
+    "oracle_remapped": 6890,
+    "oracle_group": 6,
+    "witness_lo": 8426,
+    "witness_hi": 8426,
+    "owner": "NECRO",
     "dead": false
    }
   ],
@@ -28985,17 +29970,23 @@
    "manu_direct": 6,
    "manu_bracketed": 3,
    "manu_no_live_cells": 0,
-   "manu_unresolved": 2,
+   "manu_unresolved": 0,
    "manu_divergent": 2,
+   "manu_xchar": 0,
+   "manu_xchar_divergent": 2,
+   "group_unobserved": 0,
+   "group_gate_live_cells": 5334,
    "manu_oracle_raws": 1040,
    "manu_oracle_conflicts": 0,
    "manu_sub_cutoff_obs": 0,
-   "manu_cells_bracket_disagree": 22,
+   "manu_cells_bracket_disagree": 0,
    "manu_cells_bracketed": 4,
    "manu_cells_direct": 96,
    "manu_cells_divergent": 5,
    "manu_cells_sub_cutoff": 31,
    "manu_cells_unbracketed": 0,
+   "manu_cells_xchar": 0,
+   "manu_cells_xchar_divergent": 22,
    "a_oob": 0,
    "b_gap": 0,
    "c_wrong_group": 0,
@@ -29020,6 +30011,11 @@
    "oob_phantom": 32,
    "oob_not_phantom": 0
   },
+  "observed_landing_groups": [
+   2,
+   3,
+   20
+  ],
   "over_declared_sections": [
    {
     "table": "yuca",
@@ -29114,7 +30110,24 @@
      false
     ],
     "ovct_parts": 42,
-    "live": false
+    "live": false,
+    "ps2_entries": 33,
+    "ps2_past_ovix": 16120,
+    "ps2_section": "hiit",
+    "ps2_slots": [
+     184,
+     0,
+     81,
+     0
+    ],
+    "ps2_ovct_parts": 44,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     false,
+     true
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2464,
@@ -29136,7 +30149,24 @@
      true
     ],
     "ovct_parts": 42,
-    "live": false
+    "live": false,
+    "ps2_entries": 33,
+    "ps2_past_ovix": 19448,
+    "ps2_section": "boda",
+    "ps2_slots": [
+     6,
+     23,
+     92,
+     19
+    ],
+    "ps2_ovct_parts": 44,
+    "ps2_slots_in_ovct": [
+     true,
+     true,
+     false,
+     true
+    ],
+    "ps2_identical": false
    },
    {
     "index": 2608,
@@ -29158,7 +30188,24 @@
      true
     ],
     "ovct_parts": 42,
-    "live": false
+    "live": false,
+    "ps2_entries": 33,
+    "ps2_past_ovix": 20600,
+    "ps2_section": "boda",
+    "ps2_slots": [
+     -9,
+     25,
+     94,
+     22
+    ],
+    "ps2_ovct_parts": 44,
+    "ps2_slots_in_ovct": [
+     false,
+     true,
+     false,
+     true
+    ],
+    "ps2_identical": false
    }
   ],
   "ovct_dangling_hold": {

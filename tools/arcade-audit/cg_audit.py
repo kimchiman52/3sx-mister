@@ -1480,6 +1480,16 @@ def ovix_oob_targets(ci):
     while hi + 1 < len(secs) and secs[hi][2] == secs[hi + 1][1]: hi += 1
     run = (secs[lo][1], secs[hi][2])
     npart = LOC[ci]['ovct'][1] // 16
+    # doc §33: the §6.1 control, which §32.8 listed as unmeasured ("What the PS2 does at
+    # `olc_ix_table[2277]` ... no §6.1 control").  The PS2's own image is ONE contiguous blob whose
+    # 25 section offsets `ps2_spans` reads, so the same OVIX index reads there too -- and it reads
+    # DIFFERENT bytes, because the two releases' OVIX and OVCT are different sizes.  Reading the
+    # PS2's bytes here is what decides whether an overrun is pre-existing or arcade-only: §6.1 covers
+    # the defect only where both sides land on the same thing.
+    blob, bsd = ps2_tail(ci); poffs, psp = ps2_spans(blob)
+    pob, posz = psp[SECTIONS.index('ovix')]
+    pcb, pcsz = psp[SECTIONS.index('ovct')]
+    pnpart = pcsz // 16
     rows = []
     for idx in sorted(set(rr['arcade']['ovix_oob'] or [])):
         p = ob + idx * 8
@@ -1487,14 +1497,49 @@ def ovix_oob_targets(ci):
         img = section_image(ci, t[0]) if t else None
         slots = (list(struct.unpack_from('<4h', img, p - t[1]))
                  if (img is not None and p - t[1] + 8 <= len(img)) else None)
+        pp = pob + idx * 8
+        pt2 = next((s for s in SECTIONS if psp[SECTIONS.index(s)][0] <= pp
+                    < psp[SECTIONS.index(s)][0] + psp[SECTIONS.index(s)][1]), None)
+        pslots = (list(struct.unpack_from('<4h', blob, pp)) if pp + 8 <= len(blob) else None)
         rows.append(dict(index=idx, byte=p, past_ovix=p - (ob + osz),
                          section=(t[0] if t else None), section_offset=(p - t[1] if t else None),
                          in_run=bool(run[0] <= p < run[1]), slots=slots,
                          slots_in_ovct=(None if slots is None else
                                         [bool(0 <= v < npart) for v in slots]),
-                         ovct_parts=npart, live=bool(idx in (rr['arcade']['ovix_oob_pre'] or []))))
+                         ovct_parts=npart, live=bool(idx in (rr['arcade']['ovix_oob_pre'] or [])),
+                         ps2_entries=posz // 8, ps2_past_ovix=pp - (pob + posz),
+                         ps2_section=pt2, ps2_slots=pslots, ps2_ovct_parts=pnpart,
+                         ps2_slots_in_ovct=(None if pslots is None else
+                                            [bool(0 <= v < pnpart) for v in pslots]),
+                         ps2_identical=bool(pslots is not None and slots is not None and pslots == slots)))
     _OVIXT_CACHE[ci] = rows
     return rows
+
+def parts_col_census():
+    """The second-order reads an out-of-bounds `OverlapPart` feeds, and what real data does.
+
+    `eff01.c` -> `get_new_parts_data` uses two of the part's `u8` fields as INDICES into fixed const
+    tables with no bound check -- `parts_colmd_table[parts_colmd]` (reached for colmd >= 2, since 0
+    takes the else and 1 takes the target-work branch) and `parts_colcd_table[parts_colcd]` (reached
+    for every nonzero colcd).  So a part read from outside the allocation does not merely yield a
+    wrong sprite: two arbitrary bytes of it index 4- and 28-byte `.rodata` arrays, and the values
+    that come back become `my_col_mode` and `my_col_code` -- collision state, not cosmetics.
+
+    Measured here so the claim "real data never does this" is a number rather than an assumption:
+    the census walks every `OverlapPart` of every character's OVCT and reports the observed range of
+    both fields against the two table sizes, parsed from the source."""
+    s = src("src/sf33rd/Source/Game/effect/eff01.c")
+    nmd = int(re.search(r'const s16 parts_colmd_table\[(\d+)\]', s).group(1))
+    ncd = int(re.search(r'const s16 parts_colcd_table\[(\d+)\]', s).group(1))
+    md, cd, tot = collections.Counter(), collections.Counter(), 0
+    for ci in range(20):
+        img = section_image(ci, 'ovct'); n = LOC[ci]['ovct'][1] // 16
+        for k in range(n):
+            md[img[k * 16 + 4]] += 1; cd[img[k * 16 + 5]] += 1; tot += 1
+    return dict(colmd_table=nmd, colcd_table=ncd, parts=tot,
+                colmd_values=sorted(md), colcd_values=sorted(cd),
+                colmd_oob=sum(v for k, v in md.items() if k >= nmd),
+                colcd_oob=sum(v for k, v in cd.items() if k >= ncd))
 
 _K7_DEAD_CACHE = {}
 def k7_entry_walk(ci):
@@ -2174,6 +2219,194 @@ def caua_hosa_fit(ci):
     return out
 
 # ---------------------------------------------------------------- shape-mismatched scripts: is the CG remap confirmed? (doc §29)
+_ORACLE_CACHE = {}
+def char_oracle(ci):
+    """The per-character raw `cg_number` -> observed PS2 delta map, built from the SHAPE-OK scripts.
+
+    Factored out of `manu_delta_gate` so `cross_char_owners()` can build all twenty without
+    re-parsing (both callers share this cache, so the audit still parses each character once).
+
+    A raw observed with two different deltas is DROPPED (`conflict`), never resolved by majority:
+    an ambiguous raw may only fail to confirm, never confirm.  Sub-cutoff raws are counted
+    separately because `remap_cg_number` returns them before it looks at any range."""
+    if ci in _ORACLE_CACHE: return _ORACLE_CACHE[ci]
+    arc = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+    blob, bsd = ps2_tail(ci); offs, sp = ps2_spans(blob)
+    pt = {}
+    for sec in KOC2SEC.values():
+        b, z = sp[SECTIONS.index(sec)]
+        pt[sec] = (b, z, ps2_offsets(blob, b))
+    parsed, obs, conflict = [], {}, set()
+    subcut_obs = subcut_nonzero = 0
+    for sec in KOC2SEC.values():                     # KOC2SEC is insertion-ordered: deterministic
+        pn = len(pt[sec][2])
+        for si in range(len(arc[sec])):
+            a = arc_parse(ci, sec, si, arc)[1]
+            p = ps2_parse(blob, pt[sec][0], pt[sec][1], pt[sec][2], si)[1] if si < pn else None
+            ok = (p is not None and len(p) == len(a) and all(x[0] == y[0] for x, y in zip(a, p)))
+            parsed.append((sec, si, a, p, ok))
+            if not ok: continue
+            for x, y in zip(a, p):
+                if x[0] != 'L': continue
+                r, d = x[1]['num'], y[1]['num'] - x[1]['num']
+                if r in obs and obs[r] != d: conflict.add(r)   # two deltas for one raw: unusable
+                obs[r] = d
+                if r < CG_REMAP_CUTOFF: subcut_obs += 1; subcut_nonzero += (d != 0)
+    for r in conflict:
+        assert r >= CG_REMAP_CUTOFF, (NAMES[ci], r)   # a sub-cutoff raw can never be ambiguous
+        obs.pop(r, None)
+    assert subcut_nonzero == 0, (NAMES[ci], subcut_nonzero)
+    out = (parsed, obs, conflict, subcut_obs)
+    _ORACLE_CACHE[ci] = out
+    return out
+
+# ---------------------------------------------------------------- the cross-character (owner) oracle (doc §33)
+#
+# WHAT THIS SETTLES.  `manu_delta_gate`'s oracle is built from ONE character's shape-ok scripts, so a
+# raw that character's shape-ok scripts never touch is unconfirmable by it -- and doc §32.4 named
+# exactly that as the reason REMY `saca[63]`'s five raws could not be read: Remy observes no raw at
+# all in `0x0C02`..`0x7140`, so nothing can bracket the band they sit in.  A second, INDEPENDENT
+# oracle exists and had never been built: the other nineteen characters' shape-ok scripts.
+#
+# The arcade `cg_number` is a GLOBAL index -- `remap_cg_number`'s delta is per-character only because
+# each character's own sprites live in a different place in the two releases.  Which character a raw
+# BELONGS to is therefore readable from the PS2 side: `obj_group_table[ps2_index]` names the owning
+# group, and group == character index + 1 for the twenty character groups (the `own_group` already in
+# the JSON).  So:
+#
+#   owner(raw)   the unique character X whose own shape-ok observation of `raw` lands in X's OWN
+#                group -- i.e. `raw` is X's sprite.  Raws claimed by two characters at once are
+#                NOT uniquely owned and are excluded by construction (measured: 9 of 17,794, all in
+#                `0x0C92`..`0x0CC5`).
+#
+# and the law the whole gate rests on, which is MEASURED and has no exception:
+#
+#   BORROW LAW.  Every shape-ok observation whose PS2 index lands OUTSIDE the observing character's
+#   own group uses the OWNER's delta.  Measured cast-wide: 117 such observations with a known owner,
+#   117 use the owner's delta, 0 use a different one (asserted below).  The converse set -- an
+#   observation landing in the observer's own group whose raw is owned by somebody else -- is EMPTY
+#   (also asserted).  This is the same fact `remy_cg_ranges`' `0x0601` row (doc §8.K), its nineteen
+#   Alex-bank siblings (§8.N) and `twelve_cg_ranges`' `0x1E01..0x2095` row (§8.S) each encode one
+#   instance of; nothing here is fitted to the cells it adjudicates.
+#
+# FAILS TOWARD THE FINDING.  The gate only ever fires where `manu_delta_gate`'s own oracle already
+# declined, so no confirmed cell is reclassified; a raw with no unique owner, or with disagreeing
+# owner witnesses, stays unresolved.  Its positive verdict (`xchar`) is recorded but is NOT used to
+# clear anything the per-character oracle left open -- only the negative one (`xchar_divergent`) is
+# acted on, because a cross-character witness is a weaker oracle than a same-character one and must
+# not be able to declare a cell benign.
+_OWNER_CACHE = {}
+def cross_char_owners():
+    """`(owner, law)`: `owner[raw] = (ci, delta)` for every uniquely-owned raw >= the cutoff, and the
+    measured statistics of the borrow law the gate rests on."""
+    if _OWNER_CACHE: return _OWNER_CACHE['owner'], _OWNER_CACHE['law']
+    byraw = collections.defaultdict(dict)
+    for ci in range(20):
+        for r, d in char_oracle(ci)[1].items():
+            if r >= CG_REMAP_CUTOFF: byraw[r][ci] = d
+    def grp(v): return OGT[v] if 0 <= v < OGT_N else None
+    owner, multi_owner = {}, []
+    for r in sorted(byraw):
+        ow = sorted(ci for ci, d in byraw[r].items() if grp(r + d) == ci + 1)
+        if len(ow) == 1: owner[r] = (ow[0], byraw[r][ow[0]])
+        elif len(ow) > 1: multi_owner.append(r)
+    borrow_ok = borrow_bad = borrow_noowner = own_group_foreign = 0
+    for ci in range(20):
+        for r, d in sorted(char_oracle(ci)[1].items()):
+            if r < CG_REMAP_CUTOFF: continue
+            if grp(r + d) == ci + 1:
+                if r in owner and owner[r][0] != ci: own_group_foreign += 1
+                continue
+            if r not in owner: borrow_noowner += 1
+            elif owner[r][1] == d:  borrow_ok += 1
+            else:                   borrow_bad += 1
+    # The law, asserted rather than described.  If either of these ever fires the gate below is
+    # unsound and must not be trusted -- that is the point of asserting them on every run.
+    assert borrow_bad == 0, borrow_bad
+    assert own_group_foreign == 0, own_group_foreign
+    law = dict(raws=len(byraw), uniquely_owned=len(owner), multi_owner=len(multi_owner),
+               multi_owner_lo=(min(multi_owner) if multi_owner else None),
+               multi_owner_hi=(max(multi_owner) if multi_owner else None),
+               borrow_owner_delta=borrow_ok, borrow_other_delta=borrow_bad,
+               borrow_no_owner=borrow_noowner, own_group_foreign_raw=own_group_foreign,
+               shared_by_2plus=sum(1 for r in byraw if len(byraw[r]) > 1))
+    _OWNER_CACHE['owner'], _OWNER_CACHE['law'] = owner, law
+    return owner, law
+
+def owner_verdict(raw, ci, ours):
+    """What the cross-character oracle says about `raw` for character `ci`, or None if it is silent.
+
+    Returns `(verdict, want, witness_lo, witness_hi, owner_ci)`.  Two ways in, both requiring the
+    witness(es) to be OWNER observations -- the strongest form available, since an owner observation
+    is by definition the sprite's own character reading its own bank:
+
+      direct    `raw` is itself uniquely owned; the owner's delta is what the borrow law predicts.
+      bracket   `raw` is unowned, but the nearest owned raw below and above have the SAME owner AND
+                the same delta, so the owner's band spans the gap.
+
+    Anything else -- no owner either side, two different owners, or two different deltas -- returns
+    None and the cell keeps `manu_delta_gate`'s own `unbracketed` / `bracket_disagree`."""
+    owner, _ = cross_char_owners()
+    keys = _owner_keys()
+    if raw in owner:
+        oc, d = owner[raw]
+        return (('xchar' if ours == d else 'xchar_divergent'), d, raw, raw, oc)
+    k = bisect.bisect_left(keys, raw)
+    lo = keys[k - 1] if k > 0 else None
+    hi = keys[k] if k < len(keys) else None
+    if lo is None or hi is None: return None
+    if owner[lo][0] != owner[hi][0] or owner[lo][1] != owner[hi][1]: return None
+    d, oc = owner[lo][1], owner[lo][0]
+    return (('xchar' if ours == d else 'xchar_divergent'), d, lo, hi, oc)
+
+_OWNER_KEYS = []
+def _owner_keys():
+    if not _OWNER_KEYS: _OWNER_KEYS.extend(sorted(cross_char_owners()[0]))
+    return _OWNER_KEYS
+
+def group_unobserved_gate(ci, skip):
+    """Live L-cells whose remapped `cg_number` lands in a group this character is NEVER observed to use.
+
+    Independent of every delta oracle: it compares only the OWNING GROUP of the index the port
+    actually produces against the set of groups that character's own shape-ok pairings are measured
+    to land in.  A character's observed set is its own group plus whatever banks it is measured to
+    borrow from (REMY {2, 3, 20}: Alex, Ryu, his own -- doc §8.K/§8.N; TWELVE {6, 19}: Necro and his
+    own -- §8.S), so a landing outside it is a sprite from a bank nothing shows this character ever
+    reaching into.  Cells `manu_delta_gate` already reports (`skip`) are not re-reported here.
+
+    Cast-wide this is very nearly silent -- 19 of 125,165 live L-cells with a raw >= the cutoff --
+    which is what makes it usable: it is not a threshold, it is a set membership test with no
+    parameter to tune.  Cells already caught by `a_ogt_oob` (index past the table) or `b_group_gap`
+    (group 0) are left to those classes."""
+    owner, _ = cross_char_owners()
+    lg = set()
+    for r, d in char_oracle(ci)[1].items():
+        if r < CG_REMAP_CUTOFF: continue
+        g = OGT[r + d] if 0 <= r + d < OGT_N else None
+        if g is not None: lg.add(g)
+    arc = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
+    dead_all = k7_entry_walk(ci)
+    rows, cells = [], 0
+    for sec in KOC2SEC.values():
+        for si in range(len(arc[sec])):
+            a = arc_parse(ci, sec, si, arc)[1]
+            dead = dead_all[(sec, si)]
+            for i, c in enumerate(a):
+                if c[0] != 'L' or i in dead: continue
+                raw = c[1]['num']
+                if raw < CG_REMAP_CUTOFF: continue
+                cells += 1
+                rm = remap(raw, ci)
+                if rm >= OGT_N: continue                  # a_ogt_oob owns this
+                g = OGT[rm]
+                if g == 0 or g in lg or (sec, si, i) in skip: continue
+                ov = owner.get(raw)
+                rows.append(dict(cls='d_group_unobserved', table=sec, script=si, cell=i, raw=raw,
+                                 remapped=rm, group=g, observed_groups=sorted(lg),
+                                 owner=(NAMES[ov[0]] if ov else None),
+                                 owner_delta=(ov[1] if ov else None), dead=False))
+    return dict(rows=rows, live_cells=cells, observed_groups=sorted(lg))
+
 _MANU_CACHE = {}
 def manu_delta_gate(ci):
     """Adjudicate `cg_number` for every shape-mismatched script -- the `manu` column.
@@ -2207,6 +2440,12 @@ def manu_delta_gate(ci):
                         (`sub_cutoff_obs`, asserted) and no sub-cutoff raw ever enters `conflict`
                         (asserted).  Cells the oracle DID confirm keep `direct`/`bracketed`, which
                         rest on an observation and are strictly stronger (doc §32.4).
+      xchar             this character's oracle declined, but the raw's OWNING character's oracle
+                        (`cross_char_owners`, doc §33) pins the delta and ours equals it.  Recorded,
+                        but deliberately NOT counted as a confirmation anywhere: a cross-character
+                        witness is weaker than a same-character one and may not clear a cell.
+      xchar_divergent   the owning character's oracle CONTRADICTS our delta.  Acted on -- the
+                        negative direction is the one the house rule requires be believed.
       divergent         an observation -- direct, or a bracketing agreement -- CONTRADICTS our
                         delta.  This is the class-(c) finding the shape mismatch was hiding.
 
@@ -2219,36 +2458,12 @@ def manu_delta_gate(ci):
     live -- including post-terminator ones, which is the stricter choice.
     """
     if ci in _MANU_CACHE: return _MANU_CACHE[ci]
-    arc = {sec: arc_offsets(*LOC[ci][sec]) for sec in KOC2SEC.values()}
-    blob, bsd = ps2_tail(ci); offs, sp = ps2_spans(blob)
-    pt = {}
-    for sec in KOC2SEC.values():
-        b, z = sp[SECTIONS.index(sec)]
-        pt[sec] = (b, z, ps2_offsets(blob, b))
-    parsed, obs, conflict = [], {}, set()
-    subcut_obs = subcut_nonzero = 0
-    for sec in KOC2SEC.values():                     # KOC2SEC is insertion-ordered: deterministic
-        pn = len(pt[sec][2])
-        for si in range(len(arc[sec])):
-            a = arc_parse(ci, sec, si, arc)[1]
-            p = ps2_parse(blob, pt[sec][0], pt[sec][1], pt[sec][2], si)[1] if si < pn else None
-            ok = (p is not None and len(p) == len(a) and all(x[0] == y[0] for x, y in zip(a, p)))
-            parsed.append((sec, si, a, p, ok))
-            if not ok: continue
-            for x, y in zip(a, p):
-                if x[0] != 'L': continue
-                r, d = x[1]['num'], y[1]['num'] - x[1]['num']
-                if r in obs and obs[r] != d: conflict.add(r)   # two deltas for one raw: unusable
-                obs[r] = d
-                if r < CG_REMAP_CUTOFF: subcut_obs += 1; subcut_nonzero += (d != 0)
-    for r in conflict:
-        assert r >= CG_REMAP_CUTOFF, (NAMES[ci], r)   # a sub-cutoff raw can never be ambiguous
-        obs.pop(r, None)
-    assert subcut_nonzero == 0, (NAMES[ci], subcut_nonzero)
+    parsed, obs, conflict, subcut_obs = char_oracle(ci)
     keys = sorted(obs)
     dead_all = k7_entry_walk(ci)
     scripts, rows = {}, []
-    cellcls = dict(direct=0, bracketed=0, bracket_disagree=0, unbracketed=0, sub_cutoff=0, divergent=0)
+    cellcls = dict(direct=0, bracketed=0, bracket_disagree=0, unbracketed=0, sub_cutoff=0,
+                   xchar=0, xchar_divergent=0, divergent=0)
     for sec, si, a, p, ok in parsed:
         if p is None or ok or not a: continue        # exactly audit()'s `needs_manual_diff` set
         dead = dead_all[(sec, si)]
@@ -2271,17 +2486,27 @@ def manu_delta_gate(ci):
                 if v in ('unbracketed', 'bracket_disagree') and raw < CG_REMAP_CUTOFF:
                     assert ours == 0, (NAMES[ci], raw, ours)   # remap_cg_number's early return
                     want, v = 0, 'sub_cutoff'                  # settled, and NOT by the oracle
+            oc = None
+            if v in ('unbracketed', 'bracket_disagree'):
+                # doc §33: this character's own oracle has declined.  Ask the owning character's.
+                xv = owner_verdict(raw, ci, ours)
+                if xv is not None: v, want, lo, hi, oc = xv
             vs.append(v); cellcls[v] += 1
-            if v == 'divergent':
-                rows.append(dict(cls='manu_cg_delta_divergent', table=sec, script=si, cell=i,
+            if v in ('divergent', 'xchar_divergent'):
+                rows.append(dict(cls=('manu_cg_delta_divergent' if v == 'divergent'
+                                      else 'manu_cg_delta_xchar_divergent'),
+                                 table=sec, script=si, cell=i,
                                  raw=raw, remapped=rm, group=(OGT[rm] if rm < OGT_N else None),
                                  delta=ours, oracle_delta=want, oracle_remapped=raw + want,
                                  oracle_group=(OGT[raw + want] if 0 <= raw + want < OGT_N else None),
-                                 witness_lo=lo, witness_hi=hi, dead=False))
+                                 witness_lo=lo, witness_hi=hi, owner=(NAMES[oc] if oc is not None else None),
+                                 dead=False))
         if not vs:                                                    k = 'no_live_cells'
         elif 'divergent' in vs:                                       k = 'divergent'
+        elif 'xchar_divergent' in vs:                                 k = 'xchar_divergent'
         elif 'unbracketed' in vs or 'bracket_disagree' in vs:         k = 'unresolved'
         elif 'bracketed' in vs:                                       k = 'bracketed'
+        elif 'xchar' in vs:                                           k = 'xchar'
         else:                                                         k = 'direct'
         scripts[(sec, si)] = k
     out = dict(scripts=scripts, rows=rows, cells=cellcls,
@@ -2634,6 +2859,13 @@ def audit(cgmap_override=None, quiet=False):
         # (section, script, cell) order, which is deterministic, so the JSON stays byte-stable.
         mg = manu_delta_gate(ci)
         rec['violations'].extend(mg['rows'])
+        # doc §33: and the group-landing gate, which needs no delta oracle at all.  It runs over
+        # EVERY live L-cell, not just the `manu` ones, so it also reaches the `extra_script_no_oracle`
+        # scripts the PS2 release does not have -- where no delta oracle can ever exist.  Cells
+        # `manu_delta_gate` has already reported are skipped so nothing is counted twice.
+        gg = group_unobserved_gate(ci, {(r['table'], r['script'], r['cell']) for r in mg['rows']})
+        rec['violations'].extend(gg['rows'])
+        rec['observed_landing_groups'] = gg['observed_groups']
         # OVCT / OVIX counts
         a_ovct = LOC[ci]['ovct'][1] // 16; a_ovix = LOC[ci]['ovix'][1] // 8
         p_ovct = sp[SECTIONS.index('ovct')][1] // 16; p_ovix = sp[SECTIONS.index('ovix')][1] // 8
@@ -2826,6 +3058,12 @@ def audit(cgmap_override=None, quiet=False):
                             manu_no_live_cells=mg['script_cls'].get('no_live_cells', 0),
                             manu_unresolved=mg['script_cls'].get('unresolved', 0),
                             manu_divergent=mg['script_cls'].get('divergent', 0),
+                            # doc §33: the cross-character (owner) oracle's two verdicts, and the
+                            # group-landing gate.  `manu_xchar` is recorded, never used to clear.
+                            manu_xchar=mg['script_cls'].get('xchar', 0),
+                            manu_xchar_divergent=mg['script_cls'].get('xchar_divergent', 0),
+                            group_unobserved=len(gg['rows']),
+                            group_gate_live_cells=gg['live_cells'],
                             manu_oracle_raws=mg['oracle_raws'],
                             manu_oracle_conflicts=mg['oracle_conflicts'],
                             manu_sub_cutoff_obs=mg['sub_cutoff_obs'],
@@ -2919,6 +3157,12 @@ if __name__ == "__main__":
         if s['manu_unresolved']: t += " ?%d" % s['manu_unresolved']
         if s['manu_divergent']:
             t += " DIVERGENT(%d scripts,%d cells)!" % (s['manu_divergent'], s['manu_cells_divergent'])
+        # doc §33: the owning character's oracle contradicts the remap where this character's own
+        # oracle had nothing to say.  A weaker witness than DIVERGENT, so it gets its own name.
+        if s['manu_xchar_divergent']:
+            t += " XCHAR-DIVERGENT(%d scripts,%d cells)!" % (s['manu_xchar_divergent'],
+                                                             s['manu_cells_xchar_divergent'])
+        if s['group_unobserved']: t += " grp!%d" % s['group_unobserved']
         return t
     for n in NAMES:
         r = res[n]; s = r['stats']
@@ -2936,16 +3180,52 @@ if __name__ == "__main__":
     print("cells audited:", T['cells'])
     # doc §29: the 316 shape-mismatched scripts, adjudicated per raw cg_number.  The five script
     # classes sum to `manu`; the cell classes sum to every live L-cell in those scripts.
-    print("shape-mismatched (manu) scripts: %d = %d direct + %d bracketed + %d no-live-cells + %d unresolved + %d DIVERGENT"
+    print("shape-mismatched (manu) scripts: %d = %d direct + %d bracketed + %d no-live-cells + %d unresolved "
+          "+ %d xchar + %d XCHAR-DIVERGENT + %d DIVERGENT"
           % (T['needs_manual'], T['manu_direct'], T['manu_bracketed'], T['manu_no_live_cells'],
-             T['manu_unresolved'], T['manu_divergent']))
-    print("  their live L-cells: %d = %d direct + %d bracketed + %d sub-cutoff + %d bracket-disagree + %d unbracketed + %d DIVERGENT"
+             T['manu_unresolved'], T['manu_xchar'], T['manu_xchar_divergent'], T['manu_divergent']))
+    print("  their live L-cells: %d = %d direct + %d bracketed + %d sub-cutoff + %d bracket-disagree + %d unbracketed "
+          "+ %d xchar + %d XCHAR-DIVERGENT + %d DIVERGENT"
           % (sum(T['manu_cells_' + k] for k in ('direct', 'bracketed', 'sub_cutoff', 'bracket_disagree',
-                                                'unbracketed', 'divergent')),
+                                                'unbracketed', 'xchar', 'xchar_divergent', 'divergent')),
              T['manu_cells_direct'], T['manu_cells_bracketed'], T['manu_cells_sub_cutoff'],
-             T['manu_cells_bracket_disagree'], T['manu_cells_unbracketed'], T['manu_cells_divergent']))
+             T['manu_cells_bracket_disagree'], T['manu_cells_unbracketed'],
+             T['manu_cells_xchar'], T['manu_cells_xchar_divergent'], T['manu_cells_divergent']))
     print("  sub-cutoff band (raw < 0x%X, remap_cg_number's early return): %d shape-ok observations "
           "cast-wide, every one delta +0 (asserted)" % (CG_REMAP_CUTOFF, T['manu_sub_cutoff_obs']))
+    # doc §33: the cross-character (owner) oracle, and the borrow law it rests on.  Both figures on
+    # the second line are ASSERTED in `cross_char_owners()`, so this line is a print of a check that
+    # has already had to pass, not a claim the reader has to take on trust.
+    _own, _law = cross_char_owners()
+    print("cross-character oracle: %d raw(s) >= the cutoff observed cast-wide, %d uniquely owned, "
+          "%d claimed by two or more characters (0x%04X..0x%04X, excluded), %d shared by 2+ observers"
+          % (_law['raws'], _law['uniquely_owned'], _law['multi_owner'],
+             _law['multi_owner_lo'], _law['multi_owner_hi'], _law['shared_by_2plus']))
+    print("  borrow law: %d observation(s) land outside the observer's own group; %d use the OWNER's "
+          "delta, %d use another (asserted 0), %d have no observed owner; %d observation(s) land in the "
+          "observer's own group while owned by someone else (asserted 0)"
+          % (_law['borrow_owner_delta'] + _law['borrow_other_delta'] + _law['borrow_no_owner'],
+             _law['borrow_owner_delta'], _law['borrow_other_delta'], _law['borrow_no_owner'],
+             _law['own_group_foreign_raw']))
+    print("  group-landing gate: %d live L-cell(s) with raw >= the cutoff cast-wide, %d land in a group "
+          "their character is never observed to use" % (T['group_gate_live_cells'], T['group_unobserved']))
+    for n in NAMES:
+        for cls_ in ('manu_cg_delta_xchar_divergent', 'd_group_unobserved'):
+            d = [v for v in res[n]['violations'] if v['cls'] == cls_]
+            for (sec, si) in sorted(set((v['table'], v['script']) for v in d)):
+                g = [v for v in d if v['table'] == sec and v['script'] == si]
+                if cls_ == 'd_group_unobserved':
+                    print("  %s %s[%d]: %d cell(s) landing in group %s, never observed for %s (observed %s) "
+                          "-- raw 0x%04X..0x%04X, ours -> %d..%d"
+                          % (n, sec, si, len(g), g[0]['group'], n, g[0]['observed_groups'],
+                             min(v['raw'] for v in g), max(v['raw'] for v in g),
+                             min(v['remapped'] for v in g), max(v['remapped'] for v in g)))
+                else:
+                    print("  %s %s[%d]: %d cell(s) where %s's oracle (the raw's owner) contradicts the remap "
+                          "-- raw 0x%04X..0x%04X, ours %+d -> group %s, owner %+d -> group %s"
+                          % (n, sec, si, len(g), g[0]['owner'],
+                             min(v['raw'] for v in g), max(v['raw'] for v in g),
+                             g[0]['delta'], g[0]['group'], g[0]['oracle_delta'], g[0]['oracle_group']))
     for n in NAMES:
         d = [v for v in res[n]['violations'] if v['cls'] == 'manu_cg_delta_divergent']
         for (sec, si) in sorted(set((v['table'], v['script']) for v in d)):
@@ -3017,6 +3297,18 @@ if __name__ == "__main__":
                   % (n, t['index'], t['section'], t['section_offset'], t['past_ovix'], t['in_run'],
                      t['slots'], ["ok" if v else "OOB" for v in (t['slots_in_ovct'] or [])],
                      t['ovct_parts'], "  LIVE" if t['live'] else ""))
+            # doc §33: the §6.1 control on the same index, measured on the PS2's own image.
+            print("      PS2 control: index %d is %d B past the PS2's %d-entry OVIX, lands in %s, "
+                  "reads %s -> OVCT parts %s of %d; identical to the arcade read: %s"
+                  % (t['index'], t['ps2_past_ovix'], t['ps2_entries'], t['ps2_section'], t['ps2_slots'],
+                     ["ok" if v else "OOB" for v in (t['ps2_slots_in_ovct'] or [])],
+                     t['ps2_ovct_parts'], t['ps2_identical']))
+    _pc = parts_col_census()
+    print("  OverlapPart second-order indices (eff01.c -> get_new_parts_data): parts_colmd_table[%d], "
+          "parts_colcd_table[%d]; over %d real part(s) cast-wide colmd is %s and colcd is %s -- %d and %d "
+          "past their table.  Only a part read from outside the data can index either out of range."
+          % (_pc['colmd_table'], _pc['colcd_table'], _pc['parts'], _pc['colmd_values'], _pc['colcd_values'],
+             _pc['colmd_oob'], _pc['colcd_oob']))
     # doc §32.5: the re-filing's size -- nodes at or past their own frame's declared end, and the
     # frames they sit in.  §31.1 wrote 3,660/211 for exactly this and §31.11 could not place either.
     print("span re-file census: %d node(s) at or past their frame's declared end, over %d frame(s); "
