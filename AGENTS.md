@@ -20,6 +20,29 @@
 - Canonical build command: `tools/mister/build-game.sh --flavor telemetry`
 - Do not start with a host-local `cmake -B build/mister` flow. The build helper is the canonical path because it produces real ARM MiSTer outputs via Docker cross-compilation.
 - Full build/package/deploy/probe workflow is in [docs/mister-runbook.md](docs/mister-runbook.md).
+
+### Gates: never throttle the frame-data golden suite
+
+- **Run `tools/frame-data/run-suite.sh --check-golden` with NO `--jobs` flag.**
+  Its default is `hw.logicalcpu - 1` and that is the right value. Measured
+  2026-09-06 on the 4P+6E dev machine: **99/99 GREEN in 832 s (~14 min)** at the
+  default. The same suite at `--jobs 3`, with one sibling agent running
+  alongside, took **~50 minutes** — essentially the serial time (1,491 labels
+  across 100 corpora at the tree's recorded 2.16 s/label ≈ 53.7 min serial).
+  Throttling buys nothing and costs 3-4x.
+- **A gate run gets the machine to itself.** Do not start a second CPU-bound
+  agent while the golden suite or a statcheck corpus sweep is running. Contention
+  is what turned a 14-minute job into 50. Static-analysis and documentation
+  agents are cheap and may run alongside.
+- **`--jobs 6` is the floor**, and only if efficiency-core scheduling is
+  producing repeated timeouts. Never lower.
+- **A corpus exiting 143 is harness noise, not drift.** That is the `timeout`
+  wrapper's SIGTERM; the per-corpus cap scales by label count, so a run that
+  lands on an efficiency core can trip it. Re-run that single corpus before
+  reporting a failure.
+- Scope the gate to what the change can reach: a tooling- or docs-only change
+  does not need the corpus sweep, the golden suite, or a device build. Say out
+  loud which gates you skipped and why.
 - FPGA core builds (Quartus) run in the Colima `quartus2` VM, not Docker. See [docs/agent-memory/mister-wrapper-quartus.md](docs/agent-memory/mister-wrapper-quartus.md).
 
 ## Workflow
