@@ -79,6 +79,12 @@ constexpr const char *kRuntimeLibDir = "/media/fat/games/3s-arm/lib";
 constexpr const char *kLogDir = "/media/fat/games/3s-arm/logs";
 constexpr const char *kWrapperLogPath = "/media/fat/games/3s-arm/logs/osd-wrapper.log";
 constexpr const char *kLastRunLogPath = "/media/fat/games/3s-arm/logs/last-run.log";
+// Grace period between the SIGTERM that asks the runtime to exit and the
+// SIGKILL that makes it. Generous on purpose: the child leaves its loop at a
+// frame boundary and then runs cleanup() (ReplayShuffle_Destroy,
+// ReplayPlayer_Destroy, AFS_Finish, SDLApp_Quit), none of which is instant.
+constexpr int kChildTermGraceMs = 5000;
+
 constexpr const char *kRuntimeScaleModeEnv = "THIRDSARM_SCALE_MODE_STARTUP_OVERRIDE";
 constexpr const char *kRuntimeScaleModeExplicitMarker = "# thirdsarm-wrapper-scale-mode-explicit";
 constexpr const char *kRuntimeScaleModeAutoMarker = "# thirdsarm-wrapper-scale-mode-auto";
@@ -2645,9 +2651,31 @@ const char *wrapper_rbf_name(bool forced, int argc, char *argv[])
 	return user_io_get_core_name(1);
 }
 
-int wait_for_child(pid_t child, bool service_ui)
+uint64_t monotonic_ms()
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)(ts.tv_nsec / 1000000);
+}
+
+int wait_for_child(pid_t child, bool service_ui, FILE *wrapper_log)
 {
 	int status = 0;
+
+	// SIGTERM escalation. Every path that asks the child to exit sets
+	// g_wrapper_restart_requested immediately before kill(SIGTERM): OSD
+	// Restart, direct_p2p_arm_and_restart(), replay_play_handoff(),
+	// replay_shuffle_handoff(). If the child never acts on it -- wedged in a
+	// frame, blocked in cleanup -- this loop would otherwise spin forever and
+	// the OSD action would look to the user like it did nothing at all.
+	// Escalate to SIGKILL once, then keep reaping normally.
+	//
+	// Only reachable when service_ui is true. In forced/probe mode the
+	// waitpid() below blocks and this check is never evaluated -- that is the
+	// launch path, where no restart is in flight.
+	uint64_t term_deadline_ms = 0;
+	bool term_escalated = false;
+
 	for (;;)
 	{
 		pid_t rc = waitpid(child, &status, service_ui ? WNOHANG : 0);
@@ -2661,6 +2689,28 @@ int wait_for_child(pid_t child, bool service_ui)
 		if (!service_ui)
 		{
 			continue;
+		}
+
+		if (g_wrapper_restart_requested)
+		{
+			const uint64_t now_ms = monotonic_ms();
+			if (term_deadline_ms == 0)
+			{
+				term_deadline_ms = now_ms + (uint64_t)kChildTermGraceMs;
+			}
+			else if (!term_escalated && now_ms >= term_deadline_ms)
+			{
+				term_escalated = true;
+				write_log_line(wrapper_log,
+				               "child_term_escalate=sigkill pid=%d grace_ms=%d",
+				               (int)child, kChildTermGraceMs);
+				kill(child, SIGKILL);
+			}
+		}
+		else
+		{
+			term_deadline_ms = 0;
+			term_escalated = false;
 		}
 
 		if (is_fpga_ready(1))
@@ -3394,7 +3444,7 @@ int thirdsarm_wrapper_run(int argc, char *argv[])
 		   video_fb_state() gate and populate key_states for SHM export. */
 		input_set_joy_passthrough(1);
 
-		int exit_code = wait_for_child(child, !forced);
+		int exit_code = wait_for_child(child, !forced, wrapper_log);
 		restore_signal_handlers(&old_int, &old_hup, &old_term);
 		g_child_pid = -1;
 
