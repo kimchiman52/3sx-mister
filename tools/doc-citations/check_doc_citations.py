@@ -1732,7 +1732,7 @@ def check_path_cites(repo, unit, findings, seen_paths, history, dclass,
         for a in anchors:
             pattern = re.compile(r"\b%s\b" % re.escape(a))
             hits = [i + 1 for i, ln in enumerate(flines) if pattern.search(ln)]
-            if not hits or len(hits) > ANCHOR_MAX_HITS:
+            if not hits:
                 continue
             if code_lines is not None:
                 code_hits = [h for h in hits if pattern.search(code_lines[h - 1])]
@@ -1742,6 +1742,16 @@ def check_path_cites(repo, unit, findings, seen_paths, history, dclass,
                 # anchor-less, same as before this change.
                 if code_hits:
                     hits = code_hits
+            # ANCHOR_MAX_HITS is applied AFTER the code-hit narrowing, not
+            # before. Applied to the raw count it discards exactly the symbols
+            # this checker most needs to anchor: a well-commented one. Measured
+            # 2026-09-07 -- `try_portmap` in src/netplay/direct_p2p.c has 20 raw
+            # hits (over the cap, so it was dropped and its citation silently
+            # exonerated) but only 2 code hits, comfortably under it. Six
+            # citations in docs/plan-netplay-connection.md were invisible to the
+            # gate that way, four of them genuinely wrong.
+            if len(hits) > ANCHOR_MAX_HITS:
+                continue
             hits.sort(key=lambda h: abs(h - lo))
             if best is None or len(hits) < len(best[1]):
                 best = (a, hits)

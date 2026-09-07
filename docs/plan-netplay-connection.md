@@ -113,13 +113,13 @@ Demonstrated end-to-end against the real server (see §3.4).
 
 Mechanics verified in code; classifications are standard NAT taxonomy.
 "UPnP" means the host's router granted the mapping
-(`try_portmap`, direct_p2p.c:2529-2600) and its external IP is not
+(`try_portmap`, direct_p2p.c:2826-2911) and its external IP is not
 provably non-public (CGNAT gate, §3.6; review M3).
 
 | Host \ Joiner | Full-cone / restricted | Port-restricted | Symmetric |
 |---|---|---|---|
 | **UPnP mapped** | direct punch to mapped port succeeds | succeeds (joiner's own mapping opens on first send) | succeeds — mapped port accepts any source |
-| **Full/restricted cone, no UPnP** | direct punch succeeds | succeeds | joiner's source port differs per destination → host's echo goes to the STUN-observed (wrong) port; **bilateral fallback required**, host-side learns true port from first inbound (host_tick_receive captures source, direct_p2p.c:2028-2043) |
+| **Full/restricted cone, no UPnP** | direct punch succeeds | succeeds | joiner's source port differs per destination → host's echo goes to the STUN-observed (wrong) port; **bilateral fallback required**, host-side learns true port from first inbound (host_tick_receive captures source, direct_p2p.c:5468-5484) |
 | **Port-restricted, no UPnP** | succeeds | succeeds (simultaneous send opens both) | fails direct; bilateral gives the host the joiner's fresh mapping via DELIVER — works iff joiner's NAT maps the rendezvous-learned port for the host too (usually not, for true symmetric) |
 | **Symmetric, no UPnP** | host's advertised STUN port is per-destination-wrong; joiner's punch lands on a dead mapping. Bilateral: server learns the host's port *toward the server*, still wrong toward the joiner → punching fails; **TERMINAL** (`FAILED_SYMMETRIC`/`FAILED_BILATERAL`) | same | punching **cannot** work here by construction; **TERMINAL** — the one cell with no path at all. An S5 relay briefly closed this cell (§7) but was removed before shipping; S7's UPnP/NAT-PMP/PCP (§9) is the primary mitigation for the population that would otherwise land here |
 | **CGNAT (any inner type)** | pre-S1: silently broken when UPnP "succeeded" (wrong ip/port pair, §3.3.5); post-S1: behaves as the corresponding no-UPnP row | ↑ | ↑ |
@@ -147,10 +147,10 @@ flag; the state check covers it). Server cost ≈ 0.2 pkt/s/host against
 the verified 10 pkt/s/IP limiter (rendezvous-server.js:276-277
 `RATE_WINDOW_MS`/`RATE_LIMIT_PER_WINDOW`). Spawn remains behind the
 `netplay-direct-p2p-disable-bilateral` kill switch
-(`host_thread_fn`, direct_p2p.c:4085-4087).
+(`CFG_KEY_NETPLAY_DIRECT_P2P_DISABLE_BILATERAL` in `host_thread_fn`, direct_p2p.c:4085-4087).
 
 Bonus correctness fix: the session key is now derived from the
-**advertised** tuple (`Work.advertised_port`, direct_p2p.c:104-116) on
+**advertised** tuple (`Work.advertised_port`, direct_p2p.c:125) on
 both the register loop (:796-799) and the host DELIVER handler
 (:1635-1640). Pre-S1 the host hashed its raw STUN port while the
 joiner hashed the room-code port (UPnP external when mapped,
@@ -344,7 +344,7 @@ post-S2 tree.
   discovery on local_port 0 with the previous socket closed, so the
   retry binds a FRESH local port (dodges stuck conntrack/NAT state;
   also covers host-still-in-UPnP-probe start-skew). (b) host —
-  Tick's FAILED_STUN case (direct_p2p.c:5824) re-spawns
+  Tick's FAILED_STUN case (direct_p2p.c:6258-6261) re-spawns
   host_thread_fn after a 5 s backoff, ≤3 retries per hosting session,
   instead of parking terminal; composes with (and does not touch) the
   S1 bilateral-failure return-to-HOST_WAITING path.
@@ -495,7 +495,7 @@ Three sub-stages, all landed. As-built below.
   '3SXR' frame / STUN Binding Response / **authenticated** punch /
   IGNORE. **Fail closed** — no valid token, no acceptance. The IGNORE
   arm drops the datagram, does not echo, and **keeps waiting**
-  (host_tick_receive, direct_p2p.c:2622-2640): the peer slot is never
+  (host_tick_receive, direct_p2p.c:5468-5484): the peer slot is never
   consumed. Pre-S4a that arm was "anything else IS the peer".
 - The host's echo (which authenticates the host back to the joiner)
   only ever carries an already-validated payload.
