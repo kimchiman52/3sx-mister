@@ -86,6 +86,7 @@ No findings overlap between them.
 | SJ-29 | The `--watch-replays` shuffle viewer is the one replay mode Quick Training can END rather than defer to; `RS_OFF` is the only stop with no surviving path to `rs_start_next()`, and the player's freeze must be released ONLY once the sequence is about to re-cover the engine | §10.8 | Quick Training terminates the viewer; `--play-replay` still refused |
 | SJ-30 | The wrong-buttons defect is NOT the replay pin — the pin's `save_w[]` writes are overwritten by `Setup_Default_Game_Option()` on every `TASK_INIT` walk. Only `Save_Game_Data()` ever carries `save_w[1].Pad_Infor` into the training slots 4/5, and its callers are the option screens Quick Training exists to skip | §10.9 | Carry the mapping before the chain fires; unpin the (real) game-mode/balance pin at the replay teardown |
 | SJ-30b | Same root, both ends: the settings load writes only `save_w[1]`, so EVERY route into Training gets default buttons (not just Quick Training) — and replay playback runs at `Present_Mode == 1`, so it read the USER's mapping and `Convert_User_Setting()` remapped the recorded words. Measured: `REPLAY DESYNC at frame 300` with a rebound pad, `REPLAY COMPLETE` without. The producer is Options -> Button Config, which writes the `Convert_Buff[1]` ALIAS, not `Pad_Infor` — which is why a grep for the field finds no writer | §10.10 | One carry (`Copy_Save_w_Training`, called by the settings load) and one live pin (re-asserted per tick) |
+| SJ-30c | The playback pin is not a button pin. Measured one settings field at a time: `Time_Limit`, `Damage_Level` and `extra_option` each desync a clean `.3sr` on their own, and `extra_option` reaches the match because playback runs `init_omop()` with `Demo_Flag == 1`, which takes the `save_w[Present_Mode]` branch. `StatcheckRunner_PinConfig()` had the same one-shot defect, and the corpus sweeps run in the maintainer's real home — a rebound pad alone turns 10/10 known-pass rows into rc 1 `divergent` with a CLEAN seed | §10.10 | One shared `Playback_Settings_Pin()` re-asserted per tick by both harnesses, plus a `SaveMove()` barrier; 463/463 corpus rows identical under a non-identity `saves/settings` |
 
 ## Revision log
 
@@ -101,6 +102,7 @@ No findings overlap between them.
 | 2026-09-07 | **Quick Training now ends the shuffle viewer** (§10.8, SJ-29): pressing it under `--watch-replays` was a deliberate refusal that read as a dead button. New `ReplayShuffle_Stop()`; the refusal narrowed to the `--play-replay` boot path, which stays refused because its terminal state is `SDLApp_Exit()` and it has no device OSD caller. UNVERIFIED AT RUNTIME — headlessly unreachable; §10.8 carries the on-device checklist. |
 | 2026-09-07 | **The training match uses the user's buttons** (§10.9, SJ-30). §10.8 named the leaked `ReplayPlayer_PinConfig()` as the reason a Quick Training match ran on the default pad mapping; measured, that was wrong — the pin's `save_w[]` writes are dead (`Setup_Default_Game_Option()` overwrites all six slots every `TASK_INIT` walk with byte-identical defaults) and the real cause is that nothing carries `save_w[1]` into the training slots 4/5 unless the player visits the option screens. Fixed for **every** Quick Training jump, replay boot or not, and verified on the gate harness with a seeded non-default mapping. The pin's real halves (game mode, balance key) are now scoped: `ReplayPlayer_UnpinConfig()` restores the captured values at the replay teardown — the "Stage F2a" work — and fixes a use-after-free in `PinConfig()`'s log line on the way. The RESOLVED balance cannot be restored (`ArcadeBalance_Init` latches it once at boot); stated, not papered over. |
 | 2026-09-07 | **One carry, one pin** (§10.10, SJ-30b) — the two items §10.9 left open, measured and both real. (A) The `save_w[4]/[5]` gap was never Quick-Training-specific; the carry moved into `Copy_Save_w_Training()` (`sys_sub.c`), called by both `Save_Game_Data()` and `deserialize_settings()`, and `qt_carry_user_pad_config()` was DELETED rather than kept — the gate proves both jumps still carry without it. (B) Replay playback runs at `Present_Mode == 1` and was reading the user's mapping: same `.3sr`, seed differing from defaults only in `Pad_Infor`, `REPLAY DESYNC at frame 300` before and `REPLAY COMPLETE frames=4009 checksums=66/66` after. A silent, per-user determinism defect that a dev box with no settings file cannot reproduce. §10.9's "the pin's writes are dead but harmless" is corrected: slot 1 does not end up at `Game_Default_Data`, it ends up at whatever Options -> Button Config wrote. Named and NOT fixed: the identical defect in `StatcheckRunner_PinConfig()`, and `extra_option` as a second playback divergence source. |
+| 2026-09-07 | **The pin is not a button pin** (§10.10, SJ-30c) — the two items the entry above left open, both closed. Measured one settings field at a time against a clean `.3sr`: `Time_Limit`, `Damage_Level` and `extra_option` each desync playback on their own (frames 1860 / 1980 / 1020-2280); `extra_option` gets there because `init_omop()` runs at `Demo_Flag == 1` and so reads `save_w[Present_Mode]`, not `save_w[0]`. `StatcheckRunner_PinConfig()` had the identical one-shot defect and it is live: the sweep tooling sets no `THIRDSARM_HOME`, so the oracle runs in the maintainer's real home. Against `3sarm-corpus-2026-09-05`, a rebound pad ALONE takes 10/10 known-`pass` rows to rc 1 `divergent` with a CLEAN seed — a false engine finding. The standing 447/447 was not hermetic, it was lucky: the maintainer's settings file is byte-identical to `Game_Default_Data` outside `Ranking[]`. Fixed with one shared `Playback_Settings_Pin()` (`sys_sub.c`) re-asserted per tick by both harnesses, plus a `SaveMove()` barrier that refuses a settings save while pinned — `extra_option` is the one pinned field `Save_Game_Data()` does not rebuild from `Convert_Buff`, and the negative control shows it leaking one byte into the user's file without the barrier. Re-swept all three corpora with a non-identity `saves/settings` present: **463/463 records identical, 447/447 eligible pass, 0 differences.** |
 | 2026-09-05 | **Engine defects found by review and fixed** (§10.6, SJ-27): the chain skipped character select's training-config load AND its `init_omop()`, so the match ran on zeroed settings and zeroed engine DIP tables — and then wrote the zeros over the user's config. Measured before/after, both players now land byte-identical to the stock select path. Corrections to this document in the same pass: SJ-25's "byte-identical" claim was true only against an already-zero config (§10.4); the §10.4 RTL bit list omitted `status[28:25]` and `status[46:43]`; §10.5's deferral bound expired into a silent drop and now expires into a start. `SIGRTMIN+5` made non-fatal in the boot and version-skew windows (§10.4, device-unverifiable). |
 
 ---
@@ -1608,21 +1610,158 @@ the other's evidence:
   which the pin never touches, and in the settings file. A snapshot taken in
   `PinConfig()` would still be zero-initialized storage.
 
-#### Still open, named rather than left to be rediscovered
+#### Both open items are now closed — the pin covers the whole settings set
 
-- `StatcheckRunner_PinConfig()` (`statcheck_runner.c`) has the **identical**
-  defect: `pin_default_button_mapping()` runs from the same `initialize_game()`
-  slot, before `sf3_init()`, so a statcheck run against a home that has a
-  `saves/settings` with a rebound pad reads the user's mapping too. Not fixed
-  here and not measured here, because confirming a fix means the corpus sweep,
-  which this work has no other reason to run. The gate is unaffected either
-  way — `tools/gates/run-gates.sh` gives every harness a fresh
-  `THIRDSARM_HOME` with no settings file, so the loaded mapping is
-  `Game_Default_Data`'s identity.
-- `extra_option` is a second settings-derived divergence source for playback
-  (see the parenthetical above). The pin does not cover it and this work did
-  not extend it to, because the measurement that would justify the field set
-  is the same corpus sweep.
+The two items the paragraph above left open were both real, and the second was
+larger than "one more field". Measured 2026-09-07, host `RelWithDebInfo`, one
+hermetic `THIRDSARM_HOME` per run.
+
+**The field set, measured rather than argued.** One `saves/settings` field
+moved off its `Game_Default_Data` value per run, against a `.3sr`
+(`3sarm-3sr-archive/store/1785879245761-3519/game_0.3sr`) that is
+`REPLAY COMPLETE frames=4745 checksums=79/79` with no settings file at all.
+24 runs:
+
+| settings field, moved from its default | result |
+| --- | --- |
+| `Time_Limit` 99 -> 30 | `REPLAY DESYNC at frame 1860` |
+| `Damage_Level` 1 -> 3 | `REPLAY DESYNC at frame 1980` |
+| `extra_option[0][0]` 1 -> 0 (`omop_vital_ix`) | `REPLAY DESYNC at frame 1980` |
+| `extra_option[0][1]` 3 -> 0 (`omop_vital_init[0]`) | `REPLAY DESYNC at frame 1860` |
+| `extra_option[0][3]` 0 -> 1 (`omop_guard_type`) | `REPLAY DESYNC at frame 2280` |
+| `extra_option[1][0..1]` 0 -> 1 (`omop_spmv_ng_table2`) | `REPLAY DESYNC at frame 1020` |
+| `extra_option` all-zero | `REPLAY DESYNC at frame 1740` |
+| `Difficulty`, `Handicap`, `GuardCheck`, `Battle_Number`, `AnalogStick`, `Language`, `Screen_Size`, `Partner_Type`, `BgmType`, `Adjust_X/Y`, `extra_option[0][2]`, `[0][4]`, `[0][5]`, page 2, page 3 | `REPLAY COMPLETE 4745 / 79` |
+| a non-identity `Pad_Infor` (already pinned by §10.10 above) | `REPLAY COMPLETE 4745 / 79` |
+
+All 24 are `REPLAY COMPLETE 4745 / 79` with the widened pin applied.
+
+**Why `extra_option` reaches a match at all**, which is not obvious from
+`init_omop()` (`sysdir.c`): its `Demo_Flag == 0` branch reads `save_w[0]`, and
+slot 0 never receives the settings file, so the field looks unreachable.
+Playback does not take that branch. Direct probe at `init_omop()` entry during
+`--play-replay`:
+
+```
+PROBE-OMOP: Demo_Flag=1 Present_Mode=1 Mode_Type=0
+            sw0eo0=1,3,3,0   sw1eo0=0,3,3,0   sw1eo1=0,0
+```
+
+`Next_Title_Sub()` (`game.c`) sets `Demo_Flag = 1` and `Present_Mode = 1` on
+the way in, so `init_omop()` takes its third branch,
+`get_extra_option_parameter(&save_w[Present_Mode].extra_option)` — slot 1, the
+user's. That call sets `omop_vital_ix`, `omop_vital_init`, the
+`omop_guard_type` bits in `omop_spmv_ng_table` and `omop_spmv_ng_table2`: max
+vitality, starting vitality, guard behaviour and the special-move NG tables.
+Every one of those is a gameplay quantity, which is why the desyncs land in the
+1000-2300 frame band rather than at frame 1.
+
+**`extra_option` is NOT the arcade-balance Extra Options work.** The seven
+`*_omake` modifiers gated earlier the same day are engine-side and are the
+identity at defaults; `extra_option` here is the `_EXTRA_OPTION contents[4][8]`
+field of `struct _SAVE_W`, written by the Extra Option menu screen
+(`menu.c`) and round-tripped by `serialize_settings`/`deserialize_settings`.
+They meet at `get_extra_option_parameter()`, which is where the settings field
+becomes the `omop_*` variables the modifiers read — same variables, different
+producer.
+
+**The statcheck pin had the identical defect, and it is not hypothetical.**
+`tools/statcheck_runner.py`, each corpus's `analyze.py` and
+`tools/fcade-replays/resweep_corpus.py` all inherit the caller's environment
+and set no `THIRDSARM_HOME`, so a corpus sweep runs the oracle in the
+maintainer's real home — which has held a `saves/settings` since 2026-09-02.
+Against `3sarm-corpus-2026-09-05`, `build/statcheck-base` (HEAD before this
+change), each row known-`pass` in `manifest.json`:
+
+| the home's `saves/settings` | result |
+| --- | --- |
+| absent | 10/10 rows identical to the manifest |
+| rebound `Pad_Infor` only | **0/10** — `divergent` rc 1 at frames 7, 12, 17, 105, 53, 252 …, seed CLEAN |
+| `extra_option` only | **0/10** — `divergent` rc 1 at frames 332-353 |
+| `Time_Limit` + `Difficulty` + `Damage_Level` + pad + `extra_option` | **0/20** — `seed-gap` rc 4 at seed frame 1 |
+
+The last row is the *loud* failure: `statcheck_seed_audit` covers `Counter_hi`,
+`round_timer`, `save_w.Difficulty` and `save_w.Damage_Level`, so those four
+produce `DIRTY ... 4 field(s) differ` and rc 4. `Pad_Infor` and `extra_option`
+are **not** seed-audited — those two produce a clean seed and a plain rc 1
+`divergent` verdict with a plausible-looking fail frame. That is the dangerous
+shape: an engine-divergence verdict, on a passing archive, caused entirely by
+the operator's own Options screen.
+
+**What the standing 447/447 actually rested on.** The maintainer's real
+`saves/settings` was decoded byte-for-byte at `e987ecfce2e65bdb20b69d69ea5e7f46`:
+its `Pad_Infor`, `Difficulty`, `Time_Limit`, `Battle_Number`, `Damage_Level`,
+`Handicap`, `GuardCheck`, `AnalogStick`, `Language` and `extra_option` are
+**identical to `Game_Default_Data`** — the only bytes that differ from a
+freshly-generated default file are the `Ranking[20]` high-score block at
+offset 68 and beyond. So the sweeps were not hermetic; they were lucky. The
+asterisk is now removed rather than inherited.
+
+**The corpus sweep, with a non-identity `saves/settings` present.** Hermetic
+home seeded with `Pad_Infor {5,4,3,11,2,1,0,11}` both players, `Time_Limit` 30,
+`Damage_Level` 3, `Difficulty` 7, `Handicap` 7, `GuardCheck` 1,
+`Battle_Number {3,3}`, `extra_option [0][0]=0 [0][1]=0 [0][3]=1 [0][4]=1
+[1][0]=1 [1][1]=1` (md5 `29f6882e2132e893b1faad087eca295f`), plus a
+`roms/sfiii3nr1.zip` link so arcade balance still resolves.
+`resweep_corpus.py --headless --no-manifest`, fixed binary, all three corpora,
+compared row by row against each `manifest.json` on verdict / rc / fail-frame:
+
+| corpus | records | eligible | identical |
+| --- | --- | --- | --- |
+| `3sarm-corpus-2026-09-05` | 143 | 143 | 143/143 records, 143/143 eligible |
+| `3sarm-corpus-2026-09-06` | 185 | 183 | 185/185 records, 183/183 eligible |
+| `3sarm-corpus-2026-09-06b` | 135 | 121 | 135/135 records, 121/121 eligible |
+| **total** | **463** | **447** | **463/463, 0 differences** |
+
+447/447 eligible `pass`, and the 16 ineligible rows keep their exact
+`cpu-player` / `no-match` verdicts. The seeded `saves/settings` is byte-identical
+after all 463 runs.
+
+**The one field the pin could have leaked into the user's file, and the
+barrier.** `Save_Game_Data()` rebuilds `Pad_Infor`, `Difficulty`, `Time_Limit`,
+`Battle_Number`, `Damage_Level`, `GuardCheck` and `Handicap` from
+`Convert_Buff` before every save, so the pin cannot escape through them.
+`extra_option` has no such rebuild — and `Check_Change_Contents()` compares
+`save_w[1].extra_option` against `ck_ex_option` and *asks for a save* on any
+difference, which under the pin is always. `SaveMove()` (`savesub.c`) therefore
+refuses `SAVE_FILE_SETTINGS` + `SAVE_MODE_SAVE` outright while
+`Playback_Settings_Pinned()`. Proven live rather than asserted, by forcing a
+settings save from inside a pinned replay:
+
+```
+BARRIER-PROBE: requesting a settings SAVE from inside a pinned replay
+[savesub] settings save refused: the playback pin owns save_w[] ...
+  -> saves/settings byte-identical to the seed (896fb6e6212c585853e0a12fe73386ea)
+```
+
+and the negative control, the same probe with the barrier's predicate forced to
+0: **one byte changed** — offset 36, `extra_option[0][0]`, the user's `0`
+overwritten by the pin's `1`, while `Pad_Infor` and `Time_Limit` came back
+correct exactly as `Save_Game_Data()`'s rebuild predicts. Neither harness
+actually reaches a settings save today (the barrier never fired in 463
+statcheck runs or in any `--play-replay` run), so it is belt-and-braces — but
+it is the belt that turns "the Options screen is unreachable while pinned" from
+an argument into a property.
+
+**Shape of the fix.** One owner: `Playback_Settings_Apply()` /
+`Playback_Settings_Pin()` / `Playback_Settings_Unpin()` /
+`Playback_Settings_Pinned()` in `sys_sub.c`, next to `Copy_Save_w_Training()`
+and `Game_Default_Data`. `_Apply` writes; `_Pin` writes **and** arms the
+`SaveMove()` barrier. The boot one-shot in each `PinConfig()` calls `_Apply`,
+not `_Pin`, on purpose: a `--watch-replays` boot applies the pin for the whole
+session, and its `RS_EMPTY` idle state (nothing playable in the cache, the
+manifest poll running, the engine sitting in attract/title) leaves the player
+able to walk into Options — arming the barrier there would silently discard a
+settings change made while no replay is loaded. `ReplayPlayer_Tick()` and
+`StatcheckRunner_Prologue()` both re-assert it every tick; the two local
+copies (`pin_identity_pad_mapping`, `pin_default_button_mapping`) are gone, so
+the harnesses cannot drift apart on the field set the way the comment on the
+second one predicted they might. `Pad_Infor` still goes to all six slots
+(`Convert_User_Setting()` reads `save_w[Present_Mode]` and the mode is not
+known at pin time); the widened set goes to slots **0 and 1 only** — the two
+measured live in these harnesses and the only two with no other owner, since
+slots 4/5 carry `init3rd.c`'s `Time_Limit = -1` that a blanket pin would
+silently give a clock back.
 
 **UNVERIFIED ON DEVICE.** Everything above is host-measured. The device
 checklist is in §10.9 plus: set a non-identity mapping in Options -> Button

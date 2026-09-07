@@ -40,6 +40,16 @@ void Setup_IO_ConvDataDefault(s32 id);
 void Save_Game_Data();
 void Copy_Save_w();
 void Copy_Save_w_Training();
+
+/* The playback pin -- see the block comment in sys_sub.c. _Apply writes
+ * Game_Default_Data's gameplay fields over save_w[]; _Pin does that AND latches
+ * the pin, and the owners (ReplayPlayer_Tick, StatcheckRunner_Prologue) call it
+ * every tick. While latched, SaveMove() refuses to write saves/settings. */
+void Playback_Settings_Apply();
+void Playback_Settings_Pin();
+void Playback_Settings_Unpin();
+s32 Playback_Settings_Pinned();
+
 void Copy_Check_w();
 void Setup_Default_Game_Option();
 s32 Check_Change_Contents();

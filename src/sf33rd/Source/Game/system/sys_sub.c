@@ -636,6 +636,132 @@ void Copy_Save_w_Training() {
     save_w[5].GuardCheck = save_w[1].GuardCheck;
 }
 
+/* === The playback pin ===================================================
+ *
+ * A .3sr / .scrd archive is a recording of somebody else's session, and it
+ * only reproduces against the settings it was recorded under. This port's
+ * reference state for that is Game_Default_Data: every clean measurement the
+ * replay player and the statcheck oracle rest on -- "REPLAY COMPLETE
+ * frames=4745 checksums=79/79", the 447/447 corpus sweep -- was taken on a
+ * home with NO saves/settings file, which is exactly what
+ * Setup_Default_Game_Option() leaves behind. Any deviation from it in the
+ * live save_w[] is a divergence source, and a per-user, silent one: the same
+ * archive plays clean for whoever never opened the Options screen.
+ *
+ * WHICH FIELDS. Only the ones the settings file carries AND a running match
+ * reads. Measured 2026-09-07 by moving one field at a time off its
+ * Game_Default_Data value in a generated saves/settings and replaying one
+ * .3sr (store/1785879245761-3519/game_0.3sr) that is COMPLETE with no
+ * settings file at all -- 24 runs, host RelWithDebInfo, one hermetic
+ * THIRDSARM_HOME each:
+ *
+ *   Time_Limit 99 -> 30            DESYNC frame 1860
+ *   Damage_Level 1 -> 3            DESYNC frame 1980
+ *   extra_option [0][0] 1 -> 0     DESYNC frame 1980   (omop_vital_ix)
+ *   extra_option [0][1] 3 -> 0     DESYNC frame 1860   (omop_vital_init[0])
+ *   extra_option [0][3] 0 -> 1     DESYNC frame 2280   (omop_guard_type)
+ *   extra_option [1][0..1] -> 1    DESYNC frame 1020   (omop_spmv_ng_table2)
+ *   extra_option all-zero          DESYNC frame 1740
+ *   Difficulty, Handicap, GuardCheck, Battle_Number, AnalogStick, Language,
+ *   Screen_Size, Partner_Type, BgmType, Adjust_X/Y, and a non-identity
+ *   Pad_Infor (already pinned)     COMPLETE 4745/79 in every case
+ *
+ * Difficulty / Handicap / GuardCheck / Battle_Number are pinned anyway: they
+ * are the rest of the set Save_Game_Data() round-trips into the same match
+ * variables (CC_Value via Setup_Difficult_V, Vital_Handicap, the guard-meter
+ * display, the round count), and one archive that does not reach a fourth
+ * round or a handicapped vitality is a witness for that archive, not a proof
+ * about the field. The cosmetic set is deliberately NOT pinned -- pinning
+ * BGM_Level/SE_Level/BgmType/Screen_Size/Adjust_X/Adjust_Y/Language would
+ * mute or move a viewer session that is showing the user a replay, for no
+ * determinism gain. Ranking is not pinned either; see the file barrier below.
+ *
+ * WHICH SLOTS. Pad_Infor goes to all six, unchanged from the pin this grew
+ * out of: Convert_User_Setting() (below) reads save_w[Present_Mode] and the
+ * mode is not known at pin time. The rest go to slots 0 and 1 ONLY. Those
+ * two are the ones both harnesses were measured at (PROBE-OMOP 2026-09-07:
+ * .3sr playback reaches init_omop() with Demo_Flag=1 Present_Mode=1
+ * Mode_Type=0, so sysdir.c takes its `save_w[Present_Mode].extra_option`
+ * branch; statcheck_runner.c's own note records Present_Mode 0 pre-select and
+ * 1 once a match starts), and they are the only two with no other owner --
+ * slot 2 is netplay's, slot 3 is the PS2 replay loader's, and slots 4/5 carry
+ * init3rd.c's Time_Limit = -1, which a blanket pin would silently give a
+ * clock back.
+ *
+ * THE FILE BARRIER. Save_Game_Data() rebuilds Pad_Infor, Difficulty,
+ * Time_Limit, Battle_Number, Damage_Level, GuardCheck and Handicap from
+ * Convert_Buff before every save, so those cannot leak out of the pin into
+ * the user's file. extra_option CANNOT: nothing rebuilds it, the Extra Option
+ * menu writes save_w[1].extra_option directly (menu.c), and
+ * Check_Change_Contents() (below) compares that same field against
+ * ck_ex_option and asks for a save on any difference -- so a pinned session
+ * that reached the Options screen would write the pin into saves/settings.
+ * Rather than argue that the screen is unreachable, SaveMove() (savesub.c)
+ * refuses SAVE_FILE_SETTINGS + SAVE_MODE_SAVE outright while
+ * Playback_Settings_Pinned(). That covers Ranking and every other field for
+ * free, and it makes the "the harness cannot touch the maintainer's file"
+ * claim structural instead of inductive. */
+static s32 Playback_Pin_Active = 0;
+
+s32 Playback_Settings_Pinned() {
+    return Playback_Pin_Active;
+}
+
+/* The write, without the latch. Both harnesses call this once from
+ * initialize_game() -- before sf3_init(), while save_w[] is still
+ * zero-initialised static storage that Setup_Default_Game_Option() is about to
+ * overwrite -- so this call states the intent and does nothing else. It
+ * deliberately does NOT arm the SaveMove() barrier: --watch-replays applies
+ * the boot pin for the whole session, and its RS_EMPTY idle state (nothing
+ * playable in the cache, the manifest poll running, the engine sitting in
+ * attract/title) leaves the player able to walk into Options. Arming the
+ * barrier there would silently discard a real settings change made while no
+ * replay is loaded. The barrier belongs to the per-tick assertion below, which
+ * runs only while one is. */
+void Playback_Settings_Apply() {
+    s16 ix;
+
+    for (ix = 0; ix < 6; ix++) {
+        save_w[ix].Pad_Infor[0] = Game_Default_Data.Pad_Infor[0];
+        save_w[ix].Pad_Infor[1] = Game_Default_Data.Pad_Infor[1];
+    }
+
+    for (ix = 0; ix < 2; ix++) {
+        save_w[ix].Difficulty = Game_Default_Data.Difficulty;
+        save_w[ix].Time_Limit = Game_Default_Data.Time_Limit;
+        save_w[ix].Battle_Number[0] = Game_Default_Data.Battle_Number[0];
+        save_w[ix].Battle_Number[1] = Game_Default_Data.Battle_Number[1];
+        save_w[ix].Damage_Level = Game_Default_Data.Damage_Level;
+        save_w[ix].Handicap = Game_Default_Data.Handicap;
+        save_w[ix].GuardCheck = Game_Default_Data.GuardCheck;
+        save_w[ix].extra_option = Game_Default_Data.extra_option;
+    }
+}
+
+/* The write plus the latch. Re-asserted every tick by its owners
+ * (ReplayPlayer_Tick, StatcheckRunner_Prologue) rather than applied once: the
+ * re-seed can land at any point in the walk -- every TASK_INIT walk runs
+ * Setup_Default_Game_Option() and then the settings load -- so a one-shot pin
+ * is erased by both. Both owners run in game_step_0 before njUserMain(), which
+ * is where the walk lives, so the assertion lands before the engine reads it.
+ * Latching here rather than in Playback_Settings_Apply() keeps the SaveMove()
+ * barrier scoped to the frames a replay or a compared archive is actually
+ * driving the engine. */
+void Playback_Settings_Pin() {
+    Playback_Pin_Active = 1;
+    Playback_Settings_Apply();
+}
+
+/* Ends the pin. Restores nothing on purpose: the user's values survive in
+ * Convert_Buff[] (which the pin never touches, and which Save_Game_Data()
+ * rebuilds save_w[1] from) and in saves/settings itself, which the next
+ * TASK_INIT walk's settings load re-reads. A snapshot taken where the pin is
+ * first applied would be zero-initialised static storage -- that call site
+ * runs before sf3_init(). */
+void Playback_Settings_Unpin() {
+    Playback_Pin_Active = 0;
+}
+
 void Save_Game_Data() {
     s16 ix;
 

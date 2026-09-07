@@ -41,6 +41,7 @@
 #include "sf33rd/AcrSDK/common/pad.h"
 #include "sf33rd/Source/Game/debug/debug_config.h"
 #include "sf33rd/Source/Game/engine/workuser.h"
+#include "sf33rd/Source/Game/system/sys_sub.h"
 #include "sf33rd/Source/Game/system/work_sys.h"
 #include "sf33rd/Source/Game/ui/sc_sub.h"
 #include "test/ram_archive.h"
@@ -215,29 +216,6 @@ static bool inter_round_skip_needed(void) {
     return ((c_no_0_cps3 == 6) && (c_no_1_cps3 == 3)) || (scene_cut_cps3 && (c_no_0_cps3 > 6));
 }
 
-/* Review round-1 finding P-1: default in-game button remap, ported
- * verbatim from netplay.c:458-467's identity table (same rationale —
- * make Convert_User_Setting, sys_sub.c:101, a no-op so the SWK-layout
- * words this harness writes into p1sw_buff/p2sw_buff pass through
- * Convert_Data (sys_sub.c:67) unchanged). Present_Mode can land on more
- * than one save_w[] slot depending how far the console-mode phase
- * machine's nav gets (0 = MODE_ARCADE pre-select, 1 = MODE_VERSUS once a
- * match starts — game.c:1662/1829), so every slot is pinned rather than
- * guessing which one is live at pin time. */
-static void pin_default_button_mapping(void) {
-    static const u8 identity[8] = { 0, 1, 2, 11, 3, 4, 5, 11 };
-
-    for (int mode = 0; mode < 6; mode++) {
-        for (int p = 0; p < 2; p++) {
-            for (int s = 0; s < 8; s++) {
-                save_w[mode].Pad_Infor[p].Shot[s] = identity[s];
-            }
-
-            save_w[mode].Pad_Infor[p].Vibration = 0;
-        }
-    }
-}
-
 void StatcheckRunner_PinConfig(void) {
     const bool was_arcade_mode = SDLApp_IsArcadeGameMode();
     const char* was_balance = Config_GetString(CFG_KEY_BALANCE);
@@ -270,10 +248,30 @@ void StatcheckRunner_PinConfig(void) {
      * set --test-enable, or balance resolves PS2 regardless of this pin. */
     Config_SetString(CFG_KEY_BALANCE, "auto");
 
-    pin_default_button_mapping();
+    /* Review round-1 finding P-1, generalised. The original pin wrote an
+     * identity Pad_Infor into every save_w[] slot so Convert_User_Setting()
+     * (sys_sub.c) passes the SWK-layout words this harness writes into
+     * p1sw_buff/p2sw_buff through Convert_Data unchanged. It had the same
+     * defect the replay player's did (6b58097d) and for the same reason:
+     * PinConfig runs from initialize_game() BEFORE sf3_init(), so
+     * Init_Task_1st -> Game_Data_Init() -> Setup_Default_Game_Option()
+     * re-seeds every slot after it and the settings load then writes save_w[1]
+     * from the user's file. MEASURED 2026-09-07, and it is not theoretical for
+     * this harness: the corpus sweeps run the oracle in the maintainer's REAL
+     * home (tools/statcheck_runner.py and the corpus analyze.py set no
+     * THIRDSARM_HOME), which has held a saves/settings since 2026-09-02.
+     *
+     * So the pin is now Playback_Settings_Pin() (sys_sub.c), re-asserted every
+     * tick from StatcheckRunner_Prologue() and covering the whole
+     * settings-derived gameplay set rather than only the buttons. It also
+     * latches the SaveMove() barrier that stops this harness writing the
+     * maintainer's saves/settings at all. The call HERE is the non-latching
+     * half (see Playback_Settings_Apply); the barrier arms on the first
+     * Prologue tick. */
+    Playback_Settings_Apply();
 
     SDL_Log("statcheck: pinned hermetic config -- game-mode=console (was %s) "
-            "balance=auto (was %s) button-mapping=default (identity, all save_w[] slots)",
+            "balance=auto (was %s) settings=Game_Default_Data (save_w[] pin, re-asserted per tick)",
             was_arcade_mode ? "arcade" : "console",
             was_balance != NULL ? was_balance : "auto");
 }
@@ -305,6 +303,14 @@ void StatcheckRunner_Destroy(void) {
 }
 
 void StatcheckRunner_Prologue(void) {
+    /* Re-assert the config pin. StatcheckRunner_PinConfig()'s single call from
+     * initialize_game() is erased by Setup_Default_Game_Option() and then by
+     * the settings load; see the note there. Idempotent, and it must run every
+     * tick rather than once at match start because the re-seed can land at any
+     * point in the walk this harness drives (every Soft_Reset_Sub() and every
+     * TASK_INIT walk). */
+    Playback_Settings_Pin();
+
     SDL_zeroa(input_buffers);
 
     switch (phase) {

@@ -494,6 +494,32 @@ void SaveInit(SaveFileType file_type, SaveMode save_mode) {
 }
 
 s32 SaveMove() {
+    /* The playback pin owns save_w[] while a replay or a statcheck run holds
+     * the session (sys_sub.c -> Playback_Settings_Pin), so save_w[1] is the
+     * pin's values and not the user's. serialize_settings() below writes
+     * save_w[1] verbatim, so any settings save taken here would overwrite the
+     * maintainer's file with the pin -- and Check_Change_Contents() (sys_sub.c)
+     * asks for exactly that save whenever save_w[1].extra_option differs from
+     * ck_ex_option, which under the pin it always does. Refuse instead, with
+     * the same shape as the REPLAY stub below: complete immediately, touch no
+     * storage, so the `SaveMove() <= 0` completion checks in menu.c/game.c
+     * still see the operation finish. Loads are untouched -- the pin
+     * overwrites what they land in anyway, and refusing them would change the
+     * boot walk. */
+    if (operation.state == SAVE_STATE_INIT && operation.file_type == SAVE_FILE_SETTINGS &&
+        operation.mode == SAVE_MODE_SAVE && Playback_Settings_Pinned()) {
+        static bool refused = false;
+
+        if (!refused) {
+            SDL_Log("[savesub] settings save refused: the playback pin owns save_w[] "
+                    "(sys_sub.c -> Playback_Settings_Pin); saves/settings left untouched.");
+            refused = true;
+        }
+
+        SDL_zero(operation);
+        return 0;
+    }
+
     // SAVE_FILE_REPLAY has no real serialize/deserialize handler yet
     // (file_info[SAVE_FILE_REPLAY] points at serialize_stub/deserialize_stub,
     // which both call fatal_error() and abort). Three live menu paths still
