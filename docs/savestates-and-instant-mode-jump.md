@@ -84,6 +84,7 @@ No findings overlap between them.
 | SJ-28 | The training-config save is a whole-HARNESS-CLASS hazard, not a Quick Training one: every `--test-enable` session that reaches `Setup_NTr_Data()` persists its own selection over the user's file | §10.7 | Suppressed in `TrainingConfig_Save()` for test sessions |
 | SJ-26 | `WipeLimit` is SHARED with the engine's own transitions, and `WipeOut` increments it OUTSIDE its `!No_Trans` guard — a cover hides the drawing, never the counter | §10.5 | Quick Training must defer, not start, on an in-flight wipe |
 | SJ-29 | The `--watch-replays` shuffle viewer is the one replay mode Quick Training can END rather than defer to; `RS_OFF` is the only stop with no surviving path to `rs_start_next()`, and the player's freeze must be released ONLY once the sequence is about to re-cover the engine | §10.8 | Quick Training terminates the viewer; `--play-replay` still refused |
+| SJ-30 | The wrong-buttons defect is NOT the replay pin — the pin's `save_w[]` writes are overwritten by `Setup_Default_Game_Option()` on every `TASK_INIT` walk. Only `Save_Game_Data()` ever carries `save_w[1].Pad_Infor` into the training slots 4/5, and its callers are the option screens Quick Training exists to skip | §10.9 | Carry the mapping before the chain fires; unpin the (real) game-mode/balance pin at the replay teardown |
 
 ## Revision log
 
@@ -97,6 +98,7 @@ No findings overlap between them.
 | 2026-09-02 | **Quick Training SHIPPED** (this lane, on `a8250882`). The SJ-06 chain promoted from the spike into `src/scene_jump.c`; the OSD feature in `src/quick_training.c`; OSD row + wrapper + signal wired. New findings SJ-22..SJ-25, new §10. The spike now calls the shared chain, so `--test-instant-jump` still proves it (PASS, same numbers: drain=24, jump->live=62). |
 | 2026-09-05 | **Fix pass on the review of the above** (same day): P1 — `docs/training-score.md`'s new correction named two functions that do not exist (real sites are `combo_window_push()` / `combo_window_trans()`); `--test-instant-jump` was rewriting the user's training file, now closed at the harness (§10.7, SJ-28). P2 — the teardown restore put the runtime signals back to `SIG_DFL` (terminate) before `ConsoleMode_Exit()`, now `SIG_IGN`; the "SHA256 sweep" justification for the boot window was false (`PORT_MISTER` excludes `CHECKSUM`), `SA_RESTART` added; the DIP masks' "bits 4..11" / "bits 16..19" rationales were false and are now enumerated; the DIP assertion pins a *configuration* and says so; the SELECT-reset stage covers one of four presets and now keys off `Suicide[0]` rather than `routine_no != 4`; a PASS now names its skipped assertions. |
 | 2026-09-07 | **Quick Training now ends the shuffle viewer** (§10.8, SJ-29): pressing it under `--watch-replays` was a deliberate refusal that read as a dead button. New `ReplayShuffle_Stop()`; the refusal narrowed to the `--play-replay` boot path, which stays refused because its terminal state is `SDLApp_Exit()` and it has no device OSD caller. UNVERIFIED AT RUNTIME — headlessly unreachable; §10.8 carries the on-device checklist. |
+| 2026-09-07 | **The training match uses the user's buttons** (§10.9, SJ-30). §10.8 named the leaked `ReplayPlayer_PinConfig()` as the reason a Quick Training match ran on the default pad mapping; measured, that was wrong — the pin's `save_w[]` writes are dead (`Setup_Default_Game_Option()` overwrites all six slots every `TASK_INIT` walk with byte-identical defaults) and the real cause is that nothing carries `save_w[1]` into the training slots 4/5 unless the player visits the option screens. Fixed for **every** Quick Training jump, replay boot or not, and verified on the gate harness with a seeded non-default mapping. The pin's real halves (game mode, balance key) are now scoped: `ReplayPlayer_UnpinConfig()` restores the captured values at the replay teardown — the "Stage F2a" work — and fixes a use-after-free in `PinConfig()`'s log line on the way. The RESOLVED balance cannot be restored (`ArcadeBalance_Init` latches it once at boot); stated, not papered over. |
 | 2026-09-05 | **Engine defects found by review and fixed** (§10.6, SJ-27): the chain skipped character select's training-config load AND its `init_omop()`, so the match ran on zeroed settings and zeroed engine DIP tables — and then wrote the zeros over the user's config. Measured before/after, both players now land byte-identical to the stock select path. Corrections to this document in the same pass: SJ-25's "byte-identical" claim was true only against an already-zero config (§10.4); the §10.4 RTL bit list omitted `status[28:25]` and `status[46:43]`; §10.5's deferral bound expired into a silent drop and now expires into a start. `SIGRTMIN+5` made non-fatal in the boot and version-skew windows (§10.4, device-unverifiable). |
 
 ---
@@ -1301,14 +1303,6 @@ actually runs.
 and `ReplayPlayer_Tick()` in `game_step_0`, so neither module is being torn down
 from inside its own tick.
 
-**Not undone, and deliberately so.** A `--watch-replays` boot applies
-`ReplayPlayer_PinConfig()` for the whole process — console game mode, balance,
-and **identity button mapping**. Quick Training does not restore it, so a
-training match reached this way runs on the default pad mapping rather than the
-user's. Scoped save/restore of that pin is the "Stage F2a" future work the pin's
-own comment already names; it is a separate change, not a regression this one
-introduced.
-
 **UNVERIFIED AT RUNTIME.** None of this is reachable headlessly — the viewer
 needs a replay cache and the OSD row needs the wrapper. The on-device check:
 boot "Watch Replays", let a replay reach battle, open the OSD and pick
@@ -1318,6 +1312,132 @@ and `replay-shuffle: viewer stopped for the rest of this session — quick
 training requested`, and must **not** show any later
 `replay-shuffle: now playing #...` or
 `replay-shuffle: user held START N frames — skipping to the next replay`.
+
+### 10.9 [SJ-30] The training match uses *your* buttons — and the pin was not why it didn't
+
+§10.8 shipped with a named carry-over: a `--watch-replays` boot applies
+`ReplayPlayer_PinConfig()` for the whole process (console game mode, balance,
+identity button mapping), nothing restored it, and a training match reached
+that way therefore ran on the default pad mapping. That framing turned out to
+be **half right about the symptom and wrong about the cause**, and the
+correction is the most useful thing in this section.
+
+**The pin's button-mapping half is dead code, measured.** `PinConfig()` writes
+`{ 0, 1, 2, 11, 3, 4, 5, 11 }` into `Pad_Infor` for all six `save_w[]` slots
+from `initialize_game()`. `Init_Task_1st` (`init3rd.c`) then calls
+`Game_Data_Init()` -> `Setup_Default_Game_Option()` (`sys_sub.c`), which assigns
+`Game_Default_Data` to **all six slots** — at boot and again after every
+`Soft_Reset_Sub()`. `Game_Default_Data`'s `Pad_Infor` is that same
+`{ 0, 1, 2, 11, 3, 4, 5, 11 }`, so the pin's writes are redundant for slots
+0/2/3/4/5, and slot 1 is then overwritten by the settings load
+(`savesub.c` -> `deserialize_settings`, `struct _SAVE_W* dst = &save_w[1]`).
+The pin cannot be the reason anything ran on the wrong mapping, because by the
+time anything reads `save_w[]` the pin is gone.
+
+**The real cause, and the proof.** Measured 2026-09-07 on the `quick-training`
+gate's own harness, with `saves/settings` seeded to the non-default mapping
+`{ 5,4,3,11,2,1,0,11 }` and a probe printed at `QT_WIPE_IN` completion, on a
+plain `--test-quick-training=60` run with **no** `--watch-replays` and no pin
+at all:
+
+```
+PROBE: Present_Mode=4 sw1=5,4,3,11,2,1,0,11 sw4=0,1,2,11,3,4,5,11
+```
+
+The training match runs at `Present_Mode == 4`
+(`PRESENT_MODE_NORMAL_TRAINING`, `workuser.h`) and `Convert_User_Setting()`
+indexes `save_w[Present_Mode]` (`sys_sub.c`). The user's mapping was in
+`save_w[1]`; the training slot held defaults. The only code that ever
+propagates `save_w[1].Pad_Infor` into slots 4 and 5 is `Save_Game_Data()`
+(`sys_sub.c`), and its only callers are the Game Option / Button Config /
+Screen Adjust screens (`menu.c`). Quick Training exists to skip exactly those
+screens. So the defect is **not replay-specific**: it is every Quick Training
+jump, on every boot.
+
+**The fix, in two parts.**
+
+1. `qt_carry_user_pad_config()` (`quick_training.c`) copies
+   `save_w[1].Pad_Infor[0..1]` and `GuardCheck` into slots 4 and 5 — exactly
+   the assignments `Save_Game_Data()` makes for those slots — one call before
+   `SceneJump_ExecuteTrainingChain()` fires. That instant is the right one:
+   the boot (or the teardown's `Soft_Reset_Sub`) has already walked `TASK_INIT`
+   to the title, so `Init_Task_Aload`'s settings load has put the user's
+   mapping in `save_w[1]`. Doing it in `qt_begin()` would be pointless — the
+   `Soft_Reset_Sub` that follows re-runs `Setup_Default_Game_Option()` and
+   wipes it. Copying directly beats calling `Save_Game_Data()`, which
+   round-trips the whole settings block through `Convert_Buff` and would
+   rewrite `save_w[1]` from a buffer this sequence has no reason to trust.
+   Nothing else in slots 4/5 is touched — `Time_Limit` keeps the `-1` that
+   `Init_Task_1st` sets for training.
+
+   Same probe, after the fix, on both the first jump and the mid-match
+   re-jump: `sw1 = sw4 = sw5 = 5,4,3,11,2,1,0,11`. `saves/settings` is
+   byte-identical before and after the run (md5 `ad9165ff…`).
+
+2. `ReplayPlayer_UnpinConfig()` (`replay_player.c`) — the "Stage F2a" scoped
+   pin, shipped. `PinConfig()` now captures what it overwrites and this puts
+   it back. **Save/restore, never recompute:** the balance key is captured as
+   a `SDL_strdup` copy, because `Config_GetString` hands back a pointer into
+   the `entries[]` table that the very next `Config_SetString` frees — which
+   also fixes a use-after-free in `PinConfig()`'s own log line, where the
+   freed `was_balance` was being printed.
+
+**Where the unpin goes, and why not the obvious place.** Not
+`ReplayShuffle_Stop()`: that runs the frame the press is *accepted*, and can be
+followed by up to `QT_DEFER_MAX_FRAMES` (240) of `Exec_Wipe` deferral with the
+replay still loaded and still playing. Un-pinning under a live replay is
+precisely the determinism the pin exists to protect. It goes in `qt_begin()`,
+one line below `ReplayPlayer_Destroy()` — the earliest moment nothing is
+playing back — and in `ReplayShuffle_Destroy()`, so the module that inherited
+the obligation to *apply* the pin also owns releasing it.
+
+**Every viewer exit, and which are covered.**
+
+| exit | what happens | covered |
+| --- | --- | --- |
+| OSD -> Quick Training | `ReplayShuffle_Stop()`, then `qt_begin()` -> `ReplayPlayer_Destroy()` + `ReplayPlayer_UnpinConfig()` | **yes** — the only exit into continued normal play in the same process |
+| process exit / another core / OSD leave | `cleanup()` -> `ReplayShuffle_Destroy()` -> `UnpinConfig()` | yes, and observably a no-op: the pin is in-memory only (`SDLApp_ForceConsoleGameMode` never rewrites the config; `Config_Save()` is a warn-once stub) |
+| `RS_EMPTY` | not an exit — the viewer idles and re-polls the manifest every `RS_EMPTY_POLL_FRAMES`, and can still start replays | n/a |
+| end of the playlist | not an exit — the set reshuffles and plays forever | n/a |
+| hold-START skip | next replay, still the viewer | n/a |
+| `replay_player.c` hold-START abort | suppressed for viewer-owned launches (`!s_browser_owned`) | n/a |
+| `RS_UNINIT -> RS_OFF` (viewer disabled, or a `--play-replay` session loaded) | the pin was never applied (`main.c` gates it on `ReplayShuffle_IsEnabled()`), or belongs to `--play-replay`, whose process ends with its replay | nothing leaks |
+| `RS_OFF` netplay stand-down | **deliberately not covered.** Reachable only via a handoff file on disk (`--watch-replays` + netplay *flags* is rejected in `args.c`). Netplay owns the config there and forces its own — `netplay_nav.c` calls `SDLApp_ForceConsoleGameMode()` and `netplay.c` forces identity mapping for `MODE_NETWORK` — so restoring the user's game mode into a starting session would fight it | no, by decision |
+
+**What cannot be restored, with the evidence.** The **resolved** arcade/PS2
+balance. `ArcadeBalance_Init()` (`arcade_balance.c`) reads
+`Config_GetString(CFG_KEY_BALANCE)` once, latches `is_enabled` and the adapted
+character tables for the process, and has exactly one caller —
+`main.c` -> `initialize_game()` — with no re-resolve entry point. A
+`--watch-replays` session therefore keeps whatever balance the pin let it
+auto-select for the rest of the process. The config **key** is restored anyway,
+because leaving a mutated user value behind for a later reader is the same
+class of bug as leaving the game mode flipped. The button mapping is
+deliberately not restored from the pin's snapshot either: that snapshot is
+taken in `initialize_game()`, before `sf3_init()`, while `save_w[]` is still
+zero-initialized static storage — restoring it would install an all-zero
+`Shot[]`, mapping every button to `Convert_Data[0]`.
+
+**Open, and not fixed here.** Two findings this work turned up and left alone,
+recorded so they are not rediscovered:
+
+- The `save_w[4]`/`save_w[5]` gap is **not** unique to Quick Training. By the
+  same evidence, a normal boot that goes straight from the menu into Training
+  without visiting the option screens gets the default mapping too. Fixing that
+  generally means propagating in `deserialize_settings()`, which changes shipped
+  behaviour on paths this change has no way to test headlessly.
+- If replay playback runs at `Present_Mode == 1`, it is reading the **user's**
+  mapping from `save_w[1]`, not the identity mapping the pin intends — so a
+  user with a rebound pad may already be a determinism risk for playback. Not
+  measured: no `.3sr` cache was available on the dev machine.
+
+**UNVERIFIED AT RUNTIME (the unpin half).** The pad-config carry is verified by
+the `quick-training` gate harness above. The unpin is not reachable headlessly:
+`args.c` rejects `--watch-replays` together with `--test-enable`. On-device
+check in §10.8's checklist plus: the log must show
+`replay: restored the user's session config -- game-mode=... balance=...` right
+after the teardown line, and the training match must respond to **your**
+button mapping.
 
 ## Appendix A — reproducing the measurements
 

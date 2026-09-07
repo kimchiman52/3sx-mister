@@ -2688,6 +2688,13 @@ void SDLApp_ForceConsoleGameMode(void) {
     game_mode_arcade = false;
 }
 
+/* The restore half of the force above; see the header. Shipped in every
+ * flavor because the replay viewer's scoped unpin (replay_player.c ->
+ * ReplayPlayer_UnpinConfig) is release code, not a DEBUG experiment. */
+void SDLApp_SetArcadeGameMode(bool arcade) {
+    game_mode_arcade = arcade;
+}
+
 #if defined(DEBUG)
 void SDLApp_ForceArcadeGameMode(void) {
     /* Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): session-only

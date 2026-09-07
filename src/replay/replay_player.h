@@ -88,6 +88,20 @@ void ReplayPlayer_SetLiveMeta(const char* p1, int p1_rank, const char* p2, int p
  * ArcadeBalance_Init(), only when ReplayPlayer_IsActive(). */
 void ReplayPlayer_PinConfig(void);
 
+/* The restore half of the pin. Call it when the replay CONTEXT ends — the
+ * shuffle viewer stopped for the OSD's Quick Training row
+ * (quick_training.c -> qt_begin), or torn down at cleanup
+ * (replay_shuffle.c -> ReplayShuffle_Destroy) — never while a replay is
+ * still playing, which is the state the pin exists to protect.
+ *
+ * Restores exactly what PinConfig captured (game mode; the balance config
+ * key), never a recomputed "what the config should be". The RESOLVED
+ * arcade/PS2 balance cannot come back — ArcadeBalance_Init latches it once
+ * at boot — and the button mapping was never really pinned; both are
+ * explained at ReplayPlayer_PinConfig. Idempotent; a no-op when the pin was
+ * never applied. */
+void ReplayPlayer_UnpinConfig(void);
+
 /* Per-frame injection hook. Call from game_step_0 after NetplayNav_Tick()
  * and BEFORE the p1sw_buff -> p1sw_0 latch. Writes p1sw_buff/p2sw_buff
  * while navigating/playing; a no-op (pads released) once complete,

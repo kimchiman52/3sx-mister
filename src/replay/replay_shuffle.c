@@ -1170,4 +1170,14 @@ void ReplayShuffle_Destroy(void) {
      * cleanup() must not skip the free just because the state machine is
      * already off. ReplayPlayer_Destroy() is a no-op when nothing is loaded. */
     ReplayPlayer_Destroy();
+
+    /* The viewer inherited the obligation to APPLY the whole-session config
+     * pin (see ReplayShuffle_IsEnabled's use in initialize_game), so it owns
+     * releasing it too — pairing the two in the same module rather than
+     * relying on Quick Training being the only way out. Reached from
+     * cleanup() (main.c), where the process is ending and the pin is
+     * in-memory only, so nothing observable changes; it is here so a future
+     * mid-session Destroy() gets the restore without anyone remembering.
+     * Idempotent: a no-op if qt_begin() already unpinned. */
+    ReplayPlayer_UnpinConfig();
 }

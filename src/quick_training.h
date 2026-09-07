@@ -37,13 +37,23 @@
  * one has to mean leaving the other. The viewer stays off for the rest of the
  * session — its only re-entry is the OSD row, which restarts the core.
  *
- * NOT UNDONE, and named here because it is the one visible carry-over: a
- * --watch-replays boot applies ReplayPlayer_PinConfig() for the whole process
- * (console game mode + balance + IDENTITY button mapping), and this feature
- * does not restore it. So a training match reached this way runs on the
- * default pad mapping rather than the user's. Scoped save/restore of that pin
- * is the "Stage F2a" future work the pin's own comment already names
- * (replay_player.c -> ReplayPlayer_PinConfig); it is a separate change.
+ * THE USER'S SETTINGS COME BACK, and the wrong-buttons defect was not where
+ * it looked. A --watch-replays boot applies ReplayPlayer_PinConfig() for the
+ * whole process; qt_begin() now calls ReplayPlayer_UnpinConfig() next to the
+ * replay teardown, which restores the captured game mode and balance key —
+ * the "Stage F2a" scoped pin the old note deferred. But the pin was never the
+ * reason a training match ran on the default pad mapping: measured, its
+ * save_w[] writes are overwritten by Setup_Default_Game_Option() on every
+ * TASK_INIT walk, and the real cause is that nothing carries save_w[1] (where
+ * the settings load puts the user's mapping) into the training slots
+ * save_w[4]/[5] unless the player visits the option screens this sequence
+ * exists to skip. qt_carry_user_pad_config() does that carry, one frame before
+ * the chain fires, on EVERY Quick Training jump — replay boot or not.
+ *
+ * One thing genuinely does not come back: the RESOLVED arcade/PS2 balance.
+ * ArcadeBalance_Init() reads the config key once at boot and latches the
+ * answer for the process (arcade_balance.c), so a --watch-replays session
+ * keeps the balance the pin let it select. The key itself is restored.
  */
 
 #include <stdbool.h>

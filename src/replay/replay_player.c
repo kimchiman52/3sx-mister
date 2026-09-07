@@ -1024,6 +1024,11 @@ int ReplayPlayer_GetExitHoldThreshold(void) {
 /* Session-only config pin (statcheck_runner.c:192-234)                   */
 /* ---------------------------------------------------------------------- */
 
+/* Pre-pin capture, owned by ReplayPlayer_PinConfig / ReplayPlayer_UnpinConfig. */
+static bool s_config_pinned = false;
+static bool s_pin_prev_arcade_mode = false;
+static char* s_pin_prev_balance = NULL;
+
 /* Replicated from StatcheckRunner_PinConfig / pin_default_button_mapping
  * (statcheck_runner.c review round-1 finding P-1) rather than shared,
  * because that TU is #if STATCHECK and this module must compile in every
@@ -1039,14 +1044,50 @@ int ReplayPlayer_GetExitHoldThreshold(void) {
  *   SWK words through Convert_Data unchanged; every save_w[] slot is
  *   pinned because Present_Mode migrates across slots (statcheck P-1).
  *
- * NOTE for Stage F2a: browser-launched playback (no process restart) will
- * need SCOPED handling — save/restore of these pins around a session —
- * instead of this process-lifetime pin. */
+ * STAGE F2a, SHIPPED: this is no longer a process-lifetime pin. It captures
+ * what it overwrites, and ReplayPlayer_UnpinConfig() (below) puts that back
+ * when the replay CONTEXT ends — the shuffle viewer stopped for the OSD's
+ * Quick Training row, or torn down at cleanup. Nothing unpins mid-replay:
+ * the settings a replay reproduces against must not move under it, which is
+ * the entire reason the pin exists.
+ *
+ * MEASURED 2026-09-07 — and the reason UnpinConfig does NOT restore save_w[]:
+ * the button-mapping half of this pin is DEAD. Init_Task_1st (init3rd.c)
+ * calls Game_Data_Init() -> Setup_Default_Game_Option() (sys_sub.c), which
+ * assigns `Game_Default_Data` to ALL SIX save_w[] slots on every TASK_INIT
+ * walk — at boot and after every Soft_Reset_Sub(). Game_Default_Data's
+ * Pad_Infor is `{ 0, 1, 2, 11, 3, 4, 5, 11 }` (sys_sub.c -> Game_Default_Data),
+ * byte-identical to the identity table below, so these writes are redundant
+ * for slots 0/2/3/4/5 and are then overwritten for slot 1 by the settings
+ * load (savesub.c -> deserialize_settings, `struct _SAVE_W* dst = &save_w[1]`).
+ * They are kept because they state the intent and cost nothing; they are not
+ * load-bearing, and a snapshot of them taken HERE would be worse than
+ * useless: this runs from initialize_game() before sf3_init(), while save_w[]
+ * is still zero-initialized static storage, so "restoring" that snapshot
+ * would install an all-zero Shot[] — every button mapped to Convert_Data[0].
+ * The user's mapping lives in save_w[1], loaded from their own save file, and
+ * is re-established from there rather than from a snapshot
+ * (quick_training.c -> qt_carry_user_pad_config). */
 void ReplayPlayer_PinConfig(void) {
     static const u8 identity[8] = { 0, 1, 2, 11, 3, 4, 5, 11 };
 
     const bool was_arcade_mode = SDLApp_IsArcadeGameMode();
     const char* was_balance = Config_GetString(CFG_KEY_BALANCE);
+
+    if (s_config_pinned) {
+        /* One pin per session. A second call would capture the PINNED values
+         * as "the user's" and the unpin would then restore the pin. */
+        return;
+    }
+
+    /* Capture before mutating. Config_GetString hands back a pointer into the
+     * entries[] table that Config_SetString frees on the very next write of
+     * that key (config.c -> Config_SetString: `SDL_free(existing->value.s)`),
+     * so the string must be COPIED, not aliased. A NULL capture is a real
+     * value — the key was absent — and is restored as such. */
+    s_pin_prev_arcade_mode = was_arcade_mode;
+    s_pin_prev_balance = (was_balance != NULL) ? SDL_strdup(was_balance) : NULL;
+    s_config_pinned = true;
 
     SDLApp_ForceConsoleGameMode();
     /* Upstream reconcile: the old boolean "arcade-balance" key this pin used
@@ -1076,11 +1117,70 @@ void ReplayPlayer_PinConfig(void) {
         }
     }
 
+    /* Reports the CAPTURED copy, not `was_balance`. Config_SetString above
+     * freed the string `was_balance` points at (config.c -> Config_SetString),
+     * so printing it here was a use-after-free; the copy taken before the
+     * mutation is the only pointer still valid at this line. */
     SDL_Log("replay: pinned session config -- game-mode=console (was %s) "
             "balance=auto (was %s) button-mapping=default (identity, all save_w[] slots); "
             "on-disk config untouched",
             was_arcade_mode ? "arcade" : "console",
-            was_balance != NULL ? was_balance : "auto");
+            s_pin_prev_balance != NULL ? s_pin_prev_balance : "(unset)");
+}
+
+/* The restore half of ReplayPlayer_PinConfig — the "Stage F2a scoped pin"
+ * that pin's own NOTE used to defer. Puts back exactly what the pin captured;
+ * it never re-derives what the config "should" be, because the user may have
+ * changed a setting and a recompute can silently disagree with what they set.
+ *
+ * WHERE THIS BELONGS, AND WHERE IT DOES NOT. Call it when the replay CONTEXT
+ * ends — not when a replay ends. ReplayShuffle_Stop() is the wrong seam: it
+ * runs the frame the Quick Training press is accepted and can be followed by
+ * up to QT_DEFER_MAX_FRAMES (240) of Exec_Wipe deferral with the replay still
+ * loaded and still playing, and un-pinning under a live replay is precisely
+ * the determinism the pin exists to protect. The right seams both own the
+ * teardown: quick_training.c -> qt_begin(), beside ReplayPlayer_Destroy(),
+ * and replay_shuffle.c -> ReplayShuffle_Destroy().
+ *
+ * WHAT COMES BACK, AND WHAT CANNOT:
+ * - game-mode: fully restored. The flag is in-memory only
+ *   (SDLApp_ForceConsoleGameMode / SDLApp_SetArcadeGameMode, sdl_app.c).
+ * - balance: the CONFIG KEY is restored, but the RESOLVED balance is not and
+ *   cannot be. ArcadeBalance_Init() (arcade_balance.c) reads
+ *   Config_GetString(CFG_KEY_BALANCE) once, at boot, from main.c ->
+ *   initialize_game(), and latches `is_enabled` plus the adapted character
+ *   tables for the process; it has no other caller and no re-resolve entry
+ *   point. So a session that booted with --watch-replays keeps whatever
+ *   balance the pin let it auto-select for the rest of the process, and the
+ *   restored key only matters to a reader that runs later. Restored anyway:
+ *   the key is user state, and leaving a mutated value behind for a future
+ *   reader is the same class of bug as leaving the game mode flipped.
+ * - button mapping: deliberately NOT restored from the pin's capture. See the
+ *   MEASURED note on ReplayPlayer_PinConfig — the pin's save_w[] writes are
+ *   dead, and the snapshot would be zero-initialized storage.
+ *
+ * Idempotent, and a no-op when the pin was never applied — a normal boot must
+ * not have its game mode written by a module it never used. */
+void ReplayPlayer_UnpinConfig(void) {
+    if (!s_config_pinned) {
+        return;
+    }
+
+    SDLApp_SetArcadeGameMode(s_pin_prev_arcade_mode);
+
+    if (s_pin_prev_balance != NULL) {
+        Config_SetString(CFG_KEY_BALANCE, s_pin_prev_balance);
+    }
+
+    SDL_Log("replay: restored the user's session config -- game-mode=%s balance=%s "
+            "(the RESOLVED arcade/PS2 balance stays as ArcadeBalance_Init latched it at boot); "
+            "button mapping was never actually pinned (see ReplayPlayer_PinConfig)",
+            s_pin_prev_arcade_mode ? "arcade" : "console",
+            s_pin_prev_balance != NULL ? s_pin_prev_balance : "(unset, left as-is)");
+
+    SDL_free(s_pin_prev_balance);
+    s_pin_prev_balance = NULL;
+    s_config_pinned = false;
 }
 
 /* ---------------------------------------------------------------------- */

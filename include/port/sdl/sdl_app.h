@@ -34,6 +34,15 @@ bool SDLApp_IsArcadeGameMode(void);
  * run through the console menu chain regardless of the user's saved
  * preference. Does not persist across restarts. */
 void SDLApp_ForceConsoleGameMode(void);
+/* Put the flag back to a value captured with SDLApp_IsArcadeGameMode()
+ * BEFORE a SDLApp_ForceConsoleGameMode() pin — the restore half of that
+ * force, for a pin that is scoped to part of a session rather than to the
+ * whole process (replay_player.c -> ReplayPlayer_UnpinConfig). Same
+ * contract as the force: in-memory only, never rewrites the on-disk config,
+ * and the next launch re-reads whatever the user has saved. Shipped in
+ * every flavor, unlike the DEBUG-only arcade force below, because the
+ * replay viewer's scoped unpin is release code. */
+void SDLApp_SetArcadeGameMode(bool arcade);
 #if defined(DEBUG)
 /* Step B3 EXPERIMENT (docs/plan-fcade-replay-browser.md): session-only
  * arcade-mode force for raw fcade-stream playback under the DEBUG test
