@@ -130,18 +130,50 @@ native_video_reader reader (
 // Output assignments
 // =========================================================================
 
-// Video output: reader provides pixel data, timing provides sync
+// Video output: reader provides pixel data, timing provides sync.
+//
+// native_video_reader registers r_out/g_out/b_out from the `de` it was given,
+// so pixel data lags the raw timing strobes by one ce_pix. Retime the strobes
+// to match. Without this the first DE sample carries the reader's blanking
+// black and the last two source columns are lost: 382 lands outside DE, and
+// 383 is never emitted at all because the blanking branch fires first.
+//
+// The blanking strobes reset asserted: during reset the safe state is "blanked",
+// not "displaying". Resetting them low lets hs_de go high for one ce_pix.
+reg tim_hsync_q;
+reg tim_vsync_q;
+reg tim_de_q;
+reg tim_hblank_q;
+reg tim_vblank_q;
+
+always @(posedge clk_vid) begin
+    if (reset) begin
+        tim_hsync_q  <= 1'b0;
+        tim_vsync_q  <= 1'b0;
+        tim_de_q     <= 1'b0;
+        tim_hblank_q <= 1'b1;
+        tim_vblank_q <= 1'b1;
+    end
+    else if (ce_pix) begin
+        tim_hsync_q  <= tim_hsync;
+        tim_vsync_q  <= tim_vsync;
+        tim_de_q     <= tim_de;
+        tim_hblank_q <= tim_hblank;
+        tim_vblank_q <= tim_vblank;
+    end
+end
+
 assign vga_r  = reader_r;
 assign vga_g  = reader_g;
 assign vga_b  = reader_b;
-assign vga_hs = tim_hsync;
-assign vga_vs = tim_vsync;
-assign vga_de = tim_de;
-assign vga_hblank = tim_hblank;
-assign vga_vblank = tim_vblank;
+assign vga_hs = tim_hsync_q;
+assign vga_vs = tim_vsync_q;
+assign vga_de = tim_de_q;
+assign vga_hblank = tim_hblank_q;
+assign vga_vblank = tim_vblank_q;
 
 // active: module is enabled and outputting valid frame data
 assign active    = enable & reader_frame_ready;
-assign vsync_out = tim_vsync;
+assign vsync_out = tim_vsync_q;
 
 endmodule

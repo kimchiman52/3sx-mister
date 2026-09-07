@@ -446,24 +446,26 @@ always @(posedge clk_vid) begin
                     b_out <= dec_b;
 
                     if (pixel_sub == 2'd3) begin
-                        // Word exhausted: try to load next word from FIFO
+                        // Word exhausted. Do NOT prefetch the next word here --
+                        // the show-ahead branch below loads it on the next active
+                        // ce_pix. Prefetching pops a 97th word on the last pixel
+                        // of the line, which the blanking branch then discards,
+                        // shearing every line 4px further right than the last.
                         pixel_word_valid <= 1'b0;
-                        if (!fifo_empty) begin
-                            pixel_word       <= fifo_rd_data;
-                            pixel_word_valid <= 1'b1;
-                            pixel_sub        <= 2'd0;
-                            fifo_rd          <= 1'b1;
-                        end
+                        pixel_sub        <= 2'd0;
                     end
                     else begin
                         pixel_sub <= pixel_sub + 2'd1;
                     end
                 end
                 else if (!fifo_empty) begin
-                    // No valid word: load one from FIFO (show-ahead)
+                    // No valid word: load one from FIFO (show-ahead).
+                    // pixel_sub advances to 1 because pixel 0 of this word is
+                    // emitted below in the same cycle; leaving it at 0 re-emits
+                    // pixel 0 on the next ce_pix and costs a column at the right.
                     pixel_word       <= fifo_rd_data;
                     pixel_word_valid <= 1'b1;
-                    pixel_sub        <= 2'd0;
+                    pixel_sub        <= 2'd1;
                     fifo_rd          <= 1'b1;
                     // Output first pixel immediately
                     r_out <= {fifo_rd_data[15:11], fifo_rd_data[15:13]};
