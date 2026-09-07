@@ -23,8 +23,9 @@ python3 tools/cps3-disasm/cps3.py selftest
 `tools/arcade-audit/rom.bin` is **gitignored**, so a fresh worktree does not have
 it. `python3 tools/arcade-audit/decrypt.py` rebuilds it in about 3 seconds from
 `sfiii3nr1.zip`. `selftest` also proves the tool still agrees with every address
-the docs already established; if it fails, stop and say so — do not work around
-it.
+the docs already established, that the disassembler actually decodes, and that
+none of the three fixed over-counting bugs has come back; if it fails, stop and
+say so — do not work around it.
 
 ## The method, in the order to run it
 
@@ -94,16 +95,40 @@ A negative needs all of:
 
 - **a positive control** — a callee known to be present must show up in the same
   scan, or the scan is measuring nothing;
-- **the `bsr` reach check** — `bsr` spans ±0x1000, so a distant callee needs a
-  literal, but a near one does not;
+- **the `bsr` reach check** — reach belongs to each call **site**, not to the
+  routine start. From a site at `a`, `bsr` reaches `a + 4 + [−4096..+4094]`, so a
+  routine `[start,end)` covers `[start−4092, end+4096]` — asymmetric, and wider
+  than the routine. `nocall` prints that window; do not re-derive it by hand;
 - **the disassembly read** — the literal scan is a **screen**, not the verdict. A
   routine with no pool of its own borrows the **next** routine's (`mov.l
   @(disp,PC)` reaches 255 longwords forward and never backward), and a target
-  within ±255 of a pool literal is reached as base + displacement with no literal
-  at all.
+  **near** a pool literal is reached as base + displacement with no literal at
+  all — `add #imm,Rn` shifts a loaded base by **−128..+127**, the widest such
+  reach SH-2 has. (There is no ±255 addressing mode; the displacement load modes
+  are narrower still, 0..60 bytes for `mov.l @(disp,Rm),Rn`.)
 
-State a negative as "no literal, `bsr` out of reach, control present, disassembly
-read over N bytes" — never as "it is not in the call list".
+State a negative as "no literal, `bsr` window checked, control present,
+disassembly read over N bytes" — never as "it is not in the call list".
+
+### And a POSITIVE needs the disassembly too
+
+The census is not an upper bound on its resolved rows either, and this is the
+easier mistake to make because a resolved row *looks* like an answer.
+
+- A `-> 0x...` on a `jsr @Rn` / `jmp @Rn` row comes from a **linear** backward
+  walk for the instruction that loaded the register. It is not control-flow
+  aware and it does not model what an intervening `jsr` clobbers. Treat it as a
+  lead and confirm it in `dis`. An **odd** target address is a giveaway that the
+  walk went wrong — no SH-2 jump target can be odd.
+- Give `nocall`/`fn` the routine's **anchored** start, not the `rts`-scan hint
+  `refs` prints. The start decides which half-words the census treats as literal
+  pool, so a wrong start changes the answer, not just the framing.
+
+`selftest`'s second half is the regression suite for the three ways this used to
+over-count — decoding pool words as `bsr`, measuring `bsr` reach from the routine
+start, and walking past register writes the decoder did not model. If you are
+about to hand-check one of those, run `selftest` instead; if you find a fourth,
+add a check there in the same shape.
 
 ## Reporting a finding
 

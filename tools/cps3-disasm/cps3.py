@@ -56,8 +56,62 @@ ROM_MD5 = "909f5abec4b6b21bf7d2a452a03fdfcc"
 # Stated in the docs as "+1020 bytes forward" (the displacement itself).
 MOVL_PC_REACH = 4 + 255 * 4
 MOVW_PC_REACH = 4 + 255 * 2
-# bsr/bra displacement is 12 bits signed, scaled by 2, off PC+4: +-4096 bytes.
+
+# bsr/bra is 1011dddddddddddd: disp is 12-bit SIGNED (-2048..+2047), scaled by 2,
+# taken off PC+4.  So from ONE call site at address `a` the reachable targets are
+#     a + 4 + [-4096 .. +4094]  ==  [a - 4092 .. a + 4098]
+# and the span is NOT symmetric.  These two are the raw displacement bounds; use
+# bsr_window() for the question that actually matters -- "can ANY bsr inside this
+# routine reach X?" -- which is a property of every call SITE, not of the routine
+# start.  Measuring reach from the start is how the tool used to report "CANNOT
+# reach" about a callee it had already resolved 21 bsr calls to.
+BSR_DISP_MIN = -4096
+BSR_DISP_MAX = 4094
+# Kept because the old text quoted it; it is the displacement magnitude, not a
+# reach, and nothing decides a verdict on it any more.
 BSR_REACH = 0x1000
+
+
+def bsr_window(start: int, end: int):
+    """Addresses some `bsr` placed inside [start,end) could reach.
+
+    The last instruction that can fit in [start,end) sits at end-2, so the window
+    is [start + 4 + BSR_DISP_MIN, (end - 2) + 4 + BSR_DISP_MAX].
+    """
+    if end <= start:
+        end = start + 2
+    return (start + 4 + BSR_DISP_MIN, (end - 2) + 4 + BSR_DISP_MAX)
+
+
+# Top nibble 0x4 (0100nnnn<low byte>) is a grab-bag: shifts, dt, cmp/pz, the
+# stc.l/sts.l/ldc.l/lds.l @-Rn and @Rn+ forms (which DO write Rn), jsr/jmp, and
+# the lds/ldc register forms (which do not).  Anything not listed in either set
+# is UNKNOWN -- notably 0x0C/0x0D (shad/shld, SH-3 and later, not SH-2).
+_T4_WRITES_N = frozenset(
+    (
+        0x00, 0x01,  # shll Rn, shlr Rn
+        0x02, 0x12, 0x22,  # sts.l MACH/MACL/PR,@-Rn  (pre-decrement)
+        0x03, 0x13, 0x23,  # stc.l SR/GBR/VBR,@-Rn    (pre-decrement)
+        0x04, 0x05,  # rotl Rn, rotr Rn
+        0x06, 0x16, 0x26,  # lds.l @Rn+,MACH/MACL/PR  (post-increment)
+        0x07, 0x17, 0x27,  # ldc.l @Rn+,SR/GBR/VBR    (post-increment)
+        0x08, 0x18, 0x28,  # shll2 / shll8 / shll16
+        0x09, 0x19, 0x29,  # shlr2 / shlr8 / shlr16
+        0x10,  # dt Rn
+        0x20, 0x21,  # shal Rn, shar Rn
+        0x24, 0x25,  # rotcl Rn, rotcr Rn
+    )
+)
+_T4_WRITES_NOTHING = frozenset(
+    (
+        0x0A, 0x1A, 0x2A,  # lds Rm,MACH/MACL/PR
+        0x0E, 0x1E, 0x2E,  # ldc Rm,SR/GBR/VBR
+        0x0B,  # jsr @Rn   (writes PR; see _track_reg on what the CALLEE may clobber)
+        0x2B,  # jmp @Rn
+        0x1B,  # tas.b @Rn (writes memory and T)
+        0x11, 0x15,  # cmp/pz Rn, cmp/pl Rn
+    )
+)
 
 
 def default_rom() -> str:
@@ -183,33 +237,127 @@ class Image:
             return ("jmp", (w >> 8) & 0xF)
         return None
 
-    def writes_reg(self, addr: int):
-        """Best-effort: which register does the instruction at `addr` write?
-
-        Only the forms this tool needs to reason about are modelled.  Anything
-        not modelled returns None and is treated by the caller as *possibly*
-        clobbering, which is what keeps the census honest.
-        """
+    # -- the register-write model ----------------------------------------
+    # TRI-STATE BY CONSTRUCTION.  `written_regs` answers with a frozenset (a
+    # positive claim: exactly these general registers are written) or with None,
+    # meaning UNKNOWN -- this encoding is not modelled and the caller may assume
+    # nothing.  The distinction is the whole point.  The previous model returned
+    # a bare "None" for both "writes no register" and "not modelled", so a
+    # backward register walk sailed straight through every top-nibble 0x0 and
+    # 0x4 encoding -- `mov.l @(R0,Rm),Rn`, `shll2 Rn`, `mov.l @Rm+,Rn` -- and
+    # then printed a confidently resolved call target for a register the
+    # instruction stream had visibly just overwritten.
+    def written_regs(self, addr: int):
+        """GPRs the instruction at `addr` definitely writes, or None = UNKNOWN."""
         w = self.u16(addr)
         top = w >> 12
         n = (w >> 8) & 0xF
-        if top in (0x9, 0xD):  # mov.w/mov.l @(disp,PC),Rn
-            return n
-        if top == 0xE:  # mov #imm,Rn
-            return n
-        if top == 0x6:  # mov Rm,Rn / mov.b/w/l @Rm,Rn / neg / ext / swap ...
-            return n
+        m = (w >> 4) & 0xF
+        lo = w & 0xF
+        none = frozenset()
+        if top == 0x0:
+            if lo == 0x2:  # stc SR/GBR/VBR,Rn
+                return frozenset((n,)) if m in (0, 1, 2) else None
+            if lo == 0x3:  # bsrf Rn / braf Rn -- write PR/PC, not a GPR
+                return none if m in (0, 2) else None
+            if lo in (0x4, 0x5, 0x6):  # mov.b/w/l Rm,@(R0,Rn) -- stores
+                return none
+            if lo == 0x7:  # mul.l Rm,Rn -> MACL
+                return none
+            if lo == 0x8:  # clrt / sett / clrmac
+                return none if (n == 0 and m in (0, 1, 2)) else None
+            if lo == 0x9:  # nop / div0u / movt Rn
+                if m == 0x2:
+                    return frozenset((n,))
+                return none if (n == 0 and m in (0, 1)) else None
+            if lo == 0xA:  # sts MACH/MACL/PR,Rn
+                return frozenset((n,)) if m in (0, 1, 2) else None
+            if lo == 0xB:  # rts / sleep / rte
+                return none if (n == 0 and m in (0, 1, 2)) else None
+            if lo in (0xC, 0xD, 0xE):  # mov.b/w/l @(R0,Rm),Rn
+                return frozenset((n,))
+            if lo == 0xF:  # mac.l @Rm+,@Rn+ -- BOTH post-incremented
+                return frozenset((n, m))
+            return None
+        if top == 0x1:  # mov.l Rm,@(disp,Rn) -- a store
+            return none
+        if top == 0x2:
+            if lo in (0x0, 0x1, 0x2):  # mov.b/w/l Rm,@Rn -- stores
+                return none
+            if lo in (0x4, 0x5, 0x6):  # mov.b/w/l Rm,@-Rn -- PRE-DECREMENT writes Rn
+                return frozenset((n,))
+            if lo in (0x7, 0x8, 0xC, 0xE, 0xF):  # div0s, tst, cmp/str, mulu.w, muls.w
+                return none
+            if lo in (0x9, 0xA, 0xB, 0xD):  # and, xor, or, xtrct
+                return frozenset((n,))
+            return None  # 0x3 is not an SH-2 encoding
+        if top == 0x3:
+            if lo in (0x0, 0x2, 0x3, 0x6, 0x7):  # cmp/eq, cmp/hs, cmp/ge, cmp/hi, cmp/gt
+                return none
+            if lo in (0x5, 0xD):  # dmulu.l / dmuls.l -> MACH:MACL
+                return none
+            if lo in (0x4, 0x8, 0xA, 0xB, 0xC, 0xE, 0xF):  # div1 sub subc subv add addc addv
+                return frozenset((n,))
+            return None  # 0x1, 0x9 are not SH-2 encodings
+        if top == 0x4:
+            if lo == 0xF:  # mac.w @Rm+,@Rn+ -- BOTH post-incremented
+                return frozenset((n, m))
+            byte = w & 0xFF
+            if byte in _T4_WRITES_N:
+                return frozenset((n,))
+            if byte in _T4_WRITES_NOTHING:
+                return none
+            return None
         if top == 0x5:  # mov.l @(disp,Rm),Rn
-            return n
-        if top in (0x1, 0x2, 0x3):  # 1=store, 2=store/logic-to-Rn, 3=arith-to-Rn
-            if top == 0x1:
-                return None  # mov.l Rm,@(disp,Rn) - a store
-            if top == 0x2 and (w & 0xF) in (0x0, 0x1, 0x2, 0x4, 0x5, 0x6):
-                return None  # stores and cmp/str
-            return n
+            return frozenset((n,))
+        if top == 0x6:
+            if lo in (0x4, 0x5, 0x6):  # mov.b/w/l @Rm+,Rn -- POST-INCREMENT writes Rm too
+                return frozenset((n, m))
+            return frozenset((n,))  # mov / not / swap / neg / negc / ext*
         if top == 0x7:  # add #imm,Rn
-            return n
-        return None
+            return frozenset((n,))
+        if top == 0x8:
+            if n in (0x0, 0x1):  # mov.b/w R0,@(disp,Rn) -- stores
+                return none
+            if n in (0x4, 0x5):  # mov.b/w @(disp,Rm),R0
+                return frozenset((0,))
+            if n in (0x8, 0x9, 0xB, 0xD, 0xF):  # cmp/eq #imm,R0 and bt/bf/bt.s/bf.s
+                return none
+            return None
+        if top == 0x9:  # mov.w @(disp,PC),Rn
+            return frozenset((n,))
+        if top in (0xA, 0xB):  # bra / bsr (bsr writes PR, not a GPR)
+            return none
+        if top == 0xC:
+            if n in (0x0, 0x1, 0x2):  # mov.b/w/l R0,@(disp,GBR) -- stores
+                return none
+            if n in (0x4, 0x5, 0x6, 0x7):  # loads to R0, and mova @(disp,PC),R0
+                return frozenset((0,))
+            if n == 0x8:  # tst #imm,R0
+                return none
+            if n in (0x9, 0xA, 0xB):  # and / xor / or #imm,R0
+                return frozenset((0,))
+            if n in (0xC, 0xD, 0xE, 0xF):  # tst.b/and.b/xor.b/or.b #imm,@(R0,GBR)
+                return none
+            return None  # 0x3 = trapa
+        if top == 0xD:  # mov.l @(disp,PC),Rn
+            return frozenset((n,))
+        if top == 0xE:  # mov #imm,Rn
+            return frozenset((n,))
+        return None  # 0xF: no SH-2 encoding
+
+    def writes_reg(self, addr: int, reg: int):
+        """Tri-state: True = writes `reg`, False = does not, None = UNKNOWN.
+
+        A caller that treats None as False is asserting something the decoder
+        never established.  `_track_reg` fails to UNRESOLVED on None instead --
+        the census is documented as a LOWER BOUND, so under-resolving is the
+        safe direction and over-resolving is not.
+        """
+        regs = self.written_regs(addr)
+        if regs is None:
+            return None
+        return reg in regs
 
     def disasm(self, addr: int, nbytes: int):
         o = self.off(addr)
@@ -332,17 +480,56 @@ def function_extent(img: Image, start: int, max_len: int = 0x4000):
     return end, sorted(pool)
 
 
-def call_census(img: Image, start: int, end: int):
+def pool_map(img: Image, start: int, end: int):
+    """Half-word addresses in [start,end) that are LITERAL DATA, not instructions.
+
+    A word is data when some instruction earlier in the range pc-relatively loads
+    it; SH-2 pc-relative loads reach forward only, so one forward pass that skips
+    what it has already marked is exact for this question.  Nothing else in this
+    file may decode a half-word without consulting this: `0x060C3240` is a pool
+    word inside Win_01000, and decoding its low half as an instruction yielded a
+    `bsr -> 0x060C260E` that does not exist -- a MANUFACTURED call, which the
+    "a census is a lower bound" caveat does not cover, because that caveat is
+    about calls the tool MISSES.
+    """
+    pool = set()
+    a = start
+    while a < end:
+        if a in pool:
+            a += 2
+            continue
+        t = img.pcrel_target(a)
+        if t:
+            lit = t[1]
+            for k in range(0, 4 if t[0] == "l" else 2, 2):
+                pool.add(lit + k)
+        a += 2
+    return pool
+
+
+def call_census(img: Image, start: int, end: int, pool=None):
     """Every call out of [start,end).
 
     Returns a list of dicts.  `target` is None when the tool could not resolve it
     -- those rows are the whole point: a census is a LOWER BOUND, and an absence
     from it proves nothing (docs/research-arcade-balance-desyncs.md, E9b's note on
     the `jsr @r11` at 0x060C5384 that a register-tracking call graph missed).
+
+    Literal-pool words are skipped, not decoded.  Pass `pool` (from
+    `function_extent` or `pool_map`) to reuse a map already computed; omitting it
+    computes one, because no caller should be able to opt back into decoding
+    data as instructions.
     """
+    if pool is None:
+        pool = pool_map(img, start, end)
+    else:
+        pool = set(pool)
     rows = []
     a = start
     while a < end:
+        if a in pool:
+            a += 2
+            continue
         b = img.branch_target(a)
         if b and b[0] == "bsr":
             rows.append({"at": a, "how": "bsr", "target": b[1], "via": None})
@@ -351,7 +538,7 @@ def call_census(img: Image, start: int, end: int):
         j = img.jsr_reg(a)
         if j:
             how, reg = j
-            src, tgt = _track_reg(img, a, reg, start)
+            src, tgt = _track_reg(img, a, reg, start, pool)
             rows.append({"at": a, "how": "%s @r%d" % (how, reg), "target": tgt, "via": src})
             a += 2
             continue
@@ -359,22 +546,34 @@ def call_census(img: Image, start: int, end: int):
     return rows
 
 
-def _track_reg(img: Image, use_at: int, reg: int, fn_start: int):
+def _track_reg(img: Image, use_at: int, reg: int, fn_start: int, pool=()):
     """Walk backwards from `use_at` for the load that put a literal in `reg`.
 
-    Returns (load_addr, value) or (None, None).  Any *other* modelled write to
-    the register aborts the walk -- reporting UNRESOLVED is correct; guessing is
-    not.
+    Returns (load_addr, value) or (None, None).  The walk stops -- UNRESOLVED --
+    on any of:
+      * a modelled write to `reg`;
+      * an encoding `written_regs` does NOT model, because "not modelled" is not
+        "writes nothing"; the walk has no idea what it just stepped over.
+    Literal-pool half-words are skipped rather than decoded, for the same reason
+    `call_census` skips them.
+
+    This walk is linear, not control-flow aware, and it does not model what a
+    callee clobbers across an intervening `jsr`.  Both make it a HINT that can
+    over-resolve; the disassembly is the verdict.
     """
+    pool = pool if isinstance(pool, (set, frozenset)) else set(pool)
     a = use_at - 2
     while a >= fn_start:
+        if a in pool:
+            a -= 2
+            continue
         t = img.pcrel_target(a)
         if t and img.pcrel_reg(a) == reg:
             val = img.u32(t[1]) if t[0] == "l" else img.u16(t[1])
             return a, val
-        w = img.writes_reg(a)
-        if w == reg:
-            return None, None
+        w = img.writes_reg(a, reg)
+        if w is None or w:
+            return None, None  # unknown encoding, or a real clobber
         a -= 2
     return None, None
 
@@ -396,6 +595,28 @@ def annotate(img: Image, insn) -> str:
         return "   ; = 0x%08X" % img.u32(lit)
     v = img.u16(lit)
     return "   ; = 0x%04X (%d)" % (v, img.s16(lit))
+
+
+def looks_like_data(img: Image, fn_start, addr: int):
+    """Is `addr` a literal-pool half-word of the routine that appears to enclose it?
+
+    `loaders_of` scans EVERY even address in the reachable window and asks "does
+    this decode as a pc-relative load of my literal?" -- it has no idea whether
+    the address is code.  A literal pool full of work-RAM pointers decodes as
+    plausible instructions, so a "referrer" can be data.  This does not remove
+    referrers (the scan has no reliable code/data boundary to remove them by);
+    it labels the ones it can catch, so a pin is never read off a data word in
+    silence.  Returns False when there is no enclosing-routine hint to work from.
+    """
+    if not fn_start or fn_start > addr:
+        return False
+    return addr in pool_map(img, fn_start, addr + 2)
+
+
+def _data_warning(img: Image, fn_start, addr: int) -> str:
+    if looks_like_data(img, fn_start, addr):
+        return "  *** INSIDE A LITERAL POOL -- this is DATA, not an instruction ***"
+    return ""
 
 
 def render(img: Image, start: int, end: int, pool=()):
@@ -498,8 +719,8 @@ def cmd_refs(img: Image, args) -> int:
             ins = img.disasm(a, 2)
             txt = "%s %s" % (ins[0].mnemonic, ins[0].op_str) if ins else "?"
             print(
-                "    0x%08X  %-28s  [enclosing routine starts ~0x%08X]"
-                % (a, txt, fn if fn else 0)
+                "    0x%08X  %-28s  [enclosing routine starts ~0x%08X]%s"
+                % (a, txt, fn if fn else 0, _data_warning(img, fn, a))
             )
     print("referrers   : %d" % total)
     if total == 1:
@@ -509,9 +730,10 @@ def cmd_refs(img: Image, args) -> int:
             "VERDICT     : NO LITERAL REFERRER.\n"
             "              This is NOT proof nothing uses it.  SH-2 mov.l @(disp,PC)\n"
             "              reaches 255 longwords FORWARD only, so a routine with no pool\n"
-            "              of its own borrows the NEXT routine's; and a value within\n"
-            "              +-255 of a pool literal is reached by base+displacement with\n"
-            "              no literal of its own.  The literal scan is a SCREEN; the\n"
+            "              of its own borrows the NEXT routine's; and a value NEAR a pool\n"
+            "              literal is reached by base+displacement with no literal of its\n"
+            "              own -- `add #imm,Rn` shifts a loaded base by -128..+127, the\n"
+            "              widest such reach SH-2 has.  The literal scan is a SCREEN; the\n"
             "              disassembly is the verdict."
         )
     else:
@@ -548,17 +770,18 @@ def cmd_fn(img: Image, args) -> int:
             "\n              FORWARD only, so this routine uses the NEXT routine's pool)"
             % (", ".join("0x%08X" % p for p in borrowed),)
         )
-    rows = call_census(img, start, end)
+    rows = call_census(img, start, end, pool_map(img, start, end))
     unresolved = [r for r in rows if r["target"] is None]
     print("calls       : %d (%d unresolved)" % (len(rows), len(unresolved)))
     for r in rows:
         if r["target"] is None:
             print("  0x%08X  %-10s -> UNRESOLVED" % (r["at"], r["how"]))
         elif r["via"] is None:
+            # A decoded bsr is in reach by construction -- the target was read
+            # OUT of the displacement.  The old "beyond bsr's reach" note here
+            # was arithmetic on the wrong pair of addresses and could only
+            # mislead, so it is gone.
             print("  0x%08X  %-10s -> 0x%08X" % (r["at"], r["how"], r["target"]))
-            d = abs(r["target"] - r["at"])
-            if d > BSR_REACH:
-                print("                 (note: %d bytes away, beyond bsr's +-0x%X reach)" % (d, BSR_REACH))
         else:
             print(
                 "  0x%08X  %-10s -> 0x%08X   (register loaded at 0x%08X, %d bytes earlier)"
@@ -570,7 +793,11 @@ def cmd_fn(img: Image, args) -> int:
         "table is unresolvable here and prints UNRESOLVED.  To prove a routine does\n"
         "NOT call X, scan its byte range for an aligned word equal to &X (cps3.py\n"
         "refs --within), check bsr cannot reach, and read the disassembly -- with a\n"
-        "known-present callee as the positive control."
+        "known-present callee as the positive control.\n"
+        "It is ALSO not an upper bound on the register-tracked rows: the backward\n"
+        "walk behind a `jsr @Rn` is linear, not control-flow aware, and does not\n"
+        "model what an intervening call clobbers.  A resolved `-> 0x...` on a\n"
+        "jsr/jmp row is a HINT.  Read the disassembly before resting a claim on it."
     )
     if args.disasm:
         print()
@@ -584,21 +811,32 @@ def cmd_nocall(img: Image, args) -> int:
 
     Three independent legs, none of which is on its own a proof:
       (a) is there a 4-byte-aligned word equal to &X in the routine's byte range?
-      (b) can a bsr reach X from here at all (+-0x1000)?
+      (b) could a bsr AT ANY CALL SITE IN THE ROUTINE reach X?
       (c) does the resolved call census name X?
     Plus a POSITIVE CONTROL: a callee known to be present must show up under (a),
     or leg (a) is measuring nothing.
+
+    Leg (b) is a property of the call SITES, not of the routine start.  Measured
+    from the start it told a lane that 0x060C7CF0 was "4344 bytes away ... CANNOT
+    reach" from 0x060C6BF8 while leg (c), three lines below, resolved 21 bsr
+    calls to it -- a false negative in the exact direction a negative proof
+    cannot afford.
     """
     start = num(args.fn)
     end = num(args.end) if args.end else function_extent(img, start)[0]
     callee = num(args.callee)
     print("routine     : 0x%08X .. 0x%08X  (%d bytes)" % (start, end, end - start))
     print("callee      : 0x%08X" % callee)
+    pool = pool_map(img, start, end)
     words = [a for a in pool_words(img, callee, 4) if start <= a < end]
     print("(a) aligned words equal to &callee in range : %d %s" % (len(words), [hex(w) for w in words]))
-    dist = abs(callee - start)
-    print("(b) bsr reach: %d bytes away, bsr spans +-0x%X -> %s" % (dist, BSR_REACH, "CAN reach" if dist <= BSR_REACH else "CANNOT reach"))
-    rows = call_census(img, start, end)
+    lo, hi = bsr_window(start, end)
+    in_reach = lo <= callee <= hi
+    print(
+        "(b) bsr reach: some call site in 0x%08X..0x%08X reaches 0x%08X..0x%08X -> %s"
+        % (start, end, lo, hi, "CAN reach" if in_reach else "CANNOT reach")
+    )
+    rows = call_census(img, start, end, pool)
     hit = [r for r in rows if r["target"] == callee]
     unres = [r for r in rows if r["target"] is None]
     print("(c) resolved census hits on callee          : %d  (%d unresolved call sites in this routine)" % (len(hit), len(unres)))
@@ -621,11 +859,12 @@ def cmd_nocall(img: Image, args) -> int:
         print("         READ THE DISASSEMBLY (cps3.py dis / fn --disasm).  The literal")
         print("         scan is a screen; the disassembly is the verdict.")
         return 1
-    print("VERDICT: no literal, %s, and no resolved call." % ("bsr cannot reach" if dist > BSR_REACH else "BUT BSR CAN REACH -- check every bsr"))
+    print("VERDICT: no literal, %s, and no resolved call." % ("bsr cannot reach" if not in_reach else "BUT BSR CAN REACH -- check every bsr"))
     print("         This is a SCREEN, not a proof.  Confirm by reading the disassembly:")
     print("         a routine can borrow the NEXT routine's pool (255 longwords forward),")
-    print("         and a target within +-255 of a pool literal is reached by")
-    print("         base+displacement with no literal of its own.")
+    print("         and a target NEAR a pool literal is reached by base+displacement")
+    print("         with no literal of its own -- `add #imm,Rn` shifts a loaded base by")
+    print("         -128..+127, the widest such reach SH-2 has.")
     return 0
 
 
@@ -681,7 +920,10 @@ def cmd_pin(img: Image, args) -> int:
     print("instructions loading them   : %d" % len(refs))
     for s, a in refs:
         ins = img.disasm(a, 2)
-        print("  0x%08X  %s %s   (pool word 0x%08X)" % (a, ins[0].mnemonic, ins[0].op_str, s))
+        print(
+            "  0x%08X  %s %s   (pool word 0x%08X)%s"
+            % (a, ins[0].mnemonic, ins[0].op_str, s, _data_warning(img, find_function_start(img, a), a))
+        )
     if len(refs) != 1:
         print(
             "\nVERDICT: NOT a sole-referrer pin.  The literal scan is a screen, not the\n"
@@ -832,7 +1074,11 @@ def cmd_selftest(img: Image, args) -> int:
     n_rnd = len([a for a in pool_words(img, rnd16, 4) if w1_start <= a < w1_end])
     check("Win_01000 pool words == &set_field_hosei_flag", str(n_sfhf), "0")
     check("  positive control: &random_16 present", str(n_rnd >= 1), "True")
-    check("  set_field_hosei_flag is beyond bsr reach", str(abs(sfhf - w1_start) > BSR_REACH), "True")
+    # Measured over every call SITE in the routine, not from its start -- see the
+    # bsr_window checks below for why that distinction is not cosmetic.  The
+    # claim is the doc's and is unchanged; only the arithmetic under it is.
+    w1_lo, w1_hi = bsr_window(w1_start, w1_end)
+    check("  set_field_hosei_flag is beyond bsr reach", str(not (w1_lo <= sfhf <= w1_hi)), "True")
 
     # -- the counter-case: Normal_normal_Winner DOES make the call --------
     print("")
@@ -846,12 +1092,197 @@ def cmd_selftest(img: Image, args) -> int:
         "0x060C37E8, 0x060C380A",
     )
 
+    # ------------------------------------------------------------------
+    # Regressions.  Every check below FAILED before the commit that added it;
+    # each names the wrong answer the tool used to give.  They exist because
+    # the failure mode of this tool is not a crash, it is a confident sentence.
+    # ------------------------------------------------------------------
+
+    print("")
+    print("-- the disassembler itself: dis/render must actually DECODE (nothing above did) --")
+    # Everything before this point reads bytes, literals and encodings by hand.
+    # A `disasm` that raised, or returned nothing, or returned garbage, passed
+    # the whole selftest -- while SKILL.md calls the disassembly "the verdict".
+    want_dis = [
+        ("mov.w", "0x60c4e74,r4"),
+        ("mov.w", "@(8,r14),r0"),
+        ("tst", "r0,r0"),
+        ("bt", "0x60c4e0a"),
+        ("mov.l", "0x60c4e9c,r2"),
+        ("mov.w", "@r2,r3"),
+        ("extu.w", "r3,r3"),
+        ("tst", "r4,r3"),
+        ("bt", "0x60c4e20"),
+        ("bra", "0x60c4e14"),
+    ]
+    try:
+        got_dis = [(i.mnemonic, i.op_str) for i in img.disasm(0x060C4DF4, 2 * len(want_dis))]
+    except Exception as exc:  # a raising disassembler must FAIL, not traceback
+        got_dis = []
+        print("  img.disasm raised: %r" % (exc,))
+    nmatch = sum(1 for g, w in zip(got_dis, want_dis) if g == w)
+    check(
+        "img.disasm decodes Win_13000's P1SW/P2SW mask test (E9a)",
+        "%d/%d instructions" % (nmatch, len(want_dis)),
+        "%d/%d instructions" % (len(want_dis), len(want_dis)),
+    )
+    if nmatch != len(want_dis):
+        for k in range(max(len(got_dis), len(want_dis))):
+            g = got_dis[k] if k < len(got_dis) else None
+            wnt = want_dis[k] if k < len(want_dis) else None
+            if g != wnt:
+                print("    first mismatch at +%d: got %r, want %r" % (k * 2, g, wnt))
+                break
+    # An undecodable half-word must come back as no instruction, not as a
+    # plausible one: 0x03C0 at 0x060C2EBA is the low half of win_jp_tbl's pool
+    # word 0x060C2EBC, and is not an SH-2 encoding.
+    check("img.disasm declines the non-encoding 0x03C0 (a pool half-word)", _guard(lambda: str(len(img.disasm(0x060C2EBA, 2)))), "0")
+    check("  and written_regs calls it UNKNOWN, not 'writes nothing'", str(img.written_regs(0x060C2EBA)), "None")
+    # render() is the path `dis` and `fn --disasm` print through; it must label a
+    # pool word .long and disassemble the instruction that loads it.
+    _, w1_pool = function_extent(img, w1_start)
+    check(
+        "render(): the loading instruction, then its pool word as .long",
+        _guard(
+            lambda: " / ".join(
+                " ".join(x.split())
+                for x in render(img, 0x060C2E90, 0x060C2E94, w1_pool) + render(img, 0x060C2ED8, 0x060C2EDC, w1_pool)
+            )
+        ),
+        "060c2e90 mov.l 0x60c2ed8,r2 ; = 0x0202802A / 060c2e92 mov #42,r0 / 060c2ed8 .long 0x0202802A",
+    )
+
+    print("")
+    print("-- pool words are DATA: decoding them manufactures calls that do not exist --")
+    # Before the fix, call_census decoded every half-word in range.  0x060C3240
+    # and 0x060C3350 are pool words of Win_01000; their low halves decoded as
+    # `bsr -> 0x060C260E` and `bsr -> 0x060C271E`.  nocall's leg (c) is
+    # `[r for r in rows if r["target"] == callee]`, so a pool word could
+    # MANUFACTURE A POSITIVE -- which "the census is a lower bound" does not cover.
+    check("0x060C3242 is the low half of the pool word at 0x060C3240", str(0x060C3242 in set(w1_pool)), "True")
+    check("0x060C3352 is the low half of the pool word at 0x060C3350", str(0x060C3352 in set(w1_pool)), "True")
+    w1_rows = call_census(img, w1_start, w1_end)
+    check("Win_01000 census rows landing inside its own literal pool", str(len([r for r in w1_rows if r["at"] in set(w1_pool)])), "0")
+    check("  the two phantom bsr rows are gone", str([r["at"] for r in w1_rows if r["how"] == "bsr"]), "[]")
+    check("  Win_01000 makes no bsr call at all, so leg (c) cannot invent one", str(len(w1_rows)), "25")
+    # pool_map and function_extent must not drift apart: they answer the same
+    # question and only one of them is consulted by the census.
+    check(
+        "pool_map agrees with function_extent's pool inside Win_01000",
+        str(
+            set(p for p in pool_map(img, w1_start, w1_end) if w1_start <= p < w1_end)
+            == set(p for p in w1_pool if w1_start <= p < w1_end)
+        ),
+        "True",
+    )
+
+    print("")
+    print("-- bsr reach is a property of the CALL SITE, not of the routine start --")
+    # `nocall --fn 0x060C6BF8 --callee 0x060C7CF0` printed "4344 bytes away ...
+    # CANNOT reach" three lines above "(c) resolved census hits: 21".
+    bs_start, bs_callee = 0x060C6BF8, 0x060C7CF0
+    bs_end, _ = function_extent(img, bs_start)
+    bs_lo, bs_hi = bsr_window(bs_start, bs_end)
+    check("the routine at 0x060C6BF8 ends at", bs_end, 0x060C7D9C)
+    check("  measured from the START, 0x060C7CF0 looks out of reach", str(abs(bs_callee - bs_start) > BSR_REACH), "True")
+    check("  measured over its call SITES, it is in reach", str(bs_lo <= bs_callee <= bs_hi), "True")
+    bs_hits = [r for r in call_census(img, bs_start, bs_end) if r["target"] == bs_callee]
+    check("  and the census resolves this many calls to it", str(len(bs_hits)), "21")
+    check("    of which plain bsr, which leg (b) had called impossible", str(len([r for r in bs_hits if r["how"] == "bsr"])), "13")
+    # The invariant the old arithmetic violated: a decoded bsr is in reach by
+    # construction, so no resolved bsr anywhere may fall outside its own window.
+    stray = 0
+    for fn_lo in (0x060C2DDC, 0x060C37BA, bs_start, 0x060C5308):
+        fn_hi, _ = function_extent(img, fn_lo)
+        lo_w, hi_w = bsr_window(fn_lo, fn_hi)
+        stray += len([r for r in call_census(img, fn_lo, fn_hi) if r["how"] == "bsr" and not (lo_w <= r["target"] <= hi_w)])
+    check("resolved bsr targets outside bsr_window(), over four routines", str(stray), "0")
+    # Raw displacement bounds, stated once so the window cannot be re-derived wrong.
+    check(
+        "bsr_window arithmetic: [start+4-4096, (end-2)+4+4094]",
+        "0x%08X..0x%08X" % bsr_window(0x06000000, 0x06001000),
+        "0x05FFF004..0x06002000",
+    )
+
+    print("")
+    print("-- an unmodelled encoding is UNKNOWN, and UNKNOWN must resolve to nothing --")
+    # `writes_reg` used to return a bare None for BOTH "writes no register" and
+    # "I cannot decode this", so _track_reg walked straight through top-nibble
+    # 0x0 and 0x4 writes.  `jsr @r2` at 0x060CAABC came back as a call to
+    # work-RAM 0x02026FF4 -- past `mov.l @(r0,r3),r2` two bytes earlier.
+    check("0x060CAABA mov.l @(r0,r3),r2 writes r2", str(img.writes_reg(0x060CAABA, 2)), "True")
+    check("0x060CAAB8 shll2 r3 writes r3", str(img.writes_reg(0x060CAAB8, 3)), "True")
+    check("0x060C2E8C mov.l r14,@-r15 writes r15 (pre-decrement)", str(img.writes_reg(0x060C2E8C, 15)), "True")
+    check("0x060C2E86 mov.l @r15+,r14 writes r14 AND r15 (post-increment)", str(sorted(img.written_regs(0x060C2E86))), "[14, 15]")
+    check("0x060CAAC2 lds.l @r15+,pr writes r15", str(img.writes_reg(0x060CAAC2, 15)), "True")
+    check("0x060CAABC jsr @r2 writes no GPR -- False, not UNKNOWN", str(img.writes_reg(0x060CAABC, 2)), "False")
+    aabc = call_census(img, 0x060CAA90, function_extent(img, 0x060CAA90)[0])
+    check("the jsr @r2 at 0x060CAABC is UNRESOLVED, not work-RAM 0x02026FF4", str([r["target"] for r in aabc if r["at"] == 0x060CAABC]), "[None]")
+
+    print("")
+    print("-- and the same three properties over 0x060C0000..0x060E0000, not just the pins --")
+    scanned = _sweep(img, 0x060C0000, 0x060E0000)
+    check("routines walked / census rows", "%d / %d" % (scanned["fns"], scanned["rows"]), "290 / 2870")
+    # Pinned because it is the one number here that does not depend on the model
+    # under test: a walk that resolves MORE than this is over-resolving again.
+    check("  of which resolved (the rest print UNRESOLVED)", str(scanned["resolved"]), "2626")
+    check("rows decoded out of a literal pool", str(scanned["in_pool"]), "0")
+    check("resolved rows whose backward walk crossed an UNKNOWN encoding", str(scanned["unknown_crossed"]), "0")
+    check("resolved bsr targets outside their routine's bsr_window", str(scanned["bsr_stray"]), "0")
+
     print("")
     if fails:
         print("SELFTEST: %d FAILED -- %s" % (len(fails), "; ".join(fails)))
         return 1
     print("SELFTEST: all checks passed.")
     return 0
+
+
+def _guard(fn):
+    """Run `fn`, turning any exception into a reportable value.
+
+    A disassembler that raises must make selftest print FAIL, not traceback out
+    of the run before the remaining checks get to say anything.
+    """
+    try:
+        return fn()
+    except Exception as exc:  # pragma: no cover - only reached by a broken decoder
+        return "raised %s: %s" % (type(exc).__name__, exc)
+
+
+def _sweep(img: Image, lo: int, hi: int):
+    """Walk [lo,hi) routine by routine and count what must be zero.
+
+    Range-scale versions of the three bugs, so a regression cannot hide by
+    missing the handful of addresses the pinned checks name.
+    """
+    out = {"fns": 0, "rows": 0, "resolved": 0, "in_pool": 0, "unknown_crossed": 0, "bsr_stray": 0}
+    a = lo
+    while a < hi:
+        end, _ = function_extent(img, a)
+        if end <= a:
+            break
+        end = min(end, hi)
+        pool = pool_map(img, a, end)
+        w_lo, w_hi = bsr_window(a, end)
+        out["fns"] += 1
+        for r in call_census(img, a, end, pool):
+            out["rows"] += 1
+            if r["target"] is not None:
+                out["resolved"] += 1
+            if r["at"] in pool:
+                out["in_pool"] += 1
+            if r["how"] == "bsr" and not (w_lo <= r["target"] <= w_hi):
+                out["bsr_stray"] += 1
+            if r["target"] is not None and r["via"] is not None:
+                b = r["at"] - 2
+                while b > r["via"]:
+                    if b not in pool and img.written_regs(b) is None:
+                        out["unknown_crossed"] += 1
+                        break
+                    b -= 2
+        a = end
+    return out
 
 
 def _sole_ref(img: Image, value: int):

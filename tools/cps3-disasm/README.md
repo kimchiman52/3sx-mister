@@ -21,10 +21,18 @@ python3 tools/cps3-disasm/cps3.py nocall --fn 0x060C2E8C \
         --callee 0x0611DFB8 --control 0x0611E0EE
 ```
 
-`selftest` is the assertion this README does not restate in prose: every value it
-checks is quoted from `docs/research-arcade-balance-desyncs.md` or
-`docs/research-arcade-cg-data-accuracy.md`, and it fails loudly if the tool, the
-image, or a documented address stops agreeing.
+`selftest` is the assertion this README does not restate in prose. It has two
+halves. The first quotes every value from `docs/research-arcade-balance-desyncs.md`
+or `docs/research-arcade-cg-data-accuracy.md` and fails loudly if the tool, the
+image, or a documented address stops agreeing. The second is **regressions**:
+each check there names a wrong answer this tool actually gave, and each one
+failed before the commit that added it. They exist because the failure mode of
+this tool is not a crash, it is a confident sentence.
+
+Some of those regressions are range-scale, over `0x060C0000..0x060E0000` rather
+than over the handful of pinned addresses — a decoder bug that only bites outside
+the pins is still a decoder bug, and the pins are the addresses least likely to
+regress unnoticed.
 
 ## Dependencies
 
@@ -46,7 +54,7 @@ image, or a documented address stops agreeing.
 No Ghidra, no JVM, no project database, no server. Every subcommand is a
 sub-second read of a flat file.
 
-## The four traps this encodes
+## The traps this encodes
 
 Each was paid for in lane time. They are the reason the tool prints what it
 prints, including the parts that look like nagging.
@@ -78,9 +86,44 @@ prints, including the parts that look like nagging.
    Two ways a literal scan lies, both printed by the tool when relevant:
    SH-2 `mov.l @(disp,PC)` reaches 255 longwords **forward and never backward**,
    so a routine with no pool of its own borrows the **next** routine's (`fn`
-   labels those `borrowed`); and a target within ±255 of a pool literal is
-   reached as base + displacement with no literal of its own. The literal scan is
-   a **screen**; the disassembly is the verdict.
+   labels those `borrowed`); and a target **near** a pool literal is reached as
+   base + displacement with no literal of its own — `add #imm,Rn` shifts a loaded
+   base by **−128..+127**, which is the widest such reach SH-2 has. (The
+   displacement *load* modes are narrower and forward-only: `mov.l @(disp,Rm),Rn`
+   spans 0..60 bytes, `mov.w @(disp,Rm),R0` 0..30, `mov.b @(disp,Rm),R0` 0..15.
+   No SH-2 addressing mode reaches ±255; the README said so until 2026-09-07 and
+   it was simply wrong.) The literal scan is a **screen**; the disassembly is the
+   verdict.
+
+3b. **It is not an UPPER bound either — three ways it used to over-count, all
+   fixed and all regression-tested.** Under-counting is the caveat the tool
+   documents; over-counting is worse, because a *manufactured* call turns
+   `nocall`'s "does this routine call X?" into a false positive, and the
+   lower-bound caveat does not cover it.
+
+   - **Literal-pool words were decoded as instructions.** `0x060C3240` is a pool
+     word inside `Win_01000`; its low half decoded as `bsr -> 0x060C260E`, a call
+     that does not exist. `pool_map()` now marks pool half-words as data and
+     `call_census` skips them (35 such rows over `0x060C0000..0x060E0000`).
+   - **`bsr` reach was measured from the routine START.** It is a property of
+     each call **site**: from a site at `a` the target is `a + 4 + [−4096..+4094]`,
+     so a routine `[start,end)` can reach `[start−4092, end+4096]` and the span is
+     **not symmetric**. `nocall --fn 0x060C6BF8 --callee 0x060C7CF0` used to print
+     "CANNOT reach" three lines above "(c) resolved census hits: 21".
+   - **An unmodelled encoding counted as "writes nothing".** `writes_reg` is now
+     tri-state — writes / does not write / **UNKNOWN** — and the backward register
+     walk fails to `UNRESOLVED` on unknown. It used to sail through every
+     top-nibble `0x0` and `0x4` write and report the `jsr @r2` at `0x060CAABC` as
+     a call to work-RAM `0x02026FF4`, past the `mov.l @(r0,r3),r2` two bytes
+     before it.
+
+   What is **still** a hint, by design and not fixed: the backward register walk
+   is **linear, not control-flow aware**, and does not model what an intervening
+   `jsr` clobbers. Over `0x060C0000..0x060E0000`, 228 of 2,262 resolved rows have
+   a branch instruction between the load and the use. This is not fixable by
+   stopping the walk at branches — the documented `jsr @r11` at `0x060C5384`
+   crosses two (`0x060C533E`, `0x060C5370`) and is a *true* call. A resolved
+   `-> 0x...` on a `jsr`/`jmp` row is a lead; `fn` says so in its footer.
 
 4. **Byte-identical opening lines are a coincidence of shape, not behaviour.**
    In the port, `Normal_normal_Winner`'s first ten lines are byte-identical to
@@ -136,3 +179,18 @@ questions and can coexist.
 - No symbol names. Names in this repo's arcade docs are *our* names for arcade
   routines, established by anchor. The image has none.
 - No writing. It never touches `src/`.
+- **No code/data boundary it can trust.** `find_function_start` is an `rts` scan
+  and `function_extent` stops at the first `rts` past every forward branch — both
+  are heuristics, and `fn`/`nocall` say so. They are also load-bearing: the pool
+  map, and therefore which half-words the census decodes at all, is computed from
+  the start you hand it. Start `win_player`'s census at the `rts`-scan hint
+  `0x060C2DC6` instead of its anchored address `0x060C2DDC` and the `jsr @r1` at
+  `0x060C2E7C` comes back "resolved" to `0x02011387` — an **odd** address, which
+  no SH-2 jump target can be, and which is the tell. Pin the start by anchor and
+  pass `--end` when the real bound is known.
+- `loaders_of` scans every even address in a literal's reachable window and has
+  no way to know which of them are instructions, so a "referrer" can be a pool
+  word. `refs` and `pin` now label the ones they can catch
+  (`*** INSIDE A LITERAL POOL -- this is DATA, not an instruction ***`); they do
+  not remove them, because there is no reliable boundary to remove them by. Read
+  the disassembly around a referrer before pinning off it.
