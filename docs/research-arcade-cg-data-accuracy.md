@@ -286,6 +286,16 @@ changed is where a refuted claim is marked and where a number was wrong.
 | §21.6 heading, §22.9, §15.7, §12 | claims resting on "past the first terminator" | flagged in place. The convention is **not a reachability test** (§26.10.2) and is not even *sufficient* (§28.2 revives three post-terminator cells) — the two live consumers that still use it, `data_audit.py`'s split and `arc_parse`'s last-script cut, are named |
 | §7's table, §9's "reproduces `TOTAL \| 66 0 949 745 316`" | presented without a date | stamped as the pre-fix baseline, with the line the current tree prints |
 
+> **The last row's two named consumers were both settled on 2026-09-07 — §31.**
+> `data_audit.py`'s split is re-derived under `k7_entry_walk` with **0 of 394
+> rows changing status** (§31.2), and `arc_parse`'s last-script cut is measured
+> **unsound**, hiding exactly **18 cells in 3 scripts**, and made non-load-bearing
+> by failing those scripts open (§31.3). That pass also found `k7_entry_walk`
+> itself under-approximating liveness by **121 cells over 60 scripts** — it could
+> not see the entries the **C** writes (§31.1) — and read both of Ken's unread
+> links, which refute the defence rather than supporting it (§31.4). Still no C
+> touched; 12 computed values moved in `cg_audit.json` and no verdict did.
+
 Three things this pass deliberately did **not** do:
 
 1. It did not touch §7's historical results table or §7.1's counterfactual
@@ -1887,9 +1897,9 @@ identically.~~
 | File | Purpose |
 |---|---|
 | `cg_audit.py` | **The main deliverable.** Full 20-character audit of the 10 script tables' CG numbers. Parses constants from repo source at run time. Writes `cg_audit.json`. ~40 s. |
-| `data_audit.py` | **The §15 deliverable.** The other 13 sections (STXY MVXY SERND RICT HIIT BODA HANA CATA CAUA ATTA HOSA ATIT PROT), all 20 characters: content diff + bounds analysis. Imports `cg_audit.py` for the shared constants (and does not modify it); derives element sizes by **compiling a `sizeof` probe against `include/structs.h`**, so a struct change moves the audit automatically. Writes `data_audit.json`. **~1 s** (no `obj_group_table` decode of its own beyond the import). |
+| `data_audit.py` | **The §15 deliverable.** The other 13 sections (STXY MVXY SERND RICT HIIT BODA HANA CATA CAUA ATTA HOSA ATIT PROT), all 20 characters: content diff + bounds analysis. Imports `cg_audit.py` for the shared constants (and does not modify it); derives element sizes by **compiling a `sizeof` probe against `include/structs.h`**, so a struct change moves the audit automatically. Writes `data_audit.json`. ~~**~1 s**~~ **~20 s since §31.2** (2026-09-07): its bounds rows are now adjudicated by `cg_audit.py` -> `k7_entry_walk`, which pulls in the §27 `span_closure` fixpoint. The cost buys the verdict — it no longer splits on the withdrawn terminator convention. |
 | `data_audit.json` | Every §15 finding, machine-readable (256 KB) |
-| `residual_audit.py` | **The §17 deliverable.** Derives every texture group's offset-table length from `SF33RD.AFS`, bounds-checks the residual `n -= texgrpdat[i].num_of_1st` for all 133,901 cells plus the OVCT `parts_char` path, and derives the group-load reachability model from `ldreq_tbl[]`/`ldreq_ix[]`. Imports `cg_audit.py` and `data_audit.py`; modifies neither. Writes `residual_audit.json`. **~1 s** (`/usr/bin/time -p`: real 1.10). |
+| `residual_audit.py` | **The §17 deliverable.** Derives every texture group's offset-table length from `SF33RD.AFS`, bounds-checks the residual `n -= texgrpdat[i].num_of_1st` for all 133,901 cells plus the OVCT `parts_char` path, and derives the group-load reachability model from `ldreq_tbl[]`/`ldreq_ix[]`. Imports `cg_audit.py` and `data_audit.py`; modifies neither. Writes `residual_audit.json`. ~~**~1 s** (`/usr/bin/time -p`: real 1.10)~~ **~20 s since §31.2** (`real 19.45`), inherited from `data_audit.py`'s reachability import. |
 | `residual_audit.json` | Every §17 finding, machine-readable (group table, violations, reachability census) |
 | `counterfactual.py` | Re-runs the audit with historical fixes reverted → `cg_counterfactual.json` |
 | `decrypt.py` | Rebuilds `rom.bin` from `sfiii3nr1.zip` (prints SIMM SHA-256s for verification) |
@@ -2263,6 +2273,10 @@ directly dissolves part of the §11.2 residue:
   > been re-derived that way**, so §15.7's 92 specifically still rest on the
   > withdrawn convention. Re-running `data_audit.py` under `k7_entry_walk` is
   > the work this bullet now names.
+  >
+  > **CLOSED 2026-09-07 (§31.2).** Done, and the 92 are dead under the stronger
+  > model too — 394 of 394 rows agree with the terminator split, so the numbers
+  > stand and only their basis changed.
 - ~~**Whether Remy's `caua`/`hosa` over-declared spans (§15.6) overlap another
   character's real data.**~~ **CLOSED by §19.1**: the 500 declared spans tile the
   ROM with **zero overlaps**, so they sit inside gaps. (No provenance was traced
@@ -2741,6 +2755,16 @@ not proof.
 > the 31 off-model `cg_rival` values are therefore the last live consumers of a
 > withdrawn basis in this document. Re-deriving them under `k7_entry_walk` is
 > named as open work in §12.
+>
+> **DONE — §31.2 (2026-09-07). Every count above survives: the 92, the 70, the
+> 22, the 300 and the 31 are unchanged, and `data_audit.py` now takes the
+> verdict from `k7_entry_walk` (imported, not reimplemented) rather than from
+> the terminator. The two criteria agree on 394 of 394 rows.** The split on
+> "before/after a terminator" is still printed, now labelled as the descriptive
+> statistic it is. Note that the model they were re-derived under was itself
+> strengthened in the same pass — it could not see the entries the **C** writes,
+> which revive 121 cells cast-wide (§31.1) — though none of those 121 is one of
+> these rows.
 
 ### 15.8 Stretch: the second ROM revision (`sfiii3`, 990608)
 
@@ -3895,6 +3919,15 @@ are sprite cells (`DUDLEY caca[6]`, remapped **5537-5543**, group 5, his own).
 `DUDLEY caca[6]`'s eleven were **outside the 133,901-cell census** — the walk
 stops at `caca[6]` cell 1's `comm_roa` — until §27 reached and classified them.
 Corrected 2026-09-06.
+
+> **These 18 are exactly what `arc_parse`'s last-script terminator cut hides,
+> and the count is now derived rather than hand-checked (§31.3, 2026-09-07).**
+> `span_last_script_cut()` asks which cells the §27 closure reaches inside a
+> last script's own extent that `arc_parse` never parsed, over all 200 last
+> scripts and without consulting a terminator: the answer is **18 cells in 3
+> scripts** and nothing else. The cut is therefore **unsound but no longer
+> load-bearing** — all three scripts fail OPEN in `k7_entry_walk`. The census
+> still omits them, by choice.
 
 ### 19.7 Correction to §7.6, and the real over-declaration list
 
@@ -6533,6 +6566,18 @@ point is moot, because the hazard does not exist on either.
   window and the flag's lifetime from the master's last landed hit — or
   showing the flagged cells cannot be current with `routine_no[1] == 0`,
   `guard_flag != 3` and `hit_stop == 0`. Neither was done.
+  > **BOTH READ 2026-09-07 (§31.4), and both go the wrong way for the gate.**
+  > The recogniser does not decay within a frame: `waza_flag[i]` is a countdown
+  > seeded from the entry's own `reset` word and decremented once per frame by
+  > `cmd_main.c` -> `command_ok_move`, measured at **8 frames minimum, 12 for
+  > 417 of 420 entries**, and its only bulk clear (`cmd_init`) is not on the
+  > path between case 2 and N+1. `meoshi_hit_flag` has **no unconditional
+  > per-frame clear anywhere in the tree**: `hitcheck.c` -> `dm_status_copy`
+  > sets it on every landed hit, guard and parry with no guard at all, and every
+  > clear is inside a dispatched move or cancel. So the gate stays open on the
+  > **conjunction** alone, never again on an unread link — and §6.1 still puts
+  > the consequence out of scope (`k7_foreign_oob` and `k7_foreign_oob_ps2` both
+  > **0**), so there is still no fix.
 - No claim is made that Ken's case is **reachable** in play. What is
   established is that the input-side defence does not exclude it. The
   remaining links may or may not hold; the model reports open because it has
@@ -6890,6 +6935,14 @@ never emitted. The `+31` half of a column is as load-bearing as the `0+`.
 
 ### 28.2 `k7_entry_walk` under-approximated liveness — six writers, now modelled
 
+> **It still did, for a different reason — §31.1 (2026-09-07).** The six writers
+> below are the ones *inside* a script. The entry set itself was also short: this
+> walk collects landings named by script **commands**, and the **C** writes
+> entries too (`SPAN_C_ENTRIES`, the throw seeds, and the `dmca`/`yuca`/`nmca`
+> carries — all of which `span_closure` already models). **Measured: 121 cells
+> over 60 scripts** that this walk called dead are reachable that way. No verdict
+> in this section changes, and Yang's `saca[44..47]` c41 stay dead a third time.
+
 §26.10.2 replaced §19's linear terminator scan with an entry-point closure, but
 the closure it built still walked each script *forwards in a straight line*
 from its entry points. A script is not a straight line either: six writers of
@@ -7048,6 +7101,14 @@ the violation totals are untouched.
 - **§19**'s terminator convention now has a second consumer that no longer uses
   it. Its remaining uses in `cg_audit.py` (`arc_parse`'s last-script cut, the
   `term_end` scan in `span_closure`) are unchanged and were not re-derived.
+  > **Both settled 2026-09-07 (§31.3, §31.5).** `arc_parse`'s cut is **not
+  > sound** and hides exactly **18 cells in 3 of the 200 last scripts** (DUDLEY
+  > `caca[6]`, DUDLEY `saca[87]`, ELENA `atca[159]`) — measured by
+  > `span_last_script_cut()`, which never consults a terminator. Those three
+  > scripts now fail OPEN in `k7_entry_walk`, so the cut is no longer
+  > load-bearing. The `term_end` scan in `span_closure` was never a
+  > reachability test: `reach` and `reach_end` do not read it, and it feeds only
+  > the reporting fields. It carries no verdict and is left alone.
 
 ### 28.7 What this does not establish
 
@@ -7613,3 +7674,267 @@ the new fields.
 - **`cgd_type 1` scripts are outside the model** — 23 cast-wide, all `yuca`,
   the same gap §27.8 and §28.7 record. Their period is not in `{2, 4, 6}` and
   no violation of any class falls in one.
+
+---
+
+## 31. The withdrawn convention's last two consumers, re-derived — and `k7_entry_walk` was itself under-approximating liveness (fourteenth pass, 2026-09-07)
+
+**Citation style for this section.** As in §21-§30: this document is not in
+`tools/doc-citations/baselines.txt`, so everything below cites a **symbol**
+(`file` -> `function`/`table`) or the exact text of a line, never a line number.
+Code was read at `new-stuff` @ `467911d5`. Every number marked **measured** was
+produced by `tools/arcade-audit/cg_audit.py` and `data_audit.py` against the
+same `rom.bin` (md5 `909f5abec4b6b21bf7d2a452a03fdfcc`) the rest of this
+document uses.
+
+**Headline.** §15.7's 92 decoder artefacts, its 70 `sernd_oob` / 22 `stxy_oob`
+rows and its 31 off-model `cg_rival` values are re-derived under
+`k7_entry_walk`: **not one of the 394 rows changes status.** But the model they
+were re-derived under turned out to be wrong in the unsafe direction — it was
+missing every entry the **C** writes, as opposed to a script command — and
+fixing that is the substantive finding of this pass. `arc_parse`'s last-script
+cut is **not sound**, its cost is now measured exactly (18 cells, 3 scripts) and
+the audit fails those scripts open rather than trusting them. Ken's two unread
+links are both **read, and both refute the defence rather than supporting it**;
+the gate stays open on the conjunction alone, and §6.1 still puts the
+consequence out of scope, so there is no fix.
+
+### 31.1 The finding: `k7_entry_walk` could not see the entries the C forms
+
+§26.10.6 and §28.7 both record the same caveat in almost the same words — "an
+entry written by C code rather than by a script command ... would not be seen.
+No such entry is known, and none was searched for." This pass searched.
+
+`k7_entry_walk` builds a script's entry set from cell 0 plus every landing a C
+**cell** names. `span_closure` (§27) builds a different one, from the entries
+the **C** forms: the eleven `SPAN_C_ENTRIES` (`appear.c`, `win_pl.c`,
+`plpat00.c`), the throw census's `cuca` seeds, `plpdm.c` -> `Damage_17000`'s
+carry into `dmca[dm17_to_nm23_change[ci]]`, `win_pl.c`'s carry into
+`yuca[33|35]`, `pls00.c`'s Elena `nmca[36]` -> `nmca[0]` carry, and the
+X.C.O.P.Y. donor jumps. Neither model calls the other, so they are independent,
+and the comparison is just a set difference.
+
+> **Measured: `span_closure` reaches 121 cells, over 60 scripts, that
+> `k7_entry_walk` called dead.** Every one is in `cuca[0]`, `cuca[1]`,
+> `cuca[24]`, `cuca[33]`, `yuca[16]`, `yuca[33]`, `yuca[35]`, `dmca[dm17]` or
+> Twelve's `saca[44]` — i.e. every one is a C-side or carried entry, exactly the
+> class the caveat named.
+
+So `dead` was an **under**-approximation of liveness: the direction that fails
+toward "benign", which the house rule forbids. This is the same shape of defect
+§28.2 fixed once already, and it is why that fix was not enough on its own.
+
+`_span_entry_seeds(ci)` closes it. The two models number cells differently, so a
+node is translated through its **byte position**, never trusted by its frame
+label: `span_closure`'s frame for `(sec, si)` is open-ended (it runs to the
+section size keeping the label) while `arc_parse` ends a script at the next
+pointer. A reached position `arc_parse` parsed becomes a seed on the cell that
+covers it — which re-files **3,660** ran-into-the-next-script nodes under the
+script that really holds those bytes, instead of failing 211 frames open for
+nothing. A reached position `arc_parse` did **not** parse cannot be seeded at
+all, so the script holding it fails open.
+
+**Effect on the audit — 12 values, and no verdict:**
+
+| change | what it is |
+|---|---|
+| Ibuki `k7_foreign_cells` 23 -> 24, `k7_foreign_dead` 1 -> 0, `k7_foreign_oob` 23 -> 24, `k7_foreign_oob_ps2` 22 -> 23 | `saca[63]` c17 (`olc 1030`) goes dead -> live. It is `ps2_same_cell`, and its consequence is OOB **identically on both arms** — §6.1 pre-existing, and behind a `closed` gate besides |
+| Twelve `xcopy_case0` live 33 -> 36, dead 7 -> 4 | three more `cg_type 20` forward-swap markers, all `exca[15]` (c6, c10, c14), go live. **All three select `olc 0`**, so nothing is carried and `k7_fwd_gate` stays `closed` with `unmodelled` still `None` |
+| Necro `manu_cells_direct` 202 -> 214, `manu_cells_bracketed` 30 -> 38 | 20 more live L-cells enter §29's remap classification. All 20 classify benign; `DIVERGENT` stays **7** cast-wide |
+
+`k7_foreign_dead` is now **0 for every character** — no X.C.O.P.Y. foreign cell
+anywhere is excused by a `dead` verdict.
+
+### 31.2 §15.7 re-derived: 394 rows, 0 change of status
+
+`data_audit.py` now imports `k7_entry_walk` from `cg_audit` (the way
+`residual_audit.py` imports `arcade_scripts`) and writes `dead` on every cell.
+The two decoders number cells differently — `arc_parse`'s index counts C and L
+cells, `data_audit`'s `cell` counts only L cells — so the mapping is
+**asserted, not assumed**: `_assert_walk_alignment` re-decodes each script both
+ways and checks the L-cell count and every L cell's position, over all 20
+characters × 10 tables.
+
+> **Measured, before and after:**
+>
+> | class | §15.7 (terminator) | this pass (reach) | rows changed |
+> |---|---|---|---|
+> | `hiit_oob` | 300 pre / 0 post | **300 live / 0 dead** | 0 |
+> | `sernd_oob` | 0 pre / 70 post | **0 live / 70 dead** | 0 |
+> | `stxy_oob` | 2 pre / 22 post | **2 live / 22 dead** | 0 |
+> | `cg_rival` off-model | 31, 0 pre-terminator | **31, 0 live** | 0 |
+>
+> The two criteria agree on **394 of 394** rows. The 92 decoder artefacts are
+> the 70 + 22, and they are dead under the stronger model too.
+
+Nothing changes status, so nothing needs adjudicating — but the *basis* is what
+moved, and that was the point: the 300 `hiit_oob` keep their §6.1
+`pre_existing_in_ps2` verdict (`saca[1]`/`saca[7]`, byte-identical on both
+sides), and the 92 + 31 now rest on an entry-point closure over the six
+intra-script writers of `cg_ix` **plus** the C-side entries, rather than on a
+convention that was withdrawn. The terminator split is still printed, labelled
+as the descriptive statistic it is, with an `agrees with reach` column — because
+the 100%/0% *distribution* §15.7 measured is real and worth keeping; what it
+cannot carry is the word "unreachable".
+
+**This closes the §12 bullet** that named re-running `data_audit.py` under
+`k7_entry_walk` as open work.
+
+### 31.3 `arc_parse`'s last-script cut is NOT sound — and what it costs is 18 cells
+
+`arc_parse` stops decoding the **last** script of a table at its first
+`TERMINATORS` command, because that script's declared end is `location.size` and
+106 of the 200 spans over-declare it (§19.7, §27.2). That cut **is** §19's
+convention, and §26.10.2 withdrew the convention. So the question is not whether
+the cut is a good bound but what it hides — and `span_closure` can answer it,
+because it never consults a terminator and bounds a span by reach instead.
+
+> **Measured, whole cast: the cut hides exactly 18 cells in 3 of the 200 last
+> scripts** — DUDLEY `caca[6]` c2-12, DUDLEY `saca[87]` c11-16, ELENA
+> `atca[159]` c24. That is §19.6(b)'s set, re-found by an instrument that knows
+> nothing about it, and **nothing else** cast-wide.
+
+**Verdict: unsound, and no longer load-bearing.** All three scripts now fail
+**open** in `k7_entry_walk`, so no `dead` verdict anywhere is drawn from a cell
+list the cut truncated; and `span_closure` reaches, bounds and classifies all 18
+itself (`span_reach`, `span_past_terminator_bad` **0** for all 20). The cut is
+**not** repaired, deliberately: the 18 cells' absence from the 133,901-cell
+census is its only remaining cost, `ps2_parse` has no reach model to match, and
+moving the census would change every cross-release cell alignment in this file
+for eighteen cells §27 already classifies as in bounds. `span_last_script_cut()`
+now measures and prints it on every run, so the cost is a number rather than a
+footnote.
+
+### 31.4 Ken: both unread links READ, and both go the wrong way for the gate
+
+§26.10.6 named exactly two: `meoshi_hit_flag != 0` and `waza_flag[i] != 0` at
+frame N+1. Both are now read, by enumerating every writer.
+
+**`waza_flag[i]` — refuted, positively.** It is a **countdown**, not a
+same-frame flag. `cmd_main.c` -> `command_ok` writes
+`wcp[cmd_id].waza_flag[waza_type[cmd_id]] = wcp[cmd_id].reset[waza_type[cmd_id]]`
+on recognition, and `cmd_move`'s second loop calls `command_ok_move(j)` for
+every slot that is neither `-1` nor `0`, whose whole body is
+`waza_flag[waza_num] -= 1` (or `= 0` when `dead_lvr_check()` returns 1). So it
+decays one per frame and is never rewritten wholesale. `cmd_data_set` reads
+`reset[i]` as word 0 of the record, so the buffer length is **data**, and
+`k7_cmd_buffer()` measures it:
+
+> **Measured**: over the 20 special-move slots `pls03.c` ->
+> `check_special_attack` scans, across all **21** arcade command tables, **417
+> of 420 entries buffer 12 frames**; the other three are 8, 8 and 10. Minimum
+> **8**. A motion recognised at frame N still reads >= 7 at N+1.
+
+The only bulk clear is `cmd_main.c` -> `cmd_init`
+(`SDL_memset(wcp[cmd_id].waza_flag, 0, sizeof(...))`), whose only callers are in
+`plcnt.c` — including `set_base_data_metamorphose`, which `effk7.c` ->
+`K7_move_type_0` calls at **case 0** (the forward swap) and **case 4** (the
+reverse swap itself), and **not** at case 2, which is where
+`mwk->metamor_over = 1` is written. And `plmain.c` -> `Player_move` runs
+`waza_check(wk)` *after* its `sw_lvbt = 0`, so `cmd_move` still dispatches on
+the armed frame.
+
+**`meoshi_hit_flag` — refuted.** Twelve writes exist tree-wide and **none is an
+unconditional per-frame clear**. `hitcheck.c` -> `dm_status_copy` ends
+`as->meoshi_hit_flag = 1;` with no enclosing condition at all, and it runs on
+every landed hit, guard and parry (five call sites in `hitcheck.c` plus
+`hitplef.c`). The clears are `charset.c` -> `set_new_attnum` under
+`if (wk->cg_att_ix < 0)` — a cell that begins a **new** attack — and five in
+`pls03.c` (`hissatsu_setup_union`, `check_nm_attack`, `check_chouhatsu`,
+`check_catch_attack`, `check_renda_cancel`, `check_meoshi_cancel`), every one
+of them inside a **dispatched** move or cancel. `plpnm.c` ->
+`setup_normal_process_flags` does not touch it (§26.10.1 said so; a whole-tree
+grep confirms zero matches in that file). So the master's last landed hit
+carries a 1 through its recovery cells — which have `cg_att_ix == 0`, so
+`set_new_attnum` is not even entered — into the normal state that
+`K7_mt0_rebirth_check`'s `routine_no[1] == 0` requires at frame N.
+
+**Negative result, recorded so it is not re-derived.** There is exactly one
+place in this path where the code consults the morph state at all, and it is
+`pls03.c` -> `check_special_attack`, on `btix` rather than on `waza_flag`:
+the ground scan skips an entry when `(wk->cp->btix[i] & 0x1000)` and
+(`wk->metamorphose` or `wk->sa->ok != -1`), the air scan when `wk->metamorphose`
+and `(wk->cp->btix[i] & 0x400)`. Both disjuncts of the ground condition hold at
+N+1 — the master is still bound to the target, and `sa->ok != -1` is precisely
+what case 2 waited on — so had every entry carried the bit, Ken's `0x20` leg
+would have closed on data alone.
+
+> **Measured (`k7_metamorphose_skip()`)**: it does not. Of **210** ground
+> entries cast-wide only **2** carry `0x1000` (both in one table, `p12_cmd`),
+> and the air bit is set on 7 entries in total. **For Ken's own table
+> (`pB_cmd`, via `ArcadeCommandData_Get` -> `pl_cmd[CHAR_3SX_TO_ARCADE(11)]`)
+> the ground count is 0 of 10.** `closes_any_table` is **false**. The skip
+> removes nothing.
+
+**So all three legs of the pre-empt are now refuted rather than unread** — the
+input word (§26.10.1), `waza_flag[i]`, and `meoshi_hit_flag`. **The gate still
+does not close**, and the reason is stated positively: what is unshown is the
+**conjunction** — that one frame exists at which a flagged cell is current
+(`nmca[4]` c6/c7 with `canc 0x21`, or `dmca[64]` c17 with `canc 0x60`) *and*
+`meoshi_hit_flag != 0` *and* the matching `waza_flag[i] != 0` *and*
+`guard_flag != 3` *and* `hit_stop == 0` *and* `routine_no[1] == 0` all hold
+together. No timing model was built and none was attempted.
+
+**And it does not matter, by §6.1.** Re-measured this pass under the
+strengthened walk: Ken's six foreign cells (`saca[30]` c11, `saca[36..39]` c32,
+`saca[64]` c12) are **all live**, **all `ps2_same_cell`**, and
+`k7_foreign_oob` = **0** with `k7_foreign_oob_ps2` = **0** — the part indices
+they would feed Twelve's tables (37-39) are in range on **both** data sides.
+The visible consequence is a wrong overlay sprite the PS2 shows identically. A
+gate would have to be `ArcadeBalance_IsEnabled()`-conditional and would
+manufacture an arcade-only divergence where none exists today, to fix the PS2's
+behaviour rather than an adaptation defect. **No code change**, for the same
+reason §26.10.1 gave and with more evidence behind it.
+
+### 31.5 Corrections to earlier sections (recorded, not silently edited)
+
+- **§15.7**'s counts are **confirmed, not corrected**: 92 decoder artefacts
+  (70 `sernd_oob` + 22 `stxy_oob`), 300 `hiit_oob`, 31 off-model `cg_rival`, all
+  re-derived under `k7_entry_walk` with zero rows changing status. Its *basis*
+  is replaced; its numbers stand. The sentence calling these "the last live
+  consumers of a withdrawn basis in this document" is now out of date — see the
+  next bullet for what still is.
+- **§26.10.2 / §28.2**'s `k7_entry_walk` was itself an **under**-approximation
+  of liveness, for the reason both sections named as unexamined and neither
+  measured: it sweeps script commands, and the C writes entries too. 121 cells
+  over 60 scripts (§31.1). Their verdicts are unchanged — Yang's `saca[44..47]`
+  c41 stay dead under the stronger model, for the third time.
+- **§26.10.6**'s "Ken's gate is not closed. The two unread links are named
+  exactly in §26.10.1" — both are now read (§31.4). The conclusion (gate open,
+  no fix) is unchanged; the reason is no longer "unread" for any leg, only for
+  their conjunction.
+- **§28.6**'s last bullet says §19's convention has two remaining consumers in
+  `cg_audit.py`, "unchanged and ... not re-derived". `arc_parse`'s last-script
+  cut is now measured (§31.3): unsound, 18 cells, and no longer load-bearing
+  because those three scripts fail open. The `term_end` scan in `span_closure`
+  is **still** the convention — but it was never a reachability test there:
+  `span_closure`'s `reach` and `reach_end` never read `term_end`, which feeds
+  only the reporting fields `slack`, `reach_past_term` and
+  `reach_past_term_bytes` (the comparison against §19.7's table). It carries no
+  verdict and is left alone.
+- **§12**'s bullet naming "re-running `data_audit.py` under `k7_entry_walk`" as
+  open work is **CLOSED** (§31.2).
+
+### 31.6 What this does not establish
+
+- **The conjunction for Ken** (§31.4). Three legs are refuted individually;
+  that no frame satisfies all six conditions at once is neither shown nor
+  refuted, and the gate reports open because of it.
+- **`residual_audit.py` still splits on the terminator**, in two places. Its
+  arcade-side `live` filter is **vacuous today** — `script_violations` is
+  **0 rows**, measured — so the withdrawn convention adjudicates nothing there;
+  and its PS2-control line (34 rows, 0 pre-terminator) has no reachability model
+  available at all, because `k7_entry_walk` is arcade-only and no PS2 span
+  closure exists. Recorded rather than repaired: a fix would have to invent the
+  PS2-side model first.
+- **The census still omits the 18 cells** `arc_parse`'s cut hides (§31.3), by
+  choice. `cells audited` stays 133,901 and the TOTAL violation row is
+  byte-for-byte what §30 left.
+- **`_span_entry_seeds` inherits `span_closure`'s own limits** — §27.8's and
+  §28.7's, unchanged: no condition is ever evaluated, no timing anywhere, and
+  `cgd_type 1` scripts (23 cast-wide, all `yuca`) are outside both models'
+  common grid and stay fully live.
+- **The PS2 side has no entry model.** Everything above is about which arcade
+  cells can execute; the identical question for `ps2_parse` was not asked.
+- **The CPS3's own overlay engine was still not disassembled** (§24.7, §26.9,
+  §26.10.6).

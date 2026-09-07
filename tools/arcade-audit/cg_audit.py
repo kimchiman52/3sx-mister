@@ -674,6 +674,60 @@ def parse_k7_rebirth():
 K7_BTIX_WORD = 7
 K7_CMD_NO_BUTTON = 0x80        # pls03.c: `(btix[i] & 0xFF) == 0x80` -> the entry needs no button word
 K7_CMD_SLOTS = ((28, 38), (46, 56))   # pls03.c check_special_attack: ground scan, then air scan
+# pls03.c -> check_special_attack is the one place the code consults the morph state for this scan:
+#   ground  `if ((wk->cp->btix[i] & 0x1000) && (wk->metamorphose || (wk->sa->ok != -1))) { continue; }`
+#   air     `if (wk->metamorphose) { if (wk->cp->btix[i] & 0x400) { continue; } }`
+K7_SKIP_GROUND, K7_SKIP_AIR = 0x1000, 0x400
+
+_K7_CMD_CACHE = {}
+def _k7_cmd_tables():
+    """(entry name -> its s16 record, [(table name, 56 entry names)]) parsed out of the arcade command
+    data.  One parse shared by k7_input_words / k7_cmd_buffer / k7_metamorphose_skip."""
+    if 'v' in _K7_CMD_CACHE: return _K7_CMD_CACHE['v']
+    t = re.sub(r'//[^\n]*', '', src("src/arcade/arcade_cmd_data.c"))
+    arrs = {}
+    for m in re.finditer(r'static const s16 (\w+)\[(\d+)\]\s*=\s*\{(.*?)\};', t, re.S):
+        vals = [int(x) for x in re.findall(r'-?\d+', m.group(3))]
+        assert len(vals) == int(m.group(2)), m.group(1)
+        arrs[m.group(1)] = vals
+    tabs = []
+    for m in re.finditer(r'static const (?:const_s16_arr|void\s*\*)\s*(p[0-9A-Fa-f]+_cmd)\[(\d+)\]\s*=\s*\{(.*?)\};', t, re.S):
+        names = [x for x in re.split(r'[,\s]+', m.group(3).strip()) if x]
+        if len(names) == 56: tabs.append((m.group(1), names))
+    assert len(tabs) == 21, "expected 21 arcade command tables, parsed %d" % len(tabs)
+    _K7_CMD_CACHE['v'] = (arrs, tabs)
+    return _K7_CMD_CACHE['v']
+
+_K7_SKIP_CACHE = {}
+def k7_metamorphose_skip():
+    """NEGATIVE RESULT, recorded so it is not re-derived.  `pls03.c` -> `check_special_attack` is the
+    only place in the cancel path that consults the morph state at all, and it does so on `btix`, not
+    on `waza_flag`: the ground scan skips an entry when `(btix[i] & 0x1000)` and (`metamorphose` or
+    `sa->ok != -1`), the air scan when `metamorphose` and `(btix[i] & 0x400)`.  Both disjuncts of the
+    ground condition hold at N+1 -- the master is still bound to the target, and `sa->ok != -1` is
+    exactly what `effk7.c` -> `K7_move_type_0` case 2 waited on -- so if every entry carried the bit
+    the scan would find nothing and Ken's 0x20 leg would close on data alone.
+
+    **Measured**: it does not.  Cast-wide only ONE table has any ground entry with `0x1000` set (two
+    entries), and the air bit is set on 0-2 entries per table.  For Ken's own table the ground count
+    is 0 of 10.  The skip removes nothing, so this does not close the gate."""
+    if 'v' in _K7_SKIP_CACHE: return _K7_SKIP_CACHE['v']
+    arrs, tabs = _k7_cmd_tables()
+    (glo, ghi), (alo, ahi) = K7_CMD_SLOTS
+    per = {}
+    for nm, names in tabs:
+        g = [arrs[n][K7_BTIX_WORD] for n in names[glo:ghi] if n in arrs]
+        a = [arrs[n][K7_BTIX_WORD] for n in names[alo:ahi] if n in arrs]
+        per[nm] = dict(ground=len(g), ground_skipped=sum(1 for x in g if x & K7_SKIP_GROUND),
+                       air=len(a), air_skipped=sum(1 for x in a if x & K7_SKIP_AIR))
+    v = dict(tables=len(tabs), per_table={k: per[k] for k in sorted(per)},
+             ground_skipped=sum(p['ground_skipped'] for p in per.values()),
+             air_skipped=sum(p['air_skipped'] for p in per.values()),
+             ground_entries=sum(p['ground'] for p in per.values()),
+             closes_any_table=any(p['ground_skipped'] == p['ground'] and p['air_skipped'] == p['air']
+                                  for p in per.values()))
+    _K7_SKIP_CACHE['v'] = v
+    return v
 
 _K7_BTIX_CACHE = {}
 def k7_input_words():
@@ -686,24 +740,51 @@ def k7_input_words():
     **Measured**: every entry in all 21 arcade command tables reads word 5 (`sw_chg`) or is the
     0x80 no-button sentinel -- so 'input is dead' does not close the 0x40/0x20 cancel paths."""
     if 'v' in _K7_BTIX_CACHE: return _K7_BTIX_CACHE['v']
-    t = re.sub(r'//[^\n]*', '', src("src/arcade/arcade_cmd_data.c"))
-    arrs = {}
-    for m in re.finditer(r'static const s16 (\w+)\[(\d+)\]\s*=\s*\{(.*?)\};', t, re.S):
-        vals = [int(x) for x in re.findall(r'-?\d+', m.group(3))]
-        assert len(vals) == int(m.group(2)), m.group(1)
-        arrs[m.group(1)] = vals
-    words, tables = set(), 0
-    for m in re.finditer(r'static const (?:const_s16_arr|void\s*\*)\s*(p[0-9A-Fa-f]+_cmd)\[(\d+)\]\s*=\s*\{(.*?)\};', t, re.S):
-        names = [x for x in re.split(r'[,\s]+', m.group(3).strip()) if x]
-        if len(names) != 56: continue
-        tables += 1
+    arrs, tabs = _k7_cmd_tables()
+    words, tables = set(), len(tabs)
+    for _nm, names in tabs:
         for lo, hi in K7_CMD_SLOTS:
             for n in names[lo:hi]:
                 if n in arrs: words.add(arrs[n][K7_BTIX_WORD] & 0xFF)
-    assert tables == 21, "expected 21 arcade command tables, parsed %d" % tables
     v = dict(tables=tables, words=sorted(words),
              live=sorted(w for w in words if w != K7_CMD_NO_BUTTON))
     _K7_BTIX_CACHE['v'] = v
+    return v
+
+K7_RESET_WORD = 0              # cmd_main.c -> cmd_data_set: `wcp[cmd_id].reset[i] = *cmd_tbl_ptr++`
+
+_K7_RESET_CACHE = {}
+def k7_cmd_buffer():
+    """How many frames a recognised motion stays recognised -- the second of the two links §26.10.1
+    left unread for Ken's gate ("`waza_flag[i] != 0` at N+1 ... the decay was not traced").
+
+    `waza_flag[]` is a COUNTDOWN, not a same-frame flag.  `cmd_main.c` -> `command_ok` writes
+    `wcp[cmd_id].waza_flag[waza_type[cmd_id]] = wcp[cmd_id].reset[waza_type[cmd_id]]` on recognition,
+    and `cmd_move`'s second loop calls `command_ok_move(j)` for every `j` whose flag is neither -1 nor
+    0, whose whole body is `waza_flag[waza_num] -= 1` (or `= 0` when `dead_lvr_check()` returns 1).
+    `cmd_data_set` reads `reset[i]` as word 0 of the entry, so the buffer length is DATA, and this
+    measures it.  The only clear of the whole array is `cmd_main.c` -> `cmd_init`
+    (`SDL_memset(wcp[cmd_id].waza_flag, 0, sizeof(...))`), reached from `plcnt.c` at round init and
+    from `plcnt.c` -> `set_base_data_metamorphose`, which `effk7.c` -> `K7_move_type_0` calls at
+    case 0 (the FORWARD swap) and at case 4 (the reverse swap itself) -- never between case 2/3 at
+    frame N and frame N+1.
+
+    **Measured**: over the 20 special-move slots `pls03.c` -> `check_special_attack` scans, every one
+    of the 21 arcade command tables buffers 12 frames but for three entries (two at 8, one at 10).
+    So the minimum is 8 and a motion recognised at frame N still reads >= 7 at N+1: the link does not
+    merely fail to close, it is REFUTED, the same way §26.10.1 refuted the input-word leg."""
+    if 'v' in _K7_RESET_CACHE: return _K7_RESET_CACHE['v']
+    arrs, tabs = _k7_cmd_tables()
+    vals, tables = [], len(tabs)
+    for _nm, names in tabs:
+        for lo, hi in K7_CMD_SLOTS:
+            for n in names[lo:hi]:
+                if n in arrs: vals.append(arrs[n][K7_RESET_WORD])
+    assert vals, "no special-move entries parsed"
+    v = dict(tables=tables, entries=len(vals), min=min(vals), max=max(vals),
+             histogram={str(k): vals.count(k) for k in sorted(set(vals))},
+             survives_one_frame=(min(vals) >= 2))
+    _K7_RESET_CACHE['v'] = v
     return v
 
 def k7_hit_ix(r):
@@ -796,17 +877,49 @@ def k7_swap_gate(ci):
             for i, c in enumerate(arc_parse(ci, sec, si, tabs)[1]):
                 if c[0] == 'L' and c[1]['type'] in K7_END_TYPES and c[1].get('canc', 0) & K7_CANCEL_BITS:
                     preempt.append(dict(table=sec, script=si, cell=i, type=c[1]['type'], canc=c[1]['canc']))
-    words = k7_input_words()
+    words, buf, skip = k7_input_words(), k7_cmd_buffer(), k7_metamorphose_skip()
     if preempt:
+        # §26.10.1 left this open on three legs. All three are now READ, and every one of them goes
+        # the wrong way for a benign verdict -- which is the direction the house rule prefers:
+        #   input word      REFUTED (§26.10.1): every entry reads conpane[5] = sw_chg, which
+        #                   cmd_main.c -> pl_lvr_set derives from the PREVIOUS frame, so
+        #                   Player_move's `sw_lvbt = 0` under metamor_over does not reach it.
+        #   waza_flag[i]    REFUTED (k7_cmd_buffer): it is a countdown seeded from the entry's own
+        #                   `reset` word and decremented once per frame by command_ok_move, minimum
+        #                   8 frames cast-wide -- not a same-frame flag; and its only clear,
+        #                   cmd_init, runs at the forward swap and at case 4 itself, not between.
+        #   meoshi_hit_flag REFUTED by enumeration: hitcheck.c -> dm_status_copy ends
+        #                   `as->meoshi_hit_flag = 1` and runs on every landed hit, guard and parry
+        #                   (5 call sites there plus hitplef.c). It is cleared ONLY by charset.c ->
+        #                   set_new_attnum under `if (wk->cg_att_ix < 0)` -- a cell that begins a NEW
+        #                   attack -- and by six sites in pls03.c, each inside a SUCCESSFUL cancel or
+        #                   attack setup (hissatsu_setup_union, check_nm_attack, check_renda_cancel,
+        #                   check_meoshi_cancel). Nothing on the normal-state per-frame path clears
+        #                   it: plpnm.c -> setup_normal_process_flags clears cancel_timer and not
+        #                   this. So the master's last landed hit carries a 1 through its recovery
+        #                   cells (cg_att_ix == 0, so set_new_attnum is not entered) into the normal
+        #                   state that K7_mt0_rebirth_check's `routine_no[1] == 0` requires at N.
+        # What is STILL not shown is the CONJUNCTION -- that one frame exists where a flagged cell is
+        # current AND meoshi_hit_flag != 0 AND the matching waza_flag[i] != 0 AND guard_flag != 3 AND
+        # hit_stop == 0 AND routine_no[1] == 0 all hold. No timing model was built. The gate stays
+        # open, and by §6.1 the consequence is out of scope anyway: k7_foreign_oob and
+        # k7_foreign_oob_ps2 are both 0 here, so the part indices are in range on BOTH data sides.
         why.append("cells that can be current at arming and carry a script-installing cancel bit: %d "
-                   "(the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; "
-                   "the input-word leg is refuted, not unread -- every entry reads conpane%s = sw_chg, "
-                   "which pl_lvr_set derives from the previous frame)" % (len(preempt), words['live']))
+                   "(all three legs of the pre-empt are now refuted rather than unread -- the input "
+                   "word is conpane%s = sw_chg, derived from the previous frame; waza_flag[i] is a "
+                   "countdown of at least %d frames, not a same-frame flag; meoshi_hit_flag has no clear on the "
+                   "normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
+                   % (len(preempt), words['live'], buf['min']))
     return dict(rebirth=dict(table=reb['table'], script=reb['script'], routine=reb['rno'], marker=reb['marker'],
                              marker_cell=k, cells_before=len(preL), frames_before=sum(r['ctr'] for r in preL),
                              hit_ix_before=hix, canc_before=canc, marker_olc=marker_olc, tail_olc=tail,
                              tail_hit_ix=tail_hix, tail_exit=tail_exit, twelve_hiit=tw_hiit),
-                frame_n=boxes, preempt_cells=preempt, input_words=words, unmodelled=(why or None))
+                frame_n=boxes, preempt_cells=preempt, input_words=words, cmd_buffer=buf,
+                metamorphose_skip=dict(ground_entries=skip['ground_entries'],
+                                       ground_skipped=skip['ground_skipped'],
+                                       air_skipped=skip['air_skipped'],
+                                       closes_any_table=skip['closes_any_table']),
+                unmodelled=(why or None))
 
 _K7_FWD_CACHE = {}
 def k7_forward_gate():
@@ -844,6 +957,83 @@ def k7_forward_gate():
     _K7_FWD_CACHE['v'] = v
     return v
 
+_SPAN_SEED_CACHE = {}
+def _span_entry_seeds(ci):
+    """The entries into ci's own scripts that `k7_entry_walk`'s sweep structurally cannot see, taken
+    from the §27 closure.  That sweep collects landings named by C cells in the character's OWN
+    tables; §26.10.6 and §28.7 both record the gap it leaves in as many words -- "an entry written by
+    C code rather than by a script command ... would not be seen.  No such entry is known, and none
+    was searched for."  `span_closure` models precisely those, and they exist: the eleven
+    `SPAN_C_ENTRIES` (appear.c, win_pl.c, plpat00.c), the throw census's `cuca` seeds, plpdm.c
+    `Damage_17000`'s carry into `dmca[dm17_to_nm23_change[ci]]`, win_pl.c's carry into `yuca[33|35]`,
+    pls00.c's Elena `nmca[36]` -> `nmca[0]` carry, and the X.C.O.P.Y. donor jumps.  **Measured**: 121
+    cells over 60 scripts that the sweep alone calls dead are reachable this way, so `dead` without
+    them is an UNDER-approximation of liveness -- the unsafe direction, and the same shape of defect
+    §28.2 fixed once already.  `span_closure` never calls `k7_entry_walk`, so there is no cycle.
+
+    A node is translated through its BYTE POSITION, never trusted by its frame label, because the two
+    models bound a script differently: `span_closure`'s frame for `(sec, si)` is open-ended (it runs
+    to the section size keeping the label) while `arc_parse` ends a script at the next pointer.  A
+    reached position arc_parse parsed becomes a seed on the cell that covers it -- which re-files the
+    3,660 ran-into-the-next-script nodes under the script that really holds those bytes instead of
+    failing 211 frames open for nothing.  A reached position arc_parse did NOT parse cannot be seeded
+    at all, so the script holding it fails open; that is exactly two things, and nothing else
+    cast-wide: `arc_parse`'s last-script terminator cut (18 cells in DUDLEY `caca[6]`, DUDLEY
+    `saca[87]` and ELENA `atca[159]` -- §19.6(b), and see `span_last_script_cut()`), and
+    `span_closure`'s own out-of-span nodes (negative indices and script headers, already reported as
+    `oos`).  Returns (seeds, fail-open frames)."""
+    if ci in _SPAN_SEED_CACHE: return _SPAN_SEED_CACHE[ci]
+    sr = span_results()
+    tabs, frames = span_frames(ci)
+    posmap, extent = {}, {}
+    for sec in KOC2SEC.values():
+        off, size = LOC[ci][sec]; ents = tabs[sec]; so = sorted(set(ents))
+        for si in range(len(ents)):
+            cgd, cells = arc_parse(ci, sec, si, tabs)
+            nxt = [o for o in so if o > ents[si]]
+            extent[(sec, si)] = (ents[si] - 8, (nxt[0] - 8) if nxt else size)
+            if cgd not in (1, 2, 4, 6): continue
+            st = 8 if cgd in (1, 2) else cgd * 4          # arc_parse's stride, both cell kinds
+            for k in range(len(cells)): posmap[(sec, ents[si] + k * st)] = (si, k)
+    last = {sec: max(range(len(tabs[sec])), key=lambda i: tabs[sec][i]) for sec in KOC2SEC.values()}
+    seeds, openf, cut = {}, set(), {}
+    for arm in ('base', 'xcopy'):
+        for (f, k) in sr[arm][ci]['nodes']:
+            base, st = frames.get(f, (None, None))
+            if st is None: continue
+            if st == 4: openf.add(f); continue           # cgd 1: the executor's grid is finer (§28.7)
+            pos = base + k * st
+            hit = posmap.get((f[0], pos))
+            if hit is None:
+                tgt = next((g for g in extent if g[0] == f[0]
+                            and extent[g][0] <= pos < extent[g][1]), f)
+                openf.add(tgt)
+                if tgt == f and f[1] == last[f[0]] and pos >= base:
+                    cut.setdefault(f, set()).add(k)      # the last-script terminator cut, below
+                continue
+            seeds.setdefault((f[0], hit[0]), set()).add(hit[1])
+    _SPAN_SEED_CACHE[ci] = (seeds, openf, {k: sorted(v) for k, v in cut.items()})
+    return _SPAN_SEED_CACHE[ci]
+
+def span_last_script_cut(ci):
+    """What `arc_parse`'s LAST-script cut hides.  `arc_parse` stops decoding the last script of a
+    table at its first `TERMINATORS` command, because that script's declared end is `location.size`
+    and 106 of the 200 spans over-declare it (§19.7, §27.2).  That cut IS §19's convention, and
+    §26.10.2 proved the convention unsound as a reachability test -- a `jmp`/`jpss`/`jsr` `pat` is a
+    1-based cell index and can land past a terminator -- so the question is not whether the cut is a
+    good bound but what it hides.  `span_closure` answers it: it never consults a terminator, it bounds
+    a span by reach instead, and it is the model §27 already trusts for the same spans.
+
+    **Measured, whole cast: 18 cells in 3 of the 200 last scripts** -- DUDLEY `caca[6]` c2-12, DUDLEY
+    `saca[87]` c11-16, ELENA `atca[159]` c24 -- which is exactly §19.6(b)'s set and nothing else.  So
+    the cut is NOT sound, and it is not left resting on that: every one of the three scripts fails
+    open in `k7_entry_walk` (`_span_entry_seeds`), so no `dead` verdict anywhere is drawn from a cell
+    list the cut truncated, and `span_closure` reaches, bounds and classifies all 18 cells itself
+    (`span_reach`, 0 out of bounds).  What the cut still costs is those 18 cells' presence in the
+    133,901-cell census, which §19.6(b)/§27 record separately and which moving would change every
+    cross-release cell alignment in this file."""
+    return _span_entry_seeds(ci)[2]
+
 _K7_DEAD_CACHE = {}
 def k7_entry_walk(ci):
     """Which cells of each script can never execute.  §19's convention -- everything after the first
@@ -856,9 +1046,13 @@ def k7_entry_walk(ci):
     tables names, and each walk runs the SUCCESSOR GRAPH (`_k7_succ`) rather than a straight line --
     a script is not a line either, because six writers of `cg_ix` carry an index that can move the
     cursor backwards or forwards inside the same script (§27.1, restricted to same-frame edges).
+    Script commands are not the only writers of the entry, though: the C writes one too, and those
+    entries come from `_span_entry_seeds` (the §27 closure), because a sweep of the data can never
+    see them.  Without them `dead` is an UNDER-approximation of liveness -- 121 cells cast-wide.
     Fail-open everywhere -- a landing outside the script, a koc this model does not map, a command
-    code past `decode_chcmd`, or a same-frame edge leaving the parsed cells, marks the whole script
-    live.  `dead` therefore never rests on something the model declined to follow."""
+    code past `decode_chcmd`, a same-frame edge leaving the parsed cells, or a C-side entry landing on
+    a byte `arc_parse` never parsed, marks the whole script live.  `dead` therefore never rests on
+    something the model declined to follow."""
     if ci in _K7_DEAD_CACHE: return _K7_DEAD_CACHE[ci]
     allc = list(_all_cells(ci))
     lens = {(sec, si): len(cells) for sec, si, _, cells in allc}
@@ -871,6 +1065,10 @@ def k7_entry_walk(ci):
             if key[0] is None or key not in lens: continue     # not a reference into this character
             if 0 <= pat - 1 < lens[key]: entries[key].add(pat - 1)
             else: unknown.add(key)                             # fail open: landing off the end
+    sseeds, sopen, _cut = _span_entry_seeds(ci)                # entries the C forms, not the data
+    for key, ks in sseeds.items():
+        if key in entries: entries[key] |= ks
+    unknown |= (sopen & set(lens))
     out = {}
     for sec, si, cgd, cells in allc:
         key = (sec, si)
@@ -2054,7 +2252,12 @@ def audit(cgmap_override=None, quiet=False):
         # cg_audit.json non-byte-reproducible, which silently broke the "the JSON
         # regenerates identically" check this file is verified with. Sort at emission.
         _rs = lambda v: (sorted(v) if v else v)
+        # What arc_parse's last-script terminator cut hides, measured by a model that never consults a
+        # terminator (span_last_script_cut).  Every script listed here fails OPEN in k7_entry_walk, so
+        # no `dead` verdict is drawn from a cell list the cut truncated.
+        _cut = span_last_script_cut(ci)
         rec['span_reach'] = dict(tables=spans, reachable_cells=len(sb['nodes']), reachable_cells_xcopy=len(sx['nodes']),
+                                 last_script_cut={"%s[%d]" % f: v for f, v in sorted(_cut.items())},
                                  unmodelled=_rs(sb['unmodelled']), throw_notes=_rs(sb['throw_notes']),
                                  xcopy=dict(unmodelled=_rs(sx['unmodelled']), donor_notes=_rs(sx['donor_notes']),
                                             stale_consumers={k: len(v) for k, v in sx['stale'].items()}),
@@ -2089,6 +2292,8 @@ def audit(cgmap_override=None, quiet=False):
                             span_past_terminator_bad=sum(1 for t in spans.values() for d in t['past_terminator_cells'] if d.get('cls') not in (None, 'ok')),
                             span_past_terminator_bytes_xcopy=sum(t['past_terminator_bytes_xcopy'] or 0 for t in spans.values()),
                             span_decode_overrun=max(t['decode_overrun'] for t in spans.values()),
+                            span_last_script_cut_cells=sum(len(v) for v in _cut.values()),
+                            span_last_script_cut_scripts=len(_cut),
                             span_gate=('closed' if not span_why else 'unmodelled'),
                             span_gate_reasons=len(span_why),
                             span_gate_xcopy=('closed' if not span_why_x else 'unmodelled'),
@@ -2258,6 +2463,14 @@ if __name__ == "__main__":
           % (sum(res[n]['stats']['caua_hosa_over_declared'] for n in NAMES), T['caua_hosa_tail_reached'], max(res[n]['stats']['span_decode_overrun'] for n in NAMES)))
     print("digest input: %d B over 500 spans, of which %d B (%.2f%%) is decoded ROM past the real data"
           % (digest_in, junk, 100.0 * junk / digest_in))
+    # arc_parse's last-script terminator cut is §19's convention, which §26.10.2 withdrew. What it
+    # hides is measured, not assumed: span_closure never consults a terminator, and every script it
+    # reaches past the cut fails OPEN in k7_entry_walk, so no `dead` verdict rests on the cut.
+    _lsc = [(n, k, v) for n in NAMES for k, v in res[n]['span_reach']['last_script_cut'].items()]
+    print("arc_parse last-script terminator cut: hides %d cell(s) in %d of the 200 last scripts%s"
+          % (sum(len(v) for _, _, v in _lsc), len(_lsc),
+             (" -- " + ", ".join("%s %s c%s" % (n, k, "-".join(map(str, (v[0], v[-1]))) if len(v) > 1 else v[0])
+                                 for n, k, v in _lsc)) if _lsc else ""))
     print("slack gate: base closed %d/20, xcopy closed %d/20"
           % (len([n for n in NAMES if res[n]['stats']['span_gate'] == 'closed']), len([n for n in NAMES if res[n]['stats']['span_gate_xcopy'] == 'closed'])))
     for n in NAMES:

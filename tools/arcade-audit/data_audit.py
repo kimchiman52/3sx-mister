@@ -242,12 +242,21 @@ def rict_model(a, p):
 
 
 # ------------------------------------------------------------------ script cells (both sides)
-def _walk(buf, base, size, ents, si, be):
+def _walk(buf, base, size, ents, si, be, dead=None):
     """Decode one script's cells, including the cgd==6 tail cg_audit.py skips.
 
     Mirrors read_char_table (arcade_char_data.c:150-212) / the WORK cell layout
     (structs.h:316-334). `be` selects the arcade (big-endian ROM) or PS2
     (little-endian, already in memory order) field order.
+
+    `dead`: the set of UNREACHABLE cell positions for this script, from
+    cg_audit.py -> k7_entry_walk (arcade only; there is no PS2 reachability
+    model, and none is needed -- PS2 cells serve only as the §6.1 oracle).
+    Positions count C and L cells alike, which is the numbering k7_entry_walk
+    uses; `cell`/`n` counts L cells only, which is what the bounds rows report.
+    The two walks stride identically for both cell kinds and take the same
+    last-script break, so position k here IS position k there (asserted by
+    `_assert_walk_alignment`).
     """
     e = '>' if be else '<'
     so = sorted(set(ents))
@@ -261,25 +270,28 @@ def _walk(buf, base, size, ents, si, be):
     cgd = struct.unpack_from(e + 'h', buf, p)[0]
     if cgd not in (1, 2, 4, 6):
         return cgd, []
-    out, q, lim, n, term = [], p + 8, base + end, 0, False
+    out, q, lim, n, term, pos = [], p + 8, base + end, 0, False, 0
     while q + 8 <= lim:
         code = struct.unpack_from(e + 'H', buf, q)[0]
         if code < 0x100:
             q += 8 + max(cgd * 4 - 8, 0)
+            pos += 1
             if code in CG.TERMINATORS:
-                # An unconditional control transfer. cg_audit.py stops the walk
-                # here only for the LAST script (whose end is the declared
-                # location size). Everything after one of these in ANY script is
-                # only reachable by a jump that targets a later `pat`, so it is
-                # flagged rather than trusted: see the after_term split in the
-                # bounds report.
+                # An unconditional control transfer. Both walks stop here only
+                # for the LAST script (whose end is the declared location size).
+                # "after one of these" is NOT a reachability test in either
+                # direction -- §26.10.2 withdrew that convention, because a
+                # jump's `pat` is a 1-based cell index and can land past a
+                # terminator. It is kept as the descriptive statistic §15.7
+                # measured; the verdict comes from `dead` below.
                 if last:
                     break
                 term = True
             continue
         se, olc, num = struct.unpack_from(e + 'HHH', buf, q + 2)
-        r = dict(cell=n, cgd=cgd, ctype=code & 0xFF, se=se, olc_ix=olc, num=num,
-                 after_term=term)
+        r = dict(cell=n, pos=pos, cgd=cgd, ctype=code & 0xFF, se=se, olc_ix=olc, num=num,
+                 after_term=term, dead=(None if dead is None else (pos in dead)))
+        pos += 1
         q2 = q + 8
         if cgd >= 4:
             if be:
@@ -298,12 +310,38 @@ def _walk(buf, base, size, ents, si, be):
     return cgd, out
 
 
-def arcade_scripts(ci):
+def _assert_walk_alignment(ci, sec, si, ents, cells):
+    """`dead` positions come from cg_audit's `arc_parse`; the cells come from `_walk`. The mapping is
+    only valid if the two decoders visit the same byte positions, so it is asserted rather than
+    assumed: same cell count including commands, and every L cell at the same ordinal."""
+    a = CG.arc_parse(ci, sec, si, {sec: ents})[1]
+    lpos = [k for k, c in enumerate(a) if c[0] == 'L']
+    assert len(lpos) == len(cells), "%s %s[%d]: %d L cells in arc_parse, %d in _walk" % (
+        NAMES[ci], sec, si, len(lpos), len(cells))
+    for j, c in enumerate(cells):
+        assert lpos[j] == c['pos'], "%s %s[%d] cell %d: position %d vs %d" % (
+            NAMES[ci], sec, si, j, lpos[j], c['pos'])
+
+
+def arcade_scripts(ci, check=False):
+    """The arcade side, with `dead` from cg_audit -> k7_entry_walk on every cell.
+
+    §15.7 split these rows on whether the cell precedes its script's first terminator. That
+    convention was PROVEN UNSOUND (§26.10.2): `comm_jmp`/`comm_jpss`/`comm_jsr` pass `pat` to
+    `set_char_move_init2` as a 1-based cell index (`cg_ix = (ip - 1) * cgd_type - cgd_type`), so a
+    jump can land past a terminator, and §28.2 found three cells a stronger model revives that way.
+    The verdict is therefore taken from the entry-point closure `cg_audit.py` already uses for its own
+    `*_oob` classes -- imported, not reimplemented, so the two audits cannot drift apart."""
     out = {}
+    dead_all = CG.k7_entry_walk(ci)
     for _koc, sec in CG.KOC2SEC.items():
         off, size = LOC[ci][sec]
         ents = CG.arc_offsets(off, size)
-        out[sec] = [(_walk(ROM, off, size, ents, si, True)[1]) for si in range(len(ents))]
+        out[sec] = [(_walk(ROM, off, size, ents, si, True, dead_all[(sec, si)])[1])
+                    for si in range(len(ents))]
+        if check:
+            for si in range(len(ents)):
+                _assert_walk_alignment(ci, sec, si, ents, out[sec][si])
     return out
 
 
@@ -429,7 +467,7 @@ def audit():
         counts_a['sernd'] = len(arc['sernd']) // 0x24
         counts_p['sernd'] = len(ps2['sernd']) // 0x24
 
-        asc, psc = arcade_scripts(ci), ps2_scripts(blob, spans)
+        asc, psc = arcade_scripts(ci, check=True), ps2_scripts(blob, spans)
         maxix = {}
         for sec, cells in asc.items():
             for si, acells in enumerate(cells):
@@ -457,10 +495,10 @@ def audit():
                                     kind='%s_oob' % tgt, table=sec, script=si, cell=k,
                                     index=v, arcade_entries=lim, ps2_entries=counts_p.get(tgt),
                                     after_terminator=bool(c.get('after_term')),
+                                    dead=bool(c.get('dead')),
                                     verdict=verdict))
         # cg_rival: the engine reads rival_catch_tbl[cg_rival + arcade_id - 24],
         # so the highest touched element is cg_rival - 1 (arcade_id max 23).
-        # cg_rival sanity, restricted to cells the linear walk can vouch for.
         bad_rival = []
         for sec, cells in asc.items():
             for si, cl in enumerate(cells):
@@ -468,9 +506,11 @@ def audit():
                     r = c.get('rival', 0)
                     if r and (r % 24 or r - 1 >= counts_a['rict']):
                         bad_rival.append(dict(table=sec, script=si, cell=k, cg_rival=r,
-                                              after_terminator=bool(c.get('after_term'))))
+                                              after_terminator=bool(c.get('after_term')),
+                                              dead=bool(c.get('dead'))))
         rec['notes'].append(dict(check='rict_rival_model',
                                  bad=len(bad_rival),
+                                 bad_live=sum(1 for b in bad_rival if not b['dead']),
                                  bad_before_terminator=sum(1 for b in bad_rival
                                                            if not b['after_terminator']),
                                  examples=bad_rival[:8]))
@@ -603,21 +643,31 @@ if __name__ == "__main__":
         print("  %-24s %-26s %4d hits over %2d chars: %s"
               % (kind, verdict, len(chars), len(u), ",".join(u)))
     print()
-    print("  split by whether the cell precedes its script's first unconditional")
-    print("  control transfer (a cell after one is only reachable by a jump into a")
-    print("  later `pat`, and the linear walk may be out of phase there):")
+    print("  split by REACHABILITY -- cg_audit.py's k7_entry_walk: cell 0 of every script, plus")
+    print("  every landing a C cell names, plus the entries the C forms, closed over the six")
+    print("  intra-script writers of cg_ix, failing OPEN wherever the model cannot follow.")
+    print("  A `live` row is a finding; a `dead` row has lost its excuse only if it flips.")
     for kind in sorted({b['kind'] for n in NAMES for b in res[n]['bounds']}):
-        pre = sum(1 for n in NAMES for b in res[n]['bounds']
-                  if b['kind'] == kind and not b.get('after_terminator'))
-        post = sum(1 for n in NAMES for b in res[n]['bounds']
-                   if b['kind'] == kind and b.get('after_terminator'))
-        print("    %-24s before-terminator %4d | after-terminator %4d" % (kind, pre, post))
+        rows = [b for n in NAMES for b in res[n]['bounds'] if b['kind'] == kind]
+        live = sum(1 for b in rows if not b.get('dead'))
+        print("    %-24s live %4d | dead %4d" % (kind, live, len(rows) - live))
+    print()
+    print("  the same rows on §15.7's WITHDRAWN criterion (§26.10.2: a jump's `pat` is a 1-based")
+    print("  cell index, so `after a terminator` is neither necessary nor sufficient for dead).")
+    print("  Kept because the DISTRIBUTION is a real measurement; it carries no verdict:")
+    for kind in sorted({b['kind'] for n in NAMES for b in res[n]['bounds']}):
+        rows = [b for n in NAMES for b in res[n]['bounds'] if b['kind'] == kind]
+        pre = sum(1 for b in rows if not b.get('after_terminator'))
+        agree = sum(1 for b in rows if bool(b.get('after_terminator')) == bool(b.get('dead')))
+        print("    %-24s before-terminator %4d | after-terminator %4d | agrees with reach %d/%d"
+              % (kind, pre, len(rows) - pre, agree, len(rows)))
     print()
     for n in NAMES:
         for note in res[n]['notes']:
             if note['check'] == 'rict_rival_model' and note['bad']:
-                print("  RICT cg_rival off-model for %-7s: %d cells (%d of them before a "
-                      "script terminator)" % (n, note['bad'], note['bad_before_terminator']))
+                print("  RICT cg_rival off-model for %-7s: %d cells (%d live by reach; %d of them "
+                      "before a script terminator)"
+                      % (n, note['bad'], note['bad_live'], note['bad_before_terminator']))
     bad = [n for n in NAMES for note in res[n]['notes']
            if note['check'] == 'hosa_hoix_plus1' and note['verdict'] == 'ARCADE_ONLY']
     print("  hosa[hoix+1] (effc2.c:879) reaches past the arcade table for: %s"

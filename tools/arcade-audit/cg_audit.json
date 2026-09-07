@@ -502,6 +502,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 26,
    "span_gate_xcopy": "unmodelled",
@@ -851,6 +853,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -1409,6 +1429,7 @@
    },
    "reachable_cells": 8336,
    "reachable_cells_xcopy": 8552,
+   "last_script_cut": {},
    "unmodelled": [
     "yuca[68] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
     "yuca[69] cell 9: jump to nmca[1024] beyond the 63-entry pointer table",
@@ -1796,6 +1817,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -1974,6 +1997,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -2709,6 +2750,7 @@
    },
    "reachable_cells": 7681,
    "reachable_cells_xcopy": 7730,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16361 for caught ALEX outside its 1080-row RICT",
@@ -2922,6 +2964,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -3144,8 +3188,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 3 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 3 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": []
@@ -3361,6 +3423,7 @@
    },
    "reachable_cells": 6435,
    "reachable_cells_xcopy": 6543,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16362 for caught RYU outside its 1080-row RICT",
@@ -3955,6 +4018,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -4168,8 +4233,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 6 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 6 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": []
@@ -4374,6 +4457,7 @@
    },
    "reachable_cells": 8955,
    "reachable_cells_xcopy": 9092,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16363 for caught YUN outside its 1080-row RICT",
@@ -4945,6 +5029,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 344,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 17,
+   "span_last_script_cut_scripts": 2,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -5243,6 +5329,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -6056,6 +6160,29 @@
    },
    "reachable_cells": 8883,
    "reachable_cells_xcopy": 8953,
+   "last_script_cut": {
+    "caca[6]": [
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12
+    ],
+    "saca[87]": [
+     11,
+     12,
+     13,
+     14,
+     15,
+     16
+    ]
+   },
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16364 for caught DUDLEY outside its 1080-row RICT",
@@ -6330,6 +6457,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -6352,8 +6481,8 @@
    "manu_oracle_raws": 971,
    "manu_oracle_conflicts": 1,
    "manu_cells_bracket_disagree": 0,
-   "manu_cells_bracketed": 30,
-   "manu_cells_direct": 202,
+   "manu_cells_bracketed": 38,
+   "manu_cells_direct": 214,
    "manu_cells_divergent": 0,
    "manu_cells_unbracketed": 0,
    "a_oob": 0,
@@ -6503,6 +6632,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -6819,6 +6966,7 @@
    },
    "reachable_cells": 7793,
    "reachable_cells_xcopy": 7853,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16365 for caught NECRO outside its 1080-row RICT",
@@ -7087,6 +7235,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -7262,6 +7412,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -7504,6 +7672,7 @@
    },
    "reachable_cells": 7381,
    "reachable_cells_xcopy": 7481,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16366 for caught HUGO outside its 1080-row RICT",
@@ -7776,12 +7945,12 @@
     2277
    ],
    "ovix_arcade_shorter_by": 5,
-   "k7_foreign_cells": 23,
-   "k7_foreign_dead": 1,
+   "k7_foreign_cells": 24,
+   "k7_foreign_dead": 0,
    "k7_gate": "closed",
    "k7_fwd_gate": "closed",
-   "k7_foreign_oob": 23,
-   "k7_foreign_oob_ps2": 22,
+   "k7_foreign_oob": 24,
+   "k7_foreign_oob_ps2": 23,
    "k7_foreign_ps2_differs": 1,
    "span_over_declared": 5,
    "span_slack_bytes": 80,
@@ -7791,6 +7960,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -8122,6 +8293,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -10405,7 +10594,7 @@
       1037,
       1038
      ],
-     "dead": true,
+     "dead": false,
      "twelve": {
       "oob": true,
       "detail": [
@@ -10975,6 +11164,7 @@
    },
    "reachable_cells": 9927,
    "reachable_cells_xcopy": 9960,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16367 for caught IBUKI outside its 1080-row RICT",
@@ -11252,6 +11442,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 24,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 1,
+   "span_last_script_cut_scripts": 1,
    "span_gate": "unmodelled",
    "span_gate_reasons": 25,
    "span_gate_xcopy": "unmodelled",
@@ -11434,6 +11626,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -11627,6 +11837,11 @@
    },
    "reachable_cells": 9428,
    "reachable_cells_xcopy": 9456,
+   "last_script_cut": {
+    "atca[159]": [
+     24
+    ]
+   },
    "unmodelled": [
     "saca[10] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
     "saca[11] cell 1: jump to yuca[3072] beyond the 91-entry pointer table",
@@ -11895,6 +12110,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -12070,6 +12287,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -12402,6 +12637,7 @@
    },
    "reachable_cells": 7512,
    "reachable_cells_xcopy": 7584,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16369 for caught ORO outside its 1080-row RICT",
@@ -13746,6 +13982,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -13984,8 +14222,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 9 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 9 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": [
@@ -14798,6 +15054,7 @@
    },
    "reachable_cells": 10060,
    "reachable_cells_xcopy": 10198,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16370 for caught YANG outside its 1080-row RICT",
@@ -14962,6 +15219,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 4,
    "span_gate_xcopy": "unmodelled",
@@ -15150,8 +15409,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 3 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 3 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": [
@@ -15609,6 +15886,7 @@
    },
    "reachable_cells": 6443,
    "reachable_cells_xcopy": 6549,
+   "last_script_cut": {},
    "unmodelled": [
     "saca[44] cell 81: jump to koc 5641"
    ],
@@ -15779,6 +16057,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -15979,8 +16259,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 3 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 3 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": []
@@ -16160,6 +16458,7 @@
    },
    "reachable_cells": 6982,
    "reachable_cells_xcopy": 7058,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16372 for caught SEAN outside its 1080-row RICT",
@@ -16693,6 +16992,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -16900,6 +17201,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -17441,6 +17760,7 @@
    },
    "reachable_cells": 7813,
    "reachable_cells_xcopy": 7927,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16373 for caught URIEN outside its 1080-row RICT",
@@ -17794,6 +18114,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -18003,8 +18325,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 4 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 4 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": []
@@ -18175,6 +18515,7 @@
    },
    "reachable_cells": 7451,
    "reachable_cells_xcopy": 7546,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16374 for caught AKUMA outside its 1080-row RICT",
@@ -19562,6 +19903,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -19738,8 +20081,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 1 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 1 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": []
@@ -19910,6 +20271,7 @@
    },
    "reachable_cells": 8384,
    "reachable_cells_xcopy": 8502,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16376 for caught CHUNLI outside its 1080-row RICT",
@@ -20137,6 +20499,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 39,
    "span_gate_xcopy": "unmodelled",
@@ -20396,8 +20760,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 6 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 6 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": []
@@ -20568,6 +20950,7 @@
    },
    "reachable_cells": 8274,
    "reachable_cells_xcopy": 8422,
+   "last_script_cut": {},
    "unmodelled": [
     "atca[108] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
     "atca[109] cell 0: jump to cbca[38] beyond the 30-entry pointer table",
@@ -20867,6 +21250,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -21052,8 +21437,26 @@
       5
      ]
     },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
+    },
     "unmodelled": [
-     "cells that can be current at arming and carry a script-installing cancel bit: 2 (the cancel then still needs meoshi_hit_flag != 0 and waza_flag[i] != 0 at N+1; the input-word leg is refuted, not unread -- every entry reads conpane[5] = sw_chg, which pl_lvr_set derives from the previous frame)"
+     "cells that can be current at arming and carry a script-installing cancel bit: 2 (all three legs of the pre-empt are now refuted rather than unread -- the input word is conpane[5] = sw_chg, derived from the previous frame; waza_flag[i] is a countdown of at least 8 frames, not a same-frame flag; meoshi_hit_flag has no clear on the normal-state path. What is unshown is the CONJUNCTION, so the gate stays open)"
     ]
    },
    "foreign_cells": []
@@ -21224,6 +21627,7 @@
    },
    "reachable_cells": 8741,
    "reachable_cells_xcopy": 8882,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16378 for caught Q outside its 1080-row RICT",
@@ -21422,6 +21826,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 4,
    "span_gate_xcopy": "unmodelled",
@@ -21615,6 +22021,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -22091,7 +22515,7 @@
      "cell": 6,
      "olc": 0,
      "tail_olc": [],
-     "dead": true
+     "dead": false
     },
     {
      "table": "exca",
@@ -22099,7 +22523,7 @@
      "cell": 10,
      "olc": 0,
      "tail_olc": [],
-     "dead": true
+     "dead": false
     },
     {
      "table": "exca",
@@ -22107,7 +22531,7 @@
      "cell": 14,
      "olc": 0,
      "tail_olc": [],
-     "dead": true
+     "dead": false
     },
     {
      "table": "exca",
@@ -22221,8 +22645,8 @@
      "dead": false
     }
    ],
-   "live": 33,
-   "dead": 7,
+   "live": 36,
+   "dead": 4,
    "unmodelled": null
   },
   "grid_phase": {
@@ -22611,6 +23035,7 @@
    },
    "reachable_cells": 8936,
    "reachable_cells_xcopy": 9727,
+   "last_script_cut": {},
    "unmodelled": [
     "yuca[16] cell 2: jump to koc 9728"
    ],
@@ -23377,6 +23802,8 @@
    "span_past_terminator_bad": 0,
    "span_past_terminator_bytes_xcopy": 0,
    "span_decode_overrun": 0,
+   "span_last_script_cut_cells": 0,
+   "span_last_script_cut_scripts": 0,
    "span_gate": "unmodelled",
    "span_gate_reasons": 3,
    "span_gate_xcopy": "unmodelled",
@@ -23569,6 +23996,24 @@
      "live": [
       5
      ]
+    },
+    "cmd_buffer": {
+     "tables": 21,
+     "entries": 420,
+     "min": 8,
+     "max": 12,
+     "histogram": {
+      "8": 2,
+      "10": 1,
+      "12": 417
+     },
+     "survives_one_frame": true
+    },
+    "metamorphose_skip": {
+     "ground_entries": 210,
+     "ground_skipped": 2,
+     "air_skipped": 7,
+     "closes_any_table": false
     },
     "unmodelled": null
    },
@@ -24019,6 +24464,7 @@
    },
    "reachable_cells": 6888,
    "reachable_cells_xcopy": 6900,
+   "last_script_cut": {},
    "unmodelled": null,
    "throw_notes": [
     "KEN cg_rival 16384 row 16380 for caught REMY outside its 1080-row RICT",
