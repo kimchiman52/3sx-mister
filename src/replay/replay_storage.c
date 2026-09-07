@@ -25,6 +25,36 @@
 #define PATH_MAX 4096
 #endif
 
+#if defined(_WIN32)
+/* MinGW has no realpath(). _fullpath() canonicalises a path, but unlike
+ * realpath() it SUCCEEDS for a path that does not exist -- and every call site
+ * below treats a successful resolve as evidence that the target is really
+ * there before a containment check that gates an unlink(). Require existence
+ * explicitly so the Windows shim fails closed exactly where realpath() does;
+ * a silently-permissive resolve here would widen a delete guard.
+ *
+ * _fullpath() also does not follow symlinks. The containment tests below are
+ * textual prefix comparisons against an already-canonicalised root, which is
+ * the same shape of check either way -- but on a host where the replay root
+ * could contain links, this shim is weaker than the POSIX path. That is
+ * acceptable only because nothing calls into this file on Windows today. */
+static char* rs_realpath_win32(const char* path, char* resolved) {
+    struct stat st;
+
+    if (_fullpath(resolved, path, PATH_MAX) == NULL) {
+        return NULL;
+    }
+
+    if (stat(resolved, &st) != 0) {
+        return NULL;
+    }
+
+    return resolved;
+}
+
+#define realpath(path, resolved) rs_realpath_win32((path), (resolved))
+#endif
+
 /* Raw-stream whitelist (E1a fetch outputs, fcade_stream.c:699-703). Fixed
  * basenames only — eviction/delete never unlink by pattern, glob, or
  * recursive walk; every candidate path is built from one of these four
