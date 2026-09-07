@@ -10,11 +10,29 @@ byte-pass list swept as negative results)
 · **2026-09-03** (seventh pass — §23: **`Random_ix16` stage-init divergence**
 — CPS3 spawns two stage effects (ids 74 and 8) on Club Metro and Hong Kong
 that the port never does; named from the arcade disassembly, reproduced
-exactly on 4/4 affected replays; fix proposed, not applied)
+exactly on 4/4 affected replays; fix applied 2026-09-03, corrected 2026-09-06)
+· **2026-09-06** (eighth through fourteenth passes, all in one day — §24 Elena's
+OVCT tail CLOSED · §25 Dudley's dangling OVCT next-index CLOSED · §26 +
+§26.10 the X.C.O.P.Y. reverse swap CLOSED · §27 the over-declared
+`location_data[]` spans CLOSED · §28 every `*_oob` class split live/dead ·
+§29 all 316 shape-divergent scripts adjudicated · §30 the "converter
+artifact" class shown not to exist. **Six of the seven close an item with no
+code change** and put the model in `cg_audit.py` instead of in prose; §29 is
+the one that found a new defect, §8.S.)
 **Repo:** `/Users/sb/Developer/3sx-mister`
 **Branch examined:** `upstream-engine-fixes`; second pass verified in the
 worktree `/Users/sb/Developer/3sx-mister-arcade`, branch `fix/arcade-cg-mapping`
-@ `a5bc6a5b` (items A and K are landed — see §3, §8.A, §8.K)
+@ `a5bc6a5b` (items A and K are landed — see §3, §8.A, §8.K). **§24-§30 were
+read and measured on `new-stuff`** (each section names the commit it was read
+at).
+
+> **Accuracy pass, 2026-09-06 (`new-stuff` @ `6ecfe75c`).** The four audit
+> scripts were re-run against the same `rom.bin` (md5
+> `909f5abec4b6b21bf7d2a452a03fdfcc`) and every figure this document presents
+> as *current* — as opposed to one stamped with an earlier commit — was
+> checked against that run. Corrections are marked in place, in the section
+> that carries the claim, and the superseded text is left standing. What that
+> pass changed is listed at the end of §3.
 **Upstream compared:** `crowded-street/3sx` @ `513380f9` ("Refactor texgroup (#372)")
 **Tooling:** `tools/arcade-audit/` (this repo, same branch)
 
@@ -32,8 +50,11 @@ command and its observed output, or a named primary source. Things that were
 - **Fixing wrong sprites?** §7 (audit results) then §8 (items B-E).
 - **Need to re-run the analysis?** §9 (tooling) — it works today, verified.
 - **Need to reproduce the crash live?** §10 (exact build + run recipe).
-- **Wondering what we *can't* find statically?** §11 — and §11.4 for the
-  ground-truth oracle that now exists.
+- **Wondering what we *can't* find statically?** §11 — but **not** §11.4's
+  real-hardware oracle: it no longer runs as recorded (its write-up is gone,
+  its sweep scripts resolve through a dead scratchpad — verified 2026-09-06)
+  **and** it is the wrong instrument for the `cg_number` question in the first
+  place (§29.6). §11.4 carries the withdrawal at the top.
 - **Think the crash class is closed?** Read §17 first — there is a *second*
   way the same render path faults, and it is not the one §6.1 audits.
 - **About to trust "latent but unreachable"?** §18 — one such claim was wrong.
@@ -91,6 +112,14 @@ command and its observed output, or a named primary source. Things that were
 ---
 
 ## 2. TL;DR
+
+> **Read this as the findings *as first measured*, not as today's counts.**
+> Every number below is the figure the pass that found it measured; several
+> have since been driven to zero by a landed fix (66 → 0, 1,694 → 89) or
+> re-derived by a later pass (781 → 1,402, §30). **§3 is the current status
+> table** and is the only place in this document that claims to be current.
+> Nothing here is deleted when a fix lands — the finding is the evidence that
+> the audit works (§7.1).
 
 1. **The reported bug is fixed-shaped and understood.** Upstream issue #363
    ("Ryu's Denjin Hadoken crashes the game") was reproduced under
@@ -239,6 +268,36 @@ different reason — §8.P).
 Class (a) and `manu` (316) are unchanged.
 `residual_audit.py` and `data_audit.py` both still hold their invariants.
 
+### What the 2026-09-06 accuracy pass changed
+
+A read-through of the whole document against the four audit scripts re-run at
+`new-stuff` @ `6ecfe75c`. **No C was touched and no verdict moved**; what
+changed is where a refuted claim is marked and where a number was wrong.
+
+| Where | Was | Is |
+|---|---|---|
+| §8.J, §17.5, §17.6 | worklist item **B** "still **OPEN**" (the OVCT `parts_char` door) | **CLOSED** by §24. `residual_audit.py` R2b prints 6 slot violations, **all six `part_reachable=False`**, and the invariant line `on a REACHABLE part : 0`. Re-measured this pass. §3's row already said CLOSED; three other places still said OPEN |
+| §27.2 | "**14** of the 106 spans" end later than §19.7's terminator scan | **61**, totalling **984 B** — 44 spans by 8 B, **14 by 16 B** (the number §27.2 quoted: it is the 16-byte class only, not the total), and three by more: Elena `atca` 40 B, Dudley `saca` 104 B, Dudley `caca` 264 B. The 35,696 B junk total §27.2 gives is **right** |
+| §27.2 | `DUDLEY caca` is the one span that "is not over-declared at all" | **Gill `caca` too** — declared 0x578, reach end 0x578, junk 0. By reach the over-declared count is **104**, not 106; 106 is the count by the (withdrawn) first-terminator metric, which `cg_audit.py` deliberately keeps so §7.6/§19.7 still reproduce |
+| §19.3, §19.6 | "2 of 200" last scripts have an entry past the terminator; "two reachable post-terminator cells" | **3 spans, 18 cells** — the third is `DUDLEY caca[6]` cell 2, entered by a `jsr` from *another* script, which an intra-script-jump scan cannot see |
+| §11.4 | headed "**NEW CAPABILITY**: a real-hardware ground-truth oracle exists" | the withdrawal (§29.6) is now at the **top** of §11.4 and in §1, not only inside one bullet. Independently re-verified this pass: `~/Desktop` holds **no `.md` file at all**; the drive's `-BACKUP-before-s18.md` contains **0** occurrences of "REAL ARCADE"; `sweep.sh`/`sweep2.sh`/`sweep3.sh`/`runours*.sh` all set `SP=/private/tmp/.../677e8288-…`, which **does not exist**. The dumps, the `in_*.bin` streams and `fbneosdlarm64` do still exist |
+| §26.4, §26.6, §26.10.2 | Dudley `saca[72]` c33 "dead"; Dudley `xcopy` 2+1, Remy 5+2 | **live** (§28.2's six-writer model, revived by the `cg_extdat` rewind at c14), and so are Remy `saca[28]` c19 / `saca[29]` c18. Measured now: `DUDLEY … xcopy:gated(3)`, `REMY … xcopy:gated(7)` — no dead half on either. §26.6's Ibuki row was already corrected to 23+1 / 22 of 23 |
+| §21.6 heading, §22.9, §15.7, §12 | claims resting on "past the first terminator" | flagged in place. The convention is **not a reachability test** (§26.10.2) and is not even *sufficient* (§28.2 revives three post-terminator cells) — the two live consumers that still use it, `data_audit.py`'s split and `arc_parse`'s last-script cut, are named |
+| §7's table, §9's "reproduces `TOTAL \| 66 0 949 745 316`" | presented without a date | stamped as the pre-fix baseline, with the line the current tree prints |
+
+Three things this pass deliberately did **not** do:
+
+1. It did not touch §7's historical results table or §7.1's counterfactual
+   table — they are the evidence of the original finding, and §7 now carries a
+   banner saying so rather than being rewritten.
+2. It did not re-derive any number it could not run a script for. Where a
+   figure rests on a source that no longer exists (§11.4's two `PLW` offsets)
+   it says so instead of restating the figure with more confidence.
+3. **It did not audit §8.S, §29's Twelve passages or §3's shape-divergent
+   row** — Twelve's 44 cells were being worked on separately while this pass
+   ran, so those were left to that work. They are the one part of the document
+   this accuracy pass makes no claim about.
+
 ---
 
 ## 4. Background: how arcade balance works
@@ -360,9 +419,18 @@ The other 15 sections are installed **raw**.
 > other `cg_se` values still byte-pass).** The byte-pass list above is a
 > statement of *what the code does*, not a statement that byte-passing is
 > *safe* for every field in it. Six arcade sound codes landed on the wrong TSB
-> note, two of them on empty slots (silent). Treat the rest of this list as
+> note, two of them on empty slots (silent). ~~Treat the rest of this list as
 > unaudited in the same way: `cg_zoom` and the `cg_eff`/`cg_eftype` pair have
-> had no value-level arcade-vs-PS2 diff either.
+> had no value-level arcade-vs-PS2 diff either.~~
+> **The "unaudited" half is out of date (2026-09-02, §22).** The whole
+> byte-pass list has since been value-diffed arcade-vs-PS2: `cg_zoom` and the
+> `cg_effect`/`cg_eftype` pair are **clean** (no camera-zoom-level divergence
+> anywhere; the effect namespace is shared), and `cg_extdat`, `cg_status`,
+> `cg_next_ix`, `cg_rival`, `cg_olc_ix`, `cg_hit_ix`/`cg_att_ix`, `cg_cancel`
+> and `cg_add_xy` are each either clean or an already-documented balance
+> difference (§22.7). `cg_se` remains the only member of the list that was a
+> defect. **Do not re-diff any of them raw** — §22.3's grid caveat, generalised
+> by §30, explains why a raw diff over-reports.
 
 ### 4.5 The one other adaptation: OVCT
 
@@ -543,7 +611,7 @@ counted separately (§11.2), not silently treated as passing.
 | **(b)** gap | remapped CG hits an `obj_group_table` zero | silent sprite drop |
 | **(c)** mismatch | in-range but ≠ the PS2 counterpart's CG | wrong sprite drawn |
 | — | `c_own_group` / `c_other_group` | sub-split by whether it stays in the character's own texture group |
-| manu | script shapes differ; no cell-aligned oracle | needs human review |
+| manu | script shapes differ; no cell-aligned oracle | ~~needs human review~~ — **superseded 2026-09-06 (§29)**: `manu_delta_gate()` adjudicates all 316 per raw `cg_number` on every run, because `remap()` is a pure function of the raw value and does not need the cell pairing. 225 direct + 60 bracketed + 20 no-live-cells + 4 unresolved + 7 divergent |
 
 Two discriminators had to be built in to avoid false positives, and are worth
 knowing if the script is ever modified:
@@ -560,6 +628,27 @@ knowing if the script is ever modified:
 ---
 
 ## 7. The audit: results
+
+> **This table is the PRE-FIX BASELINE (first pass, 2026-08-29) and is kept
+> unchanged on purpose** — it is the evidence of the original finding and the
+> input to §7.1's counterfactual validation. **It is not what the audit prints
+> today.** Measured on `new-stuff` @ `6ecfe75c`, 2026-09-06:
+>
+> ```
+> TOTAL         |    0    0     0    89   316   162 |   0+31   0+53  …
+> cells audited: 133901
+> ```
+>
+> i.e. class (a) **66 → 0** (§8.A landed), class (c)-wrong-group **949 → 0**
+> (§8.E, §8.N landed), class (c)-own-group **745 → 89** (§8.D landed; 72 of the
+> 89 are item F's deliberate Chun-Li non-fix, §8.F), and `manu` unchanged at
+> 316 (now adjudicated rather than open — §29). The table has also grown
+> columns that did not exist in 2026-08-29: `extra` **162** (the no-oracle
+> scripts §11.2 found), the seven `live+dead` OOB-index columns (§28), and the
+> trailing `xcopy:` (§26), `slack:` (§27) and `manu:` (§29) verdicts. Elena's
+> `91/85 UNPATCHED-TAIL!` now reads `91/85 r<=16 tail-unreached(6)` (§24), and
+> Dudley's `ovct` column reads `walk>end-unreached[178:hold<=179/297]` (§25).
+> **§3 is the status table.**
 
 ```
 char    cells |  (a)  (b) (c)wg (c)og  manu | ovct a/p    ovix a/p
@@ -734,11 +823,31 @@ terminator), so not a live fault.
 
 Ordered by severity. Item lettering is historical (A-J from the first two
 passes, K-M added by the third, N-O added by the fourth, P added by the fourth,
-**Q added by the fifth — the sound-code pass, §21**); the two crash-class
-items are **A** and **K**, and they are independent of each other. **As of
-2026-09-02, A, K, D, E, N and Q are LANDED** (see their status blocks below and
-§3) and **F is CLOSED as investigated-not-a-defect** (§8.F); everything else
-in this worklist remains unimplemented.
+**Q added by the fifth — the sound-code pass, §21**, **R by the eighth — §24.6(i)
+— and S by the thirteenth — §29**); the two crash-class items are **A** and
+**K**, and they are independent of each other.
+
+**Status roll-up, corrected 2026-09-06** (the older sentence here said only
+"A, K, D, E, N and Q are LANDED … everything else in this worklist remains
+unimplemented", which was true on 2026-09-02 and is no longer):
+
+- **LANDED, code changed:** A, K, D, E, N, Q (see their status blocks and §3).
+- **CLOSED with NO code change** — the hazard was adjudicated and the defence
+  is an audit invariant rather than a guard: **B** (§24), **G** (§27),
+  **R** (§25). Each closure names the option it declined and why.
+- **CLOSED as investigated-not-a-defect:** F (§8.F).
+- **REPORTED, NOT FIXED:** **S** — Twelve's 44 cells, the one new defect the
+  2026-09-06 passes turned up (§29.4, §8.S).
+- **Still unimplemented:** C, H, I, J, L, M, O, P.
+- **One unfixed defect carries no letter at all** and is recorded only inside
+  §16: `cmd_main.c` -> `cmd_data_set` applies **two** PS2-only System Direction
+  modifiers (`blok_b_omake` to `reset[3,4,5,6,12]`, and `blok_r_omake` to the
+  red-parry thresholds via `make_red_blocking_time`) to the **arcade** command
+  records, with no `ArcadeBalance_IsEnabled()` test. It is a no-op at default
+  settings and only bites if the user changes the blocking option. Unlike
+  everything else here it does **not** move the netplay digest. §16's residual
+  paragraph has the full derivation, the gate it would need, and what was not
+  traced. Named here so it is not lost between the two sections.
 
 **Keep this paragraph and §3 in step with the status blocks.** They are the
 only two places a reader checks before trusting an item, and they are the first
@@ -829,8 +938,14 @@ visually or via a replay that exercises it.
 > committed, not on any branch" in this same spot. It is not merged to
 > `main`/`mister` and not verified on-device. The `exca[58..65]` run still
 > has no cell-aligned PS2 oracle (§12), so "lands in group 9" is a necessary
-> condition, not proof the sprites are the intended ones. §11.4 now describes
-> the tool that could settle it.
+> condition, not proof the sprites are the intended ones. ~~§11.4 now describes
+> the tool that could settle it.~~ **Amended 2026-09-06:** §11.4's rig is the
+> *right* oracle for this particular question — "which sprite does the arcade
+> actually draw here" is a question about arcade RAM, unlike the `cg_number`
+> predicate §29.6 disqualified it for — but **it does not currently run**: its
+> write-up is gone and its sweep scripts resolve through a dead scratchpad
+> (verified 2026-09-06, §11.4). Budget for repairing the rig before quoting it
+> as available.
 
 > #### Severity, from the trigger analysis (§20)
 >
@@ -1075,23 +1190,48 @@ confirmed the arcade side is the *intended* side for each. The highest-value
 subset: **115 of the 122 ATIT differences are a single bit** — `0x40` in
 `att.level`, i.e. `jump_att_flag` (`charset.c:2946`). One bit, 115 attacks,
 17 characters, and it changes how each attack is classified. Worth a targeted
-check against a frame-data source or §11.4 before assuming it is right.
+check against a frame-data source or §11.4 before assuming it is right —
+**noting (2026-09-06) that §11.4's rig does not currently run** and would have
+to be repaired before it can be quoted as available; a published frame-data
+source is the cheaper oracle for this one.
 
 ### J. Publish the audits alongside each other
 
 `tools/arcade-audit/data_audit.py` is the §15 tooling. It should run in whatever
 CI or pre-release check `cg_audit.py` ends up in, with the assertion "zero
 `ARCADE_ONLY` bounds verdicts" — that is the invariant it protects.
-`tools/arcade-audit/residual_audit.py` (§17) belongs in the same gate, with two
-assertions: **`residual < 0` == 0** and **`residual >= offset-table length` ==
-0**. The second was **6** at the pre-fix baseline (§17.3) and required item
+`tools/arcade-audit/residual_audit.py` (§17) belongs in the same gate, with
+~~two~~ **three** assertions: **`residual < 0` == 0**,
+**`residual >= offset-table length` == 0**, and **`on a REACHABLE part` == 0**.
+The second was **6** at the pre-fix baseline (§17.3) and required item
 **K** to land first; with K's range applied it reads **0** (landed `a5bc6a5b`, as of
-2026-08-30). **This gate covers the script-cell residual only.**
-`residual_audit.py` runs a separate check over the OVCT `parts_char` path
-(§17.3's "OVCT path" paragraph) that is **not** part of either assertion above
-and currently reports **6** (Elena parts 85-90, item **B**, §18) — still open.
-A gate on "zero script-cell residual violations" would pass today without
-that door being shut.
+2026-08-30). The first two cover the script-cell residual only.
+
+> **CORRECTED 2026-09-06 — the third assertion now exists, and item B is not
+> open.** This paragraph used to end: *"`residual_audit.py` runs a separate
+> check over the OVCT `parts_char` path that is **not** part of either
+> assertion above and currently reports **6** (Elena parts 85-90, item **B**,
+> §18) — still open. A gate on 'zero script-cell residual violations' would
+> pass today without that door being shut."*
+>
+> The **6** is still printed and is still the right thing to print — R2b is
+> deliberately reachability-blind, so it reports every OVCT slot whether or not
+> anything can index it. What changed is that §24 proved all six unreachable by
+> enumerating every writer of the part index, and `residual_audit.py` now
+> annotates each row with `part_reachable` and emits the invariant line.
+> Re-measured on `new-stuff` @ `6ecfe75c`, 2026-09-06:
+>
+> ```
+> R2b — OVCT parts_char -> cg_number (eff01.c:169)
+>   post-adaptation violations : 6  (every table slot, reachable or not)
+>      ELENA   part 85 … part 90   ogt_oob   part_reachable=False   ×6
+>   on a REACHABLE part         : 0  (cg_audit.ovct_reachability, doc §24 — the invariant)
+>   PS2 control                : 0
+> ```
+>
+> So the door **is** shut, and the gate line to assert is the third one, not
+> the raw count of 6. Item **B** is **CLOSED** (§3, §8.B, §24) — this section,
+> §17.5 and §17.6 were the three places that still said otherwise.
 
 ---
 
@@ -1543,11 +1683,23 @@ this section.
 
 ## 9. Tooling (in-repo and verified working)
 
-**Location:** `tools/arcade-audit/` on branch `fix/arcade-cg-mapping`. See the
-README there for the short version.
+**Location:** `tools/arcade-audit/`, ~~on branch `fix/arcade-cg-mapping`~~ —
+tracked on `new-stuff` since the 2026-09-06 passes, which added
+`ovct_reachability()`, `ovct_dangling_hold()`, `k7_swap_gate()`,
+`k7_entry_walk()`, `span_closure()`, `manu_delta_gate()` and `grid_phase()` to
+`cg_audit.py`. See the README there for the short version.
 
-Re-verified after the move: `python3 tools/arcade-audit/cg_audit.py` reproduces
-`TOTAL | 66 0 949 745 316` and `cells audited: 133901` identically.
+~~Re-verified after the move: `python3 tools/arcade-audit/cg_audit.py`
+reproduces `TOTAL | 66 0 949 745 316` and `cells audited: 133901`
+identically.~~
+
+> **Stamped 2026-09-06.** `TOTAL | 66 0 949 745 316` was the pre-fix baseline
+> (§7) and is what the tool printed on `fix/arcade-cg-mapping` before items A,
+> D, E and N landed. The cell count is the durable half: **`cells audited:
+> 133901` still reproduces exactly.** The violation line on `new-stuff` @
+> `6ecfe75c` is `TOTAL | 0 0 0 89 316 162`. Use §3 for status and re-run the
+> tool for counts; do not quote either line as current without a commit
+> beside it.
 
 | File | Purpose |
 |---|---|
@@ -1562,7 +1714,7 @@ Re-verified after the move: `python3 tools/arcade-audit/cg_audit.py` reproduces
 | `parse.py`, `scan.py`, `cgscan.py` | Arcade-side script decoders / early sweeps |
 | `ps2scan.py`, `cmpovct.py`, `fulldiff.py` | PS2-side decode, OVCT compare, full arcade-vs-PS2 script diff |
 | `rom.bin` | Decrypted 8 MiB CPS3 image (sha256 starts `c15743e350011f6a…`). **Gitignored** — rebuild with `decrypt.py` |
-| `cg_audit.json` | Every violation, machine-readable (493 KB) |
+| `cg_audit.json` | Every violation, machine-readable (~~493 KB~~ **455,161 B as tracked at `6ecfe75c`**, measured 2026-09-06; the file has both lost violation records to the landed fixes and gained `"dead"`, `"grid"` and eleven per-character stat blocks since, so treat any size here as a snapshot) |
 | `audit_summary.txt`, `audit_run.txt` | Human-readable audit output |
 | `denjin_oobcount.log` | The 19 OOB hits from the ASan run |
 
@@ -1655,6 +1807,19 @@ read `target variable is_enabled` (upstream: the static at
 3. **State/shape divergence** — **not** statically discoverable. No table-bounds
    oracle exists.
 
+> **Tier 3 is too pessimistic as written — corrected by §29 (2026-09-06),
+> marked here so a reader who stops at this list does not inherit it.** True of
+> *shape*; **false of the cell-content question hiding behind a shape
+> mismatch.** The adaptation is a pure function of the raw `cg_number`, so a
+> raw appearing in any shape-*ok* script is pinned by that script's PS2
+> counterpart, and the pairing the shape mismatch destroyed is not needed.
+> `manu_delta_gate()` adjudicates all 316 on every run: **285 of 316 positively
+> confirmed clean**, 20 with nothing to adjudicate, 4 unresolved-and-named, and
+> **7 carrying a real divergence** — 44 of whose cells (§8.S) had never been
+> recorded anywhere. What remains genuinely tier-3 is `cg_se`/`cg_zoom`/
+> `cg_effect` *ordering* and engine state divergence, which §29 does not
+> address.
+
 ### 11.2 The tier-3 residue
 
 - **316 shape-mismatched scripts** (arcade vs PS2 cell counts differ) have no
@@ -1690,6 +1855,15 @@ read `target variable is_enabled` (upstream: the static at
   class is: closed relative to the oracle's reach** (89 remaining `(c)og`
   cells, §3), **with 89 remainders + 316 `manu` + 162 extra-script outside
   that reach** — not "closed" without qualification.
+  > **Narrowed 2026-09-06 (§29): the `manu` third of that residue is no longer
+  > outside the oracle's reach.** All 316 are adjudicated per raw `cg_number` —
+  > 285 positively confirmed clean, 20 with nothing to adjudicate, 4 unresolved
+  > and named, 7 divergent (§29.3) — so the qualified framing is now **89
+  > remainders + 11 unclosed `manu` scripts + 162 extra-script**. The 162 are
+  > untouched and remain the largest unaudited block for this predicate: they
+  > have **no PS2 script at that index at all**, which is a different thing
+  > from §30.5's 17 `no_oracle` shape mismatches (easy to confuse — §30.7 says
+  > so explicitly). §21.5 settled the 162 for the *sound* namespace only.
 - **A concrete example found on the Denjin path itself:** `cbca[19..23]` — the
   five scripts `uja7` lands on after the projectile is released — differ:
 
@@ -1727,7 +1901,42 @@ diffing against that universe yields exactly which cells have never been
 exercised. That set *is* the residual risk, and it also tells you which
 characters/moves to go fetch replays for.
 
-### 11.4 NEW CAPABILITY (2026-08-30): a real-hardware ground-truth oracle exists
+### 11.4 ~~NEW CAPABILITY (2026-08-30): a real-hardware ground-truth oracle exists~~ — DOES NOT CURRENTLY RUN, and was the wrong instrument for this document's main predicate
+
+> ### ⚠ READ THIS BEFORE QUOTING ANYTHING IN §11.4 AS AVAILABLE
+>
+> Two independent things are wrong with this section's offer, and only the
+> first is repairable.
+>
+> **(1) It is the wrong oracle for the `cg_number` question — permanently.**
+> CPS3 main RAM reports `cg_number` in **arcade** numbering, which the ROM
+> already gives us exactly. The open question this document asks is what our
+> *remap* should turn that into, and the target namespace is the **PS2's**.
+> Real hardware cannot pin a PS2-side index. Even in perfect working order the
+> rig could not have answered it, so §29 settled the 316 shape-divergent
+> scripts **statically** instead (§29.6). The struck-through first bullet
+> below is the one that is withdrawn.
+>
+> **(2) It does not run as recorded — re-verified 2026-09-06.** The cited
+> primary source `~/Desktop/3sx-makoto-1f-link-2026-08-29.md` **does not
+> exist**; `~/Desktop` contains **no `.md` file at all**. The drive's
+> `3sx-makoto-1f-link-BACKUP-before-s18.md` is, as its name says, the copy
+> taken *before* §18 was written — `grep -c 'REAL ARCADE'` on it returns **0**.
+> And `tools/sweep.sh`, `sweep2.sh`, `sweep3.sh`, `runours.sh` and
+> `runours2.sh` all set
+> `SP=/private/tmp/claude-501/-Users-sb-Developer-3sx-mister/677e8288-…/scratchpad`
+> and source their input generators from it; that directory **does not exist**.
+>
+> **What does survive** (also verified 2026-09-06): `/Volumes/KimchDrive/makoto-t-a/`
+> is mounted with `tools/` (21 entries), `d2/game_0/` (**712** frame dumps) and
+> **23** `in_*.bin` input streams, and `fbneo-replay-runner`'s prebuilt
+> `build/release/fbneosdlarm64` is present and executable. So the *method*
+> below is a real method and the raw materials are there; what is missing is
+> the write-up it was derived from and the glue the sweeps run through.
+> **Budget for repairing the rig before treating any offer below as a
+> capability** — and treat the two figures §12 quotes from the missing §18.2
+> (`sizeof(PLW)` = 0x498, `guard_flag` at `PLW + 0x3D2`) as no longer
+> re-checkable against their source.
 
 §11.1-§11.3 were written assuming the only oracle for tier 3 was "our engine vs
 our engine, plus the PS2 AFS". **That is no longer true.** A separate
@@ -1735,8 +1944,10 @@ investigation built **frame-exact input injection into real FBNeo plus per-frame
 CPS3 main-RAM diffing**, and used it to settle a question §11.3 would have
 called unanswerable. Primary source:
 `~/Desktop/3sx-makoto-1f-link-2026-08-29.md` **§18** ("THE REAL ARCADE,
-MEASURED"); tooling and captured dumps at `/Volumes/KimchDrive/makoto-t-a/`
-(`tools/`, `d2/game_0/`, `in_*.bin`, `sweep.sh`, `sweep2.sh`, `sweep3.sh`).
+MEASURED") — **gone, see the banner above**; tooling and captured dumps at
+`/Volumes/KimchDrive/makoto-t-a/` (`tools/`, `d2/game_0/`, `in_*.bin`,
+`tools/sweep.sh`, `tools/sweep2.sh`, `tools/sweep3.sh`) — present, but the
+sweeps do not resolve.
 
 **What it does.** `fbneo-replay-runner`
 (`/Users/sb/Developer/fbneo-replay-runner`, prebuilt
@@ -1777,9 +1988,16 @@ directly dissolves part of the §11.2 residue:
   > all still exist. §29 settled the item statically instead.
 - **Class-(c) intent** becomes answerable: whether Chun-Li's 72 blank-CG cells
   (§7.3(iii)) are a deliberate 3SX edit or a defect is a question about what the
-  arcade draws, and the arcade can now be asked.
+  arcade draws, and the arcade can now be asked. **(Still the right oracle —
+  this one is a question about arcade RAM, not about a PS2-side index — but see
+  the banner: the rig needs repair first, and §8.F has already decided this
+  particular case on other grounds: the `0x5FEE` in Chun-Li's `saca[44..47]` is
+  unmodified ROM and the `0` is PS2's own, so arcade-faithful means drawing the
+  ROM sprite.)**
 - The same applies to §8.A's `exca[58..65]` run, which has no cell-aligned PS2
-  oracle, and to §11.2's `cbca[19..23]` divergence.
+  oracle, and to §11.2's `cbca[19..23]` divergence. **(Both still the right
+  oracle; both still need the rig repaired. Note §20.4 rates `exca[58..65]`
+  APPARENTLY UNREACHABLE, so it is the cheapest of the three to leave unasked.)**
 
 > #### ⚠ THE TRAP THAT COMES WITH IT: `offsetof` on the decomp ≠ hardware
 >
@@ -1834,7 +2052,8 @@ directly dissolves part of the §11.2 residue:
 - **Whether the arcade side is the *intended* side for any of the 190 balance
   differences in §15.** The audit proves what differs and that nothing is out of
   bounds. It does **not** prove the arcade values are the ones a player should
-  get; that is a design question, and §11.4 is how to answer it empirically.
+  get; that is a design question, and §11.4 is how to answer it empirically —
+  **once §11.4's rig is repaired; it does not currently run (2026-09-06).**
 - **What `att.level` bit `0x40` (`jump_att_flag`) actually changes in play.**
   Verified: it is set from `att.level & 0x40` (`charset.c:2946`) and differs on
   115 attacks across 17 characters. Its downstream effect was **not** traced.
@@ -1848,6 +2067,19 @@ directly dissolves part of the §11.2 residue:
   cells produce an out-of-range index. That is strong, but it is inference from
   a distribution, not a proof that the region is unreachable: a jump targeting a
   later `pat` could enter it. Unresolved.
+  > **WORSE THAN "UNRESOLVED", as of 2026-09-06 — the suspicion in the last
+  > sentence is now a proven fact.** `comm_jmp`/`comm_jpss`/`comm_jsr` all call
+  > `set_char_move_init2`, whose `cg_ix = (ip - 1) * cgd_type - cgd_type` makes
+  > `pat` a **1-based cell index**, so a jump *can* land past a terminator
+  > (§26.10.2), and §28.2 found three cells that a stronger model actually
+  > revives that way. "After a terminator" is therefore not a reachability test
+  > at all — not necessary (§22.9) and not sufficient (§28.2). `cg_audit.py`
+  > replaced it with `k7_entry_walk()`, an entry-point closure over the six
+  > intra-script writers of `cg_ix`, and under **that** model the whole
+  > `*_oob` population is still 100% dead (§28.1). **`data_audit.py` has not
+  > been re-derived that way**, so §15.7's 92 specifically still rest on the
+  > withdrawn convention. Re-running `data_audit.py` under `k7_entry_walk` is
+  > the work this bullet now names.
 - ~~**Whether Remy's `caua`/`hosa` over-declared spans (§15.6) overlap another
   character's real data.**~~ **CLOSED by §19.1**: the 500 declared spans tile the
   ROM with **zero overlaps**, so they sit inside gaps. (No provenance was traced
@@ -1855,6 +2087,14 @@ directly dissolves part of the §11.2 residue:
 - **`sizeof(PLW)` on real CPS3 (0x498)** and the `guard_flag` offset in §11.4
   are quoted from `~/Desktop/3sx-makoto-1f-link-2026-08-29.md` §18.2. They were
   **not independently re-measured** during this pass.
+  > **And they can no longer be re-checked against their source (2026-09-06).**
+  > That file does not exist; `~/Desktop` holds no `.md` file at all, and the
+  > drive's `-BACKUP-before-s18.md` predates §18 (0 occurrences of "REAL
+  > ARCADE"). Both figures now rest on this document's quotation of a
+  > destroyed source and on nothing else. Re-measuring them means repairing the
+  > §11.4 rig. The one that matters for §7's questions, `cg_ix` at 0x204, is in
+  > the *agreeing* prefix and is independently pinned by
+  > `src/arcade/arcade_constants.h`, which is in-repo.
 - **Whether upstream would accept the RICT 24-slot framing.** §15.4 is our
   reading of `catch_table_offset`; upstream has never documented it.
 
@@ -1873,10 +2113,19 @@ directly dissolves part of the §11.2 residue:
 - **Whether the six residual violations actually SIGSEGV on the MiSTer.** Same
   gap as §12's existing entry for Elena's 66: the OOB is proven by measurement,
   the fault was not observed in a run on any target.
-- **Whether Elena's OVCT drift walk is truly unreachable** (§18.3). The
+- ~~**Whether Elena's OVCT drift walk is truly unreachable** (§18.3). The
   argument is a quantitative margin — 255 accumulated frames per step against a
   5-frame longest run — not a structural bound. Hit-stop frames do accumulate.
-  Not proven impossible.
+  Not proven impossible.~~
+  **CLOSED 2026-09-06 (§24), and the premise was wrong.** There is no drift
+  walk to bound: **every one of Elena's 91 OVCT entries has
+  `parts_nix[i] == i`**, so `eff01.c`'s timer walk is a self-loop and the
+  `cg_ix++` branch (which needs `parts_nix == 0`) never runs for her. The
+  255-frame arithmetic was computed for a walk that does not exist. Parts
+  **17-90** are indexed by no writer at all, by exhaustive enumeration of all
+  five writers of the part index — no timing argument, so hit-stop accumulation
+  is irrelevant. `cg_audit.py` -> `ovct_reachability()` re-derives it every run
+  (`r<=16 tail-unreached(6)`).
 - **The `old_cgnum + *ptr` arithmetic** (`eff61.c:275`, `effa8.c:275`) is not
   covered by any audit (§17.6). `old_cgnum` is set from a live `cg_number` at
   `effe8.c:110` and `effj0.c:50`, and from a local at `eff61.c:245` /
@@ -1966,9 +2215,18 @@ directly dissolves part of the §11.2 residue:
    first would have caught Elena and missed Remy.
 3. **Report findings on #363** (§13) — cheap, and prevents duplicate work
    upstream.
-4. **Decide the model question** (§8.E) with Artem before touching the 949
-   cross-bank cells.
-5. **Land Ibuki + Urien** (§8.D) — mechanical, 664 cells, visible quality win.
+4. ~~**Decide the model question** (§8.E) with Artem before touching the 949
+   cross-bank cells.~~ **DONE 2026-08-31 — and the question is moot for the
+   measured cast.** §8.E landed with option 1 (more ranges, derived
+   programmatically from `cg_audit.json`'s measured `(raw, ps2)` pairs), so no
+   target-bank concept was added and no code outside `src/arcade/` was touched.
+   Class (c)-wrong-group is **0**. Re-open only if a future crash surfaces a
+   cross-bank case the oracle cannot see.
+5. ~~**Land Ibuki + Urien** (§8.D) — mechanical, 664 cells, visible quality
+   win.~~ **DONE 2026-08-31** (`86a4d948`). Ibuki 408 → 0 by a one-constant
+   delta correction (−0x74D0 → −0x74CF); Urien 256 → 8, the 8 being the
+   `0x52D9` two-context ambiguity §8.D declined and §8.P re-states as unfixable
+   by range-table means.
 6. **Wire the coverage counter** (§11.3) — turns the tier-3 blind spot into a
    measured number instead of an unknown.
 7. ~~**Use the real-hardware oracle** (§11.4) on the 316 shape-mismatched
@@ -2274,6 +2532,28 @@ single pre-existing case). `data_audit.py`
 reports the split rather than hiding it — see §12 for why this is inference and
 not proof.
 
+> **The "after a terminator" half of this argument rests on a convention that
+> has since been PROVEN UNSOUND (§26.10.2, 2026-09-06) — flagged here because
+> this is where a reader meets it.** `comm_jmp`/`comm_jpss`/`comm_jsr` pass
+> `pat` to `set_char_move_init2` as a **1-based cell index**
+> (`cg_ix = (ip - 1) * cgd_type - cgd_type`), so a jump can land *past* a
+> terminator and revive the cells behind it — and §28.2 found three cells that
+> a stronger model does revive that way. So "after a terminator" is neither
+> necessary (§22.9's Oro `saca[28..31]` are grid phantoms *before* one) nor
+> sufficient.
+>
+> **What is and is not affected.** The 100%/0% *distribution* is a real
+> measurement and is unchanged; what it cannot carry is the word
+> "unreachable". `cg_audit.py` replaced the convention with
+> `k7_entry_walk()` — an entry-point closure over the six intra-script writers
+> of `cg_ix` — and under that stronger model **every `*_oob` class in
+> `cg_audit.py` is still 100% dead** (§28.1), which is corroboration, not
+> proof, for the sibling classes here. **`data_audit.py` still uses the linear
+> convention** and was not re-derived; its `sernd_oob` 70, `stxy_oob` 22 and
+> the 31 off-model `cg_rival` values are therefore the last live consumers of a
+> withdrawn basis in this document. Re-deriving them under `k7_entry_walk` is
+> named as open work in §12.
+
 ### 15.8 Stretch: the second ROM revision (`sfiii3`, 990608)
 
 > **Label corrected 2026-09-02.** This section previously called `sfiii3` the
@@ -2377,15 +2657,74 @@ other run of ≥20 pointer tables at stride `0xE0` exists in the 8 MiB image.
 ⇒ **`get_commands()` ignoring `cmd_sel` under arcade balance is correct**, not a
 bug (`cmd_main.c:94-102`).
 
-**The one real residual.** `cmd_data_set()` (`cmd_main.c:60-75`) adds
-`blok_b_omake[omop_b_block_ix[cmd_id]]` to `reset[3,4,5,6,12]`.
-`blok_b_omake[4] = {-2,0,2,4}` (`sysdir.c:61`) is a **PS2 System Direction
-feature with no ROM counterpart**. At default settings it is a no-op
-(`omop_b_block_ix[0]` resolves through `Dir_Default_Data.contents[0]`,
-`dir_data.c:14`, to index 1 → `blok_b_omake[1] = 0`), but **if a user changes the
-System Direction blocking option, arcade balance applies a PS2-only modifier to
-five `reset[]` slots.** Small, real, and the only genuine fidelity gap in this
-area. Decide whether to gate it under `ArcadeBalance_IsEnabled()`.
+**The one real residual — deepened 2026-09-06, and there are TWO modifiers, not
+one.** This is the only unfixed defect §16 records, it has **no worklist
+letter**, and it is easy to lose, so the whole of it is written out here.
+
+**Mechanism.** `cmd_main.c` -> `get_commands` does select the arcade tables
+under arcade balance: its first branch tests `ArcadeBalance_IsEnabled()` and
+returns `ArcadeCommandData_Get(char_num)`. But the function that *consumes* the
+selected records, `cmd_main.c` -> `cmd_data_set`, contains **no
+`ArcadeBalance_IsEnabled()` test anywhere**. Its per-slot switch (re-read at
+`6ecfe75c`; `case 3: case 4: case 5:` are three labels on one arm, folded onto
+one line here) is:
+
+```c
+/* The code below is PS2-specific, but default system-direction options
+   produce CPS3's ground red-parry thresholds.  <- the port's own comment */
+case 3: case 4: case 5:
+    wcp[cmd_id].reset[i] += blok_b_omake[omop_b_block_ix[cmd_id]];
+    make_red_blocking_time(cmd_id, i, wcp[cmd_id].reset[i]);
+    break;
+case 6: case 12:
+    wcp[cmd_id].reset[i] += blok_b_omake[omop_b_block_ix[cmd_id]];
+    break;
+```
+
+So two distinct PS2-only System Direction knobs reach arcade data:
+
+| knob | table | applied to | reached via |
+|---|---|---|---|
+| **blocking** | `blok_b_omake[4] = {-2, 0, 2, 4}` (`sysdir.c` -> `blok_b_omake`) | `reset[3,4,5,6,12]` — the post-recognition window latched into `waza_flag[i]` by `command_ok()` | `omop_b_block_ix[cmd_id]`, written only at `sysdir.c` `omop_b_block_ix[0] = sysdir_data->contents[0][3];` and `omop_b_block_ix[1] = omop_b_block_ix[0];` |
+| **red parry** | `blok_r_omake[4] = {-1, 0, 1, 2}` (`sysdir.c` -> `blok_r_omake`) | `grdb[id][0..1][0..1]` and `grdb2[id][0..1]` — the **red-parry** thresholds — inside `hitcheck.c` -> `make_red_blocking_time`, as `num - (blok_r_omake[omop_r_block_ix[id]] + 2)` / `+ 3` | `omop_r_block_ix[cmd_id]`, written only at `sysdir.c` `omop_r_block_ix[0] = sysdir_data->contents[0][5];` and `[1] = [0]` |
+
+Neither table has a ROM counterpart — §16's three sweeps found no second table
+set in the 8 MiB image at all.
+
+**Why it is a no-op today (measured).** `Dir_Default_Data.contents[0]`
+(`dir_data.c` -> `Dir_Default_Data`) is `{ 1, 0, 1, 1, 1, 1, 1 }`, so
+`contents[0][3] == 1` and `contents[0][5] == 1`; `blok_b_omake[1] == 0` and
+`blok_r_omake[1] == 0`. **At default System Direction settings both modifiers
+add exactly zero**, which is what the port's own comment above records.
+
+**What a user changing the option actually does.** Index 0 shortens the five
+`reset[]` slots by 2 frames and the red-parry windows by 1; index 3 lengthens
+them by 4 and 2. Under arcade balance that is a PS2-only frame-window edit
+applied on top of ROM-exact command data — the one place in §16 where arcade
+input recognition is *not* arcade-accurate.
+
+**The fix, and its gate.** Wrap both `+=` sites and the
+`make_red_blocking_time` call in `if (!ArcadeBalance_IsEnabled())`, or select a
+zero index under arcade balance. Both writers live in `src/sf33rd/` (shared
+engine code), not `src/arcade/`, so by §8's standing requirement this **needs an
+explicit `ArcadeBalance_IsEnabled()` gate** and a PS2-balance regression pass
+showing PS2 behaviour unchanged — `configuration.test.enabled` pins the
+frame-data suite to PS2, so that suite is the control. It does **not** touch
+`cg_maps[]` or the parsed spans, so it does **not** move the balance digest
+(§8.O) — unlike every other unlanded item here.
+
+**What this analysis did and did not cover.** Verified by reading the source at
+`6ecfe75c`: the two option tables and their values; that `omop_b_block_ix` and
+`omop_r_block_ix` have exactly the writers listed and are copied `[1] = [0]`
+(so this is one global option, not per-player); that `cmd_data_set` has no
+arcade gate; that the default resolves to 0 for both. `grdb`/`grdb2` are **not**
+in `netplay/game_state.c`'s save set — they are recomputed from `reset[]` and
+the option rather than rolled back. **Not traced:** whether the System Direction
+options are exchanged or pinned across a netplay session at all (if they are
+not, two peers on different blocking settings would disagree about these
+windows under *both* balances, which would be a pre-existing engine issue and
+not an adaptation defect); and no in-game measurement of the frame difference
+was made — the numbers above are read off the tables, not observed.
 
 **Two traps recorded, because both have already bitten someone:**
 
@@ -2588,6 +2927,15 @@ post-adaptation table (PS2 values for `i < common_count`, raw CPS3 past it —
 cast**, and **0** on the PS2 control. That is the already-known §7.5 / §8.B
 tail; the OVCT path introduces no *new* door.
 
+> **The 6 are still printed and are now known unreachable (§24, 2026-09-06).**
+> R2b is deliberately reachability-blind — it checks **every** table slot,
+> which is what makes it a useful tripwire — so the count of 6 is correct and
+> is not going to zero. What was added is a `part_reachable` field per row and
+> the invariant line `on a REACHABLE part : 0`; all six read
+> `part_reachable=False`. Re-measured at `6ecfe75c`, 2026-09-06. **Do not read
+> "6 violations" here as an open item** — §17.5, §17.6 and §8.J each used to,
+> and each is corrected in place.
+
 ### 17.4 R3 — the reachability model, derived from the loader tables
 
 A residual violation only faults if `texgrplds[i].ok != 0`, i.e. if that group
@@ -2663,13 +3011,23 @@ group — so every one of them is gated on a specific opponent being present, an
 
 **Not closed:**
 
-- **The OVCT `parts_char` path — a separate, still-open 6.** §17.3's "OVCT
-  path" paragraph runs the same bounds check over `parts_char → cg_number`
-  (`eff01.c:169`) for all 20 characters and finds **6 violations, all Elena
-  parts 85-90** — unrelated to Remy's six and untouched by §8.K. This is
-  worklist item **B** (§18), and it is still **OPEN**. Do not read the bullet
-  above as covering "all 20 OVCT tables"; it covers the script-cell residual
-  only.
+- ~~**The OVCT `parts_char` path — a separate, still-open 6.**~~
+  **CLOSED 2026-09-06 (§24) — this bullet was the stalest claim in the
+  document.** §17.3's "OVCT path" paragraph runs the same bounds check over
+  `parts_char → cg_number` (`eff01.c:169`) for all 20 characters and finds
+  **6 violations, all Elena parts 85-90** — unrelated to Remy's six and
+  untouched by §8.K. That much is still true and still printed. ~~This is
+  worklist item **B** (§18), and it is still **OPEN**.~~ Item **B** is
+  **CLOSED**: §24 enumerated all five writers of the part index and showed
+  parts **17-90** — the six among them included — are indexed by nothing, with
+  no timing argument (the OVIX is the identity, `max(olc >> 4)` over all 7,769
+  of Elena's cells is 16, and every `parts_nix[i] == i` makes the timer walk
+  stationary). `residual_audit.py` now annotates each of the six
+  `part_reachable=False` and prints the invariant `on a REACHABLE part : 0`;
+  re-measured at `6ecfe75c`, 2026-09-06. What still stands from the original
+  bullet: **do not read the bullet above as covering "all 20 OVCT tables"** —
+  it covers the script-cell residual only, and the OVCT path is a separate
+  check with a separate invariant.
 
 - **Whether Remy's `nmca[48]` / `exca[30,37,38]` are ever executed.** No jump
   inside Remy's own ten script tables targets them (checked: 0 `jmp`/`jpss`/`jsr`
@@ -2734,9 +3092,20 @@ constant-sourced — but the *field* is shared, and the arithmetic
 > false and conflicts with §18: Elena's unpatched OVCT tail (parts 85-90,
 > `parts_char` 40182-40187, all ≥ 37664) is exactly an `a_ogt_oob` violation
 > through the OVCT path, and `residual_audit.py`'s R2b check reports it as
-> **6 open violations**, unchanged by either §8.A or §8.K (see §17.3's "OVCT
-> path" paragraph and §18). That is worklist item **B**, and it is still
-> **OPEN** — see §3.
+> **6 ~~open~~ violations**, unchanged by either §8.A or §8.K (see §17.3's "OVCT
+> path" paragraph and §18). ~~That is worklist item **B**, and it is still
+> **OPEN** — see §3.~~
+>
+> **The scope caveat stands; "still OPEN" does not (corrected 2026-09-06).**
+> This boxed statement is still the wrong sentence to extend to the OVCT path —
+> that path has its own check and its own invariant, and conflating them is the
+> error the original draft made. But item **B** is **CLOSED** (§24): the six
+> are unreachable by every writer of the part index, `residual_audit.py`
+> annotates them `part_reachable=False`, and the invariant to quote for this
+> door is `on a REACHABLE part : 0`, not the raw count. So the honest form of
+> the boxed conclusion is: *"…and no reachable OVCT part index is out of range
+> for `obj_group_table`"* — a third clause, proved by a different model
+> (`ovct_reachability()`), not folded into the two above.
 >
 > **That rests on five things**, each of which the tooling re-checks per run:
 > 1. the parse being complete — **§19 shows no span truncates**, but §19.6 found
@@ -2803,14 +3172,22 @@ the identical fault as the #363 crash. `cg_olc_ix` is a `u16` (`structs.h:322`),
 so `0x550` is perfectly representable; nothing in the data or the code forbids
 it.
 
-### 18.3 What actually holds it closed — two data facts, not a code invariant
+### 18.3 What actually holds it closed — ~~two data facts~~ **one data fact and one error (§24.4)**, not a code invariant
 
 1. **No Elena cell emits an effective `cg_olc_ix` ≥ 85.** Over all 7,769 of her
    cells in all ten script tables, the pre-terminator distribution of
    `olc >> 4` is `{0: 7596, 1..14: 3 each, 15: 5, 16: 5}` — **max 16**; after a
    terminator, `{0: 121}` — nothing but zero. Every nonzero value lives in one
    script, `saca[48]`, and every such cell has `ctr = 1`.
-2. **The forward walk cannot get there in practice.** `eff01.c:56-65` advances
+2. ~~**The forward walk cannot get there in practice.**~~ **THIS WHOLE POINT IS
+   WRONG — refuted by §24.3 (2026-09-06). There is no forward walk.** Every one
+   of Elena's 91 entries has `parts_nix[i] == i`, so `eff01.c`'s walk is a
+   **self-loop**: the `cg_ix++` branch requires `parts_nix == 0`, which only
+   entry 0 has, and entry 0 is never a walk position. The 255-frame arithmetic
+   and "69 steps from the anchor at 16" below were computed for a walk that
+   does not exist, and the `+1` is Gill's (`player_number` is the *character*
+   id, not the player slot), not P1's. Left standing so the reasoning can be
+   followed. `eff01.c:56-65` advances
    the part index on timer expiry — `cg_ix = parts_nix` if nonzero, else
    `cg_ix++` — and `get_new_parts_data` re-applies a `+1` for P1/type-0/`rl_flag`
    (`eff01.c:50-52`, `:136-139`). With `parts_nix[i] == i` that combination is
@@ -2823,20 +3200,39 @@ it.
 
 Both are properties of the shipped data. Neither is enforced anywhere.
 
-### 18.4 Verdict
+### 18.4 Verdict — ~~NOT-OBSERVED~~ **SUPERSEDED: unreachable (§24)**
 
-> **NOT-OBSERVED, not provably unreachable.** The correct framing for §8.B is
+> **THIS VERDICT IS WITHDRAWN (2026-09-06, §24). Read the replacement first.**
+> §24 enumerated **all five** writers of the part index over the shipped data
+> and found Elena's reachable set is **parts 1-16, exactly**; parts 17-90 —
+> the six unpatched ones among them — are indexed by nothing. The correct word
+> for §8.B is **unreachable**, and it is now **defended by the audit**
+> (`ovct_reachability()`, R2b's `on a REACHABLE part : 0`) rather than by
+> either prose or a guard. Of §18.4's three "openers" below, **only the first
+> and third survive** in any form, and both reduce to "change the thing being
+> audited": the second — holding one nonzero `olc_ix[0]` for 255 accumulated
+> frames — cannot open anything, because the walk it feeds is stationary
+> (§18.3(2) above). §24.3 restates the openers as: a different ROM, a code
+> change to `eff01.c`/`charset.c`, or a data change to `exdm_ix_data`.
+
+> ~~**NOT-OBSERVED, not provably unreachable.** The correct framing for §8.B is
 > **undefended**, not "latent but unreachable". Three named things would open it:
 > a script cell carrying `olc >= 0x550`; anything that holds one nonzero
 > `olc_ix[0]` for 255 accumulated frames (note `move_effect_work`,
 > `effect.c:32-51`, is unconditional, so `--cg_ctr` also ticks during hit-stop,
 > when the master's `char_move` does not — `plmain.c:322`); or a change to the
-> `exdm_ix_data` subscript in §18.6.
+> `exdm_ix_data` subscript in §18.6.~~
 
 This strengthens worklist item **C** (a bounds guard at the
 `obj_group_table[n]` sites) independently of any OVCT remap.
 
-### 18.5 The fix, mechanically derived
+### 18.5 The fix, mechanically derived — **DERIVED, DELIBERATELY NOT APPLIED (§8.B, §24.7)**
+
+> The −29360 band below is arithmetic over the PS2 patch loop's own deltas; it
+> is **not** evidence about which sprites parts 85-90 should draw, and no path
+> draws them. Applying it would have shown six sprites nobody can prove are the
+> right ones, on a path nobody can reach, and moved the netplay digest for it
+> (§8.O). It stays here as the derivation, not as a pending change.
 
 The PS2 patch loop's own deltas, measured over Elena's 85 common entries
 (`ps2_parts_char[i] − arcade_parts_char[i]`):
@@ -2987,6 +3383,28 @@ decoded here: Dudley's cell 11 is a sprite cell with raw CG 6774 → remapped 56
 commands (`comm_jmp`, `comm_end`), no sprite cell at all. **0 of 200** reach
 past the declared size.
 
+> **CORRECTED — it is 3 spans and 18 cells, not 2 (§27, 2026-09-06).** The scan
+> above looked for **intra-script** forward jumps only, and that is exactly the
+> case it misses: `DUDLEY caca[6]` is entered past its terminator by a
+> `jsr (2, 6, 3)` from **another script** — `caca[1]` and `caca[2]` both issue
+> it — landing on `caca[6]` cell 2. So the third entry could never have been
+> found by looking inside one script. Measured at `6ecfe75c`:
+>
+> | span | cells past a first terminator | how entered | verdict |
+> |---|---|---|---|
+> | `DUDLEY caca[6]` | 11 (cells 2-12) | `jsr` from `caca[1]`/`caca[2]` | `comm_wset` + nine sprite cells, raw CG → remapped **5537-5543**, group 5 (Dudley's own), then a `comm_ret` ending exactly at the declared size — **all in bounds** |
+> | `DUDLEY saca[87]` | 6 (cells 11-16) | the `comm_wcne` `0x4007` above | in bounds, ends in `jmp saca[86]` |
+> | `ELENA atca[159]` | 1 (cell 24) | the `comm_wcne` `0x4002` above | a `comm_jmp` to `nmca[34]`; no sprite cell |
+>
+> **The conclusion is unchanged and is in fact stronger** — still 0 of 200 past
+> the declared size, and now `span_past_terminator_bad` is **0 for all 20
+> characters** on every audit run rather than a hand-check of two cases. What
+> changes is the *count* (18 cells, not 2 — §19.6(b) says "two"), and the
+> reason `DUDLEY caca` looked over-declared at all (§19.7, §27.2). Note also
+> that "past the first terminator" is not a reachability test in either
+> direction (§26.10.2, §28.2); §27 derives every span's real end by **reach**
+> instead, which is what found this.
+
 ### 19.4 Fixed-element sections: the extents are confirmed positively
 
 - **`size % element_size == 0` for all 300 fixed-element spans.**
@@ -3040,6 +3458,17 @@ But "exhaustive" is not literally true, and two gaps were found while checking:
 of those are post-terminator slack in a last script. The remaining **376 B is
 real, well-formed script data that no pointer-table entry references**:
 
+> **"Post-terminator slack" over-counts by 368 B (§27, 2026-09-06).** Of those
+> 35,912 bytes, **368 are live script the engine can reach** — cells the
+> terminator scan classed as slack because it stops at the first terminator,
+> which is not where execution stops. Measured at `6ecfe75c` (`span_reach`):
+> **248 B** in `DUDLEY caca` (cells 2-12 of `caca[6]`, from position 1728 to
+> the declared end 1976), **96 B** in `DUDLEY saca` (cells 11-16 of
+> `saca[87]`), **24 B** in `ELENA atca` (cell 24 of `atca[159]`). Dudley's
+> `caca` is the striking one: its entire 264 B of "slack" is 248 B of live
+> cells plus 16 B of gap, which is why §27.2 finds the span **not
+> over-declared at all**. None of the 368 B is out of bounds.
+
 > `IBUKI atca` (`0x27F044`), rel **0x2A4-0x42C** — a complete `cgd = 6` script:
 > 14 sprite cells plus 2 commands, terminated by `comm_end`, whose read-end
 > lands exactly at `min(rel) − 8`. It is the **only** non-zero header gap in all
@@ -3050,15 +3479,28 @@ real, well-formed script data that no pointer-table entry references**:
 > violation.** But that is a result that had to be *computed*; the 133,901-cell
 > census never covered it.
 
-**(b) Two reachable post-terminator cells** (§19.3) that `cg_audit.py`'s walk
-skips. Both checked; both in bounds.
+**(b) ~~Two~~ EIGHTEEN reachable post-terminator cells** (§19.3) that
+`cg_audit.py`'s walk skips. ~~Both~~ **All checked; all in bounds** — 11 in
+`DUDLEY caca[6]`, 6 in `DUDLEY saca[87]`, 1 in `ELENA atca[159]`. Nine of them
+are sprite cells (`DUDLEY caca[6]`, remapped **5537-5543**, group 5, his own).
+`DUDLEY caca[6]`'s eleven were **outside the 133,901-cell census** — the walk
+stops at `caca[6]` cell 1's `comm_roa` — until §27 reached and classified them.
+Corrected 2026-09-06.
 
 ### 19.7 Correction to §7.6, and the real over-declaration list
 
 **§7.6's "real=" column is `size − max(pointer)`, which is not the real end.**
 Measured properly (last script's terminator read-end):
 
-| Character | Section | Declared | Real end | **Slack** | §7.6 said |
+> **⚠ The `Real end` and `Slack` columns below are ALSO not the real end — see
+> §27.2 for the corrected table (2026-09-06).** "First terminator's read-end"
+> undercounts wherever execution continues past a mid-script terminator, which
+> it can, because a jump's `pat` is a 1-based cell index (§26.10.2). Two rows
+> below are outright wrong (`DUDLEY caca` is **not over-declared at all**, and
+> `DUDLEY saca`'s slack is 0x138, not 0x1A0) and seven more are 8-16 B late.
+> The `Declared` column and the identification of §7.6's error are unaffected.
+
+| Character | Section | Declared | Real end *(by first terminator — see §27.2)* | **Slack** | §7.6 said |
 |---|---|---|---|---|---|
 | REMY | `yuca` | 0x73E0 | 0x11C0 | **0x6220** | 0x6230 |
 | HUGO | `saca` | 0x4164 | 0x374C | **0x0A18** | 0x0CA0 |
@@ -3071,7 +3513,7 @@ Measured properly (last script's terminator read-end):
 | DUDLEY | `saca` | 0x6AE4 | 0x6944 | **0x01A0** | *(not listed)* |
 | URIEN | `atca` | 0x290C | 0x2794 | **0x0178** | *(not listed)* |
 | NECRO | `caca` | 0x2124 | 0x1FF4 | **0x0130** | *(not listed)* |
-| DUDLEY | `caca` | 0x07B8 | 0x06B0 | **0x0108** | *(not listed)* |
+| ~~DUDLEY~~ | ~~`caca`~~ | 0x07B8 | ~~0x06B0~~ **0x07B8** | ~~0x0108~~ **0** | *(not listed)* — **row withdrawn, §27.2: this span is not over-declared; its `caca[6]` is entered past the terminator by a `jsr` and ends in a `comm_ret` exactly at the declared size** |
 
 **`ELENA exca` is not over-declared at all** — declared `0x35BC`, terminator
 read-end `0x35BC`, **slack 0**. §7.6's `0x7A0` was the pointer-table artefact.
@@ -3441,7 +3883,7 @@ elsewhere; `dmca[90]/[91]` — PS2 emits `0x1C4` in cells the 2-cell arcade scri
 does not have (a genuine data difference; nothing to fix under arcade fidelity).
 **No namespace miss beyond `saca` 28–31.**
 
-### 21.6 Negative result: 781 cells are converter artifacts, not divergences
+### 21.6 Negative result: ~~781 cells are converter artifacts~~ **1,402 cells are GRID PHANTOMS (§30)**, not divergences
 
 > **SETTLED BY §30 (2026-09-06). The verdict holds; the number is 1,402 and the
 > mechanism named below is withdrawn.** §30 re-derived this section's own
@@ -3460,10 +3902,23 @@ does not have (a genuine data difference; nothing to fix under arcade fidelity).
 > hit means the decoder is reading word 2 as word 0, i.e. its cell boundary is
 > not the data's. Read §30 before using anything below.
 
-This is the finding that explains most "shape mismatch" and every phantom code,
-and it is recorded here so no future pass re-opens it.
+This is the finding that explains ~~most~~ "shape mismatch" and every phantom
+code, and it is recorded here so no future pass re-opens it.
+*(**"most" is retired by §30.5:** the 316 shape-mismatched scripts split
+`phantom` **54**, `aligned_prefix` 236, `aligned` 9, `no_oracle` 17 — so this
+class is **17%** of shape mismatch, not most of it. The dominant driver is
+that the PS2 release **decimated** long animations (§29.3): 194 of the 316
+have a matching `cg_number` multiset outright.)*
 
-> **The *conclusion* is confirmed; the *number* is not. See §22.10.** The fifth
+> **The *conclusion* is confirmed; the *number* is not. See §22.10.**
+> *(Two further corrections from §30, 2026-09-06: "**258 of the 781**" is not
+> a subset relation and was never shown to be one — the two predicates measure
+> different things over different populations (§30.1); and "these regions are
+> converter artifacts" is the mechanism §30.2 withdraws — there is no converter
+> behaviour to explain, and the standing name is **grid phantom**. What §22
+> actually confirmed, and what stands, is that the regions must not be diffed
+> and that the grid-independent compare is the right instrument.)*
+> The fifth
 > pass's successor (§22) independently confirmed that these regions are
 > converter artifacts and must not be diffed — it hit the same trap and had to
 > solve it — but reproduced only **258** of the 781 under a stricter
@@ -4020,8 +4475,16 @@ was checked both ways: **no SA-table slot selects Oro `saca[28..31]`**
 and 32-33 are named; 28-31 are not), and an over-broad §20.3-style operand
 scan over all of Oro's ten tables finds **zero references** to `(koc=5, ix
 28..31)`. Same epistemic status as §20.5. The practical lesson survives:
-**"past the first terminator" is a sufficient but not necessary artifact
-signature; the stream compare is the reliable oracle.** *(§30.4 measures this
+**"past the first terminator" is a ~~sufficient but not necessary~~ artifact
+signature; the stream compare is the reliable oracle.**
+*(Corrected 2026-09-06: it is **neither** sufficient nor necessary. This
+section proved it not necessary. §26.10.2 and §28.2 proved it not sufficient
+either — a jump's `pat` is a 1-based cell index, so a jump can land past a
+terminator, and three cells the linear scan called dead are live under the
+six-writer model. The lesson survives intact and gets stronger: use the stream
+compare, or `grid_phase()` (§30), which is what `cg_audit.py` runs now and
+which re-derives this very script's two phase switches without ever consulting
+a terminator.)* *(§30.4 measures this
 script directly: Oro `saca[28..31]` switches grid twice — at block 29 to
 `(period 6, phase 2)` and at block 105 to `(period 6, phase 4)` — and 120 of
 its cells come back `"grid": "phantom"`. The "two containers, two grids"
@@ -4803,8 +5266,9 @@ ELENA    7769 |    0    0     0     0    13    10 |     0     0     0     0     
 
 ### 24.6 Adjacent findings from the same sweep
 
-**(i) DUDLEY — an arcade-only dangling `parts_nix`, timing-gated, OPEN (item
-R).** Arcade entry 177 of 178 is `{timer 250, char 0, nix 178}`,
+**(i) DUDLEY — an arcade-only dangling `parts_nix`, ~~timing-gated, OPEN (item
+R)~~ — CLOSED the same day by §25; the paragraph below is as this pass left it,
+and its "timing-gated" framing is what §25 replaced with a bound.** Arcade entry 177 of 178 is `{timer 250, char 0, nix 178}`,
 byte-identical to PS2's entry 177, but PS2's table continues with `178 =
 {sprite 5058, nix 178}` and `179 = {sprite 5059, nix 179}` (group 5, `colcd
 13`, `mts 1`). The arcade walk from seed 130 (`saca[48..51]`, `olc` 40) is 47
@@ -5241,8 +5705,19 @@ phase marker: `cg_type == 30` is read by some thirty attack handlers in
 `cg_type 30` cell is harmless to the tables unless K7 is in case 4, and K7 is
 in case 4 only during §26.2's window, during which the master is on
 `saca[1]`. `saca[72]` cell 33 sits after
-an unconditional `comm_jpss` (`5, 72, 37`) at cell 18 and is classed
-post-terminator by the audit's §19 convention; the gate covers it regardless.
+an unconditional `comm_jpss` (`5, 72, 37`) at cell 18 and ~~is classed
+post-terminator by the audit's §19 convention~~; the gate covers it regardless.
+
+> **CORRECTED (§28.2, 2026-09-06): `saca[72]` c33 is LIVE, not
+> post-terminator-dead.** The `comm_jpss (5, 72, 37)` at c18 does land at
+> 0-based cell 36, past c33, so that jump does not revive it — that part of the
+> reasoning is still right. It simply was not the only way in: the
+> **`cg_extdat` rewind at c14** (`hitcheck.c`, `((cg_extdat & 0x3F) - 1) *
+> cgd_type - cgd_type`) jumps back over the terminator, and from there
+> execution reaches c33. Measured now: `DUDLEY … xcopy:gated(3)` — three
+> foreign cells, **none dead**. The sentence's own conclusion — *the gate
+> covers it regardless* — is exactly why this correction changes a label and no
+> verdict.
 
 ### 26.5 Had it fired: part 26 on Twelve's table, in range, and pre-existing
 
@@ -5272,10 +5747,10 @@ would consume; `k7_swap_gate()` applies §26.2-§26.3 per character.
 | target | foreign cells (live + dead) | gate | if case 4 fired there |
 |---|---|---|---|
 | Gill | 5 (`saca[29..32]` c3 `olc 105` -> part 206; `saca[59]` c6 `olc 142` -> parts 291, 292) | closed | **past** Twelve's 133 entries; PS2 identical |
-| Dudley | 2 + 1 (§26.4) | closed | part 26, in range; PS2 identical |
+| Dudley | ~~2 + 1~~ **3 + 0** (§26.4; the "+1 dead" is `saca[72]` c33, which §28.2 revived — the `cg_extdat` rewind at c14 reaches it over the terminator) | closed | part 26, in range; PS2 identical |
 | Hugo | 2 (`caca[33]`/`[42]` c19 `olc 50` -> part 59) | closed | in range; `caca[42]` has no PS2 twin |
 | Ibuki | 23 + 1 (`saca[24..31]`, `[44..47]`, `[60..63]`, `caca[10]`; `olc` 1030-1225 -> parts 1089-1284) | closed | **past** Twelve's OVIX and OVCT; 22 of 23 PS2 identical, `caca[10]` c31 arcade-only (counts corrected in §26.10.2 — four cells this table called dead are live) |
-| Remy | 5 + 2 (`saca[28..31]`, `olc` 26-28 -> parts 28, 29, 34) | closed | in range; PS2 identical |
+| Remy | ~~5 + 2~~ **7 + 0** (`saca[28..31]`, `olc` 26-28 -> parts 28, 29, 34; the two "dead" are `saca[28]` c19 and `saca[29]` c18, both revived by their own c5 `cg_extdat` rewind — §28.2) | closed | in range; PS2 identical |
 | Ken | 6 (`saca[30]` c11, `saca[36..39]` c32, `saca[64]` c12; `olc` 19-21 -> parts 37-39) | **unmodelled** — `nmca[4]` cells 6-7 (`canc 0x21`) and `dmca[64]` cell 17 (`canc 0x60`) can be current at arming (§26.10.1: the input-side half of this row is now *refuted*, not merely unread) | in range; PS2 identical |
 | Yang | 0 + 4 (`saca[44..47]` c41 `olc 1264`) | **unmodelled** — nine `atca` type-64 cells with `canc 0x24` | the four cells are unreachable by any entry point (§26.10.2, a closure stronger than the §19 convention this row originally used), and `olc 1264` is already past Yang's own 20-entry OVIX (`ovix_oob_post_terminator`, §24.4's decoder-artefact class) |
 | Alex, Necro, Elena, Oro, Urien, Twelve | 0 | closed | — |
@@ -5521,8 +5996,9 @@ live `olc` in all 20 characters:
 |---|---|
 | Yang `saca[44]` c41 | dead — exactly one reference to the script exists (`cbca[47]` c3, `pat` 23), landing on c22, which is itself the terminating `comm_jmp (5, 75, 1)`, so that walk stops on the cell it lands on |
 | Yang `saca[45..47]` c41 | dead — **zero** references to those scripts anywhere in Yang's tables |
-| Dudley `saca[72]` c33 | dead — the `comm_jpss (5, 72, 37)` at c18 that §26.4 names lands at 0-based cell 36, *past* c33, so it does not revive it |
+| Dudley `saca[72]` c33 | ~~dead~~ **WRONG — LIVE (§28.2, 2026-09-06).** The `comm_jpss (5, 72, 37)` clause is still correct (it lands at 0-based cell 36, past c33, so *that* jump does not revive it), but `k7_entry_walk` as it stood here still walked each script **forwards in a straight line** from its entry points, and a script is not a straight line: the `cg_extdat` rewind at c14 jumps **backwards over the terminator** and reaches c33 from there. Dudley's gate is `closed`, so this changes a label and no verdict — but the row as written is a false `dead` |
 | Ibuki `saca[27]` c33, `saca[60..62]` c17 | **live** — reached by a `comm_rja7`/`comm_jmp` landing past the terminator; the linear scan called all four dead |
+| Remy `saca[28]` c19, `saca[29]` c18 | *(not in this table when it was written)* — **live (§28.2)**, both revived by their own c5 `cg_extdat` rewind (`ext 145`/`144`) over the terminator. Remy's gate is `closed`; the row is added here so the correction sits with its siblings |
 
 So Yang's verdict is sound and now rests on an entry-point closure rather than
 on a convention. The convention itself is not sound, and the audit no longer
@@ -5758,7 +6234,37 @@ its initial 0 and a caught player always runs `cuca[0]`.
 
 A span's **real end** is the last byte any reachable cell touches, or the first
 terminator's read-end if that is later. The §19.7 column undercounts wherever a
-script continues past a mid-script terminator; 14 of the 106 spans do:
+script continues past a mid-script terminator; ~~14~~ **61** of the 106 spans do:
+
+> **CORRECTED 2026-09-06: 61, not 14 — and the 14 is a subclass, not a total.**
+> Re-measured over `span_reach` at `6ecfe75c`, the spans whose real end by
+> reach is later than the first terminator's read-end number **61**, totalling
+> exactly the **984 B** this section's own totals imply (36,680 − 35,696). They
+> fall into four sizes, and 14 is the middle one:
+>
+> | correction | spans | what it is |
+> |---|---|---|
+> | 8 B | 44 | one further 8-byte command read past the terminator |
+> | **16 B** | **14** | the terminator's full cell slot (a `cgd 6` cell is 24 B; the terminator command reads only 8) — **this is the "14"** |
+> | 40 B | 1 | `ELENA atca` |
+> | 104 B | 1 | `DUDLEY saca` |
+> | 264 B | 1 | `DUDLEY caca` |
+>
+> Only the last three are "a script continues past a mid-script terminator" in
+> the sense this sentence means; they are exactly §19.3's three spans and
+> §27.3's 18 cells. The 44 + 14 are read-length accounting, not extra
+> execution. **Every junk figure in the table below is correct as printed** —
+> the total 35,696 B reproduces exactly — so this corrects the prose count and
+> nothing downstream of it.
+>
+> **And `DUDLEY caca` is not the only span the correction takes to zero.**
+> **`GILL caca`** also ends at its declared size by reach (declared 0x578,
+> terminator read-end 0x568, reach end **0x578**, junk **0**), by the 16-byte
+> cell-slot route rather than by a `jsr`. So **by reach the over-declared count
+> is 104, not 106.** 106 is the count by the first-terminator metric, which
+> `cg_audit.py` deliberately keeps (`over_declared_sections`) so §7.6's and
+> §19.7's numbers still reproduce — which is why the summary line and §3 still
+> say 106.
 
 | Character | Section | Declared | §19.7 real end | Real end by reach | Junk | §19.7 slack |
 |---|---|---|---|---|---|---|
@@ -5787,6 +6293,9 @@ span is exactly right; only the metric was wrong. `DUDLEY saca[87]` (cells
 Totals: **106 spans, 35,696 B of junk** (§19.7 said 36,680), the largest
 Remy's `yuca` at 25,120 B. Remy's `caua` (777 elements declared, 7 real) and
 `hosa` (941 declared, 12 real) add 13,592 B.
+*(Both totals re-measured at `6ecfe75c`, 2026-09-06: unchanged. The **106** is
+the count by first terminator; by reach it is **104**, since `DUDLEY caca` and
+`GILL caca` both have junk 0 — see the correction above.)*
 
 ### 27.3 The closure, and what keeps its gate open
 
@@ -5899,8 +6408,10 @@ DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     
   each script's own terminator)" — the conclusion stands, the reason does not:
   execution is bounded by the reachable set, which crosses first terminators in
   three spans. **§8.G's fix ("tighten the declared sizes") is withdrawn.**
-- **§19.7** `Real end` column: 14 spans later than stated (§27.2 table);
-  `DUDLEY caca` is not over-declared; total junk 35,696 B, not 36,680.
+- **§19.7** `Real end` column: ~~14~~ **61** spans later than stated (§27.2
+  table and its 2026-09-06 correction — 14 is the 16-byte subclass, not the
+  total); `DUDLEY caca` **and `GILL caca`** are not over-declared; total junk
+  35,696 B, not 36,680.
 - **§19.3** "2 of 200 last scripts contain an intra-script forward jump whose
   target sits past the terminator" — there is a third entry past a terminator,
   by `jsr` from another script (`DUDLEY caca[6]` cell 2), and the cells it
@@ -5908,6 +6419,9 @@ DUDLEY   7051 |    0    0     0     0    16     0 |     0     0     0     0     
   (11 cells, all in bounds). §19.6(b)'s "two" is nine sprite cells more.
 - **§19.6(a)** says 35,912 of the 36,288 unvisited script-span bytes are
   post-terminator slack; 248 of those bytes are Dudley's live `caca[6]` tail.
+  *(Completed 2026-09-06: **368 B** in total are live, not 248 — Dudley `caca`
+  248 B, Dudley `saca` 96 B, Elena `atca` 24 B, the three spans of §19.3. All
+  in bounds.)*
 - **§15.6** "indices never approach it" for Remy's CAUA/HOSA is now measured
   rather than asserted (§27.4).
 
