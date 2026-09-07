@@ -44,7 +44,8 @@
  * is the wrong direction for code whose whole job is to bound what may be
  * removed. Nothing calls into this file on any platform today
  * (ReplayStorage_Evict / _DeleteEntry / _DeleteFetchDir have no callers in the
- * tree; it is compiled only because CMakeLists.txt globs src/*.c), so refusing
+ * tree; it is compiled only because CMakeLists.txt globs every .c under src),
+ * so refusing
  * costs nothing and keeps the POSIX guarantees honest.
  *
  * If the replay browser is ever wired up on Windows, implement these against
