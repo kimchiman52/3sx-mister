@@ -440,6 +440,40 @@ s16 select_hit_stop(s16 ms, s16 sb) {
     return ms * maf;
 }
 
+/* Section 16.2. Arcade look_after_timers is 0x06119CB0..0x06119D4A. It is pinned
+ * through the PLW `py` field: the arcade's own plw[i].py = &piyori_type[i]
+ * initialiser at 0x061182B8 (piyori_type = 0x020695F4, four literal referrers,
+ * all four accounted for by this port's four direct users) stores that pointer
+ * at PLW+0x3F8, alongside plw[i].sa = &super_arts[i] at PLW+0x3F0 (0x061182AC).
+ * Of the fourteen 0x03F8 pool words in the image and every instruction that
+ * loads one, this routine is the only one that goes on to read @(12,py) --
+ * `recover`. It is corroborated independently by its head, which decrements the
+ * byte at PLW+0x434, the already-documented arcade cat_break_ok_timer
+ * (0x06119CB8), and by its call to the arcade check_ukemi_flag (0x0611C958).
+ *
+ * The stun-recovery block is 0x06119D16..0x06119D40 and is this statement,
+ * instruction for instruction:
+ *   0x06119D1A  quantity.h (mov.w @(8,py)) tested, skip if zero
+ *   0x06119D22  hit_stop (PLW+68) tested, skip if nonzero
+ *   0x06119D2C  recover = @(12,py)
+ *   0x06119D2E  timer   = @(8,py)
+ *   0x06119D30  sub     -- RAW. No mul, no /32, no call to the 0x0612D428
+ *                          division helper this routine never invokes.
+ *   0x06119D32  stored back
+ *   0x06119D40  timer = 0 on quantity.h <= 0
+ *
+ * Used as `* omake / 32`, so the identity is 32; default Extra Options already
+ * select it (contents[2][3] == 2, stun_gauge_r_omake[2] == 32), and
+ * `n * 32 / 32 == n` exactly, so the arcade arm is the arcade's raw rate. The
+ * gate confines indexes 0/1/3 -- x0, x20/32, x44/32 -- to PS2 balance. */
+static s16 stun_gauge_rcv_omake(s16 id) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 32;
+    }
+
+    return stun_gauge_r_omake[omop_stun_gauge_rcv[id]];
+}
+
 void look_after_timers(PLW* wk) { // 🟡
     if (wk->tsukamarenai_flag) {
         wk->tsukamarenai_flag--;
@@ -470,8 +504,7 @@ void look_after_timers(PLW* wk) { // 🟡
     }
 
     if (wk->py->now.quantity.h && (wk->wu.hit_stop == 0)) {
-        // CPS3 uses the raw rate. The default port option is neutral (32 / 32); non-default recovery options differ.
-        wk->py->now.timer -= (wk->py->recover * stun_gauge_r_omake[omop_stun_gauge_rcv[wk->wu.id]]) / 32;
+        wk->py->now.timer -= (wk->py->recover * stun_gauge_rcv_omake(wk->wu.id)) / 32;
 
         if (wk->py->now.quantity.h <= 0) {
             wk->py->now.timer = 0;

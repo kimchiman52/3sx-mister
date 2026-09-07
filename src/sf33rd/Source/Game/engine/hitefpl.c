@@ -26,7 +26,9 @@ void effect_at_vs_player_dm(s16 ix2, s16 ix) {
     cal_hit_mark_pos(&as->wu, &ds->wu, ix2, ix);
     cal_damage_vitality_eff(as, ds);
     ds->wu.dm_piyo = _add_piyo_gauge[as->master_player][as->wu.att.piyo];
-    ds->wu.dm_piyo = ds->wu.dm_piyo * stun_gauge_omake[omop_stun_gauge_add[(ds->wu.id + 1) & 1]] / 32;
+    /* Arcade 0x0608EFF8 has fixed stun gain -- the counterpart of the identical
+     * statement in hitcheck.c -> set_damage_and_piyo; see stun_gauge_add_omake. */
+    ds->wu.dm_piyo = ds->wu.dm_piyo * stun_gauge_add_omake(ds->wu.id) / 32;
 
     if ((ds->wu.pat_status == 32 || ds->wu.pat_status == 3) || ds->wu.pat_status == 25) {
         ds->wu.dm_vital = (ds->wu.dm_vital * 125) / 100;

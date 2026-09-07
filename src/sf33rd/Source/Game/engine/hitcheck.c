@@ -62,6 +62,43 @@ static s16 red_blocking_omake(s16 id) {
     return blok_r_omake[omop_r_block_ix[id]];
 }
 
+/* Section 16.2: the Extra Options stun-gain modifier, gated on the same footing
+ * as red_blocking_omake above, and shared with hitefpl.c ->
+ * effect_at_vs_player_dm, which carries the identical statement.
+ *
+ * The arcade writes dm_piyo verbatim from _add_piyo_gauge and scales it by
+ * nothing but tk_kizetsu. _add_piyo_gauge is at 0x065FBB90 (its 16-byte row 0
+ * occurs exactly once in the image) and has exactly TWO literal referrers --
+ * one per duplicated statement:
+ *   0x0608D818, in set_damage_and_piyo      0x0608D800..0x0608DA3C
+ *   0x0608F06C, in effect_at_vs_player_dm   0x0608EFF8..0x0608F28E
+ * In the first, the table byte is read at 0x0608D828 and stored to dm_piyo
+ * (ds+818) at 0x0608D82C, and the very next instruction (0x0608D82E) is the
+ * pat_status test -- there is no multiply and no divide between them. In the
+ * second the same three steps are 0x0608F07E / 0x0608F082 / 0x0608F084. Each
+ * routine touches ds+818 again only in the tk_kizetsu block this port also has
+ * (0x0608D96E and 0x0608F19E, both `dm_piyo * (as->tk_kizetsu + 32) / 32`).
+ *
+ * Both routines are the right ones on independent grounds: the first opens with
+ * cal_damage_vitality (0x0609E36C) and later calls cal_dm_vital_gauge_hosei
+ * (0x0611E27C); the second opens with the setup_saishin_lvdir /
+ * setup_dm_rl_pldm / cal_hit_mark_pos / cal_damage_vitality_eff chain
+ * (0x0611E996, 0x0608F240, 0x0608CF62, 0x0609E3FA).
+ *
+ * Used as `* omake / 32`, so the identity is 32, not 0. That is what default
+ * Extra Options already select (Game_Default_Data.extra_option.contents[2][2]
+ * == 2 and stun_gauge_omake[2] == 32), so no default-settings number moves;
+ * the gate confines indexes 0/1/3 -- x0, x24/32, x44/32 -- to PS2 balance.
+ * `n * 32 / 32 == n` exactly for every s16 n, so the arcade arm is the raw
+ * table value the arcade stores. */
+s16 stun_gauge_add_omake(s16 id) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 32;
+    }
+
+    return stun_gauge_omake[omop_stun_gauge_add[(id + 1) & 1]];
+}
+
 void make_red_blocking_time(s16 id, s16 ix, s16 num) {
     switch (ix) {
     case 3:
@@ -966,10 +1003,11 @@ s16 check_dm_att_blocking(WORK* as, WORK* ds, s16 dnum) { // 🟡
 }
 
 void set_damage_and_piyo(PLW* as, PLW* ds) { // 🟡
-    // CPS3 has fixed stun gain; local's extra-option stun multiplier is neutral by default.
+    /* Arcade 0x0608D800 has fixed stun gain -- read off the ROM, not assumed;
+     * see stun_gauge_add_omake above. */
     cal_damage_vitality(as, ds);
     ds->wu.dm_piyo = _add_piyo_gauge[as->player_number][as->wu.att.piyo];
-    ds->wu.dm_piyo = ds->wu.dm_piyo * stun_gauge_omake[omop_stun_gauge_add[(ds->wu.id + 1) & 1]] / 32;
+    ds->wu.dm_piyo = ds->wu.dm_piyo * stun_gauge_add_omake(ds->wu.id) / 32;
 
     if ((ds->wu.pat_status == 32 || ds->wu.pat_status == 3) || ds->wu.pat_status == 25) {
         ds->wu.dm_vital = (ds->wu.dm_vital * 125) / 100;

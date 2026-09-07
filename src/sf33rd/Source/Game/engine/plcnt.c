@@ -1459,6 +1459,30 @@ void clear_chainex_check(s16 ix) {
     }
 }
 
+/* Section 16.2. Arcade set_kizetsu_status is 0x061185CE..0x06118606, pinned by
+ * pl_nr_piyo_tbl = 0x065EACA0 (the 21-entry s32 table occurs exactly once) whose
+ * two literal referrers are 0x06118600 here and 0x06118678 in the arcade's
+ * clear_kizetsu_point -- the port's two consumers exactly. This is the one that
+ * also loads pl_piyo_tbl (0x065EAC70) and piyori_type (0x020695F4), and its
+ * writes are this function's field for field at stride 20, which is
+ * sizeof(PiyoriType): flag at +0, genkai +2, time +4, now +8, recover +12,
+ * store +16.
+ *
+ * It reads pl_piyo_tbl[plnum] at 0x061185F8 and stores it to genkai at
+ * 0x061185FC. Nothing between: no add, and no clamp either. Only the modifier
+ * is gated -- pl_piyo_tbl holds 56, 64 and 72 only, so the [56,72] clamp below
+ * is inert at omake 0 and the arcade arm lands on exactly the arcade's value.
+ *
+ * Additive, so the identity is 0, which is what default Extra Options already
+ * select (contents[2][0..1] == 2, stun_gauge_len_omake[2] == 0). */
+static s16 kizetsu_genkai_omake(s16 ix) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 0;
+    }
+
+    return stun_gauge_len_omake[omop_stun_gauge_len[ix]];
+}
+
 void set_kizetsu_status(s16 ix) { // 🟢
     s16 plnum = My_char[ix];
 
@@ -1467,7 +1491,7 @@ void set_kizetsu_status(s16 ix) { // 🟢
     piyori_type[ix].now.timer = 0;
     piyori_type[ix].store = 0;
     piyori_type[ix].recover = pl_nr_piyo_tbl[plnum];
-    piyori_type[ix].genkai = pl_piyo_tbl[plnum] + stun_gauge_len_omake[omop_stun_gauge_len[ix]];
+    piyori_type[ix].genkai = pl_piyo_tbl[plnum] + kizetsu_genkai_omake(ix);
 
     if (piyori_type[ix].genkai < 56) {
         piyori_type[ix].genkai = 56;
@@ -1516,8 +1540,49 @@ void set_super_arts_status(s16 ix) { // 🟢
     super_arts[ix].ok = 0;
 }
 
+/* Section 16.2, both of the next two. The arcade has no remake_* at all: its
+ * set_super_arts_status, 0x06118680..0x061186F6 (120 bytes, 0 calls), copies
+ * both fields straight out of the SA_DATA record --
+ *   gauge_len  saptr+8  -> SA work +22   (0x061186D2 / 0x061186D4)
+ *   store_max  saptr+10 -> SA work +32   (0x061186D6 / 0x061186D8)
+ * -- as plain mov.w, with no add, no clamp and nothing to call. It is pinned by
+ * super_arts_data = 0x065EA670 (32 bytes of char 0 occur exactly once in the
+ * image) whose SOLE literal referrer is 0x0611868C, inside it; the SA work base
+ * 0x0206959C at stride 44 is the arcade's own super_arts[], written into
+ * plw[i].sa at 0x061182AC. It is set_super_arts_status and not the _dc variant
+ * because it also zeroes store/gauge/sa_rno/ok (SA+34, +24, +26, +16, +10),
+ * which only the non-_dc form does; and it has no cmd_sel/no_sa branch, reading
+ * super_arts_data unconditionally, which agrees with section 16's finding that
+ * the all-super-arts variant has no ROM counterpart.
+ *
+ * Both modifiers are additive with identity 0, already selected by default Extra
+ * Options (contents[1][2..3] == 2 -> sag_stock_omake[2] == 0; contents[1][4..5]
+ * == 8 -> sag_length_omake[8] == 0).
+ *
+ * The CLAMPS are deliberately NOT gated, on section 16.1's principle: zeroing
+ * only the modifier is provably neutral with respect to today's numbers,
+ * whereas dropping the clamps would not be. At omake 0 they are reachable only
+ * for Super_Arts == 3 on chars 1, 2 and 9 -- the all-zero fourth SA_DATA slot,
+ * where store_max 0 becomes 1 and gauge_len 0 becomes 64. Whether that slot is
+ * selectable was not established; see section 16.2's residuals. */
+static s16 sa_store_max_omake(s16 ix) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 0;
+    }
+
+    return sag_stock_omake[omop_sag_max_ix[ix]];
+}
+
+static s16 sa_gauge_len_omake(s16 ix) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 0;
+    }
+
+    return sag_length_omake[omop_sag_len_ix[ix]];
+}
+
 s16 remake_sa_store_max(s16 ix, s16 store_max) { // 🔴
-    s16 num = store_max + sag_stock_omake[omop_sag_max_ix[ix]];
+    s16 num = store_max + sa_store_max_omake(ix);
 
     if (num <= 0) {
         num = 1;
@@ -1531,7 +1596,7 @@ s16 remake_sa_store_max(s16 ix, s16 store_max) { // 🔴
 }
 
 s16 remake_sa_gauge_len(s16 ix, s16 gauge_len) { // 🔴
-    s16 num = gauge_len + sag_length_omake[omop_sag_len_ix[ix]] * 8;
+    s16 num = gauge_len + sa_gauge_len_omake(ix) * 8;
 
     if (num < 0x40) {
         num = 0x40;

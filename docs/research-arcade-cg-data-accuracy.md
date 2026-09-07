@@ -3267,6 +3267,223 @@ Two further residuals, recorded rather than papered over:
 - **No in-game measurement** of the frame difference was made, then or now. The
   -2/+2/+4 and -1/+1/+2 figures are read off the tables.
 
+### 16.2 The seven neighbouring `*_omake` modifiers: ALL SEVEN GATED 2026-09-07 — the arcade applies none of them
+
+§16.1 found seven more System Direction / Extra Options modifiers reaching
+shared engine code with no arcade gate, and deliberately left them: each needed
+its own arcade adjudication, and claiming them as defects without reading the
+arcade's routines is the error §16 exists to prevent. This section is that
+adjudication. **All seven were read against the ROM, one at a time, and the
+arcade applies none of them.** All seven are now gated.
+
+Unlike §16.1's two, these are **Extra Options** (`save_w[].extra_option`), not
+System Direction (`system_dir[]`) — `get_extra_option_parameter()` rather than
+`get_system_direction_parameter()`. That distinction does not change the
+verdicts but it does change the netplay argument; see below.
+
+#### The seven, and the arcade's answer
+
+Eight statements, seven modifiers — `stun_gauge_omake` is one modifier read by
+the same statement duplicated in two files.
+
+| port site | modifier | arcade routine | the decisive instructions |
+|---|---|---|---|
+| `hitcheck.c` -> `set_damage_and_piyo` | `stun_gauge_omake` | `0x0608D800`-`0x0608DA3C` | table read `0x0608D828`, `dm_piyo` store `0x0608D82C`, next instruction is the `pat_status` test `0x0608D82E` |
+| `hitefpl.c` -> `effect_at_vs_player_dm` | `stun_gauge_omake` (same statement) | `0x0608EFF8`-`0x0608F28E` | `0x0608F07E` / `0x0608F082` / `0x0608F084`, identically |
+| `plcnt.c` -> `set_kizetsu_status` | `stun_gauge_len_omake` | `0x061185CE`-`0x06118606` | `pl_piyo_tbl[plnum]` read `0x061185F8`, stored to `genkai` `0x061185FC`, nothing between |
+| `plcnt.c` -> `remake_sa_store_max` | `sag_stock_omake` | (no arcade counterpart; the copy is in `set_super_arts_status`, `0x06118680`-`0x061186F6`) | `store_max` `mov.w` `0x061186D6` -> `0x061186D8`; the routine has **0 calls** |
+| `plcnt.c` -> `remake_sa_gauge_len` | `sag_length_omake` | same | `gauge_len` `mov.w` `0x061186D2` -> `0x061186D4` |
+| `plmain.c` -> `look_after_timers` | `stun_gauge_r_omake` | `0x06119CB0`-`0x06119D4A` | `recover` `0x06119D2C`, `timer` `0x06119D2E`, **`sub` at `0x06119D30`** — raw, no `mul`, no `/32` |
+| `pls02.c` -> `add_super_arts_gauge` | `sa_gauge_omake` | `0x0611E834`-`0x0611E926` | no early `omake == 0` return (`0x0611E872` falls straight into `0x0611E884`); `gauge.s.h +=` at `0x0611E8CA`-`0x0611E8CE`, no multiply |
+| `pls02.c` -> `setup_vitality` | `base_vital_omake` | `0x0611E200`-`0x0611E27A` | table read `0x0611E244`, `original_vitality` store `0x0611E248`, nothing between |
+
+In every case the port has an arithmetic step the arcade does not: the arcade
+reads the table value and writes it, and the very next instruction begins the
+next statement.
+
+#### How each routine was pinned
+
+No routine was identified by position, by name, or by the shape of its opening
+lines. Each rests on a data anchor.
+
+- **`_add_piyo_gauge` = `0x065FBB90`.** Its 16-byte row 0 occurs exactly once in
+  the image, and it has exactly **two** literal referrers — `0x0608D818` and
+  `0x0608F06C`. Two is the right number, not a failed pin: the port carries the
+  same statement in two functions and so does the arcade. Corroborated
+  structurally — the first routine opens with `cal_damage_vitality`
+  (`0x0609E36C`) and later calls `cal_dm_vital_gauge_hosei` (`0x0611E27C`); the
+  second opens with the `setup_saishin_lvdir` / `setup_dm_rl_pldm` /
+  `cal_hit_mark_pos` / `cal_damage_vitality_eff` chain (`0x0611E996`,
+  `0x0608F240`, `0x0608CF62`, `0x0609E3FA`). Both later scale `dm_piyo` by the
+  `tk_kizetsu`-style factor this port also has (`0x0608D96E`, `0x0608F19E`) —
+  the *only* scaling either applies.
+- **`pl_nr_piyo_tbl` = `0x065EACA0`.** The 21-entry `s32` table (84 bytes)
+  occurs exactly once; two literal referrers, `0x06118600` and `0x06118678`,
+  which are the port's two consumers (`set_kizetsu_status` and
+  `clear_kizetsu_point`). The first also loads `pl_piyo_tbl` (`0x065EAC70`) and
+  `piyori_type` (`0x020695F4`), and writes six fields at stride 20 — which is
+  `sizeof(PiyoriType)` — in this port's layout: `flag` +0, `genkai` +2, `time`
+  +4, `now` +8, `recover` +12, `store` +16.
+- **`super_arts_data` = `0x065EA670`.** 32 bytes of character 0 occur exactly
+  once; **sole** literal referrer `0x0611868C`. The routine is
+  `set_super_arts_status` and not the `_dc` variant because it also zeroes
+  `store`/`gauge`/`sa_rno`/`ok` (SA+34, +24, +26, +16, +10), which only the
+  non-`_dc` form does. It has **no** `cmd_sel`/`no_sa` branch and reads
+  `super_arts_data` unconditionally — agreeing with §16's finding that the
+  all-super-arts variant has no ROM counterpart at all.
+- **`Com_Vital_Unit_Data` = `0x0616E1B8`.** Row 0 occurs exactly once; **sole**
+  literal referrer `0x0611E218`. This is the pin `arcade_constants.h`'s
+  `MAX_VITALITY_OFFSET` and `SAVE_W_DIFFICULTY_OFFSET` already stand on.
+- **The PLW pointer fields**, for the two routines that take a `PLW*` or an
+  `SA_WORK*` and so load no table literal of their own. The arcade's own
+  initialiser at `0x061182AC` / `0x061182B8` writes `&super_arts[i]` to
+  **PLW+0x3F0** and `&piyori_type[i]` to **PLW+0x3F8** — anchored on the
+  `piyori_type` literal `0x020695F4`, whose four referrers are exactly this
+  port's four direct users of `piyori_type[]`. From there:
+  - `look_after_timers`: the image holds fourteen `0x03F8` pool words, loaded by
+    twenty-two instructions between them; every one was disassembled around, and
+    `0x06119D2C` is the only instruction anywhere that reads `@(12, ·)` off a
+    register loaded from that slot — `recover`. Two near-misses, recorded so the
+    scan is not re-run: `0x06118632` is a literal-pool word disassembled as an
+    instruction, not code; `0x061186DC` is `set_super_arts_status` reading
+    `SA_DATA.dtm` off `saptr`, a different register entirely. Independently
+    corroborated by the routine's
+    head, which decrements the byte at **PLW+0x434**, the already-documented
+    arcade `cat_break_ok_timer`, and by its single call, to the arcade
+    `check_ukemi_flag` (`0x0611C958`).
+  - `add_super_arts_gauge`: pinned from its caller. `0x0611E5C0` passes
+    PLW+0x3F0 in `r4`, the id word in `r5`, the amount in `r6` and the
+    PLW+1137 byte in `r7` — the port's four arguments, in order. Its guard
+    ladder then matches one for one: `test_flag` (`0x02000094`) at
+    `0x0611E838`, `mf` at `0x0611E842`, `ok == -1` at `0x0611E850`,
+    `pcon_dp_flag` (`0x02068C67`) at `0x0611E860`, `Bonus_Game_Flag`
+    (`0x02016B3A`) at `0x0611E872`, `store == store_max` at `0x0611E884`.
+    `0x0611E850` tests **`ok` alone** — which is precisely the arcade arm this
+    port already carries from an earlier pass, and independent confirmation
+    that this is the routine.
+
+#### The gate
+
+Seven helpers, one per modifier, each returning the identity under arcade
+balance — §16.1's `red_blocking_omake` shape, and for its reason: the read stays
+exactly where it was, so the PS2 arm evaluates the same expression the same
+number of times in the same places, and no conditional read becomes
+unconditional. `stun_gauge_add_omake` is non-static (declared in `hitcheck.h`)
+because its statement genuinely has two consumers; the other six are
+file-statics beside theirs.
+
+**The identity is not always 0.** Three of the seven are used as
+`* omake / 32`, so their identity is **32**, and `n * 32 / 32 == n` exactly for
+every value in range — the arcade arm is then the raw value the arcade stores,
+not an approximation of it. The additive four take 0.
+
+| modifier | shape | identity | default index -> value |
+|---|---|---|---|
+| `stun_gauge_omake` | `* /32` | 32 | `contents[2][2] == 2` -> 32 |
+| `stun_gauge_r_omake` | `* /32` | 32 | `contents[2][3] == 2` -> 32 |
+| `sa_gauge_omake` | `* /32` | 32 | `contents[1][6] == 2` -> 32 |
+| `stun_gauge_len_omake` | `+` | 0 | `contents[2][0..1] == 2` -> 0 |
+| `sag_stock_omake` | `+` | 0 | `contents[1][2..3] == 2` -> 0 |
+| `sag_length_omake` | `+` | 0 | `contents[1][4..5] == 8` -> 0 |
+| `base_vital_omake` | `+` | 0 | `contents[0][1..2] == 3` -> 0 |
+
+`sa_gauge_omake`'s identity does double duty: `add_super_arts_gauge`'s early
+`if (omake == 0) return;` cannot fire at 32, which is exactly the arcade's
+behaviour — it has no such guard.
+
+**Default Extra Options already select every identity above**
+(`Game_Default_Data.extra_option`, `sys_sub.c`), so **no default-settings number
+moves**. The gate's whole effect is on the non-default settings, which are now
+confined to PS2 balance — including `sa_gauge_omake[0]`, which disables SA gauge
+gain outright, and `base_vital_omake`'s ±450 / ±300 / ±150 starting-vitality
+steps.
+
+**What was deliberately NOT gated**, on §16.1's principle that zeroing only the
+modifier is provably neutral with respect to today's numbers whereas removing
+anything else would not be:
+
+- `remake_sa_store_max`'s `[1,9]` clamp and `remake_sa_gauge_len`'s
+  `[0x40,0x80]` clamp. The arcade has neither — it copies both fields verbatim.
+  At omake 0 they are reachable only for `Super_Arts == 3` on characters 1, 2
+  and 9, the all-zero fourth `SA_DATA` slot, where `store_max` 0 becomes 1 and
+  `gauge_len` 0 becomes 64. Whether that slot is selectable was not
+  established.
+- `set_kizetsu_status`'s `[56,72]` clamp. Also absent from the arcade, but
+  inert: `pl_piyo_tbl` holds only 56, 64 and 72, so at omake 0 the arcade arm
+  lands on exactly the arcade's value regardless.
+
+#### Not modifiers, and still not touched
+
+§16.1's exclusion holds and was re-checked: `guard_distance` (`pls01.c`),
+`use_ex_gauge` (`plmain.c`) and `sky_dm_zuru_table` (`plpdm.c`) are **parameter**
+tables — the selected entry *is* the value, there is no identity element, and
+"arcade means zero" is not a well-formed answer for them. None of the seven
+above is of that kind: each has an identity element and the shipped default
+selects it.
+
+One adjacent difference was seen and is **reported, not acted on**, because it
+is not an `*_omake` site: arcade `add_super_arts_gauge` also has no counterpart
+to this port's training-mode `omop_spmv_ng_table2[ix] & DIP2_SA_GAUGE_NO_DEPLETE`
+-> `asag * 4`. `0x0611E884`'s `store`/`store_max` compare falls straight into
+`0x0611E89A`'s `* 120 / 100`. That is a different knob and a different question.
+
+#### Netplay
+
+**Nothing changes about the exchange.** §16.1's enumeration of the MIST payload
+still holds — `arch`, `platform`, `build_hash`, `proto_ver`, `state_ver`,
+`balance_digest`, and nothing else — and `ArcadeCharData_ComputeDigest()` hashes
+only the 20 characters' `CharDataSpan` bytes. This fix touches no parsed span,
+so **the digest does not move**: measured `e96e88beec2ac2b5` before and after.
+
+These seven come from `save_w[].extra_option`, so §16.1's "cannot currently
+differ" argument has to be re-run rather than reused — and it lands the same
+way. `init_omop`'s netplay arm calls
+`get_extra_option_parameter(&save_w[2].extra_option)`, and `save_w[2]` is
+written only by `Setup_Default_Game_Option()`'s `save_w[ix] = Game_Default_Data`
+loop; no netplay path writes it. So both peers are pinned to the defaults, all
+seven modifiers were already the identity on both sides, and the ungated code
+**was not a live desync source**. As with §16.1, that is an indexing accident
+rather than a guarantee, and the gate closes the door before something writes
+`save_w[2].extra_option`.
+
+#### Verification, and what it could not cover
+
+- **Host build** green. **`tools/mister/build-game.sh --flavor telemetry`**
+  green (`mode=arm-cross-build`, `flavor=telemetry`).
+- **Statcheck, all three corpora on `/Volumes/KimchDrive`**, swept with this
+  worktree's own binary and compared row by row against each `manifest.json` on
+  `verdict`, `rc` and `fail_frame`: `-2026-09-05` 143 eligible, `-2026-09-06`
+  183, `-2026-09-06b` 121 — **447/447 pass, 0 differences** across all 463
+  records, first time, with no re-run needed. Every one of the 447 boots
+  printed the same digest, `e96e88beec2ac2b5`.
+- **Frame data `--check-golden`** at the default job width.
+- **Arcade audits** all unmoved: `cg_audit.py` byte-identical across two runs
+  and identical to its pre-change state; `residual_audit.py`
+  `on a REACHABLE part : 0`; `cg_se_audit.py` `PASS`; `data_audit.py` rc 0.
+- **`tools/doc-citations/check_baselines.py`** -> `scopes=11 breached=0`.
+
+**What none of that can see, stated plainly, because a green sweep must not be
+read as confirmation.** Every corpus replay runs at default Extra Options, where
+all seven modifiers are already the identity, so **every gated statement was
+numerically inert in every segment** — and `statcheck_compare.c` does not
+compare `super_arts[].gauge_len`, `store_max` or `piyori_type[].genkai` at all.
+The frame-data suite is pinned to PS2 balance by `configuration.test.enabled`,
+where the PS2 arm is unchanged statement for statement. The corpus is a
+regression check that the change moved nothing; it is not evidence for the
+change. **The gate rests on the disassembly alone.**
+
+Three residuals, recorded rather than papered over:
+
+- **The three clamps above are not adjudicated.** The arcade has none of them.
+  Whether `Super_Arts == 3` is selectable — the only case where two of them
+  fire — was not established, and no attempt was made to remove them.
+- **The `asag * 4` training multiplier** is a divergence from the arcade that
+  this pass saw and did not act on. It is a DIP-table knob, not an `*_omake`
+  modifier, and needs its own decision.
+- **No in-game measurement** was made of any of the seven. The identity values
+  and the non-default steps are read off the tables; the arcade's behaviour is
+  read off the disassembly.
+
 ---
 
 ## 17. The second door: residual bounds (third pass, 2026-08-30)

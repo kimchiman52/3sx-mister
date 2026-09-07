@@ -884,6 +884,30 @@ s16 get_kind_of_trunk_dm(s16 dir, s8 drl) { // 🟢
     return dir16_trdm[dir];
 }
 
+/* Section 16.2. Arcade setup_vitality is 0x0611E200..0x0611E27A -- 124 bytes,
+ * one call, the 0x0612D428 division helper. It is pinned by Com_Vital_Unit_Data
+ * = 0x0616E1B8, whose row 0 occurs exactly once and has exactly one literal
+ * referrer, 0x0611E218, inside it (the same pin arcade_constants.h's
+ * MAX_VITALITY_OFFSET and SAVE_W_DIFFICULTY_OFFSET already rest on), and it is
+ * this function field for field: the wk+3 operator test, ix = 2 or
+ * CC_Value[1] + Difficulty, the 96/24/2 strides of s16[20][4][12], dmcal_m 32
+ * at wk+164, dmcal_d = (orig << 5) / Max_vitality at wk+166, and
+ * vitality/vital_new/vital_old at wk+160/158/156.
+ *
+ * original_vitality (wk+866) is written EXACTLY ONCE, at 0x0611E248, from the
+ * table word loaded at 0x0611E244 -- nothing between them, and the only later
+ * touch (0x0611E24E) re-reads it for the division. The arcade adds nothing.
+ *
+ * Additive, identity 0, already what default Extra Options select
+ * (contents[0][1..2] == 3, base_vital_omake[3] == 0). */
+static s16 base_vitality_omake(s16 id) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 0;
+    }
+
+    return base_vital_omake[omop_vital_init[id]];
+}
+
 void setup_vitality(WORK* wk, s16 pno) {
     s16 ix;
 
@@ -894,7 +918,7 @@ void setup_vitality(WORK* wk, s16 pno) {
     }
 
     wk->original_vitality = Com_Vital_Unit_Data[pno][save_w[Present_Mode].Damage_Level][ix];
-    wk->original_vitality += (s16)base_vital_omake[omop_vital_init[wk->id]];
+    wk->original_vitality += base_vitality_omake(wk->id);
     wk->dmcal_m = 32;
     wk->dmcal_d = (wk->original_vitality << 5) / Max_vitality;
     wk->vitality = wk->vital_new = wk->vital_old = Max_vitality;
@@ -1173,6 +1197,39 @@ void add_sp_arts_gauge_maxbit(PLW* wk) { // 🔴
 }
 #endif
 
+/* Section 16.2. Arcade add_super_arts_gauge is 0x0611E834..0x0611E926 -- 242
+ * bytes whose only two calls are both the 0x0612D428 division helper, for the
+ * two /100 steps below. It is pinned from its caller: 0x0611E5C0 passes
+ * PLW+0x3F0 in r4 (`wk->sa`, the offset the arcade itself writes at 0x061182AC),
+ * the PLW id word in r5, the amount in r6 and the PLW+1137 byte in r7 -- this
+ * function's four arguments in order. Its guard ladder is this function's, one
+ * for one: test_flag (0x02000094) at 0x0611E838, mf at 0x0611E842, ok == -1 at
+ * 0x0611E850, pcon_dp_flag (0x02068C67) at 0x0611E860, Bonus_Game_Flag
+ * (0x02016B3A) at 0x0611E872, store == store_max (SA+34 vs SA+32) at
+ * 0x0611E884. Note 0x0611E850 tests `ok` ALONE -- which is the arcade arm this
+ * file already carries, and independent confirmation of the routine.
+ *
+ * Two things the arcade does not do, and both are this modifier:
+ *   - there is no early `omake == 0` return. 0x0611E872's Bonus_Game_Flag test
+ *     falls straight into 0x0611E884's store/store_max compare.
+ *   - the gauge is credited raw. After `* 120 / 100` (0x0611E89A) and the
+ *     Battle_Number-gated `* 150 / 100` (0x0611E8BC), 0x0611E8CA reads SA+24,
+ *     0x0611E8CC adds the amount and 0x0611E8CE stores it back. No further
+ *     multiply, no divide.
+ *
+ * Used as `* omake / 32`, so the identity is 32: the `== 0` test then cannot
+ * fire and `asag * 32 / 32 == asag` exactly, which is the arcade's behaviour on
+ * both counts. Default Extra Options already select it (contents[1][6] == 2,
+ * sa_gauge_omake[2] == 32); the gate confines indexes 0/1/3 -- which at index 0
+ * disable gauge gain outright -- to PS2 balance. */
+static s16 sa_gauge_add_omake(s16 ix) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 32;
+    }
+
+    return sa_gauge_omake[omop_sa_gauge_ix[ix]];
+}
+
 void add_super_arts_gauge(SA_WORK* wk, s16 ix, s16 asag, u8 mf) { // 🟡
     if (test_flag) {
         return;
@@ -1200,7 +1257,7 @@ void add_super_arts_gauge(SA_WORK* wk, s16 ix, s16 asag, u8 mf) { // 🟡
         return;
     }
 
-    if (sa_gauge_omake[omop_sa_gauge_ix[ix]] == 0) {
+    if (sa_gauge_add_omake(ix) == 0) {
         return;
     }
 
@@ -1226,7 +1283,7 @@ void add_super_arts_gauge(SA_WORK* wk, s16 ix, s16 asag, u8 mf) { // 🟡
         asag = asag * 150 / 100;
     }
 
-    asag = asag * sa_gauge_omake[omop_sa_gauge_ix[ix]] / 32;
+    asag = asag * sa_gauge_add_omake(ix) / 32;
 
     if (!ArcadeBalance_IsEnabled()) {
         if (asag == 0) {

@@ -32,6 +32,11 @@ extern WORK* q_hit_push[32];
 extern s8 ca_check_flag;
 
 void make_red_blocking_time(s16 id, s16 ix, s16 num);
+
+/* Section 16.2's stun-gain modifier, shared because the statement that reads it
+ * is duplicated in hitcheck.c -> set_damage_and_piyo and hitefpl.c ->
+ * effect_at_vs_player_dm. Returns the identity 32 under arcade balance. */
+s16 stun_gauge_add_omake(s16 id);
 void hit_check_main_process();
 s16 set_judge_result();
 void check_result_extra();
