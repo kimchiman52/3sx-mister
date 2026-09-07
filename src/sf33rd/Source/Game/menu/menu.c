@@ -42,6 +42,7 @@
 #include "sf33rd/Source/Game/effect/effk6.h"
 #include "sf33rd/Source/Game/effect/effl8.h"
 #include "sf33rd/Source/Game/engine/cmb_win.h"
+#include "sf33rd/Source/Game/engine/cmd_data.h"
 #include "sf33rd/Source/Game/engine/grade.h"
 #include "sf33rd/Source/Game/engine/hitcheck.h"
 #include "sf33rd/Source/Game/engine/plcnt.h"
@@ -3646,30 +3647,50 @@ void Decide_PL(s16 PL_id) {
  * black wipe, no BGM restart and no round transition. A held direction picks
  * the arrangement; bare SELECT repeats whichever one was used last.
  *
+ *   (none) repeat the last (location, swap) pair
  *   down   centre, original sides   P1 = centre - 88, P2 = centre + 88
  *   up     swap sides in place      last location, sides swapped
- *   left   left corner, original    wall player touching the far one
- *   right  right corner, original   wall player touching the far one
+ *   left   left corner              swap preserved only by a repeat -- below
+ *   right  right corner             swap preserved only by a repeat -- below
+ *   up+left / up+right              that corner, sides swapped
+ *   down+left / down+right          exactly what bare left / bare right does
  *
  * Directions are screen-absolute, not relative to whoever pressed SELECT:
  * "left" always means the left corner of the stage. Each is tested as a bit
- * rather than as an exact word, so the diagonals resolve to their vertical
- * component first -- down-back and down-forward are centre (they are the
- * ordinary resting stick positions in training), and up-back and up-forward are
- * swap. Down wins over up if a pad somehow reports both.
+ * rather than as an exact word -- an exact `held == SWK_DOWN` would swallow
+ * the reset for down-back and down-forward, which are the ordinary resting
+ * stick positions in training. The bits resolve to the HORIZONTAL component:
+ * down-back and down-forward are the corner, not centre, and so are up-back
+ * and up-forward (which additionally set the swap bit). Only a pure vertical
+ * -- no horizontal bit at all -- reaches the centre and swap branches. Up
+ * wins over down if a pad somehow reports both.
  *
- * Location (centre / left / right) and swap are two separate, independently
- * latched axes, not one flat preset list. down/left/right are absolute: each
- * sets the location AND clears the swap, so they always give "original
- * sides" at that location regardless of history. up is the one relative axis:
- * it sets the swap bit without touching the location, so it means "wherever
- * we are, put the far player on the wall instead" -- SELECT+right then
- * SELECT+up leaves both players in the right corner, touching, with sides
- * swapped, not recentred. Pressing up again is idempotent (still "this
- * location, swapped"), not a toggle; down/left/right are what clears the
- * swap bit back to "original sides".
+ * Location (centre / left / right) and swap are two independently latched
+ * axes, not one flat preset list, and there is a third latch behind them:
+ * Tr_Reset_Last_Horiz, the horizontal of the most recent horizontal-carrying
+ * reset. It exists because "the same direction again" is defined against the
+ * last horizontal PRESSED, not against the location the players ended up at,
+ * and those two differ (up+left latches the left corner without the swap
+ * rule ever consulting the previous horizontal).
  *
- * The latch is a file-static rather than a GameState field on purpose:
+ *   down            centre, and CLEARS the swap bit.
+ *   up              SETS the swap bit, location untouched.
+ *   left / right    that corner. The swap bit is preserved if and only if the
+ *                   location before this press was NOT centre AND this
+ *                   horizontal equals Tr_Reset_Last_Horiz; otherwise cleared.
+ *                   So repeating a corner keeps whatever sides it had, the
+ *                   opposite corner resets to original sides, and either
+ *                   horizontal out of centre resets to original sides.
+ *   up+left/right   that corner AND the swap bit set, unconditionally.
+ *
+ * Every input carrying a horizontal bit updates Tr_Reset_Last_Horiz --
+ * up+right included, because it is a right-corner press like any other, and
+ * not updating it would let the very next SELECT+right clear the swap that
+ * SELECT+up-right had just asked for. down does not touch it, and cannot need
+ * to: down parks the location at centre, and the centre test alone forces the
+ * next horizontal to clear the swap whatever Tr_Reset_Last_Horiz holds.
+ *
+ * The latches are file-statics rather than GameState fields on purpose:
  * MIST_STATE_VER is sizeof(GameState), so a field here would force a
  * MIST_PROTO_VER bump for a mode netplay cannot reach.
  */
@@ -3677,6 +3698,12 @@ enum TrResetLocation {
     TR_LOC_CENTRE = 0, /* zero-init default */
     TR_LOC_LEFT,
     TR_LOC_RIGHT
+};
+
+enum TrResetHoriz {
+    TR_HORIZ_NONE = 0, /* zero-init default: no horizontal pressed yet */
+    TR_HORIZ_LEFT,
+    TR_HORIZ_RIGHT
 };
 
 /* The half-separation plmv_1020 is called with on the training appear path:
@@ -3694,6 +3721,15 @@ enum TrResetLocation {
  * that combination alone needs no position override at all. */
 static s8 Tr_Reset_Location;
 static s8 Tr_Reset_Swapped;
+
+/* The horizontal of the most recent horizontal-carrying reset, which is what
+ * "the same direction again" is measured against -- NOT Tr_Reset_Location.
+ * The two are not interchangeable: SELECT+up-left latches the left corner
+ * without the preserve rule ever running, so a subsequent SELECT+left has to
+ * be able to see that the last horizontal pressed was left. Zero-inits to
+ * TR_HORIZ_NONE, which matches no horizontal, so the first corner press of a
+ * session always clears the swap bit. */
+static s8 Tr_Reset_Last_Horiz;
 
 /* Set on the reset frame, consumed on the next one. It carries the two halves
  * of the teardown that cannot both happen in the same frame: clearing
@@ -3756,32 +3792,48 @@ static s32 Tr_Reset_Read_Input() {
 
         held = PLsw[PL_id][0] & SWK_DIRECTIONS;
 
-        /* Each direction is tested as a bit, not as an exact word, so the
-         * diagonals resolve to their vertical component: an exact
+        /* Each direction is tested as a bit, not as an exact word: an exact
          * `held == SWK_DOWN` would swallow the reset for down-back and
          * down-forward, which are the ordinary resting stick positions in
-         * training. Vertical is checked before horizontal for the same reason --
-         * up-back and up-forward are still "swap", not "corner".
+         * training. The bits resolve to the HORIZONTAL component, so a
+         * diagonal is a corner press; only a pure vertical reaches the centre
+         * and swap branches below. (The resting-position argument establishes
+         * that a diagonal must map to *something* rather than be ignored; it
+         * does not favour either component, because the stick can be at
+         * down-back anywhere on the screen and there is no position to guard.
+         * The horizontal is what the feature wants: a player crouch-blocking
+         * in the corner who taps SELECT is asking to stay in the corner.)
          *
-         * held == 0 falls through with both latches untouched, which is the
+         * held == 0 falls through with every latch untouched, which is the
          * "bare SELECT repeats the last (location, swap) combination" case.
          *
-         * down/left/right are absolute: each sets the location and clears the
-         * swap bit, so they always give "original sides" at that location no
-         * matter what came before. up is the one relative axis -- it sets the
-         * swap bit and deliberately does NOT touch Tr_Reset_Location, so it
-         * means "swap sides at whatever location is already latched" rather
-         * than "recentre and swap". See the file header comment. */
-        if (held & SWK_DOWN) {
-            Tr_Reset_Location = TR_LOC_CENTRE;
-            Tr_Reset_Swapped = 0;
+         * See the file header comment for the full table. In short: down is
+         * absolute (centre, swap cleared); up is relative (swap set, location
+         * untouched); a horizontal picks its corner and keeps the swap bit
+         * only when it is a repeat of the last horizontal from a non-centre
+         * location, or when up is held with it, in which case the swap bit is
+         * set outright. */
+        if (held & (SWK_LEFT | SWK_RIGHT)) {
+            /* Left wins a simultaneous left+right, which no stick can produce
+             * and which the previous form resolved the same way. */
+            const s8 want_horiz = (held & SWK_LEFT) ? TR_HORIZ_LEFT : TR_HORIZ_RIGHT;
+
+            /* Read before Tr_Reset_Location is overwritten below: the rule is
+             * about the location this reset is leaving, not the one it sets. */
+            const s32 repeat_of_last = (Tr_Reset_Location != TR_LOC_CENTRE) && (Tr_Reset_Last_Horiz == want_horiz);
+
+            if (held & SWK_UP) {
+                Tr_Reset_Swapped = 1;
+            } else if (!repeat_of_last) {
+                Tr_Reset_Swapped = 0;
+            }
+
+            Tr_Reset_Location = (want_horiz == TR_HORIZ_LEFT) ? TR_LOC_LEFT : TR_LOC_RIGHT;
+            Tr_Reset_Last_Horiz = want_horiz;
         } else if (held & SWK_UP) {
             Tr_Reset_Swapped = 1;
-        } else if (held & SWK_LEFT) {
-            Tr_Reset_Location = TR_LOC_LEFT;
-            Tr_Reset_Swapped = 0;
-        } else if (held & SWK_RIGHT) {
-            Tr_Reset_Location = TR_LOC_RIGHT;
+        } else if (held & SWK_DOWN) {
+            Tr_Reset_Location = TR_LOC_CENTRE;
             Tr_Reset_Swapped = 0;
         }
 
@@ -4332,12 +4384,106 @@ static void Tr_Reset_Apply() {
 
     Tr_Reset_Release_L8();
 
+    /* Preserve charge state across a SELECT reset.
+     *
+     * Players build a charge -- hold back or down-back for a Sonic Boom or a
+     * Headbutt -- while reaching for SELECT, and the reset was wiping it.
+     *
+     * WHERE THE CHARGE LIVES, established rather than assumed. check_1
+     * (cmd_main.c) is the charge parser: while the held lever matches
+     * waza_ptr->w_lvr it counts free1 / free2 down and raises
+     * uni0.tame.flag once the count expires, then fires on release. Every
+     * field it touches is in waza_work[id][slot]; the lever samples it reads
+     * (chk_pl->sw_lever, from t_pl_lvr[]) are re-derived from the pad every
+     * frame by sw_pick_up and are not state this reset can lose.
+     *
+     * WHAT WIPES IT. Exactly one thing on this path: setup_any_data() ->
+     * set_base_data_tiny() -> cmd_init() (plcnt.c, cmd_main.c), which clears
+     * waza_work[id] wholesale and then has waza_compel_all_init rebuild the
+     * per-slot table data. Nothing else in the three-frame chain calls
+     * cmd_init: player_mv_0000 does not, pli_1000 does not, and
+     * init_app_10000's cases 2 and 3 do not -- case 0 (pli_0000) is the one
+     * that would, and this reset deliberately enters at case 2 to skip it
+     * (see the header comment). The wipe is observable, not theoretical:
+     * Player_move calls waza_check() every frame ahead of its routine_no
+     * dispatch, so the cleared slots are re-walked from w_type == 0 by
+     * check_init on this very frame and the charge restarts from scratch.
+     *
+     * WHY IT IS SAFE AGAINST THE FOUR DOCUMENTED DEFECTS. None of them reads
+     * waza_work or wcp: defect 1 is the Suicide[0] pulse, defect 2 is the
+     * effect_84 singleton, defect 3 is effect_L8's ColorRAM rows and defect 4
+     * is effect_L0's three brightness fields. This restore is confined to
+     * waza_work and cannot reach any of them, so nothing is traded.
+     *
+     * WHAT IS RESTORED AND WHAT IS NOT. The per-slot parser state -- w_type,
+     * w_int, free1, free2, free3, w_lvr, w_ptr, uni0 and shot_ok -- and
+     * nothing else. w_dead / w_dead2 are left as cmd_data_set has just
+     * rebuilt them from the command table, and wcp[] is left entirely alone:
+     * waza_flag is the parser's OUTPUT (non-zero means "this command just
+     * completed, count it down"), so putting it back would let a motion
+     * finished a frame before the reset come out after it, which is not what
+     * "keep my charge" asks for. waza_compel_all_init rebuilds waza_flag's
+     * live/-1 pattern identically for the same character, so the restored
+     * slots stay addressable.
+     *
+     * THE GUARD. get_commands() picks the table w_ptr points into from three
+     * inputs: ArcadeBalance_IsEnabled(), cmd_sel[id] and player_number.
+     * The first is latched once in ArcadeBalance_Init() at boot and never
+     * moves; the second is written only by init_omop() (sysdir.c), which runs
+     * at scene entry, never inside a live round. player_number is the one
+     * that can move here -- set_base_data_tiny reassigns it from My_char[],
+     * which is how a Twelve mid-X.C.O.P.Y. gets his own commands back -- and
+     * a w_ptr saved against the copied character's table would be pointing at
+     * the wrong move. So the restore is skipped for a player whose character
+     * changed across setup_any_data(); that reset drops the charge, which is
+     * correct, because the slots no longer mean the same moves.
+     *
+     * All 56 entries are carried, in both balance modes. cmd_init preserves
+     * 48..55 under arcade already (WAZA_WORK_CARRIED_FIRST), so there the
+     * copy-back is a no-op for them; under PS2 balance carrying them too is
+     * the same intent applied uniformly, and this reset is not a round start
+     * in either mode.
+     *
+     * waza_work is GS_SAVE'd (game_state.h), but so is first_attack above and
+     * the same argument covers both: training is netplay-unreachable, so
+     * nothing here can reach a session. */
+    WAZA_WORK tr_reset_kept_waza[2][56];
+    s16 tr_reset_kept_char[2];
+
+    for (i = 0; i < 2; i++) {
+        tr_reset_kept_char[i] = plw[i].player_number;
+        SDL_memcpy(tr_reset_kept_waza[i], waza_work[i], sizeof(waza_work[i]));
+    }
+
     /* Known, accepted loss: effect_work_list_init(0, 0) frees every id-0
      * hitbox-overlay work, and setup_any_data only re-creates them for the two
      * players -- an already-airborne projectile loses its box for the rest of
      * its life. Only visible with the hitbox display turned on. */
     erase_extra_plef_work();
     setup_any_data();
+
+    for (i = 0; i < 2; i++) {
+        s16 slot;
+
+        if (plw[i].player_number != tr_reset_kept_char[i]) {
+            continue;
+        }
+
+        for (slot = 0; slot < 56; slot++) {
+            WAZA_WORK* dst = &waza_work[i][slot];
+            const WAZA_WORK* src = &tr_reset_kept_waza[i][slot];
+
+            dst->w_type = src->w_type;
+            dst->w_int = src->w_int;
+            dst->free1 = src->free1;
+            dst->w_lvr = src->w_lvr;
+            dst->w_ptr = src->w_ptr;
+            dst->free2 = src->free2;
+            dst->uni0 = src->uni0;
+            dst->free3 = src->free3;
+            dst->shot_ok = src->shot_ok;
+        }
+    }
 
     vital_cont_init();
     stngauge_work_clear();

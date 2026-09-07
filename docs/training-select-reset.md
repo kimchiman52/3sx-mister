@@ -16,25 +16,51 @@ timestamp, not an address, and is not maintained (see `AGENTS.md`).
 ## What ships today
 
 Location (centre / left / right) and swap (original sides / sides swapped)
-are two independently latched axes now, not one flat preset list —
-`Tr_Reset_Location` and `Tr_Reset_Swapped`, both `menu.c` file-statics. down,
-left and right are absolute: each sets the location **and clears the swap
-bit**, so they always give "original sides" at that location regardless of
-history. up is the one relative axis: it sets the swap bit **without
-touching the location**, so it means "sides swapped, wherever we already
-are" — SELECT+→ then SELECT+↑ leaves both players in the right corner,
-touching, with sides swapped, not recentred.
+are two independently latched axes, not one flat preset list —
+`Tr_Reset_Location` and `Tr_Reset_Swapped`, both `menu.c` file-statics. A
+third latch, `Tr_Reset_Last_Horiz`, records the horizontal of the most recent
+horizontal-carrying reset, and is what "the same direction again" is measured
+against.
 
-| Input | Result | Near/wall side | Far side | Camera |
-|---|---|---|---|---|
-| SELECT, no direction | Repeat the last (location, swap) combination | — | — | — |
-| SELECT + ↓ (incl. ↓↙ / ↓↘) | Centre, original sides | — | — | stage default |
-| SELECT + ↑ (incl. ↑↖ / ↑↗) | Swap sides at the current location | — | — | unchanged from current location |
-| SELECT + ← | Left corner, original sides | P1 cornered | P2, touching | `bgw[1].l_limit2` |
-| SELECT + → | Right corner, original sides | P2 cornered | P1, touching | `bgw[1].r_limit2` |
-| SELECT + ← then SELECT + ↑ | Left corner, swapped | P2 cornered | P1, touching | `bgw[1].l_limit2` |
-| SELECT + → then SELECT + ↑ | Right corner, swapped | P1 cornered | P2, touching | `bgw[1].r_limit2` |
-| START + SELECT | Unchanged: soft reset (`Check_Reset_IO`) | | | |
+| Input | Location | Swap | Near/wall side | Far side | Camera |
+|---|---|---|---|---|---|
+| SELECT, no direction | repeat last | repeat last | — | — | — |
+| SELECT + ↓ (pure down) | centre | **cleared** | — | — | stage default |
+| SELECT + ↑ (pure up) | unchanged | **set** | — | — | unchanged from current location |
+| SELECT + ← | left corner | preserved on a repeat, else cleared | P1 or P2, by swap | touching | `bgw[1].l_limit2` |
+| SELECT + → | right corner | preserved on a repeat, else cleared | P2 or P1, by swap | touching | `bgw[1].r_limit2` |
+| SELECT + ↓← | left corner | exactly as bare ← | | touching | `bgw[1].l_limit2` |
+| SELECT + ↓→ | right corner | exactly as bare → | | touching | `bgw[1].r_limit2` |
+| SELECT + ↑← | left corner | **set** | P2 cornered | P1, touching | `bgw[1].l_limit2` |
+| SELECT + ↑→ | right corner | **set** | P1 cornered | P2, touching | `bgw[1].r_limit2` |
+| START + SELECT | Unchanged: soft reset (`Check_Reset_IO`) | | | | |
+
+"Preserved on a repeat" is the rule in `Tr_Reset_Read_Input`, and it has two
+conjuncts: the swap bit survives a horizontal press **iff** the location
+before that press was not centre **and** the horizontal pressed equals
+`Tr_Reset_Last_Horiz`. So:
+
+- pressing the same corner twice keeps whatever sides it had;
+- pressing the opposite corner resets to original sides;
+- either horizontal taken from centre resets to original sides, whatever
+  `Tr_Reset_Last_Horiz` holds.
+
+Worked example, the sequence this was specified against: SELECT+→ (right
+corner, original sides — the location was centre, so the swap bit clears),
+then SELECT+↑ (right corner, swapped: P1 on the right wall, P2 to its left),
+then SELECT+→ again (the location was RIGHT, not centre, and
+`Tr_Reset_Last_Horiz` is already RIGHT, so the swap **survives**) — P1 stays
+on the right, P2 on the left.
+
+**Every input carrying a horizontal bit updates `Tr_Reset_Last_Horiz`, ↑← and
+↑→ included.** They are corner presses like any other, and leaving the latch
+alone for them would let the very next SELECT+→ clear the swap that SELECT+↑→
+had just asked for — a repeat of the same physical direction silently undoing
+itself. ↓ does not touch the latch, and provably cannot need to: ↓ parks the
+location at centre, and the not-centre conjunct alone forces the next
+horizontal to clear the swap bit whatever the latch holds. (Clearing it on ↓
+would therefore be behaviourally identical; not writing it is one fewer
+write.)
 
 At centre the arrangement is still the fixed spacing plmv_1020 itself uses:
 `centre ∓ 88` (`centre` is `get_center_position()` — 512 on most stages, 464
@@ -44,19 +70,39 @@ corners do **not** use this spacing — see *Corners: what is computed and
 what is not* for the touching-distance derivation, which is BUG 1's fix.
 
 Directions are **screen-absolute**, not relative to whoever pressed SELECT:
-← is always the left corner. Each is tested as a bit, so the diagonals resolve
-to their vertical component — ↓↙ / ↓↘ are centre, ↑↖ / ↑↗ are swap. Down is
-tested first because down-back and down-forward are the ordinary resting stick
-positions in training; an exact word match would swallow the reset for most of
-what a player actually holds.
+← is always the left corner.
 
-down/left/right are still **absolute**: ↓ then ← gives "left corner, original
-sides" no matter what came before, because each of those three clears the
-swap bit as well as setting the location. ↑ is the one **composable** axis —
-"same location, swapped" — which is BUG 2's fix; pressing ↑ twice in a row is
-idempotent, not a toggle, since it always means "this location, swapped," and
-only down/left/right clear the swap bit back to "original sides." Bare SELECT
-repeats the latched (location, swap) pair — see *Netplay safety*.
+**Diagonals resolve to their horizontal component.** Each direction is tested
+as a bit, not as an exact word, so ↓↙ / ↓↘ are the corner and ↑↖ / ↑↗ are the
+corner *and* the swap; only a pure vertical — no horizontal bit at all —
+reaches the centre and swap branches. Up is tested before down inside the
+horizontal branch, so a pad reporting both resolves to the up-diagonal.
+
+*Why the horizontal, and what the bit-test rationale does and does not
+establish.* The reason for testing bits rather than exact words is that
+down-back and down-forward are the ordinary resting stick positions in
+training: an exact `held == SWK_DOWN` would swallow the reset for most of
+what a player is actually holding. That argument establishes only that a
+diagonal must map to **something** rather than be ignored. It does not favour
+either component, and in particular it was never an argument for the
+vertical: the stick can be at down-back anywhere on the screen, so there is
+no position the vertical mapping protects and no trade being made. The
+horizontal is what the feature wants — a player crouch-blocking in the corner
+who taps SELECT is asking to stay in the corner — so that is what ships.
+**Changed 2026-09-07** (see *Increment 5*); before that date the diagonals
+resolved to their vertical component and down was tested first.
+
+↓ remains fully **absolute**: it sets centre and clears the swap bit, so ↓
+always gives "original sides at centre" no matter what came before. ↑ is the
+one axis that touches neither the location nor `Tr_Reset_Last_Horiz` — "same
+location, swapped", which is BUG 2's fix; pressing ↑ twice in a row is
+idempotent, not a toggle. The horizontals are now neither fully absolute nor
+fully relative: the location is absolute, the swap bit follows the repeat
+rule above. Bare SELECT repeats the latched (location, swap) pair — see
+*Netplay safety*.
+
+**Charge state survives the reset**, for both players — see *Charge state is
+preserved* under *Smaller things worth knowing*.
 
 The reset plays the menu confirm one-shot, `SE_selected()`
 (`SsRequest(98)`, `sound/sound3rd.c`), on the frame the teardown runs. That is
@@ -485,6 +531,78 @@ simulation change on the shared arcade/netplay path for a training-only feature.
   branch, that is untested. Corner, swap and the corner-swap combination have
   no test at all.
 
+- **Charge state is preserved, for both players.** Players hold back or
+  down-back to build a Sonic Boom / Headbutt-class charge *while reaching for
+  SELECT*, and the reset was wiping it.
+
+  *Where the charge lives.* `check_1` (`engine/cmd_main.c`) is the charge
+  parser: while the held lever matches `waza_ptr->w_lvr` it counts `free1` /
+  `free2` down and raises `uni0.tame.flag` once the count expires, then fires
+  on release. Every field it touches is in `waza_work[id][slot]`
+  (`engine/cmd_data.h`). The lever samples it reads — `chk_pl->sw_lever`, out
+  of `t_pl_lvr[]` — are re-derived from the pad every frame by `sw_pick_up`
+  and are not state a reset can lose.
+
+  *What was wiping it.* Exactly one thing on this path:
+  `setup_any_data()` → `set_base_data_tiny()` → `cmd_init()` (`engine/plcnt.c`,
+  `engine/cmd_main.c`), which clears `waza_work[id]` wholesale and then has
+  `waza_compel_all_init` rebuild the per-slot table data. Nothing else in the
+  three-frame chain calls `cmd_init`: `player_mv_0000` does not, `pli_1000`
+  does not, and `init_app_10000`'s cases 2 and 3 do not — case 0 (`pli_0000`)
+  is the one that would, and this reset deliberately enters at case 2 to skip
+  it. The wipe is observable, not theoretical: `Player_move` calls
+  `waza_check()` every frame *ahead of* its `routine_no` dispatch, so on frame
+  N the cleared slots are re-walked from `w_type == 0` by `check_init` and the
+  charge restarts from scratch.
+
+  *The fix.* `Tr_Reset_Apply` snapshots `waza_work[0..1]` before
+  `setup_any_data()` and copies the per-slot parser state back after — the
+  same save-and-restore shape FIRST ATTACK uses, for the same reason: the
+  engine function stays untouched and every other caller keeps the round-start
+  behaviour.
+
+  *What is restored and what is not.* `w_type`, `w_int`, `free1`, `free2`,
+  `free3`, `w_lvr`, `w_ptr`, `uni0` and `shot_ok`, and nothing else.
+  `w_dead` / `w_dead2` are left as `cmd_data_set` has just rebuilt them from
+  the command table. `wcp[]` is left entirely alone: `waza_flag` is the
+  parser's *output* — non-zero means "this command just completed, count it
+  down" — so putting it back would let a motion finished a frame before the
+  reset come out after it, which is not what "keep my charge" asks for.
+  `waza_compel_all_init` rebuilds `waza_flag`'s live/`-1` pattern identically
+  for the same character, so the restored slots stay addressable.
+
+  *The guard, and why it is exactly one comparison.* `get_commands()` picks
+  the table `w_ptr` points into from three inputs: `ArcadeBalance_IsEnabled()`,
+  `cmd_sel[id]` and `player_number`. The first is latched once in
+  `ArcadeBalance_Init()` at boot (`is_enabled` has no other writer) and cannot
+  move mid-round; the second is written only by `init_omop()`
+  (`system/sysdir.c`), which runs at scene entry, never inside a live round.
+  `player_number` is the one that *can* move here — `set_base_data_tiny`
+  reassigns it from `My_char[]`, which is how a Twelve mid-X.C.O.P.Y. gets his
+  own commands back — and a `w_ptr` saved against the copied character's table
+  would point at the wrong move. So the restore is skipped for a player whose
+  character changed across `setup_any_data()`. That reset drops the charge,
+  which is correct: the slots no longer mean the same moves.
+
+  All 56 entries are carried, in both balance modes. `cmd_init` already
+  preserves 48..55 under arcade (`WAZA_WORK_CARRIED_FIRST`), so there the
+  copy-back is a no-op for them; under PS2 balance carrying them too applies
+  the same intent uniformly, and this reset is not a round start in either
+  mode.
+
+  *It collides with none of the four documented defects.* None of them reads
+  `waza_work` or `wcp`: defect 1 is the `Suicide[0]` pulse, defect 2 the
+  `effect_84` singleton, defect 3 `effect_L8`'s ColorRAM rows, defect 4
+  `effect_L0`'s three brightness fields. The restore is confined to
+  `waza_work`, so nothing is traded. `waza_work` is `GS_SAVE`'d, but the
+  FIRST ATTACK argument covers it unchanged: training is netplay-unreachable.
+
+  **Not preserved, and out of scope:** the *facing* the charge was built
+  against. A swap preset moves a player to the other side of the opponent and
+  `rl_flag` is recomputed, so a held "back" becomes "forward" and the charge
+  breaks on the next frame — correctly, since `check_1` reads a
+  facing-relative lever. Nothing here can or should stop that.
+
 - **Velocity, acceleration and sub-pixel position are zeroed.** `player_mv_0000`
   never touches `wu.mvxy`, so a reset mid-dash would otherwise carry the
   momentum straight back out of the start position — the same defect
@@ -712,6 +830,70 @@ on-device retest of Makoto vs Ryu (or any pair) is still needed to confirm the
 visible behavior, though the geometry itself is now verified against the real
 data those characters ship with, not a synthetic stand-in.
 
+### Increment 5: horizontal diagonals, the repeat rule, and charge preservation
+
+Three changes, one commit, 2026-09-07.
+
+**1. Diagonals now resolve to their horizontal component.** ↓↙ / ↓↘ are the
+corner, not centre; ↑↖ / ↑↗ are the corner *and* the swap. Only a pure
+vertical reaches the centre or swap branch. The order of tests in
+`Tr_Reset_Read_Input` is now horizontal-first (with up tested inside the
+horizontal branch), where it was vertical-first.
+
+Record of what this replaced, because the old rationale is still quoted
+elsewhere: down was tested first, and the stated reason was that down-back and
+down-forward are the resting stick positions and an exact word match "would
+swallow the reset for most of what a player actually holds". That reason is
+still true and still the reason the code tests bits rather than words — but it
+only establishes that a diagonal must map to *something*. It was never an
+argument for the vertical specifically. A player holding down-back gets a
+reset under either mapping; the old one gave a recentre, the new one gives a
+corner, and neither is safer, because the stick can be at down-back anywhere
+on the screen. There is no position to guard, so no downside is being accepted
+here — the horizontal is simply the mapping the feature wants.
+
+**2. A third latch, `Tr_Reset_Last_Horiz`, and the repeat rule.** A horizontal
+press keeps the swap bit iff the location it is leaving was not centre and the
+horizontal equals the last horizontal pressed; otherwise it clears. ↑← / ↑→
+set the swap bit outright. The new latch is needed because "the same direction
+again" is defined against the last horizontal *pressed*, not against the
+location the players ended up at, and ↑← latches a corner without the rule
+ever running. Every horizontal-carrying input updates it, up-diagonals
+included — see *What ships today* for why, and for the ↓ case that provably
+does not need it.
+
+`Tr_Reset_Last_Horiz` is a `menu.c` file-static like the two latches beside
+it, so `sizeof(GameState)` and `MIST_PROTO_VER` are structurally untouched
+again.
+
+**3. Charge state is preserved across the reset**, for both players — the
+whole derivation is under *Smaller things worth knowing*. In short: the charge
+lives in `waza_work[id][slot]`, the only thing on this path that wiped it was
+`setup_any_data()` → `set_base_data_tiny()` → `cmd_init()`, and
+`Tr_Reset_Apply` now snapshots and restores the per-slot parser state around
+that call. It reaches none of the four documented defects, which is checked
+explicitly there.
+
+**Verified this round:** host build clean
+(`CC=clang cmake -B build -DCMAKE_BUILD_TYPE=Release`, then
+`cmake --build build --parallel`), `tools/mister/build-game.sh --flavor
+telemetry` clean (exit 0), `tools/doc-citations/check_baselines.py`
+`scopes=11 breached=0`.
+
+**Deliberately skipped:** the statcheck corpus sweep and the frame-data golden
+suite. This is training-mode menu code behind a SELECT gesture and neither gate
+can reach it — the statcheck oracle compares a CPS3 capture against the
+simulation on a corpus of recorded matches, and the golden suite compares
+frame-data labels; neither drives `Wait_Pause_in_Tr`, and no simulation
+function was changed. (The charge restore writes `waza_work`, which statcheck
+*does* compare — but only inside `Tr_Reset_Apply`, which no corpus can enter.)
+
+**UNVERIFIED AT RUNTIME.** None of this can be exercised headlessly: there is
+no harness that presses SELECT with a direction held. The Quick Training
+harness (`--test-quick-training`) covers only the bare-SELECT centre preset and
+was not extended. Every row of the input table, and the charge behaviour, is a
+code trace only. The device checklist below carries the items.
+
 ### Still outstanding — needs a human with a pad, under arcade balance
 
 - [ ] **Acceptance criterion:** after a reset, both pads control their
@@ -730,15 +912,67 @@ data those characters ship with, not a synthetic stand-in.
 - [ ] Both characters visible, combo counter cleared, camera correct.
 - [ ] Reset mid-throw and mid-super-freeze.
 - [ ] Down-back / down-forward reset does not feel accidental during blockstring
-      practice.
+      practice — note it now gives the **corner**, not centre.
 - [ ] START + SELECT soft reset still works from inside training.
+
+#### The full input table, one row at a time (Increment 5, all unverified)
+
+Start each row from a known state. Under arcade balance, both pads on HUMAN so
+SELECT is live on each.
+
+- [ ] **SELECT alone** repeats the last (location, swap) pair exactly,
+      including a swapped corner.
+- [ ] **↓ + SELECT** (pure down) → centre, original sides, whatever the swap
+      bit was.
+- [ ] **↑ + SELECT** (pure up) → sides swapped at the **current** location; the
+      location does not move.
+- [ ] **← + SELECT** from centre → left corner, **original sides** (the swap
+      bit clears even if it was set).
+- [ ] **→ + SELECT** from centre → right corner, **original sides**.
+- [ ] **← + SELECT twice in a row** → the second press keeps the sides the
+      first left (swap preserved on a repeat).
+- [ ] **← + SELECT then → + SELECT** → the right corner with **original
+      sides** (opposite horizontal clears the swap).
+- [ ] **↓← + SELECT** behaves exactly like bare ← (left corner), and **↓→**
+      exactly like bare → — *not* centre. This is the inverted behaviour;
+      confirm it explicitly.
+- [ ] **↑← + SELECT** → left corner **and** swapped, in one press. **↑→** →
+      right corner and swapped.
+- [ ] **↑→ + SELECT then → + SELECT** → the swap **survives** (the up-diagonal
+      updated the last-horizontal latch). If the second press un-swaps, the
+      latch update on up-diagonals regressed.
+- [ ] **The named sequence:** → + SELECT, then ↑ + SELECT, then → + SELECT
+      again ⇒ **1P on the right, 2P on the left** — i.e. the swap survives the
+      third press. This is the acceptance case for the repeat rule.
+- [ ] **START + SELECT** is still the soft reset and never a position reset.
+
+#### Charge preservation (Increment 5, unverified)
+
+- [ ] Pick a charge character (Urien, Remy, Alex, Hugo, Q). Hold **back** for
+      ~2 s, then press **SELECT + ←** and *immediately* release back and press
+      the button — **the charge move still comes out.** Before this change it
+      did not.
+- [ ] The same with **down-back → SELECT + ↓** (a pure-down recentre) for a
+      down-charge move.
+- [ ] The same on **2P's pad**, dummy set to HUMAN — preservation is for both
+      players.
+- [ ] **Negative control:** a *partial* charge (hold back ~0.3 s) plus a reset
+      still does **not** produce the move. The restore keeps the charge where
+      it was, it does not complete it.
+- [ ] **No stray move on reappear.** Do a clean QCF+P motion and hit SELECT
+      within a couple of frames — the fireball must **not** come out after the
+      reset. `wcp[].waza_flag` is deliberately left rebuilt for this reason;
+      if a move fires, the restore reached too far.
+- [ ] **Twelve mid-X.C.O.P.Y.** reset — no crash, no wrong move coming out.
+      The restore is skipped when `player_number` changed; this is the row that
+      exercises that guard.
 
 Per preset (↑ / ← / →), under arcade balance:
 
 - [ ] Positions **and facing** are right on frame 1, not frame 2 — no one-frame
       back-to-back render.
-- [ ] ↓ afterwards recentres and un-swaps regardless of history (down/left/right
-      are absolute).
+- [ ] Pure ↓ afterwards recentres and un-swaps regardless of history (↓ is the
+      one fully absolute direction left; ← / → are absolute in location only).
 - [ ] Corner touching, no gap: ← and → put the two characters **touching**, not
       the centre preset's spacing, and the pushbox-derived distance holds up
       for a wide character (Hugo) and a narrow one (Ibuki/Yun) — this is BUG 1.
@@ -749,7 +983,7 @@ Per preset (↑ / ← / →), under arcade balance:
       both players in the **right** corner, touching, sides swapped — not
       recentred. Same for SELECT+← then SELECT+↑ in the left corner. Pressing
       ↑ a second time in a row is a no-op (still "this location, swapped"),
-      not a toggle back to original sides — only ↓/←/→ clear the swap bit.
+      not a toggle back to original sides.
 - [ ] Corner camera lands on the same frame as the characters, with **no
       visible chase** and no parallax layer left behind at its stage default —
       including after a swap-in-place (↑ at a corner), which moves no camera.
@@ -758,8 +992,10 @@ Per preset (↑ / ← / →), under arcade balance:
       break, and the one that exercises both chase clears.
 - [ ] Bare SELECT repeats the last (location, swap) combination, including a
       swapped corner.
-- [ ] ↑↖ / ↑↗ swap in place (they do not corner or recentre), ↓↙ / ↓↘ still
-      centre and un-swap.
+- [ ] ↑↖ / ↑↗ now put the players in that **corner** with sides swapped (they
+      no longer swap in place), and ↓↙ / ↓↘ put them in that **corner** with
+      original sides (they no longer centre). Both are the Increment 5
+      inversion — confirm neither still resolves vertically.
 - [ ] A reset that is interrupted (training menu, soft reset) does not leave a
       preset armed for the next round's appear.
 
