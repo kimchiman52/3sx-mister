@@ -1313,6 +1313,28 @@ static const CgRemapRange twelve_cg_ranges[] = {
        not widen it further: the next observation above 0x2095 is 0x6C01,
        which measures the default. */
     { .first = 0x1E01, .last = 0x2095, .delta = -0x600 },
+    /* nmca[46]'s three cells (raws 0x2096, 0x2098, 0x209A), as a SEPARATE row
+       and deliberately NOT as a widening of the row above (doc §33.4 / §33.9).
+
+       The row above is at its measured hull ON TWELVE'S OWN EVIDENCE and that
+       statement is still exactly true: Twelve's 40 -0x600 observations run
+       0x1E01..0x2095 and he observes nothing at all inside 0x2096..0x209A.
+       Widening it would extrapolate a Twelve-side band past its last Twelve-
+       side pin, which is the mistake §8.S exists to record. So the hull above
+       is untouched and this is a new row carrying its own, different evidence.
+
+       That evidence is NECRO's, the owner's: NECRO observes 0x2098 and 0x209A
+       DIRECTLY at -0x600, and 0x2096 -- observed by nobody -- sits inside
+       NECRO's own oracle between 0x2095 and 0x2097, which AGREE at -0x600.
+       All four owned raws in 0x2096..0x209A are NECRO's at -0x600; none is
+       owned by anyone else.
+
+       Ours sent the three to 5398/5400/5402 -- group 5, DUDLEY, a bank nothing
+       shows Twelve ever reaching into (his observed set is {6, 19}) -- while
+       0x2095, one raw below and inside the row above, correctly reached 6805
+       in group 6. Measured: this row touches exactly those 3 cells in exactly
+       1 script and nothing else cast-wide. */
+    { .first = 0x2096, .last = 0x209A, .delta = -0x600 },
 };
 
 static const CgRemapRange remy_cg_ranges[] = {
@@ -1326,9 +1348,12 @@ static const CgRemapRange remy_cg_ranges[] = {
     { .first = 0x0601, .last = 0x0601, .delta = 0x20 },
     // A further 19 raw CGs (38 cells), all in ordinary nmca/cuca animations,
     // measure the same Alex-bank +0x20 (doc §8.N). Discrete rows only: the
-    // gaps between them hold dmca[3]/[90]/[91] cells whose scripts decode a
-    // different shape (cgd) than their PS2 counterparts, so cg_audit.py has
-    // no oracle for those raw values -- sweeping them in would be unverified.
+    // gaps between them held dmca[3]/[90]/[91] cells whose scripts decode a
+    // different shape (cgd) than their PS2 counterparts, so the per-character
+    // oracle had no reading for those raw values -- sweeping them in would
+    // have been unverified. That reason has since lapsed for dmca[90]/[91]
+    // (see the two rows below); it still stands for every gap raw NOT listed
+    // as an explicit row here, so the discrete-rows shape is unchanged.
     { .first = 0x0655, .last = 0x065C, .delta = 0x20 },
     { .first = 0x0669, .last = 0x0669, .delta = 0x20 },
     { .first = 0x0676, .last = 0x0676, .delta = 0x20 },
@@ -1337,9 +1362,51 @@ static const CgRemapRange remy_cg_ranges[] = {
     { .first = 0x0683, .last = 0x0684, .delta = 0x20 },
     { .first = 0x0690, .last = 0x0692, .delta = 0x20 },
     { .first = 0x0744, .last = 0x0744, .delta = 0x20 },
+    /* dmca[90]/[91]'s 17 live cells over 16 distinct raws, the gap §8.N
+       declined to sweep because no oracle then existed for them (doc §33.4 /
+       §33.9). One does now, and it is the strongest form available: ALEX --
+       the character who OWNS these sprites -- observes every one of the 16
+       raws DIRECTLY in his own shape-ok scripts, each at +0x20, each landing
+       in his own group 2.
+
+       Ours is not the default here. Remy's -0x0D00 underflows 0x0827
+       (0x0827 - 0x0D00 < 0), so remap_cg_number's `adjusted < 0` clamp (§7.4)
+       returns the raw UNCHANGED -- right group, wrong sprite by exactly 32.
+       That is the same defect the 0x0601 row above fixes one instance of.
+
+       Two rows, not one: these are the two contiguous runs of the raws that
+       carry evidence. The 0x0835..0x08D5 gap between them is NOT swept --
+       §8.N's discrete-rows rule is unchanged, and no Remy cell carries a raw
+       in it. Measured: the two rows together touch exactly 17 cells in
+       exactly 2 scripts and nothing else cast-wide. */
+    { .first = 0x0827, .last = 0x0834, .delta = 0x20 },
+    { .first = 0x08D6, .last = 0x08D7, .delta = 0x20 },
     // nmca[49]: measures Ryu's -0x1E0, not the Alex-bank +0x20 above --
     // must stay a separate row (doc §8.N's warning).
     { .first = 0x0C01, .last = 0x0C01, .delta = -0x1E0 },
+    /* saca[63]'s five cells (raws 0x20CB, 0x20D3, 0x20DA, 0x20E2, 0x20EA) are
+       NECRO sprites in a Remy script -- the same borrow twelve_cg_ranges'
+       0x1E01..0x2095 row encodes (§8.S), read here by the cross-character
+       oracle (doc §33.3 / §33.9).
+
+       Remy's own oracle cannot speak: Remy observes NO raw anywhere in
+       0x0C02..0x7140, so nothing brackets this band from his side (§32.4,
+       re-verified). NECRO's can, and directly: NECRO owns all five raws and
+       observes each at -0x600. Measured: 834 NECRO observations in
+       0x1E01..0x2200, every one -0x600, every one landing in group 6.
+
+       What ours did was extrapolate: -0x0D00 is Remy's default_delta, whose
+       measured hull is 0x7201..0x767F, ~20,000 raws above these five. It sent
+       them to 5067/5075/5082/5090/5098 -- group 5, DUDLEY -- and DUDLEY lends
+       to nobody: group 5 appears in exactly one character's observed landing
+       set, his own. Remy's is {2, 3, 20}.
+
+       The row is the measured hull of the five cells and extrapolates past
+       neither end. It is well inside NECRO's own -0x600 hull (0x1E00..0x22AB);
+       all 25 owned raws inside it are NECRO's at -0x600 and none is owned by
+       anyone else. Do not widen it to that larger hull: no Remy cell needs it,
+       and a row is only ever taken to the hull of the evidence it carries. */
+    { .first = 0x20CB, .last = 0x20EA, .delta = -0x600 },
 };
 
 // See docs/research-arcade-cg-data-accuracy.md §8.K -- this binds a cutoff
