@@ -129,7 +129,13 @@ static int meta_p2_rank = 0;
 /* Hold-START-to-exit: abort playback and return to title once the REAL user
  * holds START for this many consecutive frames (~2s @ 60fps). The hint is
  * shown for the first REPLAY_HINT_INTRO_FRAMES of the match, plus any time
- * START is being held. */
+ * START is being held.
+ *
+ * BOOT PATH (--play-replay) ONLY. A viewer-owned launch — one made through
+ * ReplayPlayer_LoadAndStart, i.e. the --watch-replays shuffle viewer — binds
+ * START to hold-to-SKIP and owns the gesture itself; both the abort and this
+ * hint are suppressed there, so the counter never leaves 0. The ownership
+ * comment in ReplayPlayer_Tick has the reason, and it is a bug, not taste. */
 #define REPLAY_EXIT_HOLD_FRAMES 120
 #define REPLAY_HINT_INTRO_FRAMES 300
 static int exit_hold_frames = 0;
@@ -994,6 +1000,15 @@ bool ReplayPlayer_ShouldShowExitHint(void) {
         return false;
     }
 
+    /* A hint must not outlive the binding it describes. A viewer-owned launch
+     * has no hold-START exit (see ReplayPlayer_Tick) and draws its own
+     * "HOLD START TO SKIP" on this very row — replay_shuffle.c's
+     * RS_SKIP_HINT_Y is replay_overlay.c's RPL_OVL_HINT_Y — so leaving this
+     * one on would both lie about the button and overprint the true hint. */
+    if (s_browser_owned) {
+        return false;
+    }
+
     return exit_hold_frames > 0 || play_index < REPLAY_HINT_INTRO_FRAMES;
 }
 
@@ -1329,8 +1344,27 @@ void ReplayPlayer_Tick(void) {
      * match is actually PLAYING; either player's START counts. Holding it
      * REPLAY_EXIT_HOLD_FRAMES consecutive frames aborts cleanly: release the
      * pads and Soft_Reset_Sub() back to title (netplay.c:911-923 precedent).
-     * A released START resets the streak, so brief presses do nothing. */
-    if (status == REPLAY_PLAYER_PLAYING) {
+     * A released START resets the streak, so brief presses do nothing.
+     *
+     * BOOT PATH ONLY. `!s_browser_owned` is a bug fence, not layering taste.
+     * This path cannot be used to leave a replay cleanly: it sets
+     * PHASE_DONE/ABORTED and calls Soft_Reset_Sub(), whose FIRST statement is
+     * FadeOut(1, 0xFF, 8) (sys_sub.c -> Soft_Reset_Sub), but leaves
+     * s_stall_frame FALSE for this frame — so exactly ONE njUserMain() runs,
+     * advancing that 8-step fade by a single step, and tick_terminal() then
+     * holds every frame from the next tick on. The fade never finishes and
+     * the TASK_INIT walk back to the title never runs; the engine is frozen
+     * wherever the fade happened to reach. That is survivable on the boot
+     * path, which exits the process anyway, and is exactly what the shuffle
+     * viewer must never inherit — so there START is handled by
+     * replay_shuffle.c -> rs_handle_skip, which goes through
+     * ReplayPlayer_LoadAndStart (Destroy clears the freeze before Init
+     * re-arms the phase machine) and resets cleanly.
+     *
+     * Off the viewer nothing owns the title behind us and there is no next
+     * replay, so exit-to-title stays the right meaning here — and this is the
+     * only mode replay_overlay.c draws "HOLD START TO EXIT" in. */
+    if (status == REPLAY_PLAYER_PLAYING && !s_browser_owned) {
         const bool start_held = ((p1sw_buff | p2sw_buff) & SWK_START) != 0;
 
         if (start_held) {

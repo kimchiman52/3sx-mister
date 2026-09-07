@@ -5,7 +5,7 @@
  * is re-drawn from a fresh entropy seed on every boot. No persistence, no
  * end state, no empty-state UI: an empty cache simply has nothing to play.
  *
- * WHY THE CHAINING LOOP LOOKS LIKE THIS. Four properties of the C1 player
+ * WHY THE CHAINING LOOP LOOKS LIKE THIS. Five properties of the C1 player
  * (src/replay/replay_player.c) dictate the shape of this file; each one is a
  * real bug if violated:
  *
@@ -42,6 +42,18 @@
  *     deleted browser's RB_RETURN_LINGER_FRAMES) keeps the screen alive
  *     across the whole transition.
  *
+ *  5. The player's own hold-START-to-exit CANNOT be used to leave a replay
+ *     here. It sets PHASE_DONE/ABORTED and calls Soft_Reset_Sub(), whose
+ *     first statement is FadeOut(1, 0xFF, 8) (sys_sub.c), while leaving
+ *     s_stall_frame false for that frame — so exactly ONE njUserMain() runs
+ *     and advances that 8-step fade by a single step before tick_terminal()
+ *     starts holding every frame. The fade never finishes and the TASK_INIT
+ *     walk back to the title never runs: the engine is frozen wherever the
+ *     fade happened to reach. So that abort is SUPPRESSED for every replay
+ *     this module launches (replay_player.c -> ReplayPlayer_Tick, gated on
+ *     !s_browser_owned) and START is bound here instead, in rs_handle_skip,
+ *     to ReplayPlayer_LoadAndStart — which resets cleanly.
+ *
  * WHAT "SHUFFLE" MEANS HERE. The unit of shuffling is the QUARK, not the
  * file. A Fightcade quark is a whole session between two players, downloaded
  * whole by the wrapper as <replays_root>/<quarkid>/game_N.3sr (replay_sync.c
@@ -53,13 +65,23 @@
  * moving to the next quark. Show the whole set.
  *
  * WHERE THE TICK RUNS. Before ReplayPlayer_Tick(), not after it (where
- * ReplayBrowser_Tick() used to sit). ReplayPlayer_Tick reads
- * (p1sw_buff | p2sw_buff) & SWK_START for its own hold-to-exit and then
- * OVERWRITES both buffers with the injected words — and zeroes them outright
- * once terminal. The hold-to-skip gesture needs the REAL pads, so it has to
- * sample first. Unlike the browser we do NOT consume the pads: while a
- * replay is navigating or playing the player overwrites them a few lines
- * later anyway, so nothing leaks into the game underneath.
+ * ReplayBrowser_Tick() used to sit). ReplayPlayer_Tick OVERWRITES
+ * p1sw_buff/p2sw_buff with the injected words — and zeroes them outright
+ * once terminal. The hold-START-to-skip gesture needs the REAL pads
+ * keyConvert() wrote this frame, so it has to sample first. Unlike the
+ * browser we do NOT consume the pads: while a replay is navigating or
+ * playing the player overwrites them a few lines later anyway, so nothing
+ * leaks into the game underneath — a held START cannot pause the replay.
+ *
+ * WHO OWNS START. This module does, for every replay it launches, and START
+ * is the ONLY binding the viewer has: hold it ~1 s to skip. There is no
+ * hold-to-exit — the MiSTer OSD is how you leave — and there is exactly one
+ * hint on screen, because the C1 player's own abort AND its
+ * "HOLD START TO EXIT" hint are both suppressed on a viewer-owned launch
+ * (point 5 above). The two gestures were never really two: the player's
+ * abort lands on ABORTED, which this module counts as terminal and
+ * auto-advances from, so hold-START already skipped — just via the frozen
+ * mid-fade route point 5 describes.
  */
 
 #include "replay/replay_shuffle.h"
@@ -92,11 +114,13 @@
 #define RS_COL 0xFFFFFFFFu
 #define RS_PRIO 1
 
-/* y=214 is the C1 viewer's own "HOLD START TO EXIT" hint (replay_overlay.c
- * RPL_OVL_HINT_Y); the skip hint sits one row above it. y=116 is just under
- * the terminal-message row (RPL_OVL_CENTER_Y 100) so the transition line
- * reads as a second line of the same message. */
-#define RS_SKIP_HINT_Y 206
+/* y=214 is replay_overlay.c's RPL_OVL_HINT_Y, the row its "HOLD START TO
+ * EXIT" hint used to occupy. That hint is suppressed on a viewer-owned
+ * launch (ReplayPlayer_ShouldShowExitHint), so the skip hint takes the row
+ * outright instead of stacking a second line above it: one binding, one
+ * hint. y=116 is just under the terminal-message row (RPL_OVL_CENTER_Y 100)
+ * so the transition line reads as a second line of the same message. */
+#define RS_SKIP_HINT_Y 214
 #define RS_TRANSITION_Y 116
 
 /* Frames the terminal overlay is left on screen before the next replay is
@@ -114,13 +138,16 @@
 /* RS_EMPTY manifest poll period, in frames (~5 s at 60 Hz). */
 #define RS_EMPTY_POLL_FRAMES 300
 
-/* Hold-to-skip. SWK_NORTH is MP: the C1 player never reads it (it reads only
- * SWK_START, for hold-to-exit) and the deleted browser had already
- * repurposed it as a state-scoped action button, so it is the one face
- * button with no competing meaning here. Hold it RS_SKIP_HOLD_FRAMES
- * consecutive frames to jump to the next replay; hold START keeps its
- * existing meaning (leave the viewer) and is handled by the player itself. */
-#define RS_SKIP_BTN SWK_NORTH
+/* Hold-START-to-skip. Hold START RS_SKIP_HOLD_FRAMES consecutive frames and
+ * the viewer jumps to the next replay. This is the viewer's ONLY binding:
+ * the MP hold this used to be (SWK_NORTH) is gone, and so is the player's
+ * hold-to-exit, which under this module was indistinguishable from a skip
+ * anyway (see WHO OWNS START in the file header).
+ *
+ * 60 frames (~1 s), NOT the player's REPLAY_EXIT_HOLD_FRAMES (120): the
+ * gesture should read as deliberate, not as a penalty, and the wipe arming
+ * below is measured back from this count. */
+#define RS_SKIP_BTN SWK_START
 #define RS_SKIP_HOLD_FRAMES 60
 
 /* Live frames of diagonal wipe-out run at the tail of the skip hold, so a
@@ -131,7 +158,9 @@
 
 /* The skip hint is a hard on/off, exactly like replay_overlay.c's
  * draw_exit_hint: visible for the first RS_HINT_INTRO_FRAMES of each replay,
- * or any time the skip button is held. It does not fade. */
+ * or any time START is held. It does not fade, and it is NOT pinned on
+ * permanently: this viewer runs unattended for hours on a CRT, where a hint
+ * that never leaves is burn-in rather than help. */
 #define RS_HINT_INTRO_FRAMES 300
 #define RS_HINT_PIPS 8
 
@@ -194,6 +223,15 @@ static int s_transition_frames = 0;
 static int s_empty_poll_frames = 0;
 static int s_replay_frames = 0; /* frames since the current replay was started */
 static int s_skip_hold = 0;
+
+/* Re-arm gate: false until START has been seen RELEASED. Without it a single
+ * long press fires once at RS_SKIP_HOLD_FRAMES and then AGAIN every
+ * RS_SKIP_HOLD_FRAMES it stays down — so a user holding START for the two
+ * seconds the old hold-to-exit asked for would skip TWO replays, not one.
+ * Starts false so a START still held from the OSD launch cannot skip replay
+ * #1 before it has been let go. */
+static bool s_skip_armed = false;
+
 static bool s_hud_logged = false; /* per-replay "names are on screen" evidence line */
 
 /* Session outcome tallies. Written into the rotation note so a rotation does
@@ -772,26 +810,35 @@ static void rs_log_hud_names(void) {
             p1 != NULL ? p1 : "(none)", p2 != NULL ? p2 : "(none)");
 }
 
-/* Hold-to-skip. Reads the REAL pads (this runs before ReplayPlayer_Tick
+/* Hold-START-to-skip. Reads the REAL pads (this runs before ReplayPlayer_Tick
  * overwrites them) and, on reaching the threshold, jumps straight to the next
  * replay via rs_start_next() -> ReplayPlayer_LoadAndStart.
  *
- * It deliberately does NOT route through the player's own hold-START abort:
- * that path sets ABORTED and calls Soft_Reset_Sub() WITHOUT setting the
- * freeze flag on that frame, so one njUserMain() runs mid-fade and the engine
- * freezes wherever the fade happened to reach. LoadAndStart resets cleanly.
+ * It deliberately does NOT route through the player's own hold-START abort —
+ * which is why that abort is SUPPRESSED on a viewer-owned launch rather than
+ * just re-labelled. That path sets ABORTED and calls Soft_Reset_Sub() without
+ * setting the freeze flag on that frame, so one njUserMain() runs mid-fade
+ * and the engine freezes wherever the fade happened to reach (point 5 of the
+ * file header). LoadAndStart resets cleanly.
  *
  * Returns true when a skip was performed (the caller must not also run the
  * terminal check this frame). */
 static bool rs_handle_skip(void) {
     const Uint16 pad = (Uint16)(p1sw_buff | p2sw_buff);
 
-    if ((pad & RS_SKIP_BTN) != 0) {
-        s_skip_hold += 1;
-    } else {
+    if ((pad & RS_SKIP_BTN) == 0) {
         s_skip_hold = 0;
+        s_skip_armed = true;
         return false;
     }
+
+    /* Held over from the skip that just fired (or from before the viewer
+     * started). Not a new gesture — see s_skip_armed. */
+    if (!s_skip_armed) {
+        return false;
+    }
+
+    s_skip_hold += 1;
 
     /* Cover the cut. The skip jumps straight to ReplayPlayer_LoadAndStart,
      * which raises the viewer's black cover in the same frame — so without
@@ -812,8 +859,9 @@ static bool rs_handle_skip(void) {
         return false;
     }
 
-    SDL_Log("replay-shuffle: user held the skip button %d frames — advancing to the next replay", s_skip_hold);
+    SDL_Log("replay-shuffle: user held START %d frames — skipping to the next replay", s_skip_hold);
     s_skip_hold = 0;
+    s_skip_armed = false;
     rs_start_next();
     return true;
 }
@@ -1015,8 +1063,10 @@ void ReplayShuffle_Tick(void) {
 /* ---------------------------------------------------------------------- */
 
 /* Hard on/off, no fade — the same shape as replay_overlay.c's draw_exit_hint:
- * visible for the first RS_HINT_INTRO_FRAMES of a replay, or whenever the
- * skip button is held, with an 8-pip progress bar. */
+ * visible for the first RS_HINT_INTRO_FRAMES of a replay, or whenever START
+ * is held, with an 8-pip progress bar. The ONLY hint the viewer draws: the
+ * overlay's "HOLD START TO EXIT" is suppressed here and this takes its row
+ * (RS_SKIP_HINT_Y == RPL_OVL_HINT_Y). */
 static void draw_skip_hint(void) {
     if (s_state != RS_PLAYING) {
         return;
@@ -1050,10 +1100,10 @@ static void draw_skip_hint(void) {
         bar[b] = '\0';
 
         char hint[48];
-        SDL_snprintf(hint, sizeof(hint), "HOLD MP TO SKIP  %s", bar);
+        SDL_snprintf(hint, sizeof(hint), "HOLD START TO SKIP  %s", bar);
         SSPutStrProP(1, RS_CANVAS_W, RS_SKIP_HINT_Y, RS_ATR, RS_COL, hint, RS_PRIO);
     } else {
-        SSPutStrProP(1, RS_CANVAS_W, RS_SKIP_HINT_Y, RS_ATR, RS_COL, "HOLD MP TO SKIP", RS_PRIO);
+        SSPutStrProP(1, RS_CANVAS_W, RS_SKIP_HINT_Y, RS_ATR, RS_COL, "HOLD START TO SKIP", RS_PRIO);
     }
 }
 

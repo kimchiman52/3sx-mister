@@ -10,6 +10,13 @@
  * cursor, no end state and no persistence: shuffle order is re-drawn from a
  * fresh entropy seed on every boot, and nothing about it survives a reboot.
  *
+ * ONE BINDING: hold START for ~1 s to skip to the next replay. There is no
+ * hold-to-exit — the MiSTer OSD is how you leave the viewer — and the C1
+ * player's own hold-START-to-exit is suppressed for every replay this module
+ * launches (replay_player.c -> ReplayPlayer_Tick, gated on !s_browser_owned),
+ * so neither that abort nor its "HOLD START TO EXIT" hint can appear here.
+ * One button, one hint.
+ *
  * ALWAYS-COMPILED release module. Every entry point is a cheap early-return
  * when the viewer is disabled, so a normal boot pays nothing.
  *
@@ -20,10 +27,10 @@
  *     call ReplayPlayer_PinConfig() once for the whole session, because
  *     ReplayPlayer_LoadAndStart deliberately does NOT re-pin.
  *   - ReplayShuffle_Tick() once per frame in game_step_0, BEFORE
- *     ReplayPlayer_Tick(): the skip gesture has to read the REAL pads, and
- *     ReplayPlayer_Tick overwrites p1sw_buff/p2sw_buff with the injected
- *     words (and zeroes them once terminal), so a tick placed after it would
- *     only ever see injected input.
+ *     ReplayPlayer_Tick(): the hold-START skip gesture has to read the REAL
+ *     pads, and ReplayPlayer_Tick overwrites p1sw_buff/p2sw_buff with the
+ *     injected words (and zeroes them once terminal), so a tick placed after
+ *     it would only ever see injected input.
  *   - ReplayShuffle_Draw() once per frame from BOTH draw branches of
  *     game_step_0 — the held-frame branch as well as the normal one. Every
  *     inter-replay transition happens on held frames, where only
@@ -47,7 +54,7 @@ bool ReplayShuffle_IsEnabled(void);
 
 /* Per-frame state machine: waits for the title screen, starts the first
  * replay, chains to the next one when the current one reaches a terminal
- * state, reshuffles at the end of the set, and handles the hold-to-skip
+ * state, reshuffles at the end of the set, and handles the hold-START-to-skip
  * gesture. No-op when disabled. MUST run before ReplayPlayer_Tick(). */
 void ReplayShuffle_Tick(void);
 

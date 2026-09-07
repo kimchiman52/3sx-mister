@@ -995,8 +995,8 @@ static void game_step_0() {
      * exclusive — args.c + runtime session guard) replay session owns the
      * final word on the buffers. Inert without --play-replay. */
     /* The weekly-best shuffle viewer. Runs BEFORE ReplayPlayer_Tick, not
-     * after it where ReplayBrowser_Tick used to sit: its hold-to-skip gesture
-     * has to read the REAL pads keyConvert() wrote this frame, and
+     * after it where ReplayBrowser_Tick used to sit: its hold-START-to-skip
+     * gesture has to read the REAL pads keyConvert() wrote this frame, and
      * ReplayPlayer_Tick overwrites p1sw_buff/p2sw_buff with the injected
      * words (and zeroes them once terminal). Unlike the browser it does not
      * consume the pads — the player overwrites them a few lines later anyway.
@@ -1094,9 +1094,12 @@ static void game_step_0() {
         /* Step C2 (docs/plan-fcade-replay-browser.md): draw the .3sr replay
          * viewer overlay (status line / hold-START-to-exit hint / terminal
          * message) into the 2D sprite list before njdp2d_draw() flushes it.
-         * Read-only over the player state — inert without --play-replay. */
+         * Read-only over the player state — inert without --play-replay, and
+         * the exit hint is inert under --watch-replays too (there START is
+         * hold-to-SKIP and the shuffle viewer draws the only hint). */
         ReplayOverlay_Draw();
-        /* Shuffle-viewer chrome (skip hint). Inert without --watch-replays. */
+        /* Shuffle-viewer chrome (the HOLD START TO SKIP hint). Inert without
+         * --watch-replays. */
         ReplayShuffle_Draw();
         /* The viewer's private cover, LAST and in front of everything (z =
          * 0.0f, just ahead of PrioBase[0]). Live frames only: a held frame is

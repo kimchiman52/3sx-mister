@@ -2,10 +2,11 @@
  * replay_overlay.c — Step C2 of docs/plan-fcade-replay-browser.md.
  *
  * Minimal viewer UX for the C1 .3sr replay player. Draws the player-name HUD
- * labels, a hold-START-to-exit hint, and terminal-state messages through the engine's
- * native SSPutStrProP text path — the same mechanism the Direct-P2P overlay
- * uses (src/netplay/direct_p2p_overlay.c). Read-only over the player: it
- * never mutates replay state, so C1's checksum cadence is untouched.
+ * labels, a hold-START-to-exit hint (BOOT PATH ONLY — see draw_exit_hint) and
+ * terminal-state messages through the engine's native SSPutStrProP text path
+ * — the same mechanism the Direct-P2P overlay uses
+ * (src/netplay/direct_p2p_overlay.c). Read-only over the player: it never
+ * mutates replay state, so C1's checksum cadence is untouched.
  *
  * Called once per frame from game_step_0 (src/main.c), before njdp2d_draw()
  * flushes the 2D sprite list. A no-op when no replay is loaded.
@@ -180,8 +181,15 @@ static void draw_name_labels(void) {
 }
 #endif /* RPL_OVL_HUD_NAMES */
 
-/* "Hold START to exit" plus a trivial [====    ] progress bar that fills as
- * START is held toward the abort threshold. */
+/* "HOLD START TO EXIT" plus a trivial [====    ] progress bar that fills as
+ * START is held toward the abort threshold.
+ *
+ * BOOT PATH (--play-replay) ONLY. ReplayPlayer_ShouldShowExitHint() is false
+ * on a viewer-owned launch, because there is no hold-START exit there: the
+ * --watch-replays shuffle viewer binds START to hold-to-SKIP and draws its
+ * own "HOLD START TO SKIP" on this very row (replay_shuffle.c ->
+ * draw_skip_hint; RS_SKIP_HINT_Y == RPL_OVL_HINT_Y). Without that gate this
+ * hint would name the wrong action AND overprint the right one. */
 static void draw_exit_hint(void) {
     if (!ReplayPlayer_ShouldShowExitHint()) {
         return;
@@ -291,8 +299,8 @@ void ReplayOverlay_Draw(void) {
         break;
 
     case REPLAY_PLAYER_ABORTED:
-        /* The hold-START abort and the browser-return path both leave the
-         * screen silent, exactly as before. */
+        /* The boot path's hold-START abort and the netplay-preemption abort
+         * both leave the screen silent, exactly as before. */
         break;
 
     case REPLAY_PLAYER_INACTIVE:

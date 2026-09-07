@@ -185,7 +185,10 @@ Proportional (`SSPutStrPro*`):
   counts, 255 px at five digits each; centred by its own measured width.
 - `src/replay/replay_overlay.c` -> `draw_exit_hint` 212 px,
   `REPLAY COMPLETE` 116 px; `src/replay/replay_shuffle.c` ->
-  `draw_skip_hint` 188 px, `NEXT REPLAY...` 96 px.
+  `draw_skip_hint` 212 px, `NEXT REPLAY...` 96 px. Both hints measure
+  widest with the pip bar full, and both draw at `RPL_OVL_HINT_Y` (214) —
+  but never in the same frame: `draw_exit_hint` self-gates off on a
+  viewer-owned launch, where START is hold-to-skip rather than hold-to-exit.
 - `direct_p2p_overlay.c` lines 1 and 2: mode labels (`CONNECTING` widest)
   and the 12-glyph room code.
 - The `DirectP2P_GetStatusText` literal set (§2): all 58–376 px. They fit

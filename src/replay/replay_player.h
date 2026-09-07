@@ -119,7 +119,7 @@ bool ReplayPlayer_DesyncWasIx16Only(void);
 const char* ReplayPlayer_GetMetaJsonPath(void);
 
 /* ---------------------------------------------------------------------- */
-/* Step C2 — viewer overlay metadata + hold-START-to-exit UX              */
+/* Step C2 — viewer overlay metadata + hold-START-to-exit UX (boot path)  */
 /* ---------------------------------------------------------------------- */
 
 /* Player names parsed from the .meta.json sidecar (players[0/1].name).
@@ -144,13 +144,19 @@ const char* ReplayPlayer_GetDateString(void);
 const char* ReplayPlayer_GetLabel(void);
 
 /* Hold-START-to-exit hint gating. True while the overlay should draw the
- * "Hold START to exit" hint: during the first few seconds of a match, or
- * any time START is currently being held. Only ever true while PLAYING. */
+ * "HOLD START TO EXIT" hint: during the first few seconds of a match, or any
+ * time START is currently being held. Only ever true while PLAYING.
+ *
+ * NEVER true on a ReplayPlayer_LoadAndStart (viewer-owned) launch. There is
+ * no hold-START exit in that mode -- START is hold-to-SKIP, owned and drawn
+ * by replay_shuffle.c -- so the hint would name a button that does something
+ * else, on the row the true hint already occupies. */
 bool ReplayPlayer_ShouldShowExitHint(void);
 
 /* Consecutive frames the real user has held START this episode (0 when not
  * held), and the threshold at which playback aborts to title. Together they
- * drive the hint's progress pip. */
+ * drive the hint's progress pip. Both stay inert on a viewer-owned launch,
+ * for the same reason. */
 int ReplayPlayer_GetExitHoldFrames(void);
 int ReplayPlayer_GetExitHoldThreshold(void);
 
