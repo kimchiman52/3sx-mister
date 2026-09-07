@@ -1170,16 +1170,28 @@ static const CgRemapRange ken_cg_ranges[] = {
 
 static const CgRemapRange sean_cg_ranges[] = {
     { .first = 0x70F4, .last = 0x70FF, .delta = -0x2F74 },
-    // cuca[64] and siblings, all measuring the same +0x3160 (doc §8.E /
-    // §7.3(i)); discrete rows because the raw values aren't contiguous.
-    { .first = 0x0C92, .last = 0x0C92, .delta = 0x3160 },
-    { .first = 0x0C95, .last = 0x0C95, .delta = 0x3160 },
-    { .first = 0x0C97, .last = 0x0C97, .delta = 0x3160 },
-    { .first = 0x0C9C, .last = 0x0C9C, .delta = 0x3160 },
-    { .first = 0x0CAB, .last = 0x0CAB, .delta = 0x3160 },
-    { .first = 0x0CB4, .last = 0x0CB4, .delta = 0x3160 },
-    { .first = 0x0CBB, .last = 0x0CBB, .delta = 0x3160 },
-    { .first = 0x0CC5, .last = 0x0CC5, .delta = 0x3160 },
+    /* cuca[64] and siblings, all measuring the same +0x3160 (doc §8.E /
+       §7.3(i)), as ONE row over the band's measured hull (doc §8.T). This was
+       8 discrete rows covering exactly the 8 observed raws -- the same
+       fitted-to-points shape that cost Twelve 44 wrongly-rendered cells
+       (§8.S), because a fit to the cell-index diff can only see raws that
+       appear in a SHAPE-OK script.
+
+       Re-verified from the data before widening, by §29's own oracle: Sean's
+       673 shape-ok scripts observe 711 distinct raws with zero conflicts, in
+       three disjoint regions -- 0x0C92..0x0CC5 -> +0x3160 (8 obs, this row),
+       0x4801..0x4C0E -> -0xAA0, his default_delta (692 obs), and
+       0x70F4..0x70FE -> -0x2F74 (11 obs, the row above). NO observation of any
+       other delta lands inside 0x0C92..0x0CC5, so the bands do not interleave
+       and this one is measured uniform end to end; the oracle's own
+       `bracketed` rule therefore already adjudicates all 44 gap values at
+       +0x3160, which is what this row now gives them.
+
+       0x0C92 and 0x0CC5 are the lowest and highest OBSERVED raws at this
+       delta, so the row is the measured hull and extrapolates past neither
+       end. Do not widen it further: nothing is observed below 0x0C92, and the
+       next observation above 0x0CC5 is 0x4801, which measures the default. */
+    { .first = 0x0C92, .last = 0x0CC5, .delta = 0x3160 },
 };
 
 static const CgRemapRange urien_cg_ranges[] = {
@@ -1216,38 +1228,59 @@ static const CgRemapRange chunli_cg_ranges[] = {
 };
 
 // atca/exca cross-bank cells (doc §8.E / §7.3(i)): 521 cells scattered over
-// a wide raw span, all resolving via Ryu's -0x1E0. Rows are the raw-value
-// runs that are actually referenced, per cg_audit.json -- coalescing across
-// the gaps between them would sweep in unmeasured values (see doc §8.N's
-// caution, same hazard).
+// a wide raw span, all resolving via Ryu's -0x1E0.
 static const CgRemapRange makoto_cg_ranges[] = {
     { .first = 0x7120, .last = 0x712A, .delta = -0x1760 },
     { .first = 0xA000, .last = UINT16_MAX, .delta = -0x5378 },
-    { .first = 0x0C0D, .last = 0x0C0D, .delta = -0x1E0 },
-    { .first = 0x0C28, .last = 0x0C2C, .delta = -0x1E0 },
-    { .first = 0x0C2F, .last = 0x0C2F, .delta = -0x1E0 },
-    { .first = 0x0C44, .last = 0x0C4B, .delta = -0x1E0 },
-    { .first = 0x0C56, .last = 0x0C57, .delta = -0x1E0 },
-    { .first = 0x0C6B, .last = 0x0C6B, .delta = -0x1E0 },
-    { .first = 0x0C83, .last = 0x0C88, .delta = -0x1E0 },
-    { .first = 0x0C8C, .last = 0x0C8C, .delta = -0x1E0 },
-    { .first = 0x0C93, .last = 0x0C93, .delta = -0x1E0 },
-    { .first = 0x0CE3, .last = 0x0CE7, .delta = -0x1E0 },
-    { .first = 0x0DE6, .last = 0x0DE7, .delta = -0x1E0 },
-    { .first = 0x0E65, .last = 0x0E6C, .delta = -0x1E0 },
-    { .first = 0x0EBB, .last = 0x0EBB, .delta = -0x1E0 },
+    /* The Ryu-bank band, as ONE row over its measured hull (doc §8.T). This
+       was 13 discrete rows covering exactly the 42 observed raws and nothing
+       else -- the fitted-to-points shape that cost Twelve 44 wrongly-rendered
+       cells (§8.S). The older caution here ("coalescing across the gaps would
+       sweep in unmeasured values") had the risk backwards: a value strictly
+       inside a band the oracle pins on both sides with the SAME delta is
+       exactly what §29's `bracketed` verdict confirms, whereas leaving it
+       uncovered drops it onto default_delta -- the other band's answer, which
+       is what actually went wrong for Twelve.
+
+       Re-verified from the data before widening, by §29's own oracle: Makoto's
+       683 shape-ok scripts observe 1,332 distinct raws with zero conflicts, in
+       four disjoint regions -- 0x0C0D..0x0EBB -> -0x1E0 (42 obs, this row),
+       0x6000..0x65F0 -> -0xD80, her default_delta (1,041 obs),
+       0x7120..0x712A -> -0x1760 (11 obs) and 0xABF8..0xAD2E -> -0x5378 (238
+       obs); the last two are the rows above. NO observation of any other delta
+       lands inside 0x0C0D..0x0EBB, so the bands do not interleave and this one
+       is measured uniform end to end.
+
+       0x0C0D and 0x0EBB are the lowest and highest OBSERVED raws at this
+       delta, so the row is the measured hull and extrapolates past neither
+       end. Do not widen it further: nothing is observed below 0x0C0D, and the
+       next observation above 0x0EBB is 0x6000, which measures the default. */
+    { .first = 0x0C0D, .last = 0x0EBB, .delta = -0x1E0 },
 };
 
 // cuca[37] cross-bank cells (doc §8.E / §7.3(i)); resolves via Ryu's -0x1E0.
 static const CgRemapRange q_cg_ranges[] = {
     { .first = 0x712B, .last = 0x7135, .delta = -0x123A },
-    { .first = 0x0C01, .last = 0x0C01, .delta = -0x1E0 },
-    { .first = 0x0C94, .last = 0x0C94, .delta = -0x1E0 },
-    { .first = 0x0C97, .last = 0x0C98, .delta = -0x1E0 },
-    { .first = 0x0CB3, .last = 0x0CB3, .delta = -0x1E0 },
-    { .first = 0x0CB5, .last = 0x0CB7, .delta = -0x1E0 },
-    { .first = 0x0CBB, .last = 0x0CC0, .delta = -0x1E0 },
-    { .first = 0x0D02, .last = 0x0D02, .delta = -0x1E0 },
+    /* The Ryu-bank band, as ONE row over its measured hull (doc §8.T). This
+       was 7 discrete rows covering exactly the 15 observed raws and nothing
+       else -- the fitted-to-points shape that cost Twelve 44 wrongly-rendered
+       cells (§8.S).
+
+       Re-verified from the data before widening, by §29's own oracle: Q's 671
+       shape-ok scripts observe 1,141 distinct raws with zero conflicts, in
+       three disjoint regions -- 0x0C01..0x0D02 -> -0x1E0 (15 obs, this row),
+       0x6601..0x6B10 -> -0xC20, his default_delta (1,115 obs), and
+       0x712B..0x7135 -> -0x123A (11 obs, the row above). NO observation of any
+       other delta lands inside 0x0C01..0x0D02, so the bands do not interleave
+       and this one is measured uniform end to end; the oracle's own
+       `bracketed` rule therefore already adjudicates all 243 gap values at
+       -0x1E0, which is what this row now gives them.
+
+       0x0C01 and 0x0D02 are the lowest and highest OBSERVED raws at this
+       delta, so the row is the measured hull and extrapolates past neither
+       end. Do not widen it further: nothing is observed below 0x0C01, and the
+       next observation above 0x0D02 is 0x6601, which measures the default. */
+    { .first = 0x0C01, .last = 0x0D02, .delta = -0x1E0 },
 };
 
 // nmca/cuca/exca cross-bank cells, the X.C.O.P.Y. family (doc §8.E /

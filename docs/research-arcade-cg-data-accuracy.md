@@ -1872,6 +1872,97 @@ that widens `twelve_cg_ranges` correctly drives that to zero with no edit to
 this section. That is what happened: the row above is the only code change, and
 the gate's verdict moved on its own.
 
+### T. The same fitted-to-points shape in Sean, Makoto and Q — WIDENED 2026-09-07, and the digest did not move
+
+**Status.** Fixed, pre-emptively. §8.S's Twelve fix cured a band that had
+already gone wrong; a survey found three more `cg_ranges` tables built the same
+way — a set of discrete rows fitted to exactly the raws the cell-index diff
+happened to observe, with nothing covering the gaps between them. Each is now
+one row over its band's measured hull.
+
+| char | delta | was | now | gap values swept in |
+|---|---|---|---|---|
+| SEAN | `+0x3160` | 8 discrete rows | `0x0C92`-`0x0CC5` | 44 |
+| MAKOTO | `-0x1E0` | 13 discrete rows | `0x0C0D`-`0x0EBB` | 645 |
+| Q | `-0x1E0` | 7 discrete rows | `0x0C01`-`0x0D02` | 243 |
+
+**These were latent, not wrong.** Unlike Twelve's, none of the three gaps
+swallowed a cell. Measured, not assumed: every `L` cell of every script in all
+ten tables `read_char_table()` remaps (`nmca`, `dmca`, `btca`, `caca`, `cuca`,
+`atca`, `saca`, `exca`, `cbca`, `yuca` — the same set `cg_audit.py`'s
+`_all_cells()` enumerates) was checked for a raw inside each hull that the
+discrete rows did not cover. **Zero, for all three.** So the widening changes
+no rendered byte today.
+
+**Why widen something that changes nothing, then.** Because the shipped table
+and the audit's own adjudication rule currently *disagree* about 932 raw
+values, and the disagreement is invisible only because nothing references them.
+§29's `bracketed` verdict says a raw strictly inside a band the oracle pins on
+both sides with the same delta **is** confirmed at that delta; the shipped
+table instead drops every such raw onto `default_delta` — the neighbouring
+band's answer. That gap between the code and the oracle is precisely what
+Twelve's 44 cells fell through. Widening closes it for the same reason, at the
+same evidentiary standard, before rather than after.
+
+The older caution in `makoto_cg_ranges` — "coalescing across the gaps would
+sweep in unmeasured values" — had the risk backwards, and is corrected in
+place. A value strictly inside a two-sided-pinned uniform band is not
+unmeasured in the sense §8.N warns about; §8.N's hazard is Remy's, where the
+gaps hold raws whose scripts decode a **different shape**, so no oracle exists
+for them at all. That distinction is what makes Remy's rows stay discrete and
+these three not.
+
+**Re-verified from the data before anything was widened**, by rebuilding §29's
+per-raw oracle (`manu_delta_gate()`'s observation loop) for each character. The
+same rebuild reproduces §8.S's Twelve table exactly — 1,021 distinct raws, 0
+conflicts, four disjoint regions — which is the control that says the harness
+measures what §8.S measured.
+
+| char | shape-ok scripts | distinct raws | conflicts | disjoint regions observed |
+|---|---|---|---|---|
+| SEAN | 673 | 711 | 0 | `0x0C92`-`0x0CC5` → `+0x3160` (8); `0x4801`-`0x4C0E` → `-0xAA0`, the default (692); `0x70F4`-`0x70FE` → `-0x2F74` (11) |
+| MAKOTO | 683 | 1,332 | 0 | `0x0C0D`-`0x0EBB` → `-0x1E0` (42); `0x6000`-`0x65F0` → `-0xD80`, the default (1,041); `0x7120`-`0x712A` → `-0x1760` (11); `0xABF8`-`0xAD2E` → `-0x5378` (238) |
+| Q | 671 | 1,141 | 0 | `0x0C01`-`0x0D02` → `-0x1E0` (15); `0x6601`-`0x6B10` → `-0xC20`, the default (1,115); `0x712B`-`0x7135` → `-0x123A` (11) |
+
+Three properties were checked for each, and all three hold:
+
+- **The hull is the measured hull.** In every case the shipped discrete rows
+  covered *exactly* the observed raws and nothing else — 8, 42 and 15 — so
+  `first` and `last` are the lowest and highest **observed** raws at that
+  delta. Neither end extrapolates.
+- **No interleave.** Zero observations carrying any other delta land anywhere
+  inside any of the three hulls. Each band is measured uniform end to end. (This
+  is exactly why Urien's `0x52DA`-`0x52EC` is excluded and stays a staircase:
+  §8.D's nine other-delta observations sit inside it, so the hull form is
+  inapplicable there by construction.)
+- **Nothing is observed below any of the three**, and the next observation above
+  each is the character's own `default_delta` band, far away — `0x4801`,
+  `0x6000`, `0x6601`. Do not widen further in either direction.
+
+**The digest did not move**, and that was measured, not predicted:
+`ArcadeCharData_ComputeDigest()` reads `e96e88beec2ac2b5` on an `sfiii3` boot
+both before and after — the same value §8.S left it at. It follows from the
+zero blast radius: the digest hashes the parsed spans, `read_char_table()`
+writes the remapped `cg_number` into them, and no remapped `cg_number` changes.
+So unlike §8.S's fix, this one costs **no** netplay lockstep update; §8.O needs
+no new entry. `cg_audit.json` is likewise byte-identical to its pre-change
+state: **0 changed, 0 removed, 0 added.**
+
+**No balance gate was added, and none is needed** — for the reason §8.S
+established and re-reading confirms unchanged: `remap_cg_number()` has one call
+site, `ArcadeCharData_Init()` has one caller inside `ArcadeBalance_Init()`'s
+`do { } while (0)` after every PS2 pin has `break`ed, and the sole external
+reader is behind `if (ArcadeBalance_IsEnabled())`. No PS2-mode path reaches
+these tables.
+
+**What this does not establish.** That the gap values are *right* — only that
+they now carry the value §29's own oracle assigns them, which is the best
+answer the method has. Nothing renders them today, so no corpus, golden or
+audit run can distinguish the change from a no-op; every gate below is a
+regression check that nothing moved, and all of them agree that nothing did.
+The claim rests on the oracle's bracketing rule and the interleave measurement,
+not on an observation of any gap value.
+
 ---
 
 ## 9. Tooling (in-repo and verified working)
