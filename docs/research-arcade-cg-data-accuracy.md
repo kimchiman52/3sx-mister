@@ -107,7 +107,8 @@ command and its observed output, or a named primary source. Things that were
 - **Worried about hitboxes / throw ranges / attack properties?** §15 — the other
   13 sections (the ones a CG audit cannot see). This is upstream issue **#325**.
 - **Worried about command inputs?** §16. **That question is closed** — do not
-  re-open it.
+  re-open it. Its one residual, the two ungated System Direction modifiers, is
+  **gated as of 2026-09-06**: §16.1.
 
 ---
 
@@ -228,7 +229,7 @@ command and its observed output, or a named primary source. Things that were
 | **The "converter artifact" class** (§21.6) | **CLOSED 2026-09-06 — the class does not exist** (§30). The u32 byte relation it was identified by is the `cg_hit_ix`/`cg_att_ix` word's own cross-release relation (the two releases store the pair in opposite order), so every one of the 1,402 hits is that word read at a cell boundary the data does not have. The verdict §21.6 reached is unchanged and now stands on `grid_phase()` + `k7_entry_walk`; its stated mechanism is withdrawn |
 | Upstream issue #363 | **OPEN** upstream; our findings not yet reported (§13) |
 | **The other 13 sections** (issue **#325**) | **AUDITED, no defect** — differences enumerated and classified (§15) |
-| **Arcade command tables** (input recognition) | **CLOSED — no bug** (§16) |
+| **Arcade command tables** (input recognition) | **CLOSED — no bug** (§16). §16's one residual — `cmd_data_set` applying the PS2-only `blok_b_omake`/`blok_r_omake` System Direction modifiers to arcade command records with no gate — is **LANDED 2026-09-06** (§16.1): the arcade's own `cmd_data_set` (`0x060B299C`) is 310 straight-line bytes with no branch and no call, so it applies neither; both are now gated to 0 under arcade balance, PS2 arm unchanged. Digest unmoved (`e96e88beec2ac2b5`), as §8.O predicted. §16.1 also settles the netplay question §16 left open: System Direction is never exchanged, hashed or checked, but the netplay arm reads `system_dir[2]`, which nothing writes after boot |
 | **`location_data[]` over-declared spans** | **CLOSED 2026-09-06 — no code change, defended by the audit** (§27). Both consequences adjudicated: (1) no path the engine can take forms a cell index inside any over-declared tail — every writer of `cg_ix` is modelled in `cg_audit.py` -> `span_closure()`, and the only cells reachable past a first terminator are 18 in-bounds script cells of Dudley `caca[6]`/`saca[87]` and Elena `atca[159]`; Remy's CAUA/HOSA tails are never indexed (`max cuix` 6 of 7, `max hoix` 11 of 12). (2) `ArcadeCharData_ComputeDigest` does hash 49,288 B (1.90% of its 2,590,884 B input) of decoded ROM past the real data, but the ROM is SHA-256-pinned to one revision (`rom_load.c`) and the decode is a pure function of it, so every peer hashes the same bytes: harmless, and deliberately NOT tightened (a digest move forces a lockstep client update). Real ends re-derived by reach, not by §19's terminator scan; §19.7's `Real end` column corrected in 14 spans |
 | **Residual (second-door) bounds** | **AUDITED, FIXED** `a5bc6a5b` — pre-fix baseline was 6 violations, all Remy → Gill's group; current tree measures 0 (§17.3, §17.5); tooling `residual_audit.py` (§8.K) |
 | **Under-declared (truncating) spans** | **CLOSED — none exist.** 500/500 spans COVERED (§19) |
@@ -839,15 +840,20 @@ unimplemented", which was true on 2026-09-02 and is no longer):
 - **REPORTED, NOT FIXED:** **S** — Twelve's 44 cells, the one new defect the
   2026-09-06 passes turned up (§29.4, §8.S).
 - **Still unimplemented:** C, H, I, J, L, M, O, P.
-- **One unfixed defect carries no letter at all** and is recorded only inside
-  §16: `cmd_main.c` -> `cmd_data_set` applies **two** PS2-only System Direction
-  modifiers (`blok_b_omake` to `reset[3,4,5,6,12]`, and `blok_r_omake` to the
-  red-parry thresholds via `make_red_blocking_time`) to the **arcade** command
-  records, with no `ArcadeBalance_IsEnabled()` test. It is a no-op at default
-  settings and only bites if the user changes the blocking option. Unlike
-  everything else here it does **not** move the netplay digest. §16's residual
-  paragraph has the full derivation, the gate it would need, and what was not
-  traced. Named here so it is not lost between the two sections.
+- **The one unfixed defect that carried no letter at all is now LANDED**
+  (2026-09-06, §16.1): `cmd_main.c` -> `cmd_data_set` applied **two** PS2-only
+  System Direction modifiers (`blok_b_omake` to `reset[3,4,5,6,12]`, and
+  `blok_r_omake` to the red-parry thresholds via `make_red_blocking_time`) to
+  the **arcade** command records with no `ArcadeBalance_IsEnabled()` test. Both
+  are now gated to 0 under arcade balance. The arcade's own `cmd_data_set`
+  (`0x060B299C`, pinned through `pl_cmd_num`'s sole literal referrer) is 310
+  straight-line bytes with no branch and no call, so it applies neither — the
+  E7 shape. As predicted, it did **not** move the netplay digest
+  (`e96e88beec2ac2b5` before and after). §16.1 also settles what §16 left
+  untraced: System Direction is **not** exchanged, hashed or checked in
+  netplay, but the netplay arm reads `system_dir[2]`, which nothing writes
+  after boot, so peers could not have diverged on it. Named here so the
+  closure is not lost between the two sections.
 
 **Keep this paragraph and §3 in step with the status blocks.** They are the
 only two places a reader checks before trusting an item, and they are the first
@@ -2840,8 +2846,11 @@ other run of ≥20 pointer tables at stride `0xE0` exists in the 8 MiB image.
 bug (`cmd_main.c:94-102`).
 
 **The one real residual — deepened 2026-09-06, and there are TWO modifiers, not
-one.** This is the only unfixed defect §16 records, it has **no worklist
-letter**, and it is easy to lose, so the whole of it is written out here.
+one. GATED 2026-09-06 — see §16.1** for the arcade adjudication that settled the
+gate's direction, the gate's shape, the netplay-exchange answer, and what the
+verification could and could not see. Everything from here to the "Do not
+re-open" line is the **pre-fix record, preserved unchanged**; read §16.1 for
+what is now in the code.
 
 **Mechanism.** `cmd_main.c` -> `get_commands` does select the arcade tables
 under arcade balance: its first branch tests `ArcadeBalance_IsEnabled()` and
@@ -2924,6 +2933,224 @@ was made — the numbers above are read off the tables, not observed.
 `arcade_cmd_data.c:502-503` / `:731-739`), and "the 647 `dm_cmd_xx` placeholder
 slots mean missing moves" (the C table is byte-identical to the ROM, so those
 are the arcade's own empty slots).
+
+### 16.1 The two modifiers: GATED 2026-09-06 — the arcade applies neither, and the netplay question is settled
+
+The pre-fix record above held up on re-verification — **nothing in it was
+wrong**. This subsection records what this pass added: the arcade
+adjudication that decided the gate's direction, the gate itself, the netplay
+answer §16 left open, a neighbouring class found on the way, and one piece of
+reachability detail §16 did not spell out.
+
+**The finding held.** Re-read at `92d89d8d`, every load-bearing claim above is
+confirmed in the source: `cmd_main.c` -> `cmd_data_set` had no
+`ArcadeBalance_IsEnabled()` test; `blok_b_omake[4] = { -2, 0, 2, 4 }` and
+`blok_r_omake[4] = { -1, 0, 1, 2 }` are in `sysdir.c`; `omop_b_block_ix` and
+`omop_r_block_ix` have exactly the writers listed (`sysdir.c` ->
+`get_system_direction_parameter`, from `contents[0][3]` and `contents[0][5]`,
+with `[1] = [0]` at the tail); `hitcheck.c` -> `make_red_blocking_time` is the
+only consumer of `blok_r_omake` and `cmd_data_set` its only caller;
+`Dir_Default_Data.contents[0]` is `{ 1, 0, 1, 1, 1, 1, 1 }`, so both indexes
+resolve to 1 and both tables' entry 1 is 0. No claim above was wrong.
+
+**Reachability, spelled out.** The pre-fix text describes what "a user changing
+the option actually does", which is right, but does not say through which slot
+the changed value travels — and that turns out to be the whole netplay answer. `sysdir.c` -> `init_omop` picks the `SystemDir` by mode:
+`system_dir[2]` under `Mode_Type == MODE_NETWORK`, `system_dir[0]` when
+`Demo_Flag == 0`, and otherwise `system_dir[Present_Mode]` when
+`Direction_Working[Present_Mode]` is set. Only **`system_dir[1]`** is ever
+written after boot by the System Direction menu (`menu.c`), and `Present_Mode`
+is 1 with `Demo_Flag == 1` on the ordinary return-to-title path
+(`game.c` -> `Next_Title_Sub`, which sets both). So the modifier is genuinely
+reachable in ordinary offline play, and unreachable in netplay — see below.
+
+#### What the arcade does (measured)
+
+The arcade **applies neither modifier**, and this is the strongest form of that
+result the method can produce: the whole routine was read, instruction by
+instruction, and there is nothing in it to gate.
+
+| thing | address | how it was pinned |
+|---|---|---|
+| `pl_cmd_num` | `0x06199650` | anchor; **exactly one** literal referrer in the 8 MiB image |
+| the loading instruction | `0x060B5E10` | read off that sole referrer |
+| arcade `waza_compel_all_init` | `0x060B5DF0` | the routine containing it |
+| arcade `cmd_data_set` | `0x060B299C` | all **seven** of that routine's per-slot `jsr` targets |
+
+Arcade `0x060B299C` is **310 bytes containing exactly one control-transfer
+instruction — the terminal `rts` at `0x060B2ACE`**. No `cmp`, no conditional
+branch, no `bra`, no `bsr`/`jsr` (`cps3.py fn --end 0x060B2AD2` reports
+`calls: 0 (0 unresolved)`, and a mnemonic scan of the disassembled range
+returns only the `rts`). A straight-line routine cannot hold a per-slot switch,
+so the arcade has no `case 3/4/5/6/12` arm, adds nothing to `reset[]`, and calls
+nothing — there is no arcade `make_red_blocking_time` on the command-init path.
+It writes `reset[i]` once, verbatim from the command table (`0x060B29CA`), and
+never reads it back.
+
+It is the right routine on independent grounds: its field layout is
+`cmd_data_set`'s, field for field, in the same order — `reset[i]` at
+`wcp + id*1030 + 134 + 2*i`, `w_dead`/`w_dead2` at
+`waza_work + id*1568 + i*28 + 14`/`+16`, `waza_r[0..3]` at `+246 + 4*i` as four
+`mov.b @(1,rN)` (the low byte of each big-endian `s16`, i.e. this file's `(s8)`
+cast), `btix` at `+470 + 2*i`, `exdt[0..3]` at `+582 + 8*i`. Its sole caller
+adds nothing either: `0x060B5DF0` only calls `0x060B299C` and fills `waza_flag`
+with `-1`, against `pl_cmd_num` boundaries at stride 14 with the same 20/24/28/
+38/42/46/56 fill limits this file uses.
+
+**Neither option table is in the ROM.** `blok_b_omake`'s bytes
+(`FFFE 0000 0002 0004`) are **absent** from the 8 MiB image — zero hits at
+2-byte alignment. `blok_r_omake`'s (`FFFF 0000 0001 0002`) occur exactly once,
+at `0x0660CC76`, and that hit is **not** an option table: it is a substring
+inside a monotone curve whose preceding words are -31875, -23459, -15028,
+-6628, -4097, -3073, -1537, -769 and whose following words continue
+2, 3, 3, 4, 4, 5, 6, 8, 10, 12, 14, 17. So this is the E7 shape — a thing the
+port does that the arcade does not — and the gate direction is
+`!ArcadeBalance_IsEnabled()` around the port-only behaviour.
+
+#### The gate
+
+Two sites, both narrow, PS2 arm statement-for-statement unchanged.
+
+- `cmd_main.c` -> `cmd_data_set`: each of the two
+  `reset[i] += blok_b_omake[...]` statements is wrapped in
+  `if (!ArcadeBalance_IsEnabled())`. The `make_red_blocking_time` call is
+  **deliberately not gated off** — `grdb`/`grdb2` still have to be populated,
+  and gating only the modifier keeps the arcade arm on exactly the numbers it
+  produces today.
+- `hitcheck.c` -> `make_red_blocking_time`: the six
+  `blok_r_omake[omop_r_block_ix[id]]` reads become
+  `red_blocking_omake(id)`, a new file-static returning `0` under arcade
+  balance and the same table read otherwise. A helper rather than a hoisted
+  local **on purpose**: the read stays inside the case arms it has always been
+  in, so the PS2 arm evaluates the same expression the same number of times in
+  the same places, and no read that was conditional becomes unconditional.
+
+The `+ 2` / `+ 3` offsets inside `make_red_blocking_time` are **not** gated:
+they are not System Direction, and whether the arcade shares them was not
+established (see the residual below).
+
+**The real gate numbers.** Under arcade balance both modifiers are now `0`.
+Default System Direction already yields `0` for both, so **no default-settings
+number moves** — the gate's whole effect is on the non-default settings, where
+`blok_b_omake` index 0/2/3 would have shifted `reset[3,4,5,6,12]` by -2/+2/+4
+and `blok_r_omake` index 0/2/3 would have shifted the red-parry thresholds by
+-1/+1/+2. Those are now confined to PS2 balance.
+
+#### The netplay question, settled
+
+The pre-fix record left "whether the System Direction options are exchanged or
+pinned across a netplay session" untraced. Traced now, by enumerating the
+payload rather than reasoning about it:
+
+- **Nothing carries them.** The only application-level handshake is the MIST
+  frame (`netplay/mist_handshake.c` -> `build_frame`). Its entire hello/ack
+  payload is `arch`, `platform`, `build_hash`, `proto_ver`, `state_ver`
+  (`sizeof(GameState)`) and `balance_digest`. No System Direction, no
+  `omop_*`, no `SystemDir`, no digest of any of them. The rendezvous
+  (`Rendezvous_BuildRegister`/`BuildPoll`) and room-code payloads are endpoint
+  plumbing only; GekkoNet's own sync message carries a single `u16 rng_data`.
+- **The balance digest does not cover them.**
+  `arcade_char_data.c` -> `ArcadeCharData_ComputeDigest` hashes exactly the 20
+  characters' `CharDataSpan` bytes and nothing else. This is also the positive
+  proof of §8.O's claim for this item: **the fix does not move the digest** —
+  it is still `e96e88beec2ac2b5`, printed on every statcheck run below.
+- **They cannot currently differ — by an indexing accident, not a guarantee.**
+  `init_omop`'s netplay arm reads `system_dir[2]`, and `system_dir[2]` is the
+  one slot nothing writes after `init3rd.c`'s `system_dir[ix] = Dir_Default_Data`
+  loop: the menu writes `[1]` (and copies it to `[4]`/`[5]`), the save file
+  round-trips `[1]`, replay loads `[3]`. So both peers are pinned to the
+  defaults, both modifiers are 0 on both sides, and the ungated code **was not
+  a live desync source**. The companion `save_w[2].extra_option` is likewise
+  never written by a netplay path.
+- **Nothing would have caught it if it had differed.**
+  `netplay/game_state.c` saves `wcp` (so `reset[]` *is* rolled back) and
+  `waza_work`, but `grdb`, `grdb2`, `system_dir` and every `omop_*` are neither
+  saved nor hashed, and `wcp`/`waza_work` are excluded from the desync
+  checksum's whitelist. A divergence would have surfaced only second-hand, as a
+  `PLW`/`paring_counter` mismatch some frames later, pointing at the symptom.
+
+So this reads as a **latent correctness/architecture defect**, exactly as the
+pre-fix record judged it — not a live bug and not a live desync — and the gate
+closes the door before something writes `system_dir[2]`.
+
+#### The neighbours — a class finding, reported not fixed
+
+The same sweep found that §16's two modifiers are **not** the only System
+Direction / Extra Options knobs reaching shared engine code with no arcade gate.
+Every `*_omake` consumer in `src/sf33rd/` is ungated:
+
+| site | knob |
+|---|---|
+| `hitcheck.c` -> `set_damage_and_piyo`, and `hitefpl.c` -> `effect_at_vs_player_dm` (the same statement, duplicated) | `stun_gauge_omake[omop_stun_gauge_add[...]]` |
+| `plcnt.c` -> `set_kizetsu_status` | `stun_gauge_len_omake[omop_stun_gauge_len[ix]]` |
+| `plcnt.c` -> `remake_sa_store_max` | `sag_stock_omake[omop_sag_max_ix[ix]]` |
+| `plcnt.c` -> `remake_sa_gauge_len` | `sag_length_omake[omop_sag_len_ix[ix]]` |
+| `plmain.c` -> `look_after_timers` | `stun_gauge_r_omake[omop_stun_gauge_rcv[...]]` |
+| `pls02.c` -> `add_super_arts_gauge` | `sa_gauge_omake[omop_sa_gauge_ix[ix]]` |
+| `pls02.c` -> `setup_vitality` | `base_vital_omake[omop_vital_init[...]]` |
+
+Each is neutral at its defaults by construction, the same way §16's two are —
+`Game_Default_Data`'s `extra_option` selects the identity entry of every table
+(`contents[1] = { 0, 0, 2, 2, 8, 8, 2, 0 }` gives `sag_stock_omake[2] == 0`,
+`sag_length_omake[8] == 0`, `sa_gauge_omake[2] == 32` used as `* 32 / 32`;
+`contents[2] = { 2, 2, 2, 2, ... }` likewise; `contents[0][1..2] = 3, 3` gives
+`base_vital_omake[3] == 0`). **They were not gated here, and that is a
+decision, not an oversight:** each needs its own arcade adjudication, and this
+lane measured only `cmd_data_set`. Claiming they are defects without reading the
+arcade's equivalent routines would be exactly the error §16 exists to prevent.
+
+A second, structurally different shape sits alongside them and must not be
+lumped in: `guard_distance[omop_guard_distance_ix[...]]` (`pls01.c`),
+`use_ex_gauge[omop_use_ex_gauge_ix[...]]` (`plmain.c`) and
+`sky_dm_zuru_table[omop_otedama_ix[...]]` (`plpdm.c`) are **parameter** tables,
+not modifiers — the selected entry *is* the value, there is no identity element,
+and "arcade means zero" is not even a well-formed answer for them. Gating those
+would require measuring the arcade's own constants first.
+
+#### Verification, and what it could not cover
+
+Run at the fix, on this worktree:
+
+- **Host build** green. **`tools/mister/build-game.sh --flavor telemetry`**
+  green (`mode=arm-cross-build`, `flavor=telemetry`).
+- **Statcheck, all three corpora on `/Volumes/KimchDrive`** —
+  `-2026-09-05` (143 eligible), `-2026-09-06` (183), `-2026-09-06b` (121),
+  swept `--headless --no-manifest` and compared row-by-row against each
+  `manifest.json` on `verdict`, `rc` and `fail_frame` across all **463**
+  records: **447/447 eligible pass, 0 verdict differences.** One segment
+  (`1785823449983-1131` game 12) returned `rc -6` in the 8-way fan-out with
+  `Fatal error: Load queue failed to drain in time` at 0.3 s — an I/O-contention
+  abort on the external drive, of the same family as the `143`-exit note; re-run
+  serially it is `PASS` over archive frames 1..8637 of 9182. That is the only
+  row that did not match first time.
+- **Frame data `--check-golden`** at the default job width.
+- **`tools/doc-citations/check_baselines.py`** → `scopes=11 breached=0`.
+- **Arcade audits**, all unmoved: `cg_audit.py` rc 0 and **byte-identical
+  across two consecutive runs**; `residual_audit.py`
+  `on a REACHABLE part : 0`; `cg_se_audit.py` `PASS`; `data_audit.py` rc 0.
+
+**What none of that can see, stated plainly.** `statcheck_compare.c` asserts on
+positions, vitality, stun, gauges, timers, RNG and `cg_ix`. It does not compare
+`wcp[].reset[]`, `waza_flag[]`, `grdb` or `grdb2` — and every corpus replay runs
+at default System Direction, where both modifiers are 0, so the gated statements
+were **numerically inert in every one of the 447 segments**. The corpus is a
+regression check that the change moved nothing, not evidence for the change.
+**The gate rests on the disassembly alone.**
+
+Two further residuals, recorded rather than papered over:
+
+- **Where the arcade derives its red-parry thresholds was not established.**
+  Arcade `cmd_data_set` populates no `grdb` equivalent and calls nothing, so
+  either the arcade computes the window at the comparison site or it uses a
+  mechanism this lane did not find. Searched: the routine itself (310 bytes,
+  read in full), its sole caller, and both option tables' byte patterns across
+  the whole image. This is why the call is kept and only the modifier zeroed —
+  that choice is provably neutral with respect to today's behaviour, whereas
+  removing the call would not be. It also means the pre-fix comment's claim that
+  "default system-direction options produce CPS3's ground red-parry thresholds"
+  is **still unverified against the arcade**; the gate does not depend on it.
+- **No in-game measurement** of the frame difference was made, then or now. The
+  -2/+2/+4 and -1/+1/+2 figures are read off the tables.
 
 ---
 

@@ -38,21 +38,45 @@ s16 mkm_wk[32];
 s16 hpq_in;
 s8 ca_check_flag;
 
+/* The red-parry half of section 16's gate; the blocking half, and the whole
+ * arcade adjudication with its addresses, is in cmd_main.c -> cmd_data_set,
+ * which is this function's only caller. Short form: the arcade's cmd_data_set
+ * (0x060B299C) is 310 straight-line bytes with no call and no branch, so no
+ * arcade routine on the command-init path applies a red-parry modifier, and
+ * blok_r_omake's bytes are not an option table anywhere in the 8 MiB image.
+ * Under arcade balance the modifier is therefore 0 -- which is what default
+ * System Direction already yields (blok_r_omake[1] == 0), so the arcade arm
+ * keeps exactly today's grdb/grdb2 values.
+ *
+ * The +2 / +3 offsets are NOT gated: they are not System Direction, and
+ * whether the arcade shares them was not established.
+ *
+ * A helper rather than a hoisted local so the read stays inside the case arms
+ * it has always been in -- the PS2 arm evaluates the same expression, the same
+ * number of times, in the same places. */
+static s16 red_blocking_omake(s16 id) {
+    if (ArcadeBalance_IsEnabled()) {
+        return 0;
+    }
+
+    return blok_r_omake[omop_r_block_ix[id]];
+}
+
 void make_red_blocking_time(s16 id, s16 ix, s16 num) {
     switch (ix) {
     case 3:
-        grdb[id][0][0] = num - (blok_r_omake[omop_r_block_ix[id]] + 2);
-        grdb[id][1][0] = num - (blok_r_omake[omop_r_block_ix[id]] + 3);
+        grdb[id][0][0] = num - (red_blocking_omake(id) + 2);
+        grdb[id][1][0] = num - (red_blocking_omake(id) + 3);
         break;
 
     case 4:
-        grdb[id][0][1] = num - (blok_r_omake[omop_r_block_ix[id]] + 2);
-        grdb[id][1][1] = num - (blok_r_omake[omop_r_block_ix[id]] + 3);
+        grdb[id][0][1] = num - (red_blocking_omake(id) + 2);
+        grdb[id][1][1] = num - (red_blocking_omake(id) + 3);
         break;
 
     case 5:
-        grdb2[id][0] = num - (blok_r_omake[omop_r_block_ix[id]] + 2);
-        grdb2[id][1] = num - (blok_r_omake[omop_r_block_ix[id]] + 3);
+        grdb2[id][0] = num - (red_blocking_omake(id) + 2);
+        grdb2[id][1] = num - (red_blocking_omake(id) + 3);
         break;
     }
 }

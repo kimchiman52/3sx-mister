@@ -58,18 +58,65 @@ void cmd_data_set(PLW* /* unused */, s16 i) { // 🟡
     *ptr4++ = *cmd_tbl_ptr++;
     *ptr4++ = *cmd_tbl_ptr++;
 
-    // The code below is PS2-specific, but default system-direction options produce CPS3's ground red-parry thresholds.
+    /* ARCADE ADJUDICATION of the two System Direction modifiers below, 2026-09-06
+     * (docs/research-arcade-cg-data-accuracy.md section 16). Recorded so nobody
+     * re-derives it. The numbers are read out of the CPS3 program; nothing here
+     * is inferred from this file's shape.
+     *
+     * The arcade's cmd_data_set is 0x060B299C, pinned not guessed: pl_cmd_num
+     * (0x06199650) has exactly ONE literal referrer in the 8 MiB image -- the
+     * instruction 0x060B5E10, inside the arcade waza_compel_all_init at
+     * 0x060B5DF0 -- and all seven of that routine's per-slot calls target
+     * 0x060B299C. Its field layout is this function's, in this order:
+     * reset[i] at wcp + id*1030 + 134 + 2*i, w_dead/w_dead2 at waza_work +
+     * id*1568 + i*28 + 14/+16, waza_r[0..3] at +246 + 4*i (four mov.b @(1,rN),
+     * i.e. the (s8) cast), btix at +470 + 2*i, exdt[0..3] at +582 + 8*i.
+     *
+     * Arcade 0x060B299C is 310 bytes containing exactly ONE control-transfer
+     * instruction: the terminal rts at 0x060B2ACE. No cmp, no conditional
+     * branch, no bsr/jsr. It writes reset[i] once, verbatim from the command
+     * table (0x060B29CA), and never reads it back. It therefore CANNOT hold a
+     * per-slot special case, cannot add a modifier, and calls nothing -- there
+     * is no arcade make_red_blocking_time on this path. Its sole caller adds
+     * nothing either: it only calls 0x060B299C and fills waza_flag with -1.
+     *
+     * Neither option table is in the ROM. blok_b_omake's bytes
+     * (FFFE 0000 0002 0004) are ABSENT from the image. blok_r_omake's
+     * (FFFF 0000 0001 0002) occur once, at 0x0660CC76, as a substring inside a
+     * monotone curve table that continues 2,3,3,4,4,5,6,8,10,12,14,17 -- not a
+     * four-element option table.
+     *
+     * So both modifiers are PS2-only and are zero under arcade balance. That is
+     * already what default System Direction produces (Dir_Default_Data
+     * .contents[0] = {1,0,1,1,1,1,1}, blok_b_omake[1] == blok_r_omake[1] == 0),
+     * which is what the comment this replaces recorded; the gate makes it hold
+     * for a NON-default setting too. Reachable: init_omop() feeds system_dir[1]
+     * to get_system_direction_parameter whenever Direction_Working[1] is set,
+     * and system_dir[1] is the slot the System Direction menu edits.
+     *
+     * make_red_blocking_time is NOT gated off -- grdb/grdb2 still have to be
+     * populated, and zeroing only the modifier keeps the arcade arm on exactly
+     * the numbers it produces today. Where the arcade derives its red-parry
+     * thresholds instead is NOT established; see section 16.
+     *
+     * PS2 arm: statement for statement what this function has always done. */
     switch (i) {
     case 3:
     case 4:
     case 5:
-        wcp[cmd_id].reset[i] += blok_b_omake[omop_b_block_ix[cmd_id]];
+        if (!ArcadeBalance_IsEnabled()) {
+            wcp[cmd_id].reset[i] += blok_b_omake[omop_b_block_ix[cmd_id]];
+        }
+
         make_red_blocking_time(cmd_id, i, wcp[cmd_id].reset[i]);
         break;
 
     case 6:
     case 12:
-        wcp[cmd_id].reset[i] += blok_b_omake[omop_b_block_ix[cmd_id]];
+        if (!ArcadeBalance_IsEnabled()) {
+            wcp[cmd_id].reset[i] += blok_b_omake[omop_b_block_ix[cmd_id]];
+        }
+
         break;
     }
 }
