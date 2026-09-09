@@ -329,7 +329,7 @@ Six render-path optimizations targeting super art frame drops, plus four additio
 
 ### 8.4 ARM Clock Management
 
-- **What**: Reliable sysfs-based ARM clock cycling with unbuffered writes, governor pinning, and readback verification. Default to 1200MHz on fresh install.
+- **What**: Reliable sysfs-based ARM clock cycling with unbuffered writes, governor pinning, and readback verification. Startup logs report both the requested mode and the verified `scaling_max_freq`, so a rejected 1200MHz request is recorded as an actual 800MHz clock rather than a misleading success line. Default to 1200MHz on fresh install.
 - **Why**: The original `fprintf`-based clock writes were unreliable (buffered I/O could be lost). The kernel governor could downclock during frame sleep, wasting headroom.
 - **Impact**: Reliable overclocking to 1200MHz provides ~50% more CPU headroom. Governor pinning ensures consistent performance.
 - **Commit**: `e510bc42`

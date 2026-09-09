@@ -110,8 +110,12 @@ ConnectFailCode Netplay_TestHook_SessionFailCodeForEvent(GekkoSessionEventType t
  * 7be848c derivation of the confirmation bound. */
 bool Netplay_TestHook_MenuExitConfirmed(int head_frame, int request_frame, int pred_window);
 bool Netplay_TestHook_MenuExitErasedByLoad(int load_frame, int request_frame);
+bool Netplay_TestHook_ShouldHoldLastFrame(NetplaySessionState state, int drawable_advances);
 #endif
 void Netplay_Run();
+/* Set for the current outer frame when Gekko produced no drawable,
+ * non-rollback AdvanceEvent. */
+bool Netplay_ShouldHoldLastFrame(void);
 NetplaySessionState Netplay_GetSessionState();
 // S3: honest connect-phase progress text ("Verifying opponent (3s)...",
 // "Syncing with opponent (7s)... START quits") for the netplay screen.

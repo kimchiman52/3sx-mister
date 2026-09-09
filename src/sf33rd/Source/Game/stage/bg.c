@@ -243,6 +243,14 @@ void Bg_Close() {
     bg_disp_off = 0;
 }
 
+/* The stage PPG source is ramcnt type 0x12. A torn render cache alone is
+ * insufficient reason to rebuild: normal round/session teardown releases the
+ * cache and can purge this source before TATE00 stops running. Task #137's
+ * repair omitted this half of the predicate and called the loader with key 0. */
+static s16 bg_texture_source_key() {
+    return Search_ramcnt_type(0x12);
+}
+
 void Bg_Texture_Load_EX() {
     void* loadAdrs;
     u32 loadSize;
@@ -264,6 +272,28 @@ void Bg_Texture_Load_EX() {
     u32 assign1;
     u32 assign2;
     u8 assign3;
+
+    /* Preflight before Bg_TexInit or releasing any existing handles. This is
+     * the final defense for the loader's direct caller as well as the rollback
+     * repair: a missing source must leave render state untouched. The crash
+     * session's final address-then-size key=0 guards uniquely identify the two
+     * calls formerly made near the middle of this function. */
+    key1 = bg_texture_source_key();
+    if (key1 <= 0) {
+#if ENABLE_PERF_TELEMETRY
+        flLogOut("[bg-texture-skip] %s source type=0x12 is not resident\n", __func__);
+#endif
+        return;
+    }
+    loadAdrs = (void*)Get_ramcnt_address(key1);
+    loadSize = Get_size_data_ramcnt_key(key1);
+    if (loadAdrs == NULL || loadSize == 0) {
+#if ENABLE_PERF_TELEMETRY
+        flLogOut("[bg-texture-skip] %s source key=%d has invalid address/size\n",
+                 __func__, (int)key1);
+#endif
+        return;
+    }
 
 #if defined(DEBUG)
     {
@@ -354,9 +384,6 @@ void Bg_Texture_Load_EX() {
         Bg_On_R(4);
     }
 
-    key1 = Search_ramcnt_type(0x12);
-    loadAdrs = (void*)Get_ramcnt_address(key1);
-    loadSize = Get_size_data_ramcnt_key(key1);
     pmask = 0xFF000000;
     shift = 0x18;
 
@@ -535,6 +562,13 @@ void Bg_Texture_Rollback_Repair() {
     }
 
     if (bg_tex_repair_suppressed) {
+        return;
+    }
+
+    /* Cache teardown is legitimate after the stage source has been purged.
+     * Wait for residency rather than calling Bg_Texture_Load_EX and latching
+     * suppression: a later LDREQ may make the source available again. */
+    if (bg_texture_source_key() <= 0) {
         return;
     }
 

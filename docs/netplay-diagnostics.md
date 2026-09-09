@@ -33,6 +33,7 @@ prefix:
              rb=2 behind=-0.7
              tx=I:60,A:60,SH:60,NH:2 rx=I:60,A:60,SH:60,NH:2
              rb_hist=0:55,1:3,2:2,3:0,4:0
+             holds=1 catchups=2 last_hold_f=12301
 ```
 
 Fields:
@@ -51,7 +52,28 @@ Fields:
   - `SH` = SessionHealth
   - `NH` = NetworkHealth
 - `rb_hist=0:n,1:n,2:n,3:n,4:n` — rollback-depth histogram bucketed as
-  {0, 1-2, 3-4, 5-7, 8+}
+  {0, 1-2, 3-4, 5-7, 8+}. Empty Gekko updates are excluded from bucket 0.
+- `holds` — outer frames in this one-second window where Gekko produced no
+  drawable non-rollback advance. Those frames retain the last complete canvas.
+- `catchups` — outer frames that ran the two-update catch-up path.
+- `last_hold_f` — most recent completed simulation frame retained by a hold.
+
+The first frame of each consecutive no-draw episode also emits:
+
+```
+[netplay sess=abcd1234] no-draw hold f=12301 behind=0.4 catchup=0
+                        events=0 advances=0 rollback_adv=0 loads=0 saves=0
+```
+
+This is the direct witness for the former one-frame black flash: the software
+renderer drains that tick's queued geometry and presents its unchanged canvas.
+The retained canvas includes the prior frame's netplay overlays.
+
+A `Netplay_Run` call over 50 ms emits `[netplay-perf ...]`, splitting the old
+single update/engine bucket into session polling, `gekko_update_session`, load,
+advance, and save time, with event counts and catch-up/hold state. Pair it with
+the adjacent `[step0]` and `FRAME OUTLIER` lines to separate network/Gekko,
+rollback state work, game simulation, and LDREQ/storage stalls.
 
 The packet-type counts are the highest-signal diagnostic: when a session
 goes silent, comparing tx vs rx counts tells you which direction stopped.
@@ -114,6 +136,9 @@ All hot-path additions are O(1):
 - Packet ring: one struct write + index increment per packet
 - Watchdog: one timestamp comparison per `process_session` poll
 - Histogram: one bucket increment per `process_events` batch
+- No-draw/catch-up counters: integer increments; timing uses monotonic reads
+  around the existing Netplay/Gekko operations and only formats a line above
+  the existing 50 ms outlier threshold
 
 No malloc on the hot path. No syscalls on the hot path (timestamps come
 from `clock_gettime` via vDSO; address parsing is cached on peer-change).
@@ -159,10 +184,10 @@ Two log markers in `last-run.log` (or `backend.log`) come from
   `rckeyctr`, `memreq`, `kokey`, `group`, etc. Affected functions
   return a graceful sentinel (`-1` for `Pull_ramcnt_key`, `0` for
   `Get_ramcnt_address` / `Get_size_data_ramcnt_key`, plain `return;`
-  for the void variants) so the game keeps advancing instead of
-  freezing. If you see this in the wild, downstream rendering or
-  loading may be incomplete for that asset, but the process won't
-  hang.
+  for the void variants). Callers still have to reject those sentinels before
+  dereferencing them. The stage-background loader now preflights its type-0x12
+  source before mutating render state; `[bg-texture-skip]` means a legitimate
+  cache teardown was observed after that source had already been purged.
 
 - `[ppgfile-skip] <func> palette-load-failed total=... c_mode=... koCmpr=...` —
   gated behind `ENABLE_PERF_TELEMETRY`. Emitted from

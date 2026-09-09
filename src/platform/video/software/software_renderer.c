@@ -1887,6 +1887,15 @@ void SoftwareRenderer_RenderFrame() {
     arrsetlen(quads, 0);
 }
 
+int SoftwareRenderer_HoldLastFrame() {
+    const int discarded = (int)arrlen(quads);
+#if ENABLE_PERF_TELEMETRY
+    sw_perf_peak_quads = discarded;
+#endif
+    arrsetlen(quads, 0);
+    return discarded;
+}
+
 const SWCanvasPixel* SoftwareRenderer_GetCanvas(int* out_width, int* out_height, int* out_pitch_bytes) {
     if (out_width != NULL) {
         *out_width = CANVAS_W;
