@@ -23,6 +23,22 @@ typedef enum NetplaySessionState {
     NETPLAY_SESSION_EXITING,
 } NetplaySessionState;
 
+typedef enum NetplayPostMatchAction {
+    NETPLAY_POST_MATCH_NONE,
+    NETPLAY_POST_MATCH_REMATCH,
+    NETPLAY_POST_MATCH_CHAR_SELECT,
+    NETPLAY_POST_MATCH_EXIT,
+} NetplayPostMatchAction;
+
+/* The transport permits each peer to choose a prediction window up to this
+ * limit. A rematch transition is rollback-saved state, so it must wait for a
+ * protocol constant rather than either peer's local setting. The extra frame
+ * makes the mutual-confirm frame strictly older than the longest prediction
+ * run before lifecycle work can touch loading, audio, or texture state. */
+#define NETPLAY_MAX_INPUT_PREDICTION_WINDOW 32
+#define NETPLAY_POST_MATCH_CONFIRMATION_FRAMES \
+    (NETPLAY_MAX_INPUT_PREDICTION_WINDOW + 1)
+
 void Netplay_SetParams(int player, const char* ip);
 // Override the remote UDP port chosen by Netplay_SetParams. Needed on the
 // direct-P2P orchestrator path where the STUN-translated peer port is only
@@ -75,6 +91,11 @@ void Netplay_LogSinkShutdown(void);
  * thread, and those used bare SDL_Log, so they never reached the
  * per-session file a tester actually sends us. */
 void Netplay_LogConnectEventMT(const char* line);
+/* Best-effort game-thread diagnostics. These use the bounded asynchronous
+ * mailbox, so they never perform console or filesystem I/O on simulation or
+ * loading frames. */
+void Netplay_LogGameplayDiagnostic(const char* line);
+void Netplay_LogGameplayDiagnosticf(const char* fmt, ...);
 #ifdef NETPLAY_TEST_HOOKS
 #include "netplay/connect_fail.h" /* ConnectFailCode, for SessionFailCodeForEvent */
 #include "gekkonet.h"             /* GekkoSessionEventType, for SessionFailCodeForEvent */
@@ -127,6 +148,11 @@ NetplaySessionState Netplay_GetSessionState();
 // Returns "" outside TRANSITIONING/CONNECTING. Never NULL.
 const char* Netplay_GetConnectStatusText(void);
 void Netplay_HandleMenuExit();
+/* Pure precedence rule for the rollback-simulated post-match menu. */
+NetplayPostMatchAction Netplay_ResolvePostMatchAction(bool ready0, bool ready1,
+                                                       bool rematch0, bool rematch1,
+                                                       bool char_select0, bool char_select1,
+                                                       bool exit0, bool exit1);
 
 // Arm-time predicate: netplay arms ONLY in verified-arcade balance state
 // (balance auto-selects at boot and is fixed for the process). Every

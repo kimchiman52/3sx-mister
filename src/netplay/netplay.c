@@ -43,6 +43,7 @@
 #include <SDL3_net/SDL_net.h>
 
 #include <dirent.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -160,6 +161,22 @@ static bool menu_exit_request_erased_by_load(int load_frame, int request_frame) 
     return request_frame >= 0 && load_frame < request_frame;
 }
 
+NetplayPostMatchAction Netplay_ResolvePostMatchAction(bool ready0, bool ready1,
+                                                       bool rematch0, bool rematch1,
+                                                       bool char_select0, bool char_select1,
+                                                       bool exit0, bool exit1) {
+    if (exit0 || exit1) {
+        return NETPLAY_POST_MATCH_EXIT;
+    }
+    if (char_select0 || char_select1) {
+        return NETPLAY_POST_MATCH_CHAR_SELECT;
+    }
+    if ((ready0 || rematch0) && (ready1 || rematch1)) {
+        return NETPLAY_POST_MATCH_REMATCH;
+    }
+    return NETPLAY_POST_MATCH_NONE;
+}
+
 // === Netplay diagnostics state (gated by CFG_KEY_NETPLAY_DIAG_ENABLE) ===
 // Captured at session start and used by:
 //   - the per-second heartbeat (update_network_stats)
@@ -260,14 +277,17 @@ static SDL_Mutex* s_netplay_log_mu = NULL;
 // heartbeat is diagnostic, so replacing an older pending row is preferable
 // to letting gameplay wait for storage.
 #define NETPLAY_HEARTBEAT_LINE_MAX 512
+#define NETPLAY_HEARTBEAT_QUEUE_CAP 4
 static SDL_Mutex* s_heartbeat_mu = NULL;
 static SDL_Condition* s_heartbeat_cv = NULL;
 static SDL_Thread* s_heartbeat_thread = NULL;
 static bool s_heartbeat_accepting = false;
-static bool s_heartbeat_pending = false;
+static unsigned s_heartbeat_head = 0;
+static unsigned s_heartbeat_tail = 0;
+static unsigned s_heartbeat_count = 0;
 static bool s_heartbeat_inflight = false;
 static bool s_heartbeat_stopping = false;
-static char s_heartbeat_line[NETPLAY_HEARTBEAT_LINE_MAX] = { 0 };
+static char s_heartbeat_lines[NETPLAY_HEARTBEAT_QUEUE_CAP][NETPLAY_HEARTBEAT_LINE_MAX] = {{ 0 }};
 
 // Bound ONE session file. A cascade that retries for minutes can emit a
 // lot of lines and /media/fat is a shared SD card; past the budget the
@@ -318,21 +338,34 @@ static void netplay_log_unlock(void) {
 
 static void netplay_log_file_line(const char* line);
 static void netplay_log_line(const char* line);
+static bool heartbeat_enqueue(const char* line);
 
-/* Optional frame-time diagnostics must never wait behind the heartbeat
- * writer's filesystem flush.  The connection and session-end paths continue
- * to use netplay_log_lock() so their records remain lossless. */
-static bool netplay_log_try_lock(void) {
-    return s_netplay_log_mu == NULL || SDL_TryLockMutex(s_netplay_log_mu);
-}
-
+/* Optional frame-time diagnostics must never perform console or filesystem
+ * I/O on the game thread.  The connection and session-end paths continue to
+ * use netplay_log_lock() so their records remain lossless; frame diagnostics
+ * are observational and may be dropped when the bounded logger queue fills. */
 static bool netplay_log_line_try(const char* line) {
-    if (!netplay_log_try_lock()) {
+    if (line == NULL || line[0] == '\0') {
         return false;
     }
-    netplay_log_line(line);
-    netplay_log_unlock();
-    return true;
+    return heartbeat_enqueue(line);
+}
+
+void Netplay_LogGameplayDiagnostic(const char* line) {
+    (void)netplay_log_line_try(line);
+}
+
+void Netplay_LogGameplayDiagnosticf(const char* fmt, ...) {
+    char line[512];
+    va_list args;
+
+    if (fmt == NULL) {
+        return;
+    }
+    va_start(args, fmt);
+    SDL_vsnprintf(line, sizeof(line), fmt, args);
+    va_end(args);
+    Netplay_LogGameplayDiagnostic(line);
 }
 
 static int heartbeat_writer_thread(void* unused) {
@@ -342,16 +375,17 @@ static int heartbeat_writer_thread(void* unused) {
         char line[NETPLAY_HEARTBEAT_LINE_MAX];
 
         SDL_LockMutex(s_heartbeat_mu);
-        while (!s_heartbeat_pending && !s_heartbeat_stopping) {
+        while (s_heartbeat_count == 0 && !s_heartbeat_stopping) {
             SDL_WaitCondition(s_heartbeat_cv, s_heartbeat_mu);
         }
-        if (!s_heartbeat_pending && s_heartbeat_stopping) {
+        if (s_heartbeat_count == 0 && s_heartbeat_stopping) {
             SDL_UnlockMutex(s_heartbeat_mu);
             return 0;
         }
 
-        SDL_strlcpy(line, s_heartbeat_line, sizeof(line));
-        s_heartbeat_pending = false;
+        SDL_strlcpy(line, s_heartbeat_lines[s_heartbeat_head], sizeof(line));
+        s_heartbeat_head = (s_heartbeat_head + 1) % NETPLAY_HEARTBEAT_QUEUE_CAP;
+        s_heartbeat_count--;
         s_heartbeat_inflight = true;
         SDL_UnlockMutex(s_heartbeat_mu);
 
@@ -387,7 +421,7 @@ static void heartbeat_disable_and_drain(void) {
     SDL_LockMutex(s_heartbeat_mu);
     s_heartbeat_accepting = false;
     SDL_SignalCondition(s_heartbeat_cv);
-    while (s_heartbeat_pending || s_heartbeat_inflight) {
+    while (s_heartbeat_count != 0 || s_heartbeat_inflight) {
         SDL_WaitCondition(s_heartbeat_cv, s_heartbeat_mu);
     }
     SDL_UnlockMutex(s_heartbeat_mu);
@@ -400,25 +434,33 @@ static void heartbeat_enable(void) {
     }
 
     SDL_LockMutex(s_heartbeat_mu);
-    s_heartbeat_pending = false;
+    s_heartbeat_head = 0;
+    s_heartbeat_tail = 0;
+    s_heartbeat_count = 0;
     s_heartbeat_accepting = true;
     SDL_UnlockMutex(s_heartbeat_mu);
 }
 
 // Nonblocking game-thread producer. If the mailbox is briefly held while
 // the logger copies a row, skip this diagnostic sample rather than wait.
-static void heartbeat_enqueue(const char* line) {
+static bool heartbeat_enqueue(const char* line) {
     if (line == NULL || line[0] == '\0' || s_heartbeat_mu == NULL ||
         s_heartbeat_thread == NULL || !SDL_TryLockMutex(s_heartbeat_mu)) {
-        return;
+        return false;
     }
 
-    if (s_heartbeat_accepting && !s_heartbeat_stopping) {
-        SDL_strlcpy(s_heartbeat_line, line, sizeof(s_heartbeat_line));
-        s_heartbeat_pending = true;
+    bool accepted = false;
+    if (s_heartbeat_accepting && !s_heartbeat_stopping &&
+        s_heartbeat_count < NETPLAY_HEARTBEAT_QUEUE_CAP) {
+        SDL_strlcpy(s_heartbeat_lines[s_heartbeat_tail], line,
+                    sizeof(s_heartbeat_lines[s_heartbeat_tail]));
+        s_heartbeat_tail = (s_heartbeat_tail + 1) % NETPLAY_HEARTBEAT_QUEUE_CAP;
+        s_heartbeat_count++;
         SDL_SignalCondition(s_heartbeat_cv);
+        accepted = true;
     }
     SDL_UnlockMutex(s_heartbeat_mu);
+    return accepted;
 }
 
 void Netplay_LogSinkInit(void) {
@@ -1849,7 +1891,9 @@ static void configure_gekko() {
                    "game_state.h.");
     config.max_spectators = 0;
     int cfg_pred_window = Config_GetInt(CFG_KEY_NETPLAY_INPUT_PREDICTION_WINDOW);
-    if (cfg_pred_window < 1 || cfg_pred_window > 32) cfg_pred_window = 8;
+    if (cfg_pred_window < 1 || cfg_pred_window > NETPLAY_MAX_INPUT_PREDICTION_WINDOW) {
+        cfg_pred_window = 8;
+    }
     config.input_prediction_window = (unsigned char)cfg_pred_window;
 
     // #145: the deferred menu-exit bound must match THIS session's window,

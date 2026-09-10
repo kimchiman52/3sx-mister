@@ -120,6 +120,11 @@ extern "C" {
  * have connected and desynced immediately. The guard has to be the one
  * field whose whole job is "these builds are not compatible". */
 /*
+ * v5 (netplay release, 2026-09-10): PAYLOAD LAYOUT AGAIN UNCHANGED.
+ * Arcade-default damage scaling and post-match rematches both change
+ * synchronized simulation while leaving the saved-state size unchanged.
+ * Reject older releases rather than relying on their warning-only build hash.
+ *
  * v4 (lane/training-arcade-fixes, 2026-08-30): PAYLOAD LAYOUT AGAIN UNCHANGED.
  * Another compatibility bump, for exactly the reason the v3 block above and the
  * MIST_STATE_VER comment in mist_handshake.c describe.
@@ -138,7 +143,7 @@ extern "C" {
  * a warning only. This is precisely the "sim-logic change with no state-field
  * change" case that MIST_STATE_VER explicitly does not catch.
  */
-#define MIST_PROTO_VER 4
+#define MIST_PROTO_VER 5
 
 /* Reject reason code at payload[0]. Sent as a single unsigned byte.
  * Values are wire-stable — append only, never renumber. */
