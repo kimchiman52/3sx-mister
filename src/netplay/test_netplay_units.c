@@ -98,7 +98,7 @@ static int checks_run = 0;
  * computes, so commenting a call out of the dispatch is a FAILURE and
  * not a smaller green run. The assertion floor catches the other shape:
  * a test that runs but whose body was short-circuited. */
-#define EXPECTED_TESTS 18
+#define EXPECTED_TESTS 19
 
 /* The real figure is 1100 and is printed in the summary. This sits below
  * it and above what a short-circuited run would produce. Not an exact
@@ -2186,6 +2186,44 @@ static int unit_menu_exit_deferral(void) {
     return (fail_count == fails_before) ? 0 : 1;
 }
 
+/* The result-menu resolver is deliberately independent of cursor/audio/UI
+ * mutation. These cases pin the agreement rule and, especially, the two
+ * higher-priority choices that must defeat an armed rematch. */
+static int unit_post_match_resolution(void) {
+    tests_run++;
+    fprintf(stderr, "[test_netplay_units] post_match_resolution: two-peer precedence and rematch agreement\n");
+    const int fails_before = fail_count;
+
+    /* This timer enters rollback-saved task state, so it must remain a
+     * protocol constant rather than either peer's local prediction setting. */
+    EXPECT_TRUE("pm-finality-constant",
+                NETPLAY_POST_MATCH_CONFIRMATION_FRAMES > NETPLAY_MAX_INPUT_PREDICTION_WINDOW);
+
+    EXPECT_TRUE("pm-none",
+                Netplay_ResolvePostMatchAction(false, false, false, false, false, false, false, false) ==
+                    NETPLAY_POST_MATCH_NONE);
+    EXPECT_TRUE("pm-one-ready",
+                Netplay_ResolvePostMatchAction(true, false, false, false, false, false, false, false) ==
+                    NETPLAY_POST_MATCH_NONE);
+    EXPECT_TRUE("pm-both-confirm",
+                Netplay_ResolvePostMatchAction(false, false, true, true, false, false, false, false) ==
+                    NETPLAY_POST_MATCH_REMATCH);
+    EXPECT_TRUE("pm-ready-plus-confirm",
+                Netplay_ResolvePostMatchAction(true, false, false, true, false, false, false, false) ==
+                    NETPLAY_POST_MATCH_REMATCH);
+    EXPECT_TRUE("pm-char-over-rematch",
+                Netplay_ResolvePostMatchAction(true, false, false, true, true, false, false, false) ==
+                    NETPLAY_POST_MATCH_CHAR_SELECT);
+    EXPECT_TRUE("pm-char-other-player",
+                Netplay_ResolvePostMatchAction(false, true, true, false, false, true, false, false) ==
+                    NETPLAY_POST_MATCH_CHAR_SELECT);
+    EXPECT_TRUE("pm-exit-over-char",
+                Netplay_ResolvePostMatchAction(true, false, false, true, true, false, false, true) ==
+                    NETPLAY_POST_MATCH_EXIT);
+
+    return (fail_count == fails_before) ? 0 : 1;
+}
+
 static int unit_no_draw_frame_hold(void) {
     tests_run++;
     fprintf(stderr, "[test_netplay_units] no_draw_frame_hold: prediction stalls retain the completed canvas\n");
@@ -2325,6 +2363,7 @@ int Netplay_Test_NetplayUnits(void) {
     rc |= unit_orch_cascade();
     rc |= unit_natpmp_deadline_math();
     rc |= unit_menu_exit_deferral();
+    rc |= unit_post_match_resolution();
     rc |= unit_no_draw_frame_hold();
     rc |= unit_bg_repair_requires_source();
 

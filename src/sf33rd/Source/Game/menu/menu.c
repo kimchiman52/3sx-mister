@@ -162,6 +162,10 @@ u16 Sound_Cursor_Sub(s16 PL_id);
 u16 SD_Move_Sub_LR(u16 sw);
 u16 After_VS_Move_Sub(u16 sw, s16 cursor_id, s16 menu_max);
 s32 VS_Result_Move_Sub(struct _TASK* task_ptr, s16 PL_id);
+static bool VS_Result_UsesRematchMenu(void);
+static void VS_Result_Rematch_Select(struct _TASK* task_ptr);
+static void VS_Result_Rematch(struct _TASK* task_ptr);
+static void VS_Result_DrawRematchLabels(void);
 void Training_Init(struct _TASK* task_ptr);
 void Menu_Select(struct _TASK* task_ptr);
 void Button_Config_in_Game(struct _TASK* task_ptr);
@@ -3249,8 +3253,12 @@ void VS_Result(struct _TASK* task_ptr) {
         effect_A0_init(0, ave[1], 3, 3, 0, 0, 0);
 
         for (ix = 0, s4 = char_ix2 = 22; ix < 3; ix++, s3 = char_ix2++) {
-            effect_91_init(0, ix, 0, 71, char_ix2, 0);
-            effect_91_init(1, ix, 0, 71, char_ix2, 0);
+            /* The stock labels are baked sprite entries. The rematch menu
+             * draws all three replacements through the proportional UI font. */
+            if (!VS_Result_UsesRematchMenu()) {
+                effect_91_init(0, ix, 0, 71, char_ix2, 0);
+                effect_91_init(1, ix, 0, 71, char_ix2, 0);
+            }
         }
 
         Setup_Win_Lose_OBJ();
@@ -3276,7 +3284,9 @@ void VS_Result(struct _TASK* task_ptr) {
         break;
 
     case 4:
-        if (VS_Result_Select_Sub(task_ptr, 0) == 0) {
+        if (VS_Result_UsesRematchMenu()) {
+            VS_Result_Rematch_Select(task_ptr);
+        } else if (VS_Result_Select_Sub(task_ptr, 0) == 0) {
             VS_Result_Select_Sub(task_ptr, 1);
         }
 
@@ -3315,6 +3325,10 @@ void VS_Result(struct _TASK* task_ptr) {
 
         break;
 
+    case 8:
+        VS_Result_Rematch(task_ptr);
+        break;
+
     case 7:
     default:
         Netplay_HandleMenuExit();
@@ -3325,6 +3339,213 @@ void VS_Result(struct _TASK* task_ptr) {
         }
 
         break;
+    }
+
+    if (VS_Result_UsesRematchMenu() &&
+        ((task_ptr->r_no[2] >= 3 && task_ptr->r_no[2] <= 4) ||
+         (task_ptr->r_no[2] == 8 && task_ptr->r_no[3] == 0))) {
+        VS_Result_DrawRematchLabels();
+    }
+}
+
+static bool VS_Result_UsesRematchMenu(void) {
+    return Mode_Type == MODE_VERSUS || Mode_Type == MODE_NETWORK;
+}
+
+/* The result menu is simulated under rollback in netplay. Read both players' edges
+ * before selecting an outcome so same-frame conflicts cannot depend on
+ * player-slot iteration order. Exit, character select, then rematch is the
+ * deliberate priority order. */
+static void VS_Result_Rematch_Select(struct _TASK* task_ptr) {
+    u16 sw[2];
+    s16 row[2];
+    s16 ix;
+    bool request_rematch[2] = { false, false };
+    bool request_char_select = false;
+    bool request_exit = false;
+    NetplayPostMatchAction action;
+
+    for (ix = 0; ix < 2; ix++) {
+        sw[ix] = Check_Menu_Lever(ix, 0);
+        row[ix] = Menu_Cursor_Y[ix];
+
+        if (Menu_Cursor_X[ix] != 0) {
+            if (sw[ix] == SWK_EAST) {
+                SE_selected();
+                Menu_Cursor_X[ix] = 0;
+            }
+            continue;
+        }
+
+        if (sw[ix] == SWK_SOUTH) {
+            if (row[ix] == 0) {
+                request_rematch[ix] = true;
+            } else if (row[ix] == 1) {
+                request_char_select = true;
+            } else {
+                request_exit = true;
+            }
+            continue;
+        }
+
+        if (sw[ix] == SWK_EAST) {
+            SE_selected();
+            if (row[ix] == 2) {
+                request_exit = true;
+            } else {
+                Menu_Cursor_Y[ix] = 2;
+            }
+            continue;
+        }
+
+        After_VS_Move_Sub(sw[ix], ix, 2);
+    }
+
+    action = Netplay_ResolvePostMatchAction(Menu_Cursor_X[0] != 0,
+                                            Menu_Cursor_X[1] != 0,
+                                            request_rematch[0],
+                                            request_rematch[1],
+                                            request_char_select,
+                                            request_char_select,
+                                            request_exit,
+                                            request_exit);
+
+    if (action == NETPLAY_POST_MATCH_EXIT) {
+        SE_selected();
+        Menu_Cursor_X[0] = 0;
+        Menu_Cursor_X[1] = 0;
+        task_ptr->r_no[2] = 7;
+        task_ptr->r_no[3] = 0;
+        task_ptr->timer = 15;
+        return;
+    }
+
+    if (action == NETPLAY_POST_MATCH_CHAR_SELECT) {
+        SE_selected();
+        Menu_Cursor_X[0] = 0;
+        Menu_Cursor_X[1] = 0;
+        task_ptr->r_no[2] = 6;
+        task_ptr->r_no[3] = 0;
+        task_ptr->timer = 15;
+        return;
+    }
+
+    for (ix = 0; ix < 2; ix++) {
+        if (request_rematch[ix]) {
+            SE_selected();
+            Menu_Cursor_X[ix] = 1;
+        }
+    }
+
+    if (action == NETPLAY_POST_MATCH_REMATCH) {
+        task_ptr->r_no[2] = 8;
+        task_ptr->r_no[3] = 0;
+        /* task[] is rollback-saved. Never place the local Gekko prediction
+         * setting here: peers are allowed to configure it independently.
+         * The fixed maximum-plus-one wait makes the mutual confirmation
+         * rollback-final before any lifecycle work begins. */
+        task_ptr->timer = Mode_Type == MODE_NETWORK
+                              ? NETPLAY_POST_MATCH_CONFIRMATION_FRAMES
+                              : 0;
+    }
+}
+
+/* A rematch retains the selections and stage, but the result screen has
+ * already run System_all_clear_Level_B()/Next_Demo_Loop(), which releases
+ * their resident texture groups.  Requeue the same character and stage
+ * groups, then use the normal gameplay transition once those groups are
+ * complete.  The request and wait state lives in task_ptr so rollback sees
+ * the same transition on both peers. */
+static void VS_Result_Rematch(struct _TASK* task_ptr) {
+    /* Netplay must not mutate engine state until the mutual-confirm frame
+     * cannot be rolled back.  This timer is saved in task[] and is exactly
+     * GekkoNet's maximum predicted-input distance. */
+    if (Mode_Type == MODE_NETWORK && --task_ptr->timer > 0) {
+        return;
+    }
+
+    if (task_ptr->r_no[3] == 0) {
+        /* VS_Result is reached only after the original select/load path
+         * completed.  The result teardown has since purged the backing
+         * groups, so repopulate exactly the assets that character select
+         * would have requested for these retained selections. */
+        if (!Check_LDREQ_Clear()) {
+            return;
+        }
+
+        Purge_memory_of_kind_of_key(0xC);
+        Push_LDREQ_Queue_Player(0, My_char[0]);
+        Push_LDREQ_Queue_Player(1, My_char[1]);
+        Push_LDREQ_Queue_BG(bg_w.stage);
+        task_ptr->r_no[3] = 1;
+        return;
+    }
+
+    /* Do not enter Game2_0 until both character groups and the selected stage
+     * have published their completion bits.  Game2_0's first frame asserts
+     * the same queue invariant and TATE00 then consumes the resident sources. */
+    if (!Check_PL_Load() || !Check_LDREQ_Queue_BG(bg_w.stage) || !Check_LDREQ_Clear()) {
+        return;
+    }
+
+    Play_Type = 1;
+    Bonus_Game_Flag = 0;
+    Setup_VS_Mode(task_ptr);
+    init_omop();
+    Game01_Sub();
+    Cover_Timer = 5;
+    appear_type = APPEAR_TYPE_ANIMATED;
+    set_hitmark_color();
+    Purge_texcash_of_list(3);
+    Make_texcash_of_list(3);
+    G_No[1] = 2;
+    G_No[2] = 0;
+    G_No[3] = 0;
+    E_No[0] = 4;
+    E_No[1] = 0;
+    E_No[2] = 0;
+    E_No[3] = 0;
+    Sel_Arts_Complete[0] = -1;
+    Sel_Arts_Complete[1] = -1;
+    task_ptr->r_no[2] = 0;
+    cpExitTask(TASK_MENU);
+}
+
+static void VS_Result_DrawRematchLabels(void) {
+    static const char* const labels[3] = { "REMATCH", "CHAR SELECT", "EXIT" };
+    static const s16 panel_center_x[2] = { -96, 96 };
+    /* SSPutStrProP takes the top edge of an 8px glyph cell. EFF91's
+     * positions are the center of the stock label sprite, so convert that
+     * center to the text API's top-edge coordinate before drawing. */
+    enum { REMATCH_LABEL_GLYPH_HEIGHT = 8 };
+    s16 player;
+    s16 row;
+
+    for (player = 0; player < 2; player++) {
+        for (row = 0; row < 3; row++) {
+            const char* label = labels[row];
+            u32 colour = 0xFFFFFFFF;
+            /* The stock sprites have a different artwork offset for each
+             * label. The replacements must instead share the geometric
+             * centers of the left and right result panels. */
+            const s16 center_x = bg_w.bgw[0].wxy[0].disp.pos + panel_center_x[player] -
+                                 (s16)bg_prm[0].bg_h_shift;
+            const s16 label_y = 224 + (s16)bg_prm[0].bg_v_shift -
+                                (bg_w.bgw[0].wxy[1].disp.pos + EFF91_Pos_Data[player][row][1]) -
+                                REMATCH_LABEL_GLYPH_HEIGHT / 2;
+
+            if (Menu_Cursor_Y[player] == row) {
+                colour = Menu_Cursor_X[player] != 0 ? 0xFF80FFFF : 0xFFFFFF80;
+            }
+
+            SSPutStrProP(0,
+                          (u16)(center_x - SSGetDrawSizePro((const s8*)label) / 2),
+                          (u16)label_y,
+                          9,
+                          colour,
+                          label,
+                          2);
+        }
     }
 }
 
@@ -3374,7 +3595,7 @@ s32 VS_Result_Select_Sub(struct _TASK* task_ptr, s16 PL_id) {
 u16 After_VS_Move_Sub(u16 sw, s16 cursor_id, s16 menu_max) {
     s16 skip;
 
-    if (plw[0].wu.operator == 0 || plw[1].wu.operator == 0 || Mode_Type == MODE_NETWORK) {
+    if (plw[0].wu.operator == 0 || plw[1].wu.operator == 0) {
         skip = 1;
     } else {
         skip = 99;

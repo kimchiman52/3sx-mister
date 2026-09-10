@@ -875,10 +875,11 @@ static void step0_phase_report(void) {
 
     AFS_GetSyncReadLedger(&sync_read_ns, &sync_read_bytes, &sync_read_count);
 
-    /* One line, printed immediately before sdl_app.c's own FRAME OUTLIER
-     * line for the same frame, so the two land adjacent in a captured log
-     * and the frame ordinal on the second labels the first. */
-    SDL_Log("[step0] total=%.1fms afs=%.1f input=%.1f nav=%.1f engine=%.1f seqs=%.1f netplay=%.1f probes=%.1f "
+    /* This is emitted only for an already-slow frame. Keep it out of stderr
+     * and the filesystem on that same frame by using the lossy diagnostics
+     * mailbox shared with the frame outlier record. */
+    Netplay_LogGameplayDiagnosticf(
+            "[step0] total=%.1fms afs=%.1f input=%.1f nav=%.1f engine=%.1f seqs=%.1f netplay=%.1f probes=%.1f "
             "trace=%.1f effect=%.1f flip=%.1f | syncread=%.1fms n=%u bytes=%llu | G_No=%d/%d/%d/%d "
             "E_No=%d/%d/%d/%d menu_cond=%d menu_r_no=%d/%d/%d/%d Play_Mode=%d Mode_Type=%d",
             (double)total_ns / 1e6,

@@ -8,8 +8,8 @@
 #include "port/paths.h"
 #include "port/sdl/netplay_screen.h"
 #include "port/sdl/netstats_renderer.h"
-#if defined(ENABLE_NETPLAY)
 #include "netplay/netplay.h"
+#if defined(ENABLE_NETPLAY)
 #include "netplay/game_state.h"
 #endif
 #include "port/sdl/scanline_renderer.h"
@@ -669,27 +669,37 @@ static const char* software_frame_mode_name(void);
 static const char* super_effect_quality_mode_name(SuperEffectQualityMode mode);
 static SuperEffectQualityMode current_renderer_super_effect_quality_mode(void);
 
-#if ENABLE_PERF_TELEMETRY
-#endif
+/* Keep the backend diagnostics stream open for the process. The old helper
+ * opened, wrote, and closed backend.log for every line; the 120-frame perf
+ * summary therefore performed synchronous path/file I/O on the frame thread.
+ * The stream is block-buffered by SDL's file backend and is closed during the
+ * normal SDL teardown below. */
+static SDL_IOStream* s_backend_log_io = NULL;
 
 static void append_backend_log_line(const char* line) {
-    const char* pref_path = Paths_GetPrefPath();
-    char* logs_dir = NULL;
-    char* log_path = NULL;
-    SDL_asprintf(&logs_dir, "%slogs", pref_path);
-    SDL_CreateDirectory(logs_dir);
-    SDL_asprintf(&log_path, "%s/backend.log", logs_dir);
-
-    SDL_IOStream* io = SDL_IOFromFile(log_path, "a");
-
-    if (io != NULL) {
-        SDL_WriteIO(io, line, SDL_strlen(line));
-        SDL_WriteIO(io, "\n", 1);
-        SDL_CloseIO(io);
+    if (s_backend_log_io == NULL) {
+        const char* pref_path = Paths_GetPrefPath();
+        char* logs_dir = NULL;
+        char* log_path = NULL;
+        SDL_asprintf(&logs_dir, "%slogs", pref_path);
+        SDL_CreateDirectory(logs_dir);
+        SDL_asprintf(&log_path, "%s/backend.log", logs_dir);
+        s_backend_log_io = SDL_IOFromFile(log_path, "a");
+        SDL_free(logs_dir);
+        SDL_free(log_path);
     }
 
-    SDL_free(logs_dir);
-    SDL_free(log_path);
+    if (s_backend_log_io != NULL) {
+        SDL_WriteIO(s_backend_log_io, line, SDL_strlen(line));
+        SDL_WriteIO(s_backend_log_io, "\n", 1);
+    }
+}
+
+static void close_backend_log(void) {
+    if (s_backend_log_io != NULL) {
+        SDL_CloseIO(s_backend_log_io);
+        s_backend_log_io = NULL;
+    }
 }
 
 static void backend_logf(const char* fmt, ...) {
@@ -706,6 +716,26 @@ static void backend_logf(const char* fmt, ...) {
     SDL_Log("%s", buf);
     append_backend_log_line(buf);
     SDL_free(buf);
+}
+
+/* Keep ordinary local perf collection in backend.log. During a live netplay
+ * session, however, a frame diagnostic must never synchronously touch either
+ * the console or storage. */
+static void gameplay_diagnosticf(const char* fmt, ...) {
+    va_list args;
+    char line[512];
+
+    va_start(args, fmt);
+    SDL_vsnprintf(line, sizeof(line), fmt, args);
+    va_end(args);
+#if defined(ENABLE_NETPLAY)
+    if (Netplay_GetSessionState() == NETPLAY_SESSION_RUNNING ||
+        Netplay_GetSessionState() == NETPLAY_SESSION_CONNECTING) {
+        Netplay_LogGameplayDiagnostic(line);
+        return;
+    }
+#endif
+    backend_logf("%s", line);
 }
 
 #if ENABLE_PERF_TELEMETRY
@@ -3054,6 +3084,7 @@ void SDLApp_Quit() {
 #if ENABLE_PERF_TELEMETRY
     perf_capture_reset_storage();
 #endif
+    close_backend_log();
     SDL_Quit();
 }
 
@@ -3701,18 +3732,15 @@ void SDLApp_EndFrame() {
     const int dirty_tiles = 0;
     const double dirty_ratio = 0.0;
 
-    /* Issue #16 freeze diagnostics — log frames that exceed 50 ms of work.
-     * The frame ordinal is what makes an outlier attributable: flLogOut() and
-     * backend_logf() both reach stderr, so a captured run log interleaves this
-     * line with engine messages, and frame= says whether a neighbouring
-     * message belongs to this frame or merely landed next to it. */
+    /* Frame diagnostics enter the bounded netplay mailbox: observing a slow
+     * frame must never add console or filesystem latency to that same frame. */
     if (frame_work_ns > 50000000ULL) {
-        backend_logf("FRAME OUTLIER: frame=%llu total=%.1fms update=%.1f render=%.1f present=%.1f",
-                     (unsigned long long)perf_frame_index,
-                     (double)frame_work_ns / 1e6,
-                     (double)update_ns / 1e6,
-                     (double)render_ns / 1e6,
-                     (double)present_ns / 1e6);
+        gameplay_diagnosticf("FRAME OUTLIER: frame=%llu total=%.1fms update=%.1f render=%.1f present=%.1f",
+                                       (unsigned long long)perf_frame_index,
+                                       (double)frame_work_ns / 1e6,
+                                       (double)update_ns / 1e6,
+                                       (double)render_ns / 1e6,
+                                       (double)present_ns / 1e6);
     }
 
     /* Steady-state perf summary: 120-frame moving averages of u/r/p/t plus
@@ -3742,7 +3770,7 @@ void SDLApp_EndFrame() {
         if (perf_avg_frames >= 120) {
             const double inv = 1.0 / (perf_avg_frames * 1e6);
 #if defined(PORT_MIYOO_MINI_PLUS)
-            backend_logf("[perf_avg] frames=%d  update=%.2f render=%.2f present=%.2f total=%.2f  ov=%.2f arm=%.2f sdlp=%.2f",
+            gameplay_diagnosticf("[perf_avg] frames=%d  update=%.2f render=%.2f present=%.2f total=%.2f  ov=%.2f arm=%.2f sdlp=%.2f",
                          perf_avg_frames,
                          perf_avg_update_ns_sum * inv,
                          perf_avg_render_ns_sum * inv,
@@ -3755,7 +3783,7 @@ void SDLApp_EndFrame() {
             perf_avg_armpresent_ns_sum = 0;
             perf_avg_sdlpresent_ns_sum = 0;
 #else
-            backend_logf("[perf_avg] frames=%d  update=%.2f render=%.2f present=%.2f total=%.2f",
+            gameplay_diagnosticf("[perf_avg] frames=%d  update=%.2f render=%.2f present=%.2f total=%.2f",
                          perf_avg_frames,
                          perf_avg_update_ns_sum * inv,
                          perf_avg_render_ns_sum * inv,
@@ -3870,7 +3898,7 @@ void SDLApp_EndFrame() {
             }
             if (p3_frames >= 120) {
                 const double inv = 1.0 / (p3_frames * 1e6);
-                backend_logf("[perf_p3] frames=%d  trace=%.3f trdisp=%.3f  njdp2d_peak=%d/512 drops=%d  quads_peak=%d/512",
+                gameplay_diagnosticf("[perf_p3] frames=%d  trace=%.3f trdisp=%.3f  njdp2d_peak=%d/512 drops=%d  quads_peak=%d/512",
                              p3_frames,
                              (double)p3_frametrace_ns_sum * inv,
                              (double)p3_trainingdisp_ns_sum * inv,

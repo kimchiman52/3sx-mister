@@ -952,10 +952,13 @@ void Check_LDREQ_Queue() {
      * measurement instead of an extrapolation. */
     if (steps > 0) {
         const Uint64 elapsed_ms = (SDL_GetTicksNS() - start_ns) / SDL_NS_PER_MS;
-        flLogOut("[ldreq-barrier] drained in %d steps / %u ms / %u bytes / io-wait=%u ms (%d steps)\n",
-                 steps, (unsigned)elapsed_ms,
-                 (unsigned)(AFS_GetTotalBytesRequested() - start_bytes),
-                 (unsigned)(io_wait_ns / SDL_NS_PER_MS), io_wait_steps);
+        char line[192];
+        SDL_snprintf(line, sizeof(line),
+                     "[ldreq-barrier] drained in %d steps / %u ms / %u bytes / io-wait=%u ms (%d steps)",
+                     steps, (unsigned)elapsed_ms,
+                     (unsigned)(AFS_GetTotalBytesRequested() - start_bytes),
+                     (unsigned)(io_wait_ns / SDL_NS_PER_MS), io_wait_steps);
+        Netplay_LogGameplayDiagnostic(line);
     }
 #endif
 }

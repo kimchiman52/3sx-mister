@@ -392,7 +392,7 @@ static void test3_reason_matrix(void) {
         build_ref(&p, MIST_ARCH_TAG, MIST_PLATFORM_TAG, TEST_BUILD_HASH,
                   2, local_state, LOCAL_DIGEST);
         (void)CLASSIFY(tag, &p);
-        check_eq_str(tag, g.text, "Handshake v2 vs v4 - update one side",
+        check_eq_str(tag, g.text, "Handshake v2 vs v5 - update one side",
                      "the proto text names both versions");
     }
 
@@ -501,7 +501,7 @@ static void test4_precedence(void) {
     put_u16be(&p, local_state);       /* v1 carried state_ver, not a digest */
     check_eq_int(tag, CLASSIFY(tag, &p), MIST_REJECT_PROTO_MISMATCH,
                  "a v1 peer is told to update, not told its frame is malformed");
-    check_eq_str(tag, g.text, "Handshake v1 vs v4 - update one side",
+    check_eq_str(tag, g.text, "Handshake v1 vs v5 - update one side",
                  "and the message is the actionable one");
 
     /* state before the digest. */

@@ -53,6 +53,14 @@ void Netplay_LogConnectEventMT(const char* line) {
     (void)line;
 }
 
+void Netplay_LogGameplayDiagnostic(const char* line) {
+    (void)line;
+}
+
+void Netplay_LogGameplayDiagnosticf(const char* fmt, ...) {
+    (void)fmt;
+}
+
 #ifdef NETPLAY_TEST_HOOKS
 /* #44: NETPLAY_TEST_HOOKS is an independent CMake option
  * (CMakeLists.txt:98, 296-297) and is not implied by ENABLE_NETPLAY, so a
@@ -92,6 +100,16 @@ const char* Netplay_GetConnectStatusText(void) {
 }
 
 void Netplay_HandleMenuExit() {
+}
+
+NetplayPostMatchAction Netplay_ResolvePostMatchAction(bool ready0, bool ready1,
+                                                       bool rematch0, bool rematch1,
+                                                       bool char_select0, bool char_select1,
+                                                       bool exit0, bool exit1) {
+    if (exit0 || exit1) return NETPLAY_POST_MATCH_EXIT;
+    if (char_select0 || char_select1) return NETPLAY_POST_MATCH_CHAR_SELECT;
+    if ((ready0 || rematch0) && (ready1 || rematch1)) return NETPLAY_POST_MATCH_REMATCH;
+    return NETPLAY_POST_MATCH_NONE;
 }
 
 bool Netplay_ArmAllowed(void) {
