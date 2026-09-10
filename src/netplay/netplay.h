@@ -68,6 +68,8 @@ void Netplay_LogConnectEvent(const char* line);
  * threads use Netplay_LogConnectEventMT without a race on the mutex
  * pointer. Idempotent; safe to call on every host/join attempt. */
 void Netplay_LogSinkInit(void);
+/* Stop and join the asynchronous heartbeat logger before SDL teardown. */
+void Netplay_LogSinkShutdown(void);
 /* #36 — Same as Netplay_LogConnectEvent but callable from ANY thread.
  * Every cascade diagnostic worth keeping lives on a direct_p2p worker
  * thread, and those used bare SDL_Log, so they never reached the
@@ -93,6 +95,9 @@ void Netplay_TestHook_ReportDir(const char* dir);
  * to guess it from the newest name in a shared directory. False (and
  * an empty string) when no session log is open. */
 bool Netplay_TestHook_SessionLogPath(char* out, size_t cap);
+/* Exercise the asynchronous heartbeat mailbox without a live Gekko session. */
+void Netplay_TestHook_HeartbeatEnqueue(const char* line);
+void Netplay_TestHook_HeartbeatDrain(void);
 /* Task #144 review Item A: exposes process_session()'s pure event->code
  * mapping (session_fail_code_for_event, netplay.c) for the two RUNNING-
  * phase failure taxonomy codes. process_session() itself has no test seam

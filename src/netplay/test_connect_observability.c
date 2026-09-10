@@ -953,6 +953,13 @@ static void test4_mt_sink(unsigned long long before_ts) {
         SDL_WaitThread(tids[t], NULL);
     }
 
+    /* The heartbeat must take the asynchronous mailbox path and be visible
+     * after its explicit drain, without making this test run a live Gekko
+     * session. This also proves the logger thread serialized its FILE write
+     * before the file is read below. */
+    Netplay_TestHook_HeartbeatEnqueue("[netplay-heartbeat-test] f=1");
+    Netplay_TestHook_HeartbeatDrain();
+
     char path[768];
     if (!obs_find_new_log(before_ts, path, sizeof(path))) {
         fail(tag, "no new netplay-*.log was created by the MT sink");
@@ -964,6 +971,9 @@ static void test4_mt_sink(unsigned long long before_ts) {
         fail(tag, "could not read back the netplay log file");
         return;
     }
+
+    EXPECT_TRUE(tag,
+                strstr(body, "[netplay-heartbeat-test] f=1\n") != NULL);
 
     /* Every line must be present EXACTLY as written. Searching for the
      * whole line bounded by newlines is what catches a torn write: an
@@ -2184,6 +2194,7 @@ int Netplay_Test_ConnectObservability(void) {
      * does) before the directory goes away. */
     Netplay_TestHook_ReportDir(NULL);
     obs_rmtree_flat(report_dir);
+    Netplay_LogSinkShutdown();
 
     if (fail_count > 0) {
         fprintf(stderr, "[test_connect_observability] %d failure(s)\n", fail_count);

@@ -46,6 +46,9 @@ void Netplay_LogConnectEvent(const char* line) {
 void Netplay_LogSinkInit(void) {
 }
 
+void Netplay_LogSinkShutdown(void) {
+}
+
 void Netplay_LogConnectEventMT(const char* line) {
     (void)line;
 }
@@ -67,6 +70,13 @@ bool Netplay_TestHook_SessionLogPath(char* out, size_t cap) {
 
 void Netplay_TestHook_ReportDir(const char* dir) {
     (void)dir;
+}
+
+void Netplay_TestHook_HeartbeatEnqueue(const char* line) {
+    (void)line;
+}
+
+void Netplay_TestHook_HeartbeatDrain(void) {
 }
 #endif
 

@@ -1462,6 +1462,7 @@ static int loop() {
     // No-op when no session was active.
 #if defined(ENABLE_NETPLAY)
     Netplay_FlushDiagnostics();
+    Netplay_LogSinkShutdown();
 #endif
 
     cleanup();

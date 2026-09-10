@@ -229,8 +229,7 @@ static bool should_hold_last_frame(NetplaySessionState state, int drawable_advan
 }
 
 // === Tier-1 netplay diag — Item 7: buffered netplay log file ===
-// One FILE* opened at session start, fflush'd once per second (driven by
-// the heartbeat in update_network_stats), closed in the EXITING branch of
+// One FILE* opened at session start and closed in the EXITING branch of
 // Netplay_Run. All netplay-tagged lines pass through netplay_logf() which
 // tees to SDL_Log + the file.
 static FILE* s_netplay_log = NULL;
@@ -253,6 +252,22 @@ static char s_netplay_log_path[640] = { 0 };
 // NULL mutex => single-threaded era => lock/unlock are no-ops, so the
 // pre-existing main-thread behaviour is unchanged even if Init never ran.
 static SDL_Mutex* s_netplay_log_mu = NULL;
+
+// Heartbeats are useful one-second health evidence, but a filesystem flush
+// can block on the MiSTer's SD card. The game thread therefore hands each
+// completed heartbeat to this one-slot, coalescing mailbox and never touches
+// stderr or the session FILE for it. The logger thread owns that I/O. A
+// heartbeat is diagnostic, so replacing an older pending row is preferable
+// to letting gameplay wait for storage.
+#define NETPLAY_HEARTBEAT_LINE_MAX 512
+static SDL_Mutex* s_heartbeat_mu = NULL;
+static SDL_Condition* s_heartbeat_cv = NULL;
+static SDL_Thread* s_heartbeat_thread = NULL;
+static bool s_heartbeat_accepting = false;
+static bool s_heartbeat_pending = false;
+static bool s_heartbeat_inflight = false;
+static bool s_heartbeat_stopping = false;
+static char s_heartbeat_line[NETPLAY_HEARTBEAT_LINE_MAX] = { 0 };
 
 // Bound ONE session file. A cascade that retries for minutes can emit a
 // lot of lines and /media/fat is a shared SD card; past the budget the
@@ -301,11 +316,163 @@ static void netplay_log_unlock(void) {
     }
 }
 
+static void netplay_log_file_line(const char* line);
+static void netplay_log_line(const char* line);
+
+/* Optional frame-time diagnostics must never wait behind the heartbeat
+ * writer's filesystem flush.  The connection and session-end paths continue
+ * to use netplay_log_lock() so their records remain lossless. */
+static bool netplay_log_try_lock(void) {
+    return s_netplay_log_mu == NULL || SDL_TryLockMutex(s_netplay_log_mu);
+}
+
+static bool netplay_log_line_try(const char* line) {
+    if (!netplay_log_try_lock()) {
+        return false;
+    }
+    netplay_log_line(line);
+    netplay_log_unlock();
+    return true;
+}
+
+static int heartbeat_writer_thread(void* unused) {
+    (void)unused;
+
+    for (;;) {
+        char line[NETPLAY_HEARTBEAT_LINE_MAX];
+
+        SDL_LockMutex(s_heartbeat_mu);
+        while (!s_heartbeat_pending && !s_heartbeat_stopping) {
+            SDL_WaitCondition(s_heartbeat_cv, s_heartbeat_mu);
+        }
+        if (!s_heartbeat_pending && s_heartbeat_stopping) {
+            SDL_UnlockMutex(s_heartbeat_mu);
+            return 0;
+        }
+
+        SDL_strlcpy(line, s_heartbeat_line, sizeof(line));
+        s_heartbeat_pending = false;
+        s_heartbeat_inflight = true;
+        SDL_UnlockMutex(s_heartbeat_mu);
+
+        // This is deliberately the only live-session path that flushes a
+        // heartbeat. It may wait on SD or a redirected stderr sink, but it
+        // never runs on the game thread.
+        fputs(line, stderr);
+        fputc('\n', stderr);
+        fflush(stderr);
+
+        netplay_log_lock();
+        netplay_log_file_line(line);
+        if (s_netplay_log != NULL) {
+            fflush(s_netplay_log);
+        }
+        netplay_log_unlock();
+
+        SDL_LockMutex(s_heartbeat_mu);
+        s_heartbeat_inflight = false;
+        SDL_SignalCondition(s_heartbeat_cv);
+        SDL_UnlockMutex(s_heartbeat_mu);
+    }
+}
+
+// Main thread only: retire live heartbeat work before replacing or closing
+// the FILE it targets. Waiting here is safe: session transitions and program
+// shutdown are already non-realtime, unlike active gameplay.
+static void heartbeat_disable_and_drain(void) {
+    if (s_heartbeat_mu == NULL || s_heartbeat_thread == NULL) {
+        return;
+    }
+
+    SDL_LockMutex(s_heartbeat_mu);
+    s_heartbeat_accepting = false;
+    SDL_SignalCondition(s_heartbeat_cv);
+    while (s_heartbeat_pending || s_heartbeat_inflight) {
+        SDL_WaitCondition(s_heartbeat_cv, s_heartbeat_mu);
+    }
+    SDL_UnlockMutex(s_heartbeat_mu);
+}
+
+// Main thread only, after netplay_log_open() has installed the session FILE.
+static void heartbeat_enable(void) {
+    if (s_heartbeat_mu == NULL || s_heartbeat_thread == NULL) {
+        return;
+    }
+
+    SDL_LockMutex(s_heartbeat_mu);
+    s_heartbeat_pending = false;
+    s_heartbeat_accepting = true;
+    SDL_UnlockMutex(s_heartbeat_mu);
+}
+
+// Nonblocking game-thread producer. If the mailbox is briefly held while
+// the logger copies a row, skip this diagnostic sample rather than wait.
+static void heartbeat_enqueue(const char* line) {
+    if (line == NULL || line[0] == '\0' || s_heartbeat_mu == NULL ||
+        s_heartbeat_thread == NULL || !SDL_TryLockMutex(s_heartbeat_mu)) {
+        return;
+    }
+
+    if (s_heartbeat_accepting && !s_heartbeat_stopping) {
+        SDL_strlcpy(s_heartbeat_line, line, sizeof(s_heartbeat_line));
+        s_heartbeat_pending = true;
+        SDL_SignalCondition(s_heartbeat_cv);
+    }
+    SDL_UnlockMutex(s_heartbeat_mu);
+}
+
 void Netplay_LogSinkInit(void) {
     if (s_netplay_log_mu == NULL) {
         s_netplay_log_mu = SDL_CreateMutex();
     }
+    if (s_heartbeat_mu == NULL) {
+        s_heartbeat_mu = SDL_CreateMutex();
+    }
+    if (s_heartbeat_cv == NULL && s_heartbeat_mu != NULL) {
+        s_heartbeat_cv = SDL_CreateCondition();
+    }
+    if (s_heartbeat_thread == NULL && s_heartbeat_mu != NULL && s_heartbeat_cv != NULL) {
+        s_heartbeat_stopping = false;
+        s_heartbeat_thread = SDL_CreateThread(heartbeat_writer_thread,
+                                              "NetplayHeartbeatLog", NULL);
+        if (s_heartbeat_thread == NULL) {
+            SDL_DestroyCondition(s_heartbeat_cv);
+            s_heartbeat_cv = NULL;
+            SDL_DestroyMutex(s_heartbeat_mu);
+            s_heartbeat_mu = NULL;
+        }
+    }
 }
+
+void Netplay_LogSinkShutdown(void) {
+    heartbeat_disable_and_drain();
+    if (s_heartbeat_mu == NULL || s_heartbeat_thread == NULL) {
+        return;
+    }
+
+    SDL_LockMutex(s_heartbeat_mu);
+    s_heartbeat_stopping = true;
+    SDL_SignalCondition(s_heartbeat_cv);
+    SDL_UnlockMutex(s_heartbeat_mu);
+    SDL_WaitThread(s_heartbeat_thread, NULL);
+    s_heartbeat_thread = NULL;
+    SDL_DestroyCondition(s_heartbeat_cv);
+    s_heartbeat_cv = NULL;
+    SDL_DestroyMutex(s_heartbeat_mu);
+    s_heartbeat_mu = NULL;
+}
+
+#ifdef NETPLAY_TEST_HOOKS
+void Netplay_TestHook_HeartbeatEnqueue(const char* line) {
+    Netplay_LogSinkInit();
+    heartbeat_enable();
+    heartbeat_enqueue(line);
+}
+
+void Netplay_TestHook_HeartbeatDrain(void) {
+    heartbeat_disable_and_drain();
+}
+#endif
 
 // === Tier-1 netplay diag — Item 9: /proc/net/snmp UDP-drop snapshots ===
 // Captured at session start, on peer-disconnect, and at session end. The
@@ -594,8 +761,8 @@ bool Netplay_TestHook_SessionLogPath(char* out, size_t cap) {
 #endif
 
 // Opens <pref>/logs/netplay-<utc_ms>.log for the active session. Block
-// buffered (fflush is driven by the heartbeat at 1 Hz) so we avoid the
-// per-line fopen+fwrite+fclose pattern in backend_logf. The filename is
+// buffering keeps non-heartbeat event writes cheap; heartbeats are flushed by
+// heartbeat_writer_thread(), away from the game thread. The filename is
 // announced via SDL_Log at open time so post-mortem readers can find it
 // quickly.
 static void netplay_log_open(uint64_t utc_ms) {
@@ -623,7 +790,7 @@ static void netplay_log_open(uint64_t utc_ms) {
     SDL_strlcpy(s_netplay_log_path, (s_netplay_log != NULL) ? path : "",
                 sizeof(s_netplay_log_path));
     if (s_netplay_log != NULL) {
-        // Block-buffered with a small buffer; we drive fflush from the heartbeat.
+        // Block-buffered; heartbeat_writer_thread() drives its flush.
         setvbuf(s_netplay_log, NULL, _IOFBF, 4096);
         SDL_Log("[netplay sess=%08x] netplay log file: %s",
                 s_session_uuid, path);
@@ -1734,8 +1901,9 @@ static void configure_gekko() {
     s_last_no_draw_frame = -1;
 
     // Tier-1 netplay diag — Item 7: open the per-session netplay log file.
-    // Block-buffered, fflush'd 1 Hz from the heartbeat. Filename includes
-    // the session-start unix ms so cross-peer pairing is just matching ms.
+    // The heartbeat logger owns its asynchronous one-second flush. Filename
+    // includes the session-start unix ms so cross-peer pairing is just
+    // matching ms.
     //
     // S3-review L-2: a PRE-session connection failure opens the log lazily
     // via Netplay_LogConnectEvent, and nothing on that path ever closes it
@@ -1747,10 +1915,13 @@ static void configure_gekko() {
     // #36: close+open must be ONE critical section — a worker landing
     // between them would lazily reopen a file this session is about to
     // replace.
+    Netplay_LogSinkInit();
+    heartbeat_disable_and_drain();
     netplay_log_lock();
     netplay_log_close();
     netplay_log_open(s_session_started_unix_ms);
     netplay_log_unlock();
+    heartbeat_enable();
 
     // Tier-1 netplay diag — Item 9: capture /proc/net/snmp UDP-row baseline
     // so peer-disconnect / session-end can emit deltas. Zeroed sample on
@@ -2002,9 +2173,7 @@ static void process_session() {
                          s_last_advance_frame,
                          (double)frames_behind,
                          (int)network_stats.rollback);
-            netplay_log_lock();   // #36: a direct_p2p worker may be live
-            netplay_log_line(line);
-            netplay_log_unlock();
+            (void)netplay_log_line_try(line);
             s_watchdog_latched = true;
         }
     }
@@ -2369,35 +2538,11 @@ static void update_network_stats() {
                         (int)network_stats.rollback,
                         (double)frames_behind);
             }
-            // Tier-1 netplay diag — Item 7: tee to the netplay log file.
-            // Keep stderr surface for tail -f / wrapper-log workflows.
-            fputs(line, stderr);
-            fputc('\n', stderr);
-            fflush(stderr);
-            // #36 / F4: through the budgeted writer, not a raw fputs. The
-            // heartbeat runs once per second for the whole session and was
-            // the ONE writer that bypassed s_netplay_log_bytes and the
-            // s_netplay_log_truncated latch, so it kept enlarging the file
-            // after the 256 KB marker claimed nothing more would be
-            // written.
-            //
-            // netplay_log_file_line, not netplay_log_line: the explicit
-            // stderr write above is this site's console surface (kept for
-            // the tail -f / wrapper-log workflow the original comment
-            // names), and netplay_log_line's SDL_Log tee would print a
-            // SECOND copy of every heartbeat to that same stderr. The
-            // split keeps the byte budget and leaves this site's console
-            // output byte-identical to before.
-            netplay_log_lock();
-            netplay_log_file_line(line);
-            // Load-bearing: the file is block-buffered on purpose and THIS
-            // is the 1 Hz flush that netplay_log_open's comment delegates
-            // to the heartbeat. Skipped when the budget already refused
-            // the line, which is harmless — there is nothing new to push.
-            if (s_netplay_log != NULL) {
-                fflush(s_netplay_log);
-            }
-            netplay_log_unlock();
+            // The one-second row retains its stderr and session-log surfaces,
+            // but heartbeat_enqueue never waits for either sink. The logger
+            // thread applies the same file budget and flushes after gameplay
+            // has handed off the row.
+            heartbeat_enqueue(line);
         }
 
         frame_max_rollback = 0;
@@ -2438,9 +2583,7 @@ static void run_netplay() {
                          s_session_uuid, s_last_advance_frame, (double)frames_behind,
                          catch_up ? 1 : 0, trace.game_events, trace.advances,
                          trace.rollback_advances, trace.loads, trace.saves);
-            netplay_log_lock();
-            netplay_log_line(line);
-            netplay_log_unlock();
+            (void)netplay_log_line_try(line);
         }
 #endif
         s_no_draw_episode = true;
@@ -2470,9 +2613,7 @@ static void run_netplay() {
                      (double)trace.save_ns / 1e6, trace.game_events, trace.advances,
                      trace.rollback_advances, trace.drawable_advances, trace.loads,
                      trace.saves, catch_up ? 1 : 0, s_hold_last_frame ? 1 : 0);
-        netplay_log_lock();
-        netplay_log_line(line);
-        netplay_log_unlock();
+        (void)netplay_log_line_try(line);
     }
 #endif
 }
@@ -2858,6 +2999,7 @@ void Netplay_Run() {
                     (int)final_stats.jitter,
                     (double)final_stats.kb_sent,
                     (double)final_stats.kb_received);
+            heartbeat_disable_and_drain();
             netplay_log_lock();   // #36: held across session-end + close
             netplay_log_line(line);
 
@@ -3203,6 +3345,9 @@ void Netplay_LogConnectEventMT(const char* line) {
 // s_session_uuid keeps it from double-running if the regular EXITING path
 // already cleaned up.
 void Netplay_FlushDiagnostics(void) {
+    // A queued heartbeat may otherwise race the direct final writes and FILE
+    // close below. Draining is intentionally allowed to wait on shutdown.
+    heartbeat_disable_and_drain();
     // No active session — nothing to flush. The s_session_uuid==0 sentinel
     // is set in the EXITING branch after final-summary emission.
     //
