@@ -192,7 +192,10 @@ static void apply_network_mode_override(void) {
     save_w[MODE_NETWORK].Time_Limit = 99;
     save_w[MODE_NETWORK].Battle_Number[0] = 1;
     save_w[MODE_NETWORK].Battle_Number[1] = 1;
-    save_w[MODE_NETWORK].Damage_Level = 0;
+    /* CPS3's default service setting is Damage_Level 1.  The arcade
+     * archives measured 1 on all 143 corpus segments; level 0 is a
+     * materially lower-damage setting, not an alias for normal damage. */
+    save_w[MODE_NETWORK].Damage_Level = 1;
     save_w[MODE_NETWORK].Handicap = 0;
     save_w[MODE_NETWORK].GuardCheck = 0;
     const u8 identity[8] = { 0, 1, 2, 11, 3, 4, 5, 11 };

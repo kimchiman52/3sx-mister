@@ -54,7 +54,9 @@ Different peers may have different saved DIP-switch values (time limit, damage l
 
 - `Time_Limit = 99`
 - `Battle_Number[0..1] = 1` (best-of-3 rounds)
-- `Damage_Level = 0, Handicap = 0, GuardCheck = 0`
+- `Damage_Level = 1, Handicap = 0, GuardCheck = 0` (arcade-default damage;
+  `Handicap = 0` skips the unused handicap-selection screen while the
+  initialized `Vital_Handicap` values remain equal at 7/7)
 - Identity `Pad_Infor[0..1].Shot[]`, vibration off
 
 Without this, frame-0 state diverges between peers and Gekko's desync detection terminates the session immediately.

@@ -1245,7 +1245,9 @@ static void setup_vs_mode() {
     save_w[MODE_NETWORK].Time_Limit = 99;
     save_w[MODE_NETWORK].Battle_Number[0] = 2; // Best of 3 (1P vs CPU)
     save_w[MODE_NETWORK].Battle_Number[1] = 2; // Best of 3 (1P vs 2P)
-    save_w[MODE_NETWORK].Damage_Level = 0;     // Normal damage
+    /* Match the CPS3 default service setting.  Damage_Level 0 reduces
+     * ordinary damage to roughly two-thirds of the arcade-default value. */
+    save_w[MODE_NETWORK].Damage_Level = 1;
     save_w[MODE_NETWORK].Handicap = 0;
     save_w[MODE_NETWORK].GuardCheck = 0;
 

@@ -430,7 +430,7 @@ The simulation reads `p1sw_0`, `p1sw_1`, `p2sw_0`, `p2sw_1`, `PLsw[0-1][0-1]`, `
 `setup_vs_mode` at `src/netplay/netplay.c:147-378` forces these before session start:
 - `save_w[MODE_NETWORK].Time_Limit = 99` (line 216)
 - `save_w[MODE_NETWORK].Battle_Number[0..1] = 2 / 1` (lines 217-218, 286-287)
-- `save_w[MODE_NETWORK].Damage_Level = 0` (line 219)
+- `save_w[MODE_NETWORK].Damage_Level = 1` (arcade-default service setting)
 - `save_w[MODE_NETWORK].Handicap = 0` (line 220)
 - `save_w[MODE_NETWORK].GuardCheck = 0` (line 221)
 - `save_w[MODE_NETWORK].Pad_Infor[p].Shot[s] = identity[s]` (lines 267-272)
