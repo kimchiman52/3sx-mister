@@ -895,6 +895,10 @@ void Check_LDREQ_Queue() {
     const unsigned long long start_bytes = AFS_GetTotalBytesRequested();
 #endif
     int steps = 0;
+#if ENABLE_PERF_TELEMETRY
+    int io_wait_steps = 0;
+    Uint64 io_wait_ns = 0;
+#endif
 
     while (q_ldreq->be != 0) {
         if (steps >= LDREQ_BARRIER_MAX_STEPS || (SDL_GetTicksNS() - start_ns) > budget_ns) {
@@ -911,12 +915,30 @@ void Check_LDREQ_Queue() {
             break;
         }
 
-        /* be == 1 means the head is parked on an in-flight AFS_Read, so
-         * block for its completion rather than busy-spinning the state
-         * machine. 1 ms also bounds the poll interval for the harness's
-         * injected-latency mode, where the outcome has already been
-         * delivered and only the artificial release time is pending. */
-        AFS_PumpBlocking(1);
+        /* A 1 ms wait is needed only while AFS owns an outstanding read or
+         * close.  `be` is not enough to tell: after a completed request is
+         * shifted, the next head can still be at a purely local transition
+         * while the old handle closes, and an ordinary head starts at be=2.
+         *
+         * Waiting unconditionally charged every state-machine transition a
+         * full millisecond when no I/O was pending.  The field trace exposed
+         * that shape directly: 132 steps took 135 ms and 164 took 169 ms.
+         * Polling in that case preserves the full-drain invariant while
+         * letting open/allocate/queue/complete transitions run immediately.
+         * When a read or close is in flight, retain the bounded wait so an
+         * actual slow disk cannot turn this loop into a busy spin. */
+        if (fsCheckCommandExecuting() != 0) {
+#if ENABLE_PERF_TELEMETRY
+            const Uint64 wait_start_ns = SDL_GetTicksNS();
+#endif
+            AFS_PumpBlocking(1);
+#if ENABLE_PERF_TELEMETRY
+            io_wait_ns += SDL_GetTicksNS() - wait_start_ns;
+            io_wait_steps += 1;
+#endif
+        } else {
+            AFS_RunServer();
+        }
         ldreq_pump_head();
         steps += 1;
     }
@@ -930,9 +952,10 @@ void Check_LDREQ_Queue() {
      * measurement instead of an extrapolation. */
     if (steps > 0) {
         const Uint64 elapsed_ms = (SDL_GetTicksNS() - start_ns) / SDL_NS_PER_MS;
-        flLogOut("[ldreq-barrier] drained in %d steps / %u ms / %u bytes\n",
+        flLogOut("[ldreq-barrier] drained in %d steps / %u ms / %u bytes / io-wait=%u ms (%d steps)\n",
                  steps, (unsigned)elapsed_ms,
-                 (unsigned)(AFS_GetTotalBytesRequested() - start_bytes));
+                 (unsigned)(AFS_GetTotalBytesRequested() - start_bytes),
+                 (unsigned)(io_wait_ns / SDL_NS_PER_MS), io_wait_steps);
     }
 #endif
 }

@@ -243,6 +243,35 @@ void Bg_Close() {
     bg_disp_off = 0;
 }
 
+/* A torn render cache alone is insufficient reason to rebuild: normal
+ * round/session teardown can purge a source before TATE00 stops running.
+ * Validate every source the selected stage needs before Bg_TexInit changes
+ * render state. */
+static bool bg_texture_source_resident(u8 type, s16* key_out, void** address_out, u32* size_out) {
+    const s16 key = Search_ramcnt_type(type);
+
+    if (key <= 0) {
+        return false;
+    }
+
+    const void* address = (const void*)Get_ramcnt_address(key);
+    const u32 size = Get_size_data_ramcnt_key(key);
+    if (address == NULL || size == 0) {
+        return false;
+    }
+
+    if (key_out != NULL) {
+        *key_out = key;
+    }
+    if (address_out != NULL) {
+        *address_out = (void*)address;
+    }
+    if (size_out != NULL) {
+        *size_out = size;
+    }
+    return true;
+}
+
 void Bg_Texture_Load_EX() {
     void* loadAdrs;
     u32 loadSize;
@@ -257,13 +286,36 @@ void Bg_Texture_Load_EX() {
     u8 x;
     u8 shift;
     u8 stg;
-    u8* akeAdrs;
-    s32 akeSize;
-    s16 akeKey;
+    void* akeAdrs;
+    u32 akeSize;
 
     u32 assign1;
     u32 assign2;
     u8 assign3;
+
+    /* Preflight before Bg_TexInit or releasing any existing handles. This is
+     * the final defense for the loader's direct caller as well as the rollback
+     * repair: a missing source must leave render state untouched. The crash
+     * session's final address-then-size key=0 guards uniquely identify the two
+     * calls formerly made near the middle of this function. */
+    if (!bg_texture_source_resident(0x12, &key1, &loadAdrs, &loadSize)) {
+#if ENABLE_PERF_TELEMETRY
+        flLogOut("[bg-texture-skip] %s source type=0x12 is not resident\n", __func__);
+#endif
+        return;
+    }
+
+    /* Every regular stage also builds the Akebono PPG chunks below from
+     * ramcnt type 0x1F.  It must be present before we release/rebuild any
+     * handles: checking only the primary 0x12 source recreated the same
+     * key-0 NULL-buffer path when the sources had mixed residency. */
+    if (bg_w.stage != 20 && bg_w.stage != 21 &&
+        !bg_texture_source_resident(0x1F, NULL, &akeAdrs, &akeSize)) {
+#if ENABLE_PERF_TELEMETRY
+        flLogOut("[bg-texture-skip] %s source type=0x1F is not resident\n", __func__);
+#endif
+        return;
+    }
 
 #if defined(DEBUG)
     {
@@ -354,9 +406,6 @@ void Bg_Texture_Load_EX() {
         Bg_On_R(4);
     }
 
-    key1 = Search_ramcnt_type(0x12);
-    loadAdrs = (void*)Get_ramcnt_address(key1);
-    loadSize = Get_size_data_ramcnt_key(key1);
     pmask = 0xFF000000;
     shift = 0x18;
 
@@ -418,9 +467,6 @@ void Bg_Texture_Load_EX() {
     }
 
     if (bg_w.stage != 20 && bg_w.stage != 21) {
-        akeKey = Search_ramcnt_type(0x1F);
-        akeSize = Get_size_data_ramcnt_key(akeKey);
-        akeAdrs = (u8*)Get_ramcnt_address(akeKey);
         ppgSetupCurrentDataList(&ppgAkeList);
         ppgSetupPalChunk(NULL, akeAdrs, akeSize, 0, 0, 1);
         ppgSetupTexChunk_1st(NULL, akeAdrs, akeSize, 0, 3, 0, 0);
@@ -535,6 +581,15 @@ void Bg_Texture_Rollback_Repair() {
     }
 
     if (bg_tex_repair_suppressed) {
+        return;
+    }
+
+    /* Cache teardown is legitimate after the stage source has been purged.
+     * Wait for residency rather than calling Bg_Texture_Load_EX and latching
+     * suppression: a later LDREQ may make the source available again. */
+    if (!bg_texture_source_resident(0x12, NULL, NULL, NULL) ||
+        (bg_w.stage != 20 && bg_w.stage != 21 &&
+         !bg_texture_source_resident(0x1F, NULL, NULL, NULL))) {
         return;
     }
 

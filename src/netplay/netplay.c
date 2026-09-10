@@ -199,6 +199,35 @@ static bool     s_watchdog_latched = false;
 // heartbeat snapshot. Buckets: 0, 1-2, 3-4, 5-7, 8+.
 static uint32_t s_rb_buckets[5] = { 0 };
 
+/* Gekko can return no AdvanceEvent when the prediction window is exhausted.
+ * A batch containing only rollback advances is also intentionally non-drawing.
+ * The renderer must retain its completed canvas for either case; rasterizing
+ * the current queue would clear the canvas to opaque black first. */
+static bool s_hold_last_frame = false;
+static bool s_no_draw_episode = false;
+static uint32_t s_hb_no_draw_holds = 0;
+static uint32_t s_hb_catchups = 0;
+static int s_last_no_draw_frame = -1;
+
+typedef struct NetplayRunTrace {
+    Uint64 session_ns;
+    Uint64 update_ns;
+    Uint64 load_ns;
+    Uint64 advance_ns;
+    Uint64 save_ns;
+    int game_events;
+    int advances;
+    int rollback_advances;
+    int drawable_advances;
+    int loads;
+    int saves;
+} NetplayRunTrace;
+
+static bool should_hold_last_frame(NetplaySessionState state, int drawable_advances) {
+    return (state == NETPLAY_SESSION_CONNECTING || state == NETPLAY_SESSION_RUNNING) &&
+           drawable_advances == 0;
+}
+
 // === Tier-1 netplay diag — Item 7: buffered netplay log file ===
 // One FILE* opened at session start, fflush'd once per second (driven by
 // the heartbeat in update_network_stats), closed in the EXITING branch of
@@ -1698,6 +1727,11 @@ static void configure_gekko() {
     SDL_zeroa(s_hb_prev_pkt_tx);
     SDL_zeroa(s_hb_prev_pkt_rx);
     SDL_zeroa(s_rb_buckets);
+    s_hold_last_frame = false;
+    s_no_draw_episode = false;
+    s_hb_no_draw_holds = 0;
+    s_hb_catchups = 0;
+    s_last_no_draw_frame = -1;
 
     // Tier-1 netplay diag — Item 7: open the per-session netplay log file.
     // Block-buffered, fflush'd 1 Hz from the heartbeat. Filename includes
@@ -1935,6 +1969,10 @@ bool Netplay_TestHook_MenuExitConfirmed(int head_frame, int request_frame, int p
 bool Netplay_TestHook_MenuExitErasedByLoad(int load_frame, int request_frame) {
     return menu_exit_request_erased_by_load(load_frame, request_frame);
 }
+
+bool Netplay_TestHook_ShouldHoldLastFrame(NetplaySessionState state, int drawable_advances) {
+    return should_hold_last_frame(state, drawable_advances);
+}
 #endif
 
 static void process_session() {
@@ -2119,9 +2157,17 @@ static void process_session() {
     }
 }
 
-static void process_events(bool drawing_allowed) {
+static void process_events(bool drawing_allowed, NetplayRunTrace* trace) {
+    const int advances_before = trace->advances;
     int game_event_count = 0;
+#if ENABLE_PERF_TELEMETRY
+    const Uint64 update_start_ns = SDL_GetTicksNS();
+#endif
     GekkoGameEvent** game_events = gekko_update_session(session, &game_event_count);
+#if ENABLE_PERF_TELEMETRY
+    trace->update_ns += SDL_GetTicksNS() - update_start_ns;
+#endif
+    trace->game_events += game_event_count;
     int frames_rolled_back = 0;
 
     for (int i = 0; i < game_event_count; i++) {
@@ -2129,6 +2175,9 @@ static void process_events(bool drawing_allowed) {
 
         switch (event->type) {
         case GekkoLoadEvent:
+#if ENABLE_PERF_TELEMETRY
+            const Uint64 load_start_ns = SDL_GetTicksNS();
+#endif
 #if defined(DEBUG)
             /* Black-BG investigation 2026-04-24 — Experiment 5a.
              * Count GekkoLoadEvents (rollback restores). Emit every 10th. */
@@ -2147,11 +2196,25 @@ static void process_events(bool drawing_allowed) {
                 s_menu_exit_request_frame = -1;
             }
             load_state_from_event(event);
+#if ENABLE_PERF_TELEMETRY
+            trace->load_ns += SDL_GetTicksNS() - load_start_ns;
+#endif
+            trace->loads++;
             break;
 
         case GekkoAdvanceEvent:
             const bool rolling_back = event->data.adv.rolling_back;
-            advance_game(event, drawing_allowed && !rolling_back);
+            const bool drawable = drawing_allowed && !rolling_back;
+#if ENABLE_PERF_TELEMETRY
+            const Uint64 advance_start_ns = SDL_GetTicksNS();
+#endif
+            advance_game(event, drawable);
+#if ENABLE_PERF_TELEMETRY
+            trace->advance_ns += SDL_GetTicksNS() - advance_start_ns;
+#endif
+            trace->advances++;
+            trace->drawable_advances += drawable ? 1 : 0;
+            trace->rollback_advances += rolling_back ? 1 : 0;
             frames_rolled_back += rolling_back ? 1 : 0;
             // Tier-1 netplay diag — Item 5: stamp UTC ms of the most recent
             // advance regardless of whether it was the rolling-back leg.
@@ -2165,7 +2228,14 @@ static void process_events(bool drawing_allowed) {
             break;
 
         case GekkoSaveEvent:
+#if ENABLE_PERF_TELEMETRY
+            const Uint64 save_start_ns = SDL_GetTicksNS();
+#endif
             save_state(event);
+#if ENABLE_PERF_TELEMETRY
+            trace->save_ns += SDL_GetTicksNS() - save_start_ns;
+#endif
+            trace->saves++;
             break;
 
         case GekkoEmptyGameEvent:
@@ -2190,16 +2260,22 @@ static void process_events(bool drawing_allowed) {
         else if (frames_rolled_back >= 3) b = 2;
         else                              b = 1;  // 1..2
         s_rb_buckets[b]++;
-    } else {
-        // Note: a "no rollback" advance batch still counts toward bucket 0
-        // so the histogram has a meaningful baseline (no-rb % per second).
+    } else if (trace->advances > advances_before) {
+        // Empty updates have their own no-draw counter; do not disguise them
+        // as ordinary zero-rollback advance batches.
         s_rb_buckets[0]++;
     }
 }
 
-static void step_logic(bool drawing_allowed) {
+static void step_logic(bool drawing_allowed, NetplayRunTrace* trace) {
+#if ENABLE_PERF_TELEMETRY
+    const Uint64 session_start_ns = SDL_GetTicksNS();
+#endif
     process_session();
-    process_events(drawing_allowed);
+#if ENABLE_PERF_TELEMETRY
+    trace->session_ns += SDL_GetTicksNS() - session_start_ns;
+#endif
+    process_events(drawing_allowed, trace);
 }
 
 static void update_network_stats() {
@@ -2253,6 +2329,10 @@ static void update_network_stats() {
             uint32_t rb_snap[5];
             SDL_memcpy(rb_snap, s_rb_buckets, sizeof(rb_snap));
             SDL_zeroa(s_rb_buckets);
+            const uint32_t hold_snap = s_hb_no_draw_holds;
+            const uint32_t catchup_snap = s_hb_catchups;
+            s_hb_no_draw_holds = 0;
+            s_hb_catchups = 0;
 
             char line[512];
             if (diag) {
@@ -2261,7 +2341,8 @@ static void update_network_stats() {
                         "kbps_tx=%.1f kbps_rx=%.1f rb=%d behind=%.1f "
                         "tx=I:%llu,A:%llu,SH:%llu,NH:%llu "
                         "rx=I:%llu,A:%llu,SH:%llu,NH:%llu "
-                        "rb_hist=0:%u,1:%u,2:%u,3:%u,4:%u",
+                        "rb_hist=0:%u,1:%u,2:%u,3:%u,4:%u "
+                        "holds=%u catchups=%u last_hold_f=%d",
                         s_session_uuid,
                         s_last_advance_frame,
                         (int)network_stats.ping,
@@ -2278,7 +2359,8 @@ static void update_network_stats() {
                         (unsigned long long)d_rx[3],
                         (unsigned long long)d_rx[6],
                         (unsigned long long)d_rx[7],
-                        rb_snap[0], rb_snap[1], rb_snap[2], rb_snap[3], rb_snap[4]);
+                        rb_snap[0], rb_snap[1], rb_snap[2], rb_snap[3], rb_snap[4],
+                        hold_snap, catchup_snap, s_last_no_draw_frame);
             } else {
                 SDL_snprintf(line, sizeof(line),
                         "[netplay hb] f=%d ping=%d rb=%d behind=%.1f",
@@ -2327,14 +2409,43 @@ static void update_network_stats() {
 }
 
 static void run_netplay() {
-    // Step
-
+    NetplayRunTrace trace;
+    SDL_zero(trace);
+    s_hold_last_frame = false;
+#if ENABLE_PERF_TELEMETRY
+    const Uint64 run_start_ns = SDL_GetTicksNS();
+#endif
     const bool catch_up = need_to_catch_up() && (frame_skip_timer == 0);
-    step_logic(!catch_up);
+    step_logic(!catch_up, &trace);
 
     if (catch_up) {
-        step_logic(true);
+        step_logic(true, &trace);
         frame_skip_timer = FRAME_SKIP_TIMER_MAX;
+        s_hb_catchups++;
+    }
+
+    s_hold_last_frame = should_hold_last_frame(session_state, trace.drawable_advances);
+    if (s_hold_last_frame) {
+        s_hb_no_draw_holds++;
+        s_last_no_draw_frame = s_last_advance_frame;
+#if ENABLE_PERF_TELEMETRY
+        if (!s_no_draw_episode) {
+            char line[320];
+            SDL_snprintf(line, sizeof(line),
+                         "[netplay sess=%08x] no-draw hold f=%d behind=%.1f "
+                         "catchup=%d events=%d advances=%d rollback_adv=%d "
+                         "loads=%d saves=%d",
+                         s_session_uuid, s_last_advance_frame, (double)frames_behind,
+                         catch_up ? 1 : 0, trace.game_events, trace.advances,
+                         trace.rollback_advances, trace.loads, trace.saves);
+            netplay_log_lock();
+            netplay_log_line(line);
+            netplay_log_unlock();
+        }
+#endif
+        s_no_draw_episode = true;
+    } else {
+        s_no_draw_episode = false;
     }
 
     frame_skip_timer -= 1;
@@ -2343,6 +2454,31 @@ static void run_netplay() {
     // Update stats
 
     update_network_stats();
+
+#if ENABLE_PERF_TELEMETRY
+    const Uint64 run_ns = SDL_GetTicksNS() - run_start_ns;
+    if (run_ns > 50 * SDL_NS_PER_MS) {
+        char line[448];
+        SDL_snprintf(line, sizeof(line),
+                     "[netplay-perf sess=%08x] f=%d total=%.1fms session=%.1f "
+                     "gekko_update=%.1f load=%.1f advance=%.1f save=%.1f "
+                     "events=%d advances=%d rollback_adv=%d drawable_adv=%d "
+                     "loads=%d saves=%d catchup=%d hold=%d",
+                     s_session_uuid, s_last_advance_frame, (double)run_ns / 1e6,
+                     (double)trace.session_ns / 1e6, (double)trace.update_ns / 1e6,
+                     (double)trace.load_ns / 1e6, (double)trace.advance_ns / 1e6,
+                     (double)trace.save_ns / 1e6, trace.game_events, trace.advances,
+                     trace.rollback_advances, trace.drawable_advances, trace.loads,
+                     trace.saves, catch_up ? 1 : 0, s_hold_last_frame ? 1 : 0);
+        netplay_log_lock();
+        netplay_log_line(line);
+        netplay_log_unlock();
+    }
+#endif
+}
+
+bool Netplay_ShouldHoldLastFrame(void) {
+    return s_hold_last_frame;
 }
 
 void Netplay_SetParams(int player, const char* ip) {
@@ -2444,6 +2580,9 @@ void Netplay_TickDirectP2P() {
 }
 
 void Netplay_Run() {
+    /* Per-outer-frame output decision. run_netplay may set it again for the
+     * CONNECTING/RUNNING branches below. */
+    s_hold_last_frame = false;
 #if ENABLE_PERF_TELEMETRY
     /* Task #69.3 — the whole session-start window as a timeline, not two
      * point samples. TRANSITIONING and CONNECTING both step the engine

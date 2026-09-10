@@ -55,6 +55,11 @@
 #include "netplay/netplay.h" /* #145: Netplay_TestHook_MenuExit* predicates */
 #include "netplay/rendezvous.h"
 #include "netplay/stun.h"
+#include "platform/video/software/software_renderer.h"
+#include "rendering/game_renderer.h"
+#include "sf33rd/Source/Common/PPGWork.h"
+#include "sf33rd/Source/Game/stage/bg.h"
+#include "sf33rd/Source/Game/system/ramcnt.h"
 
 #include <SDL3/SDL.h>
 #include <stdbool.h>
@@ -93,9 +98,9 @@ static int checks_run = 0;
  * computes, so commenting a call out of the dispatch is a FAILURE and
  * not a smaller green run. The assertion floor catches the other shape:
  * a test that runs but whose body was short-circuited. */
-#define EXPECTED_TESTS 16
+#define EXPECTED_TESTS 18
 
-/* The real figure is 1059 and is printed in the summary. This sits below
+/* The real figure is 1100 and is printed in the summary. This sits below
  * it and above what a short-circuited run would produce. Not an exact
  * count — that invites bumping the number instead of asking why it
  * moved. Note it counts only EXPECT_TRUE/EXPECT_FALSE; several moved
@@ -2181,6 +2186,121 @@ static int unit_menu_exit_deferral(void) {
     return (fail_count == fails_before) ? 0 : 1;
 }
 
+static int unit_no_draw_frame_hold(void) {
+    tests_run++;
+    fprintf(stderr, "[test_netplay_units] no_draw_frame_hold: prediction stalls retain the completed canvas\n");
+    const int fails_before = fail_count;
+
+    EXPECT_TRUE("no-draw-running-empty",
+                Netplay_TestHook_ShouldHoldLastFrame(NETPLAY_SESSION_RUNNING, 0));
+    EXPECT_FALSE("no-draw-running-drawable",
+                 Netplay_TestHook_ShouldHoldLastFrame(NETPLAY_SESSION_RUNNING, 1));
+    EXPECT_TRUE("no-draw-connecting",
+                Netplay_TestHook_ShouldHoldLastFrame(NETPLAY_SESSION_CONNECTING, 0));
+    EXPECT_FALSE("no-draw-idle",
+                 Netplay_TestHook_ShouldHoldLastFrame(NETPLAY_SESSION_IDLE, 0));
+
+    EXPECT_TRUE("renderer-init", SoftwareRenderer_Init(true, 1));
+    int w = 0;
+    int h = 0;
+    int pitch = 0;
+    const SWCanvasPixel* canvas = SoftwareRenderer_GetCanvas(&w, &h, &pitch);
+    EXPECT_TRUE("renderer-canvas", canvas != NULL && w > 0 && h > 0 && pitch > 0);
+    if (canvas != NULL && w > 0 && h > 0 && pitch > 0) {
+        const size_t bytes = (size_t)pitch * (size_t)h;
+        unsigned char* initial = malloc(bytes);
+        unsigned char* completed = malloc(bytes);
+        EXPECT_TRUE("renderer-snapshots", initial != NULL && completed != NULL);
+        if (initial != NULL && completed != NULL) {
+            memcpy(initial, canvas, bytes);
+            const uint32_t white = 0xFFFFFFFFu;
+            Renderer_DrawUIBitmap(10.0f, 10.0f, 1.0f, &white, 1, 1, 0xFFFFFFFFu);
+            SoftwareRenderer_RenderFrame();
+            memcpy(completed, canvas, bytes);
+            EXPECT_TRUE("renderer-produced-frame", memcmp(initial, completed, bytes) != 0);
+
+            const uint32_t red = 0xFFFF0000u;
+            Renderer_DrawUIBitmap(20.0f, 20.0f, 1.0f, &red, 1, 1, 0xFFFFFFFFu);
+            EXPECT_TRUE("renderer-discard-count", SoftwareRenderer_HoldLastFrame() == 1);
+            EXPECT_TRUE("renderer-held-canvas", memcmp(completed, canvas, bytes) == 0);
+        }
+        free(initial);
+        free(completed);
+    }
+    SoftwareRenderer_Quit();
+
+    fprintf(stderr, "[test_netplay_units] no_draw_frame_hold OK\n");
+    return (fail_count == fails_before) ? 0 : 1;
+}
+
+static int unit_bg_repair_requires_source(void) {
+    tests_run++;
+    fprintf(stderr, "[test_netplay_units] bg_repair_requires_source: torn cache plus missing PPG sources\n");
+    const int fails_before = fail_count;
+
+    RCKeyWork saved_keys[RCKEY_WORK_MAX];
+    Texture saved_bg_tex[4];
+    const BG saved_bg = bg_w;
+    const u16 saved_switch = Screen_Switch;
+    const u16 saved_switch_buffer = Screen_Switch_Buffer;
+    s32 saved_pal[8];
+    memcpy(saved_keys, rckey_work, sizeof(saved_keys));
+    memcpy(saved_bg_tex, ppgBgTex, sizeof(saved_bg_tex));
+    memcpy(saved_pal, bgPalCodeOffset, sizeof(saved_pal));
+
+    memset(rckey_work, 0, sizeof(saved_keys));
+    memset(ppgBgTex, 0, sizeof(saved_bg_tex));
+    memset(&bg_w, 0, sizeof(bg_w));
+    bg_w.stage = 0;
+    bg_w.scrno = 1;
+    bg_w.bg_routine = 3;
+    Screen_Switch = 0x1357u;
+    Screen_Switch_Buffer = 0x2468u;
+    for (int i = 0; i < 8; i++) {
+        bgPalCodeOffset[i] = 1000 + i;
+    }
+
+    EXPECT_TRUE("bg-source-purged", Search_ramcnt_type(0x12) == 0);
+    Bg_Texture_Rollback_Repair();
+    EXPECT_TRUE("bg-repair-cache-stays-torn", ppgBgTex[0].be == 0);
+    EXPECT_TRUE("bg-repair-switch-untouched", Screen_Switch == 0x1357u);
+    EXPECT_TRUE("bg-repair-buffer-untouched", Screen_Switch_Buffer == 0x2468u);
+    for (int i = 0; i < 8; i++) {
+        EXPECT_TRUE("bg-repair-palette-untouched", bgPalCodeOffset[i] == 1000 + i);
+    }
+
+    /* Pin the loader preflight too. Before this fix the call emitted
+     * Get_ramcnt_address(0), Get_size_data_ramcnt_key(0), then passed NULL/0
+     * to ppgSetupTexChunk_1st: the live session's exact SIGSEGV signature. */
+    Bg_Texture_Load_EX();
+    EXPECT_TRUE("bg-loader-cache-stays-torn", ppgBgTex[0].be == 0);
+    EXPECT_TRUE("bg-loader-switch-untouched", Screen_Switch == 0x1357u);
+
+    /* A non-bonus stage also consumes type 0x1F for its Akebono chunks. A
+     * 0x12-only preflight passed this mixed-residency state and later handed
+     * NULL/0 to ppgSetupPalChunk. The dummy 0x12 block must never be read:
+     * a correct all-source preflight returns before Bg_TexInit. */
+    rckey_work[1].type = 0x12;
+    rckey_work[1].use = 1;
+    rckey_work[1].adr = (uintptr_t)1;
+    rckey_work[1].size = 1;
+    EXPECT_TRUE("bg-primary-source-resident", Search_ramcnt_type(0x12) == 1);
+    EXPECT_TRUE("bg-ake-source-purged", Search_ramcnt_type(0x1F) == 0);
+    Bg_Texture_Load_EX();
+    EXPECT_TRUE("bg-mixed-source-cache-stays-torn", ppgBgTex[0].be == 0);
+    EXPECT_TRUE("bg-mixed-source-switch-untouched", Screen_Switch == 0x1357u);
+
+    memcpy(rckey_work, saved_keys, sizeof(saved_keys));
+    memcpy(ppgBgTex, saved_bg_tex, sizeof(saved_bg_tex));
+    bg_w = saved_bg;
+    Screen_Switch = saved_switch;
+    Screen_Switch_Buffer = saved_switch_buffer;
+    memcpy(bgPalCodeOffset, saved_pal, sizeof(saved_pal));
+
+    fprintf(stderr, "[test_netplay_units] bg_repair_requires_source OK\n");
+    return (fail_count == fails_before) ? 0 : 1;
+}
+
 /* ================================================================== */
 
 int Netplay_Test_NetplayUnits(void) {
@@ -2205,6 +2325,8 @@ int Netplay_Test_NetplayUnits(void) {
     rc |= unit_orch_cascade();
     rc |= unit_natpmp_deadline_math();
     rc |= unit_menu_exit_deferral();
+    rc |= unit_no_draw_frame_hold();
+    rc |= unit_bg_repair_requires_source();
 
     fprintf(stderr, "[test_netplay_units] summary: %d test(s), %d assertion(s), "
                     "%d failure(s)\n", tests_run, checks_run, fail_count);

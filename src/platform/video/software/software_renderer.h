@@ -19,6 +19,8 @@
 bool SoftwareRenderer_Init(bool nearest_filter, int scale);
 void SoftwareRenderer_Quit();
 void SoftwareRenderer_RenderFrame();
+/* Drain queued geometry without changing the completed canvas. */
+int SoftwareRenderer_HoldLastFrame();
 int SoftwareRenderer_GetPerfPeakQuads(void);
 
 // Canvas accessor for the host app driver to present (SDL streaming texture, DRM dumb buffer, etc.).

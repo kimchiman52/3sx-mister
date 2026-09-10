@@ -9,6 +9,7 @@
 #include "port/sdl/netplay_screen.h"
 #include "port/sdl/netstats_renderer.h"
 #if defined(ENABLE_NETPLAY)
+#include "netplay/netplay.h"
 #include "netplay/game_state.h"
 #endif
 #include "port/sdl/scanline_renderer.h"
@@ -213,6 +214,11 @@ static SuperEffectQualityMode super_effect_quality_mode = SUPER_EFFECT_QUALITY_F
 /* arm_clock: ARM CPU clock mode (0=stock 800MHz, 1=1000MHz, 2=1200MHz).
    Applied via sysfs scaling_max_freq.  Reset to stock on exit. */
 static int arm_clock_mode = 0;
+/* Verified scaling_max_freq readback, in kHz. The configured mode remains
+ * separate because the kernel can reject an overclock. */
+#if defined(PORT_MISTER)
+static long arm_clock_actual_khz = 0;
+#endif
 static bool game_mode_arcade = false;
 static bool hold_to_pause = false;
 #if ENABLE_PERF_TELEMETRY
@@ -2534,24 +2540,26 @@ static void apply_arm_clock(int mode) {
         /* Raising: max first (so min write doesn't exceed old max) */
         if (!sysfs_write("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq", freq)) {
             backend_logf("ARM clock: failed to set scaling_max_freq (driver may not be loaded)");
-            return;
+        } else {
+            sysfs_write("/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq", freq);
         }
-        sysfs_write("/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq", freq);
     } else {
         /* Lowering: min first (so max write doesn't go below old min) */
         sysfs_write("/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq", freq);
         if (!sysfs_write("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq", freq)) {
             backend_logf("ARM clock: failed to set scaling_max_freq");
-            return;
         }
     }
 
     /* Read back and verify */
     char readback[32] = {};
     if (sysfs_read("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq", readback, sizeof(readback))) {
+        arm_clock_actual_khz = strtol(readback, NULL, 10);
         if (strcmp(readback, freq) != 0) {
             backend_logf("ARM clock: WARNING scaling_max_freq readback mismatch: wanted %s, got %s", freq, readback);
         }
+    } else {
+        arm_clock_actual_khz = 0;
     }
 #else
     (void)mode;
@@ -2973,7 +2981,17 @@ int SDLApp_FullInit() {
 #endif
     backend_logf("Software frame mode: %s", software_frame_mode_name());
     backend_logf("Super effect quality: %s", super_effect_quality_mode_name(super_effect_quality_mode));
+#if defined(PORT_MISTER)
+    if (arm_clock_actual_khz > 0) {
+        backend_logf("ARM clock: requested %s, actual %ldMHz",
+                     arm_clock_mode_label(arm_clock_mode), arm_clock_actual_khz / 1000);
+    } else {
+        backend_logf("ARM clock: requested %s, actual frequency unavailable",
+                     arm_clock_mode_label(arm_clock_mode));
+    }
+#else
     backend_logf("ARM clock: %s", arm_clock_mode_label(arm_clock_mode));
+#endif
     ScanlineRenderer_Init(renderer);
 
 #if defined(DEBUG)
@@ -3467,13 +3485,27 @@ void SDLApp_EndFrame() {
     // This should come before SoftwareRenderer_RenderFrame,
     // because NetstatsRenderer uses the existing SFIII rendering pipeline.
 #if defined(ENABLE_NETPLAY)
-    NetplayScreen_Render();
-    NetstatsRenderer_Render();
+    const bool hold_netplay_frame = Netplay_ShouldHoldLastFrame();
+    if (!hold_netplay_frame) {
+        NetplayScreen_Render();
+        NetstatsRenderer_Render();
+    }
 #endif
     const bool has_message_content = SDLMessageRenderer_HasContent();
     {
         const Uint64 gib_render_start_ns = SDL_GetTicksNS();
-        SoftwareRenderer_RenderFrame();
+#if defined(ENABLE_NETPLAY)
+        if (hold_netplay_frame) {
+            /* An exhausted prediction window can produce no drawable game
+             * advance. Rendering that tick would clear the canvas to black.
+             * Do not advance overlay state above; drain any rollback geometry
+             * and present the last complete canvas with its matching overlays. */
+            SoftwareRenderer_HoldLastFrame();
+        } else
+#endif
+        {
+            SoftwareRenderer_RenderFrame();
+        }
         const Uint64 gib_render_end_ns = SDL_GetTicksNS();
         gib_render_ns_this_frame = (gib_render_end_ns > gib_render_start_ns)
                                        ? (gib_render_end_ns - gib_render_start_ns)
